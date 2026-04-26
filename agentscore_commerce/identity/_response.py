@@ -121,7 +121,7 @@ WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS = json.dumps(
 )
 
 
-def build_missing_identity_reason(base_url: str = "https://api.agentscore.sh") -> DenialReason:
+def build_missing_identity_reason() -> DenialReason:
     """Construct a missing_identity DenialReason with the cross-merchant memory hint attached.
 
     Emitted when the adapter has no identity AND no create_session_on_missing config — this is the
@@ -132,7 +132,7 @@ def build_missing_identity_reason(base_url: str = "https://api.agentscore.sh") -
     return DenialReason(
         code="missing_identity",
         agent_instructions=_MISSING_IDENTITY_INSTRUCTIONS,
-        agent_memory=build_agent_memory_hint(base_url),
+        agent_memory=build_agent_memory_hint(),
     )
 
 

@@ -28,31 +28,18 @@ WALLET_B = "0x2222222222222222222222222222222222222222"
 
 
 def test_agent_memory_hint_has_core_fields() -> None:
-    hint = build_agent_memory_hint("https://api.agentscore.sh")
+    hint = build_agent_memory_hint()
     assert hint.save_for_future_agentscore_gates is True
     assert "AgentScore" in hint.pattern_summary
     assert hint.identity_check_endpoint == "https://api.agentscore.sh/v1/credentials"
-    # list_wallets_endpoint is reserved for a future GET endpoint — not emitted today.
     assert hint.list_wallets_endpoint is None
     assert "X-Wallet-Address" in hint.identity_paths["wallet"]
     assert "X-Operator-Token" in hint.identity_paths["operator_token"]
     assert "operator_token" in hint.do_not_persist_in_memory
 
 
-def test_agent_memory_hint_strips_trailing_slash() -> None:
-    hint = build_agent_memory_hint("https://api.agentscore.sh/")
-    assert hint.identity_check_endpoint == "https://api.agentscore.sh/v1/credentials"
-
-
-def test_agent_memory_hint_ignores_merchant_base_url() -> None:
-    # Sec1: memory pointers must always be the canonical AgentScore API to prevent
-    # malicious merchants from phishing agents via their own baseUrl configuration.
-    hint = build_agent_memory_hint("https://evil.example.com")
-    assert hint.identity_check_endpoint == "https://api.agentscore.sh/v1/credentials"
-
-
 def test_agent_memory_hint_is_dataclass() -> None:
-    hint = build_agent_memory_hint("https://api.agentscore.sh")
+    hint = build_agent_memory_hint()
     assert isinstance(hint, AgentMemoryHint)
 
 
@@ -359,7 +346,7 @@ def test_denial_reason_to_body_includes_agent_memory() -> None:
 
     reason = DenialReason(
         code="missing_identity",
-        agent_memory=build_agent_memory_hint("https://api.agentscore.sh"),
+        agent_memory=build_agent_memory_hint(),
     )
     body = denial_reason_to_body(reason)
 
@@ -396,7 +383,7 @@ def test_build_missing_identity_reason_attaches_memory_hint() -> None:
     """The missing_identity builder attaches an agent_memory hint by default."""
     from agentscore_commerce.identity._response import build_missing_identity_reason
 
-    reason = build_missing_identity_reason("https://api.agentscore.sh")
+    reason = build_missing_identity_reason()
     assert reason.code == "missing_identity"
     assert reason.agent_memory is not None
     assert reason.agent_memory.save_for_future_agentscore_gates is True
@@ -407,7 +394,7 @@ def test_build_missing_identity_reason_hints_probe_strategy() -> None:
     wallet-first on signing rails, fall back to stored opc_..., fall back to session flow."""
     from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
 
-    reason = build_missing_identity_reason("https://api.agentscore.sh")
+    reason = build_missing_identity_reason()
     assert reason.agent_instructions is not None
 
     instructions = json.loads(reason.agent_instructions)

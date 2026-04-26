@@ -133,12 +133,12 @@ class VerifyWalletSignerResult:
 _CANONICAL_AGENTSCORE_API = "https://api.agentscore.sh"
 
 
-def build_agent_memory_hint(_base_url: str = "") -> AgentMemoryHint:
+def build_agent_memory_hint() -> AgentMemoryHint:
     """Build the cross-merchant memory hint emitted on bootstrap denials.
 
-    ``_base_url`` is kept for backwards-compat but deliberately ignored — agent memory must
-    always point at the canonical production API to prevent cross-merchant phishing (a merchant
-    configuring a malicious baseUrl could otherwise redirect agents to evil.com).
+    Memory pointers always point at the canonical production API — merchants must not be
+    able to redirect the cross-merchant memory surface, since that would be a phishing
+    vector for the verify URL.
     """
     api = _CANONICAL_AGENTSCORE_API
     return AgentMemoryHint(

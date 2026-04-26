@@ -100,7 +100,6 @@ def _apply_dynamic_options(body: dict[str, Any], dynamic: Any) -> dict[str, Any]
 def _session_denial_reason(
     data: dict[str, Any],
     extra: dict[str, Any] | None = None,
-    base_url: str = "https://api.agentscore.sh",
 ) -> DenialReason | None:
     # Validate required fields before trusting the response. A misbehaving (or
     # mocked-wrong) API could 200 without session_id/poll_secret/verify_url, which
@@ -125,7 +124,7 @@ def _session_denial_reason(
         poll_secret=data["poll_secret"],
         poll_url=data.get("poll_url"),
         agent_instructions=agent_instructions,
-        agent_memory=build_agent_memory_hint(base_url),
+        agent_memory=build_agent_memory_hint(),
         extra=extra,
     )
 
@@ -179,7 +178,7 @@ async def try_create_session_denial_reason(
             except Exception as err:
                 logger.warning("on_before_session hook failed: %s", err)
 
-        return _session_denial_reason(data, extra, cfg.base_url)
+        return _session_denial_reason(data, extra)
     except Exception:
         return None
 
@@ -230,7 +229,7 @@ def try_create_session_denial_reason_sync(
             except Exception as err:
                 logger.warning("on_before_session hook failed: %s", err)
 
-        return _session_denial_reason(data, extra, cfg.base_url)
+        return _session_denial_reason(data, extra)
     except Exception:
         return None
 

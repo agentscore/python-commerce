@@ -24,7 +24,6 @@ from agentscore_commerce.identity.types import AgentMemoryHint, build_agent_memo
 
 def first_encounter_agent_memory(
     first_encounter: bool,
-    base_url: str = "",
 ) -> AgentMemoryHint | None:
     """Return the ``agent_memory`` hint when this is a first encounter, otherwise ``None``.
 
@@ -45,7 +44,7 @@ def first_encounter_agent_memory(
     """
     if not first_encounter:
         return None
-    return build_agent_memory_hint(base_url)
+    return build_agent_memory_hint()
 
 
 __all__ = ["AgentMemoryHint", "build_agent_memory_hint", "first_encounter_agent_memory"]

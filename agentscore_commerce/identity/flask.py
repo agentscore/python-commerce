@@ -114,7 +114,7 @@ def agentscore_gate(
         if not identity:
             if client.fail_open:
                 return None
-            denial_reason = build_missing_identity_reason(client.base_url)
+            denial_reason = build_missing_identity_reason()
             if create_session_on_missing is not None:
                 session_reason = try_create_session_denial_reason_sync(
                     create_session_on_missing,

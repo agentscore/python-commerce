@@ -142,7 +142,7 @@ class AgentScoreGate:
                     await response(scope, receive, send)
                     return
 
-            reason = build_missing_identity_reason(self._client.base_url)
+            reason = build_missing_identity_reason()
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
             return

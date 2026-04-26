@@ -119,7 +119,7 @@ class AgentScoreMiddleware:
                 )
                 if session_reason is not None:
                     return self._on_denied(request, session_reason)
-            return self._on_denied(request, build_missing_identity_reason(self._client.base_url))
+            return self._on_denied(request, build_missing_identity_reason())
 
         chain_override = self._extract_chain(request)
 

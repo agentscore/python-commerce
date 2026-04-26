@@ -160,7 +160,7 @@ class AgentScoreGate:
                 )
                 if session_reason is not None:
                     self._deny(request, session_reason)
-            self._deny(request, build_missing_identity_reason(self._client.base_url))
+            self._deny(request, build_missing_identity_reason())
 
         chain_override = self._extract_chain(request)
 

@@ -133,7 +133,7 @@ def agentscore_gate_middleware(
                 if session_reason is not None:
                     body, status = _on_denied(request, session_reason)
                     return web.json_response(body, status=status)
-            body, status = _on_denied(request, build_missing_identity_reason(client.base_url))
+            body, status = _on_denied(request, build_missing_identity_reason())
             return web.json_response(body, status=status)
 
         chain_override = _extract_chain(request)

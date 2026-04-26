@@ -1,5 +1,6 @@
 """llms.txt builders — identity section + payment section + full document assembler."""
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -75,25 +76,36 @@ def llms_txt_payment_section(input: LlmsTxtPaymentSectionInput) -> str:
     return _llms_txt_payment_section_compact(input)
 
 
+def _has_rail_family(rails: list[str], prefix: str) -> bool:
+    return any(r.startswith(prefix) for r in rails)
+
+
+_TESTNET_MARKER = re.compile(r"(sepolia|devnet|moderato|testnet)")
+
+
+def _is_testnet_rail(rails: list[str], prefix: str) -> bool:
+    return any(r.startswith(prefix) and _TESTNET_MARKER.search(r) for r in rails)
+
+
 def _llms_txt_payment_section_compact(input: LlmsTxtPaymentSectionInput) -> str:
     lines: list[str] = ["## Payment", ""]
-    rail_set = set(input.rails)
-    if "tempo-mainnet" in rail_set or "tempo-testnet" in rail_set:
+    rails = list(input.rails)
+    if _has_rail_family(rails, "tempo-"):
         lines.append(
-            "- **Tempo USDC via MPP** (recommended for crypto-native agents) — "
+            "- **Tempo USDC via MPP** — "
             f"`tempo request -X POST -H \"X-Operator-Token: opc_...\" --json '{{...}}' --max-spend N {input.app_url}`"
         )
-    if "x402-base-mainnet" in rail_set or "x402-base-sepolia" in rail_set:
+    if _has_rail_family(rails, "x402-base-"):
         lines.append(
             f"- **x402 USDC on Base** (EIP-3009) — `agentscore-pay pay POST {input.app_url} --chain base "
             "-H \"X-Operator-Token: opc_...\" -d '{...}'`"
         )
-    if "x402-solana-mainnet" in rail_set or "x402-solana-devnet" in rail_set:
+    if _has_rail_family(rails, "x402-solana-"):
         lines.append(
             f"- **x402 USDC on Solana** (SPL Token) — `agentscore-pay pay POST {input.app_url} --chain solana "
             "-H \"X-Operator-Token: opc_...\" -d '{...}'`"
         )
-    if "stripe-spt" in rail_set:
+    if "stripe-spt" in rails:
         lines.append(
             "- **Stripe Shared Payment Token** — agent mints SPT (own Stripe account scoped to networkId, "
             "OR `link-cli spend-request create --credential-type shared_payment_token --network-id "
@@ -109,11 +121,13 @@ def _llms_txt_payment_section_compact(input: LlmsTxtPaymentSectionInput) -> str:
 
 
 def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
-    rail_set = set(input.rails)
-    has_tempo = "tempo-mainnet" in rail_set or "tempo-testnet" in rail_set
-    has_base = "x402-base-mainnet" in rail_set or "x402-base-sepolia" in rail_set
-    has_solana = "x402-solana-mainnet" in rail_set or "x402-solana-devnet" in rail_set
-    has_stripe = "stripe-spt" in rail_set
+    rails = list(input.rails)
+    has_tempo = _has_rail_family(rails, "tempo-")
+    has_base = _has_rail_family(rails, "x402-base-")
+    has_solana = _has_rail_family(rails, "x402-solana-")
+    has_stripe = "stripe-spt" in rails
+    base_network_name = "Base Sepolia" if _is_testnet_rail(rails, "x402-base-") else "Base"
+    solana_network_name = "Solana devnet" if _is_testnet_rail(rails, "x402-solana-") else "Solana"
 
     lines: list[str] = ["## Payment", ""]
     lines.append(
@@ -121,13 +135,13 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
     )
     lines.append("")
     if has_tempo:
-        lines.append("- **Tempo USDC via MPP** (on-chain stablecoin) — RECOMMENDED")
+        lines.append("- **Tempo USDC via MPP** (on-chain stablecoin)")
     if has_base or has_solana:
         chain_parts = []
         if has_base:
-            chain_parts.append("Base (EIP-3009)")
+            chain_parts.append(f"{base_network_name} (EIP-3009)")
         if has_solana:
-            chain_parts.append("Solana (SPL Token)")
+            chain_parts.append(f"{solana_network_name} (SPL Token)")
         lines.append(f"- **x402 USDC** on {' and '.join(chain_parts)}, via the Coinbase facilitator")
     if has_stripe:
         lines.append(
@@ -137,7 +151,7 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
     lines.append("")
 
     if has_tempo:
-        lines.append("### How to pay with Tempo (recommended)")
+        lines.append("### How to pay with Tempo")
         lines.append("")
         lines.append("1. Install the Tempo CLI: curl -fsSL https://tempo.xyz/install | bash")
         lines.append("2. Log in to your Tempo Wallet: tempo wallet login (passkey auth in browser)")
@@ -167,10 +181,10 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
         chain_parts = []
         flag_parts = []
         if has_base:
-            chain_parts.append("Base")
+            chain_parts.append(base_network_name)
             flag_parts.append("`--chain base`")
         if has_solana:
-            chain_parts.append("Solana")
+            chain_parts.append(solana_network_name)
             flag_parts.append("`--chain solana`")
         lines.append(f"### How to pay with x402 ({' or '.join(chain_parts)})")
         lines.append("")
@@ -181,7 +195,7 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
         lines.append(
             f"2. Create a wallet on your chain of choice: agentscore-pay wallet create {' or '.join(flag_parts)}"
         )
-        lines.append(f"3. Fund the printed address with USDC on {' or '.join(chain_parts)} mainnet")
+        lines.append(f"3. Fund the printed address with USDC on {' or '.join(chain_parts)}")
         lines.append(f"4. Confirm balance: agentscore-pay balance {' or '.join(flag_parts)}")
         lines.append("")
         lines.append("Then submit the paid purchase:")

@@ -202,14 +202,11 @@ def build_ucp_profile(
             account_verification = {}
         claims = {
             "operator_id": data.resolved_operator,
-            "kyc_level": account_verification.get("kyc_level")
-            or operator_verification.get("level")
-            or "none",
+            "kyc_level": account_verification.get("kyc_level") or operator_verification.get("level") or "none",
             "sanctions_clear": account_verification.get("sanctions_clear") is True,
             "age_bracket": account_verification.get("age_bracket", "unknown"),
             "jurisdiction": account_verification.get("jurisdiction", ""),
-            "verified_at": account_verification.get("verified_at")
-            or operator_verification.get("verified_at"),
+            "verified_at": account_verification.get("verified_at") or operator_verification.get("verified_at"),
             "verify_url": data.verify_url,
             "issuer": "https://agentscore.sh",
         }
@@ -217,8 +214,7 @@ def build_ucp_profile(
             UCPCapability(
                 name=AGENTSCORE_UCP_CAPABILITY,
                 version=_AGENTSCORE_CAPABILITY_VERSION,
-                schema=agentscore_schema_url
-                or "https://agentscore.sh/schemas/ucp/agentscore-identity.v1.json",
+                schema=agentscore_schema_url or "https://agentscore.sh/schemas/ucp/agentscore-identity.v1.json",
                 extras={"claims": claims},
             ),
         )

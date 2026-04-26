@@ -49,10 +49,7 @@ async def create_mppx_stripe(
     try:
         stripe_module = importlib.import_module("pympp.methods.stripe")
     except ImportError as exc:
-        msg = (
-            "pympp[stripe] not installed — run `pip install 'pympp[stripe]'` "
-            "to use create_mppx_stripe."
-        )
+        msg = "pympp[stripe] not installed — run `pip install 'pympp[stripe]'` to use create_mppx_stripe."
         raise ImportError(msg) from exc
 
     charge_factory = getattr(stripe_module, "charge", None)

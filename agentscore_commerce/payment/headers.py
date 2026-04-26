@@ -123,21 +123,24 @@ def build_payment_headers(input: BuildPaymentHeadersInput) -> PaymentHeadersResu
     """
     directives = []
     for rail in input.rails:
-        directive_input = BuildPaymentDirectiveInput(
-            id=f"{input.order_id}-{rail.rail}",
-            realm=input.realm,
-            rail=rail.rail,
-            amount_usd=rail.amount_usd,
-            recipient=rail.recipient,
-            network_id=rail.network_id,
-            chain_id=rail.chain_id,
-            currency=rail.currency,
-            decimals=rail.decimals,
-            method=rail.method,
-            intent=rail.intent,
-            expires=rail.expires,
-        )
-        directives.append(build_payment_directive(directive_input))
+        # `intent` is non-Optional on BuildPaymentDirectiveInput (defaults to "charge");
+        # only forward when the rail explicitly sets it so the default applies otherwise.
+        kwargs: dict[str, Any] = {
+            "id": f"{input.order_id}-{rail.rail}",
+            "realm": input.realm,
+            "rail": rail.rail,
+            "amount_usd": rail.amount_usd,
+            "recipient": rail.recipient,
+            "network_id": rail.network_id,
+            "chain_id": rail.chain_id,
+            "currency": rail.currency,
+            "decimals": rail.decimals,
+            "method": rail.method,
+            "expires": rail.expires,
+        }
+        if rail.intent is not None:
+            kwargs["intent"] = rail.intent
+        directives.append(build_payment_directive(BuildPaymentDirectiveInput(**kwargs)))
 
     result: PaymentHeadersResult = {"www_authenticate": www_authenticate_header(directives)}
 

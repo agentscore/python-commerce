@@ -99,23 +99,16 @@ def build_erc8004_attribute(
     if not isinstance(account_verification, dict):
         account_verification = {}
 
-    resolved_verify_url = (
-        verify_url
-        or data.verify_url
-        or f"{issuer}/verify"
-    )
+    resolved_verify_url = verify_url or data.verify_url or f"{issuer}/verify"
 
     return AgentScoreERC8004Attribute(
         schema=AGENTSCORE_ERC8004_SCHEMA,
         operator_id=operator_id,
         jurisdiction=account_verification.get("jurisdiction", ""),
-        kyc_level=account_verification.get("kyc_level")
-        or operator_verification.get("level")
-        or "none",
+        kyc_level=account_verification.get("kyc_level") or operator_verification.get("level") or "none",
         sanctions_clear=account_verification.get("sanctions_clear") is True,
         age_bracket=account_verification.get("age_bracket", "unknown"),
-        verified_at=account_verification.get("verified_at")
-        or operator_verification.get("verified_at"),
+        verified_at=account_verification.get("verified_at") or operator_verification.get("verified_at"),
         verify_url=resolved_verify_url,
         issuer=issuer,
         version=_SCHEMA_VERSION,

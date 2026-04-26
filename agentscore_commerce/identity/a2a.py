@@ -152,14 +152,11 @@ def build_a2a_agent_card(
         identity = A2AAgentCardIdentity(
             issuer=issuer,
             operator_id=data.resolved_operator,
-            kyc_level=account_verification.get("kyc_level")
-            or operator_verification.get("level")
-            or "none",
+            kyc_level=account_verification.get("kyc_level") or operator_verification.get("level") or "none",
             sanctions_clear=account_verification.get("sanctions_clear") is True,
             age_bracket=account_verification.get("age_bracket", "unknown"),
             jurisdiction=account_verification.get("jurisdiction", ""),
-            verified_at=account_verification.get("verified_at")
-            or operator_verification.get("verified_at"),
+            verified_at=account_verification.get("verified_at") or operator_verification.get("verified_at"),
             verify_url=verify_url or data.verify_url or f"{issuer}/verify",
         )
 

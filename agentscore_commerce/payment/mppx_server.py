@@ -120,10 +120,7 @@ async def create_mppx_server(
     """
     pympp = _import_optional("pympp.server")
     if pympp is None or not hasattr(pympp, "Mppx"):
-        msg = (
-            "pympp not installed — run `pip install 'pympp[server,tempo,stripe]>=0.6,<1'` "
-            "to use create_mppx_server."
-        )
+        msg = "pympp not installed — run `pip install 'pympp[server,tempo,stripe]>=0.6,<1'` to use create_mppx_server."
         raise ImportError(msg)
 
     method_list: list[Any] = list(methods or [])
@@ -133,10 +130,7 @@ async def create_mppx_server(
         tempo_module = _import_optional("pympp.methods.tempo")
         charge_factory = getattr(tempo_module, "charge", None) if tempo_module else None
         if not callable(charge_factory):
-            msg = (
-                "pympp[tempo] not installed — run `pip install 'pympp[tempo]'` "
-                "for Tempo MPP rails."
-            )
+            msg = "pympp[tempo] not installed — run `pip install 'pympp[tempo]'` for Tempo MPP rails."
             raise ImportError(msg)
         t = rails_cfg.tempo
         default_currency = USDC.tempo.testnet.address if t.testnet else USDC.tempo.mainnet.address

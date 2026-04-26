@@ -106,10 +106,7 @@ async def create_x402_server(
     # Eager validation — surface bad rail combinations before paying for peer-dep resolution.
     for rail in rails_list:
         if rail.startswith("x402-solana") and rail.endswith("-upto"):
-            msg = (
-                f'Rail "{rail}" not supported — the Solana x402 scheme does not ship an '
-                "upto variant yet (EVM-only)."
-            )
+            msg = f'Rail "{rail}" not supported — the Solana x402 scheme does not ship an upto variant yet (EVM-only).'
             raise ValueError(msg)
 
     # Core x402 package. The Python `x402` package re-exports the server primitives
@@ -118,10 +115,7 @@ async def create_x402_server(
     x402_servers = _import_optional("x402.servers")
     x402_facilitator = _import_optional("x402.facilitator")
     if x402_servers is None or x402_facilitator is None:
-        msg = (
-            "x402 not installed — run `pip install 'x402[evm,svm,fastapi]>=2.8,<3'` "
-            "to use create_x402_server."
-        )
+        msg = "x402 not installed — run `pip install 'x402[evm,svm,fastapi]>=2.8,<3'` to use create_x402_server."
         raise ImportError(msg)
 
     facilitator_instance: Any
@@ -155,45 +149,28 @@ async def create_x402_server(
         is_upto = rail.endswith("-upto")
         if rail.startswith("x402-base"):
             base_rail = rail[:-5] if is_upto else rail
-            network = (
-                networks.base.mainnet.caip2
-                if base_rail == "x402-base-mainnet"
-                else networks.base.sepolia.caip2
-            )
+            network = networks.base.mainnet.caip2 if base_rail == "x402-base-mainnet" else networks.base.sepolia.caip2
             if is_upto:
                 if evm_upto_module is None:
                     evm_upto_module = _import_optional("x402.schemes.upto.evm")
                 if evm_upto_module is None or not getattr(evm_upto_module, "UptoEvmServerScheme", None):
-                    msg = (
-                        "x402[evm] not installed — run `pip install 'x402[evm]'` "
-                        "for x402 base upto rails."
-                    )
+                    msg = "x402[evm] not installed — run `pip install 'x402[evm]'` for x402 base upto rails."
                     raise ImportError(msg)
                 register_x402_schemes_v1_v2(server, network, evm_upto_module.UptoEvmServerScheme())
             else:
                 if evm_exact_module is None:
                     evm_exact_module = _import_optional("x402.schemes.exact.evm")
                 if evm_exact_module is None or not getattr(evm_exact_module, "ExactEvmServerScheme", None):
-                    msg = (
-                        "x402[evm] not installed — run `pip install 'x402[evm]'` "
-                        "for x402 base rails."
-                    )
+                    msg = "x402[evm] not installed — run `pip install 'x402[evm]'` for x402 base rails."
                     raise ImportError(msg)
                 register_x402_schemes_v1_v2(server, network, evm_exact_module.ExactEvmServerScheme())
         elif rail.startswith("x402-solana"):
             if svm_module is None:
                 svm_module = _import_optional("x402.schemes.exact.svm")
             if svm_module is None or not getattr(svm_module, "ExactSvmServerScheme", None):
-                msg = (
-                    "x402[svm] not installed — run `pip install 'x402[svm]'` "
-                    "for x402 solana rails."
-                )
+                msg = "x402[svm] not installed — run `pip install 'x402[svm]'` for x402 solana rails."
                 raise ImportError(msg)
-            network = (
-                networks.solana.mainnet.caip2
-                if rail == "x402-solana-mainnet"
-                else networks.solana.devnet.caip2
-            )
+            network = networks.solana.mainnet.caip2 if rail == "x402-solana-mainnet" else networks.solana.devnet.caip2
             register_x402_schemes_v1_v2(server, network, svm_module.ExactSvmServerScheme())
 
     for custom in schemes_list:
@@ -201,14 +178,9 @@ async def create_x402_server(
 
     if bazaar:
         bazaar_module = _import_optional("x402.extensions.bazaar")
-        bazaar_ext = (
-            getattr(bazaar_module, "bazaar_resource_server_extension", None) if bazaar_module else None
-        )
+        bazaar_ext = getattr(bazaar_module, "bazaar_resource_server_extension", None) if bazaar_module else None
         if bazaar_ext is None:
-            msg = (
-                "x402[extensions] not installed — run `pip install 'x402[extensions]'` "
-                "for bazaar discovery."
-            )
+            msg = "x402[extensions] not installed — run `pip install 'x402[extensions]'` for bazaar discovery."
             raise ImportError(msg)
         register_extension = getattr(server, "register_extension", None)
         if not callable(register_extension):

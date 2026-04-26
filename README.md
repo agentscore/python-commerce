@@ -116,10 +116,70 @@ how_to_pay = build_how_to_pay(BuildHowToPayInput(
 body = build_402_body(Build402BodyInput(
     accepted_methods=accepted,
     agent_instructions=build_agent_instructions(BuildAgentInstructionsInput(how_to_pay=how_to_pay)),
-    pricing=PricingBlock(subtotal="10.00", tax="0.80", tax_rate=0.08, tax_state="CA", total="10.80"),
+    pricing=build_pricing_block(subtotal_cents=1000, tax_cents=80, shipping_cents=999, tax_rate=0.08, tax_state="CA"),
     amount_usd="10.80",
+    # First-encounter merchants attach the cross-merchant agent_memory hint.
+    agent_memory=first_encounter_agent_memory(first_encounter=not merchant.has_seen_operator(op_token)),
 ))
 ```
+
+`build_pricing_block` handles cents → dollar-string (with optional shipping). `first_encounter_agent_memory` returns the canonical hint or `None` based on a per-merchant first-seen flag. `OrderReceipt` is a dataclass for the post-settlement 200 response shape.
+
+### Idempotency-key + multi-rail header bundle
+
+```python
+from agentscore_commerce.payment import (
+    BuildPaymentHeadersInput,
+    PaymentHeadersRail,
+    build_idempotency_key,
+    build_payment_headers,
+)
+
+idempotency_key = build_idempotency_key(payment_intent_id=pi_id, order_id=order_id, amount_cents=amount)
+
+headers = build_payment_headers(BuildPaymentHeadersInput(
+    order_id=order_id,
+    realm="agents.merchant.example",
+    rails=[
+        PaymentHeadersRail(rail="tempo-mainnet", amount_usd="10.00", recipient=TEMPO_ADDR),
+        PaymentHeadersRail(rail="x402-base-mainnet", amount_usd="10.00", recipient=BASE_ADDR),
+        PaymentHeadersRail(rail="stripe", amount_usd="10.00", network_id=STRIPE_PROFILE_ID),
+    ],
+))
+# headers["www_authenticate"] → set as Authorization-style WWW-Authenticate header
+# headers["payment_required"] → set as PAYMENT-REQUIRED header (when x402 is present)
+```
+
+### Identity publishing (cross-vendor standards)
+
+```python
+from agentscore_commerce.identity import (
+    UCPService,
+    UCPSigningKey,
+    UCPPaymentHandler,
+    A2AAgentCardCapabilities,
+    build_erc8004_attribute,
+    build_a2a_agent_card,
+    build_ucp_profile,
+)
+
+# On-chain ERC-8004 (Trustless Agents) — vendor signs + submits via their wallet.
+attr = build_erc8004_attribute(assess_result)
+
+# Google A2A v1.0 Signed Agent Card — publish at /.well-known/agent-card.json
+card = build_a2a_agent_card(name="My Service", url=base_url, capabilities=A2AAgentCardCapabilities(...), data=assess_result)
+
+# Google Universal Commerce Protocol — publish at /.well-known/ucp
+profile = build_ucp_profile(
+    name="My Service",
+    services=[UCPService(type="rest", url=base_url)],
+    payment_handlers=[UCPPaymentHandler(name="tempo", config={"recipient": TEMPO_ADDR})],
+    signing_keys=[UCPSigningKey(kid="me", kty="EC", alg="ES256")],
+    data=assess_result,
+)
+```
+
+ACP (Stripe + OpenAI Agentic Commerce Protocol) is a transactional checkout protocol with no identity-publishing surface — ACP merchants integrate via the existing `build_402_body` + `build_payment_headers` + Stripe SPT rail.
 
 ## Stripe multichain
 

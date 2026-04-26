@@ -1,0 +1,129 @@
+"""Example: API provider with per-call billing — multi-rail (Tempo MPP + x402).
+
+Scenario: you sell access to an HTTP API (search, scraping, RPC, etc.). Each call costs
+a fixed price; agents pick whichever rail their wallet supports. No identity gate, no
+compliance — purely pay-or-fail. Think Exa, QuickNode, anyone in the x402 Bazaar.
+
+Rails advertised:
+    - **Tempo MPP** (`tempo/charge` intent)
+    - **x402 USDC on Base** (EIP-3009)
+    - **x402 USDC on Solana** (SPL Token)
+
+The 402 lists all rails neutrally — the agent picks based on what their wallet supports.
+
+Python doesn't have `mppx` / `@x402/core` peer deps — verification + settlement run against
+the facilitator HTTP API. Commerce helpers build the protocol-correct 402 body + headers;
+your route does the post-payment settle against the facilitator.
+
+Peer deps:
+    pip install agentscore-commerce[fastapi]
+
+Env vars:
+    TEMPO_RECIPIENT       — your Tempo wallet for receiving USDC.e
+    X402_BASE_RECIPIENT   — your Base wallet for receiving USDC
+    X402_SOLANA_RECIPIENT — your Solana wallet for receiving USDC
+
+Run: uvicorn examples.api_provider:app --port 3000
+"""
+
+import json
+import os
+from base64 import b64encode
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from agentscore_commerce.discovery import (
+    DiscoveryProbeOptions,
+    build_discovery_probe_response,
+    is_discovery_probe_request,
+)
+from agentscore_commerce.payment import (
+    PaymentDirectiveInput,
+    networks,
+    payment_directive,
+    www_authenticate_header,
+)
+
+PRICE_USDC = 0.01  # per-call price in USD
+REALM = "api.example.com"
+
+app = FastAPI()
+
+
+@app.post("/search")
+async def search(request: Request):
+    body = await request.body()
+    body_text = body.decode() if body else ""
+
+    auth = request.headers.get("authorization")
+    x402_header = request.headers.get("payment-signature") or request.headers.get("x-payment")
+
+    # Discovery probe — empty-body POST without any payment header → return sample 402.
+    if await is_discovery_probe_request(request.method, auth, body_text):
+        probe = build_discovery_probe_response(
+            DiscoveryProbeOptions(
+                realm=REALM,
+                sample_rail="tempo-mainnet",
+                sample_amount_usd=PRICE_USDC,
+                sample_recipient=os.environ["TEMPO_RECIPIENT"],
+            )
+        )
+        return JSONResponse(json.loads(probe.body), status_code=probe.status, headers=probe.headers)
+
+    # No payment? Return a 402 with directives for all accepted rails (Tempo + x402).
+    if not (auth and auth.startswith("Payment ")) and not x402_header:
+        challenge_id = f"chg_{os.urandom(8).hex()}"
+        directives = [
+            payment_directive(
+                PaymentDirectiveInput(rail="tempo-mainnet", id=f"{challenge_id}_tempo", realm=REALM, request="")
+            ),
+            payment_directive(
+                PaymentDirectiveInput(rail="x402-base-mainnet", id=f"{challenge_id}_base", realm=REALM, request="")
+            ),
+            payment_directive(
+                PaymentDirectiveInput(rail="x402-solana-mainnet", id=f"{challenge_id}_solana", realm=REALM, request="")
+            ),
+        ]
+        accepts = [
+            {
+                "scheme": "exact",
+                "network": networks.base.mainnet.caip2,
+                "maxAmountRequired": str(int(PRICE_USDC * 1_000_000)),
+                "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "payTo": os.environ["X402_BASE_RECIPIENT"],
+                "extra": {"decimals": 6},
+            },
+            {
+                "scheme": "exact",
+                "network": networks.solana.mainnet.caip2,
+                "maxAmountRequired": str(int(PRICE_USDC * 1_000_000)),
+                "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "payTo": os.environ["X402_SOLANA_RECIPIENT"],
+                "extra": {"decimals": 6},
+            },
+        ]
+        return JSONResponse(
+            {"payment_required": True, "x402Version": 1, "accepts": accepts},
+            status_code=402,
+            headers={
+                "www-authenticate": www_authenticate_header(directives),
+                "PAYMENT-REQUIRED": b64encode(
+                    json.dumps({"x402Version": 2, "accepts": accepts, "resource": {"url": str(request.url)}}).encode()
+                ).decode(),
+            },
+        )
+
+    # Payment present — branch on which header arrived:
+    #   Authorization: Payment ... → MPP (tempo) — validate via your facilitator's MPP API
+    #   payment-signature / x-payment → x402 (base or solana) — validate via x402 facilitator
+    # Both shapes settle through the configured facilitator HTTP API, then run your operation.
+
+    body_json = json.loads(body_text)
+    results = await run_your_search(body_json.get("query", ""))
+    return {"results": results}
+
+
+async def run_your_search(_query: str) -> list:
+    # Vendor's actual search implementation
+    return []

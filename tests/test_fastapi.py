@@ -1,0 +1,340 @@
+"""Tests for the FastAPI native dependency adapter."""
+
+from __future__ import annotations
+
+import json
+from unittest.mock import AsyncMock, patch
+
+import httpx
+import respx
+from fastapi import Depends, FastAPI, Request
+from fastapi.testclient import TestClient
+
+from agentscore_commerce.identity.fastapi import (
+    AgentScoreGate,
+    capture_wallet,
+    get_assess_data,
+)
+from agentscore_commerce.identity.sessions import CreateSessionOnMissing
+
+ASSESS_URL = "https://api.agentscore.sh/v1/assess"
+SESSIONS_URL = "https://api.agentscore.sh/v1/sessions"
+CAPTURE_URL = "https://api.agentscore.sh/v1/credentials/wallets"
+
+
+def _mock_assess(decision: str = "allow", reasons: list[str] | None = None) -> respx.Route:
+    return respx.post(ASSESS_URL).mock(
+        return_value=httpx.Response(200, json={"decision": decision, "decision_reasons": reasons or []}),
+    )
+
+
+def _make_app(gate: AgentScoreGate) -> FastAPI:
+    app = FastAPI()
+
+    @app.get("/", dependencies=[Depends(gate)])
+    async def index(assess=Depends(get_assess_data)):
+        return {"ok": True, "assess": assess}
+
+    @app.post("/purchase", dependencies=[Depends(gate)])
+    async def purchase(request: Request):
+        await capture_wallet(request, "0xsigner", "evm", idempotency_key="pi_abc")
+        return {"ok": True}
+
+    return app
+
+
+class TestDependency:
+    @respx.mock
+    def test_allows_trusted_wallet(self):
+        _mock_assess("allow")
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["assess"] == {"decision": "allow", "decision_reasons": []}
+
+    @respx.mock
+    def test_denies_untrusted_wallet(self):
+        _mock_assess("deny", reasons=["not_kyc"])
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 403
+        body = resp.json()
+        # FastAPI wraps HTTPException detail in {"detail": {...}}.
+        assert body["detail"]["error"] == "wallet_not_trusted"
+        assert body["detail"]["reasons"] == ["not_kyc"]
+
+    def test_missing_identity_returns_403(self):
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get("/")
+        assert resp.status_code == 403
+        assert resp.json()["detail"]["error"] == "missing_identity"
+
+    def test_fail_open_allows_through_when_identity_missing(self):
+        gate = AgentScoreGate(api_key="ask_test", fail_open=True)
+        client = TestClient(_make_app(gate))
+        resp = client.get("/")
+        assert resp.status_code == 200
+
+    @respx.mock
+    def test_passes_operator_token_to_assess(self):
+        route = _mock_assess("allow")
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        client.get("/", headers={"X-Operator-Token": "opc_abc"})
+        body = json.loads(route.calls[0].request.content)
+        assert body["operator_token"] == "opc_abc"
+
+    @respx.mock
+    def test_raises_on_402_payment_required(self):
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(402))
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 403
+        assert resp.json()["detail"]["error"] == "payment_required"
+
+    @respx.mock
+    def test_api_error_returns_403_api_error(self):
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(500, text="oops"))
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 503
+        assert resp.json()["detail"]["error"] == "api_error"
+
+
+class TestOnDenied:
+    def test_custom_on_denied_controls_status_and_body(self):
+        def custom(_req, reason):
+            return {"blocked": True, "code": reason.code, "custom": "yes"}, 451
+
+        gate = AgentScoreGate(api_key="ask_test", on_denied=custom)
+        client = TestClient(_make_app(gate))
+        resp = client.get("/")
+        assert resp.status_code == 451
+        body = resp.json()["detail"]
+        assert body["blocked"] is True
+        assert body["code"] == "missing_identity"
+        assert body["custom"] == "yes"
+
+
+class TestChainOption:
+    @respx.mock
+    def test_constructor_chain_forwarded_to_assess(self):
+        route = _mock_assess("allow")
+        gate = AgentScoreGate(api_key="ask_test", chain="solana")
+        client = TestClient(_make_app(gate))
+        client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        body = json.loads(route.calls[0].request.content)
+        assert body["chain"] == "solana"
+
+    @respx.mock
+    def test_extract_chain_overrides_constructor_chain(self):
+        route = _mock_assess("allow")
+        gate = AgentScoreGate(
+            api_key="ask_test",
+            chain="base",
+            extract_chain=lambda _req: "ethereum",
+        )
+        client = TestClient(_make_app(gate))
+        client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        body = json.loads(route.calls[0].request.content)
+        assert body["chain"] == "ethereum"
+
+    @respx.mock
+    def test_no_chain_sent_when_neither_configured(self):
+        route = _mock_assess("allow")
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        body = json.loads(route.calls[0].request.content)
+        assert "chain" not in body
+
+
+class TestCreateSessionOnMissing:
+    @respx.mock
+    def test_creates_session_and_returns_403_with_session_data(self):
+        respx.post(SESSIONS_URL).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "sess_abc123",
+                    "verify_url": "https://agentscore.sh/verify/sess_abc123",
+                    "poll_secret": "ps_secret",
+                    "next_steps": {
+                        "action": "deliver_verify_url_and_poll",
+                        "user_message": "please verify",
+                    },
+                },
+            )
+        )
+        gate = AgentScoreGate(
+            api_key="ask_test",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        client = TestClient(_make_app(gate))
+        resp = client.get("/")
+        assert resp.status_code == 403
+        detail = resp.json()["detail"]
+        assert detail["error"] == "identity_verification_required"
+        assert detail["session_id"] == "sess_abc123"
+        assert detail["verify_url"] == "https://agentscore.sh/verify/sess_abc123"
+        assert detail["poll_secret"] == "ps_secret"
+        # agent_instructions is the JSON-stringified next_steps from the API.
+        import json as _json
+
+        parsed = _json.loads(detail["agent_instructions"])
+        assert parsed["action"] == "deliver_verify_url_and_poll"
+        assert parsed["user_message"] == "please verify"
+
+    @respx.mock
+    def test_falls_back_to_missing_identity_on_session_api_failure(self):
+        respx.post(SESSIONS_URL).mock(return_value=httpx.Response(500, text="oops"))
+        gate = AgentScoreGate(
+            api_key="ask_test",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        client = TestClient(_make_app(gate))
+        resp = client.get("/")
+        assert resp.status_code == 403
+        assert resp.json()["detail"]["error"] == "missing_identity"
+
+
+class TestCaptureWallet:
+    @respx.mock
+    def test_captures_when_operator_token_present(self):
+        _mock_assess("allow")
+        capture_route = respx.post(CAPTURE_URL).mock(
+            return_value=httpx.Response(200, json={"associated": True, "first_seen": True}),
+        )
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.post("/purchase", headers={"X-Operator-Token": "opc_abc"})
+        assert resp.status_code == 200
+        assert capture_route.called
+        body = json.loads(capture_route.calls[0].request.content)
+        assert body == {
+            "operator_token": "opc_abc",
+            "wallet_address": "0xsigner",
+            "network": "evm",
+            "idempotency_key": "pi_abc",
+        }
+
+    @respx.mock
+    def test_no_ops_when_wallet_authenticated(self):
+        _mock_assess("allow")
+        capture_route = respx.post(CAPTURE_URL).mock(
+            return_value=httpx.Response(200, json={"associated": True, "first_seen": True}),
+        )
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.post("/purchase", headers={"X-Wallet-Address": "0xwallet"})
+        assert resp.status_code == 200
+        assert capture_route.call_count == 0
+
+    def test_no_ops_when_gate_did_not_run(self):
+        """Handler wired without the gate dependency — capture_wallet must silently no-op."""
+        app = FastAPI()
+
+        @app.post("/purchase")
+        async def purchase(request: Request):
+            await capture_wallet(request, "0xsigner", "evm")
+            return {"ok": True}
+
+        client = TestClient(app)
+        with patch(
+            "agentscore_commerce.identity.client.GateClient.acapture_wallet",
+            new=AsyncMock(),
+        ) as mock_cap:
+            resp = client.post("/purchase")
+            assert resp.status_code == 200
+        mock_cap.assert_not_called()
+
+
+class TestGetAssessData:
+    @respx.mock
+    def test_returns_assess_data_on_allow(self):
+        _mock_assess("allow", reasons=["verified"])
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assess = resp.json()["assess"]
+        assert assess["decision"] == "allow"
+        assert assess["decision_reasons"] == ["verified"]
+
+    def test_returns_none_when_gate_bypassed_via_fail_open(self):
+        gate = AgentScoreGate(api_key="ask_test", fail_open=True)
+        client = TestClient(_make_app(gate))
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.json()["assess"] is None
+
+
+class TestUserAgent:
+    @respx.mock
+    def test_default_user_agent_format(self):
+        route = _mock_assess("allow")
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        ua = route.calls[0].request.headers["User-Agent"]
+        assert ua.startswith("agentscore-commerce/")
+
+    @respx.mock
+    def test_custom_user_agent_prepended(self):
+        route = _mock_assess("allow")
+        gate = AgentScoreGate(api_key="ask_test", user_agent="myapp/2.0")
+        client = TestClient(_make_app(gate))
+        client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        ua = route.calls[0].request.headers["User-Agent"]
+        assert ua.startswith("myapp/2.0 (agentscore-commerce/")
+
+
+@respx.mock
+def test_fastapi_passes_through_token_expired():
+    respx.post("https://api.agentscore.sh/v1/assess").mock(
+        return_value=httpx.Response(
+            401,
+            json={
+                "error": {"code": "token_expired", "message": "expired"},
+                "next_steps": {"action": "deliver_verify_url_and_poll"},
+            },
+        )
+    )
+    gate = AgentScoreGate(api_key="ak", fail_open=False)
+    app = FastAPI()
+
+    @app.get("/", dependencies=[Depends(gate)])
+    def index():
+        return {"ok": True}
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/", headers={"x-operator-token": "opc_exp"})
+    assert resp.status_code == 401
+    # FastAPI wraps the denial body under HTTPException.detail.
+    detail = resp.json()["detail"]
+    assert detail["error"] == "token_expired"
+    assert json.loads(detail["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
+
+
+@respx.mock
+def test_fastapi_api_error_on_unexpected_exception():
+    respx.post("https://api.agentscore.sh/v1/assess").mock(
+        side_effect=httpx.ConnectError("dns down"),
+    )
+    gate = AgentScoreGate(api_key="ak", fail_open=False)
+    app = FastAPI()
+
+    @app.get("/", dependencies=[Depends(gate)])
+    def index():
+        return {"ok": True}
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["error"] == "api_error"

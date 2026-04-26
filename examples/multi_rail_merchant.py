@@ -4,12 +4,8 @@ Scenario: you sell a regulated good. Identity gate (KYC + age + jurisdiction + s
 plus 402 payment challenge advertising multiple rails so agents can pay with whatever they
 have — Tempo USDC (MPP), x402 USDC on Base + Solana, Stripe SPT.
 
-Python doesn't have `@x402/core` / `mppx` peer deps, so payment verification + settlement
-runs against the facilitator HTTP API. Commerce helpers build the protocol-correct 402 body +
-headers; your route does the post-payment settlement against the facilitator.
-
 Peer deps:
-    pip install agentscore-commerce[fastapi]
+    pip install agentscore-commerce[fastapi,x402,mppx]
 
 Env vars:
     AGENTSCORE_API_KEY    — your AgentScore API key
@@ -32,7 +28,6 @@ from agentscore_commerce.challenge import (
     BuildAgentInstructionsInput,
     BuildHowToPayInput,
     HowToPayRails,
-    PricingBlock,
     StripeConfig,
     StripeRailConfig,
     TempoConfig,
@@ -45,12 +40,14 @@ from agentscore_commerce.challenge import (
     build_accepted_methods,
     build_agent_instructions,
     build_how_to_pay,
+    build_pricing_block,
+    first_encounter_agent_memory,
 )
 from agentscore_commerce.identity.fastapi import AgentScoreGate, get_assess_data
 from agentscore_commerce.payment import (
-    PaymentDirectiveInput,
-    payment_directive,
-    www_authenticate_header,
+    BuildPaymentHeadersInput,
+    PaymentHeadersRail,
+    build_payment_headers,
 )
 
 APP_URL = "https://my-merchant.example.com/purchase"
@@ -74,12 +71,14 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
     tax_cents = 2000
     total_cents = subtotal_cents + tax_cents
     total_usd = f"{total_cents / 100:.2f}"
-    pricing = PricingBlock(
-        subtotal=f"{subtotal_cents / 100:.2f}",
-        tax=f"{tax_cents / 100:.2f}",
+    pricing = build_pricing_block(
+        subtotal_cents=subtotal_cents,
+        tax_cents=tax_cents,
+        # Pass shipping_cents=0 for digital goods if you want the field present;
+        # omit entirely (default) if your merchant has no shipping concept at all.
         tax_rate=0.08,
         tax_state=body.get("shipping", {}).get("state", "CA"),
-        total=total_usd,
+        currency="USD",
     )
 
     # Payment present? Validate + settle against facilitator HTTP, run the order, return 200.
@@ -109,25 +108,52 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
             ),
         )
     )
-    directives = [
-        payment_directive(
-            PaymentDirectiveInput(rail="tempo-mainnet", id="chg_tempo", realm="my-merchant.example.com", request="")
+    # One-call header bundle: composes WWW-Authenticate + PAYMENT-REQUIRED from a
+    # single rails declaration. Replaces ~10 lines of inline directive construction.
+    headers = build_payment_headers(
+        BuildPaymentHeadersInput(
+            order_id="chg",
+            realm="my-merchant.example.com",
+            rails=[
+                PaymentHeadersRail(
+                    rail="tempo-mainnet",
+                    amount_usd=total_usd,
+                    recipient=os.environ["TEMPO_RECIPIENT"],
+                    method="tempo",
+                ),
+                PaymentHeadersRail(
+                    rail="x402-base-mainnet",
+                    amount_usd=total_usd,
+                    recipient=os.environ["X402_BASE_RECIPIENT"],
+                ),
+                PaymentHeadersRail(
+                    rail="x402-solana-mainnet",
+                    amount_usd=total_usd,
+                    recipient=os.environ["X402_SOLANA_RECIPIENT"],
+                ),
+                PaymentHeadersRail(
+                    rail="stripe",
+                    amount_usd=total_usd,
+                    network_id=os.environ["STRIPE_PROFILE_ID"],
+                    method="stripe",
+                ),
+            ],
         ),
-        payment_directive(
-            PaymentDirectiveInput(rail="x402-base-mainnet", id="chg_base", realm="my-merchant.example.com", request="")
-        ),
-    ]
+    )
     return JSONResponse(
         build_402_body(
             Build402BodyInput(
                 accepted_methods=accepted,
                 agent_instructions=build_agent_instructions(
-                    BuildAgentInstructionsInput(how_to_pay=how_to_pay, recommended="tempo")
+                    BuildAgentInstructionsInput(how_to_pay=how_to_pay),
                 ),
                 pricing=pricing,
                 amount_usd=total_usd,
-            )
+                # Production merchants track first-encounter state in their own DB;
+                # for demo purposes we always emit the cross-merchant pattern hint.
+                agent_memory=first_encounter_agent_memory(first_encounter=True),
+            ),
         ),
         status_code=402,
-        headers={"www-authenticate": www_authenticate_header(directives)},
+        headers={"www-authenticate": headers["www_authenticate"]},
     )

@@ -9,6 +9,14 @@ from agentscore_commerce.payment.directive import (
     payment_directive,
 )
 from agentscore_commerce.payment.dispatch import dispatch_settlement_by_network
+from agentscore_commerce.payment.headers import (
+    BuildPaymentHeadersInput,
+    PaymentHeadersRail,
+    PaymentHeadersResult,
+    X402AcceptsBlock,
+    build_payment_headers,
+)
+from agentscore_commerce.payment.idempotency import build_idempotency_key
 from agentscore_commerce.payment.mppx_server import (
     MppxRails,
     StripeRail,
@@ -48,11 +56,14 @@ __all__ = [
     "SETTLEMENT_OVERRIDES_HEADER",
     "USDC",
     "BuildPaymentDirectiveInput",
+    "BuildPaymentHeadersInput",
     "CreateX402ServerOptions",
     "CustomScheme",
     "MppxRails",
     "NetworkFamily",
     "PaymentDirectiveInput",
+    "PaymentHeadersRail",
+    "PaymentHeadersResult",
     "PaymentRequestInput",
     "PaymentRequiredHeaderInput",
     "PaymentSigner",
@@ -62,9 +73,12 @@ __all__ = [
     "StripeRail",
     "TempoChargeRail",
     "TempoSessionRail",
+    "X402AcceptsBlock",
     "X402FacilitatorChoice",
     "X402SymbolicRail",
+    "build_idempotency_key",
     "build_payment_directive",
+    "build_payment_headers",
     "build_payment_request_blob",
     "create_mppx_server",
     "create_x402_server",

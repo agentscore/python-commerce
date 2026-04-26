@@ -1,4 +1,4 @@
-"""402-body builders — accepted_methods, identity_metadata, how_to_pay, agent_instructions, build_402_body."""
+"""402-body builders + pricing/receipt/agent-memory helpers."""
 
 from agentscore_commerce.challenge.accepted_methods import (
     BuildAcceptedMethodsInput,
@@ -12,7 +12,12 @@ from agentscore_commerce.challenge.agent_instructions import (
     BuildAgentInstructionsInput,
     build_agent_instructions,
 )
-from agentscore_commerce.challenge.body import Build402BodyInput, PricingBlock, X402PaymentRequired, build_402_body
+from agentscore_commerce.challenge.agent_memory import (
+    AgentMemoryHint,
+    build_agent_memory_hint,
+    first_encounter_agent_memory,
+)
+from agentscore_commerce.challenge.body import Build402BodyInput, X402PaymentRequired, build_402_body
 from agentscore_commerce.challenge.how_to_pay import (
     BuildHowToPayInput,
     HowToPayRails,
@@ -28,8 +33,16 @@ from agentscore_commerce.challenge.identity import (
     SignerMatchResult,
     build_identity_metadata,
 )
+from agentscore_commerce.challenge.order_receipt import (
+    OrderNextSteps,
+    OrderProductInfo,
+    OrderReceipt,
+    ShippingAddress,
+)
+from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
 
 __all__ = [
+    "AgentMemoryHint",
     "Build402BodyInput",
     "BuildAcceptedMethodsInput",
     "BuildAgentInstructionsInput",
@@ -37,7 +50,11 @@ __all__ = [
     "HowToPayRails",
     "IdentityMetadataInput",
     "IdentityMode",
+    "OrderNextSteps",
+    "OrderProductInfo",
+    "OrderReceipt",
     "PricingBlock",
+    "ShippingAddress",
     "SignerMatchResult",
     "StripeConfig",
     "StripeRailConfig",
@@ -51,6 +68,9 @@ __all__ = [
     "build_402_body",
     "build_accepted_methods",
     "build_agent_instructions",
+    "build_agent_memory_hint",
     "build_how_to_pay",
     "build_identity_metadata",
+    "build_pricing_block",
+    "first_encounter_agent_memory",
 ]

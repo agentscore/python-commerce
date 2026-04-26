@@ -3,14 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-
-@dataclass
-class PricingBlock:
-    subtotal: str
-    tax: str
-    tax_rate: float
-    tax_state: str
-    total: str
+from agentscore_commerce.challenge.pricing import PricingBlock
 
 
 @dataclass
@@ -47,13 +40,7 @@ def build_402_body(input: Build402BodyInput) -> dict[str, Any]:
     if input.currency:
         body["currency"] = input.currency
     if input.pricing:
-        body["pricing"] = {
-            "subtotal": input.pricing.subtotal,
-            "tax": input.pricing.tax,
-            "tax_rate": input.pricing.tax_rate,
-            "tax_state": input.pricing.tax_state,
-            "total": input.pricing.total,
-        }
+        body["pricing"] = input.pricing.to_dict()
     if input.order_id is not None:
         body["order_id"] = input.order_id
     if input.product:

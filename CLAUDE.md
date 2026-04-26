@@ -7,7 +7,7 @@ Agent commerce SDK for Python. The full merchant-side toolkit: identity gating +
 | Submodule | What it is |
 |---|---|
 | `agentscore_commerce.identity.{fastapi,flask,django,aiohttp,sanic,middleware}` | Trust gate middleware (KYC, age, sanctions, jurisdiction) |
-| `agentscore_commerce.payment` | Networks/USDC/rails registries, paymentauth.org directive builders, x402 server factory, MPP server factory, dispatch-by-network, signer extraction, WWW-Authenticate header, Settlement-Overrides header |
+| `agentscore_commerce.payment` | Networks/USDC/rails registries, paymentauth.org directive builders, `create_x402_server` (wraps official `x402[evm,svm]>=2.8` peer dep with v1+v2 dual-register + bazaar extension), `create_mppx_server` (wraps `pympp[server,tempo,stripe]>=0.6` peer dep with Tempo charge/session + Stripe SPT helpers), dispatch-by-network, signer extraction, WWW-Authenticate header, Settlement-Overrides header |
 | `agentscore_commerce.discovery` | Discovery probe, Bazaar wrapper, `/.well-known/mpp.json`, `llms.txt` builder, OpenAPI snippets |
 | `agentscore_commerce.challenge` | 402-body builders: accepted_methods, identity_metadata, how_to_pay, agent_instructions, build_402_body |
 | `agentscore_commerce.stripe_multichain` | Multichain PaymentIntent helper, deposit-address lookup, testnet simulator, mppx Stripe wrapper |

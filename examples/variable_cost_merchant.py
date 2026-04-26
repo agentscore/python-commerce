@@ -18,12 +18,14 @@ they support.
         - Agent signs each voucher mid-stream
         - Final settle on close reclaims unspent deposit
 
-Python doesn't have `mppx` / `@x402/core` peer deps — settlement runs against the
-facilitator HTTP API. This example shows how to structure the response shape using commerce
-helpers; verification + Settlement-Overrides emission is direct.
+Python rail-verification peer deps are now wrapped — see `create_x402_server` and
+`create_mppx_server` in `agentscore_commerce.payment` for one-call setup. This example
+keeps the response shape direct (helper-composed) so the variable-cost flow is readable;
+in production wire `create_x402_server(rails=["x402-base-mainnet-upto"])` and call
+`server.process_payment_request(request)` for verification + settlement.
 
 Peer deps:
-    pip install agentscore-commerce[fastapi]
+    pip install agentscore-commerce[fastapi,x402,mppx]
 
 Env vars:
     X402_BASE_RECIPIENT — your Base wallet (USDC payouts for upto rail)
@@ -96,9 +98,11 @@ async def complete(request: Request):
 async def stream(request: Request):
     """MPP tempo session path — agent opens channel, server streams SSE with mid-stream vouchers.
 
-    Real implementation requires an mppx-equivalent Python library (none exist today). Sketch:
-    parse channel state from Authorization: Payment header, emit SSE chunks, request fresh
-    voucher signatures as cumulative cost grows, close channel on completion.
+    Production wiring: ``mpp = await create_mppx_server(secret_key=MPP_SECRET, rails=MppxRails(
+    tempo_session=TempoSessionRail(recipient=TEMPO_RECIPIENT, escrow_contract=TEMPO_ESCROW,
+    store=YourChannelStore())))`` — parse channel state from ``Authorization: Payment``,
+    emit SSE chunks, request fresh voucher signatures as cumulative cost grows, close
+    channel on completion.
     """
     if not request.headers.get("authorization"):
         body, headers = _build_402_body(str(request.url))

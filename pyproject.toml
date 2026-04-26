@@ -34,6 +34,13 @@ django = ["django>=4.0"]
 aiohttp = ["aiohttp>=3.8.0"]
 sanic = ["sanic>=23.0.0"]
 stripe = ["stripe>=11.0.0"]
+# Payment-protocol peer deps for create_x402_server / create_mppx_server.
+# Installed only by merchants who accept the corresponding rail.
+# Note: the Coinbase x402 facilitator is reached through the main `x402`
+# package (HTTPFacilitatorClient pointed at the Coinbase URL), not a separate
+# package — no `coinbase-x402` extra needed.
+x402 = ["x402[evm,svm,fastapi]>=2.8,<3"]
+mppx = ["pympp[server,tempo,stripe]>=0.6,<1"]
 
 [project.urls]
 Homepage = "https://agentscore.sh"

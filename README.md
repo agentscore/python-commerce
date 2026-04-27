@@ -36,7 +36,7 @@ from agentscore_commerce.identity.fastapi import (
 
 app = FastAPI()
 gate = AgentScoreGate(
-    api_key="ask_...",
+    api_key="as_live_...",
     require_kyc=True,
     min_age=21,
     allowed_jurisdictions=["US"],
@@ -277,16 +277,6 @@ async def purchase(request: Request):
 ## Examples
 
 The [examples/](./examples) directory has 6 runnable single-file FastAPI apps covering common merchant scenarios. See [examples/README.md](./examples/README.md) for the full table.
-
-## Differences from node-commerce
-
-Python doesn't have peer-dep equivalents for `@x402/core`, `@x402/evm`, `@x402/svm`, or `mppx` — those are TypeScript-only ecosystems today. Three implications:
-
-1. **No `create_x402_server` / `create_mppx_server` factories.** `register_x402_schemes_v1_v2` is exposed as the protocol-helper Python merchants use; happy-path setup happens via direct HTTP calls to your facilitator.
-2. **`extract_payment_signer` returns EVM only.** Solana SPL Token payer recovery requires a Solana SDK (`solders` / `solana-py`) which isn't bundled. Pass the recovered Solana payer via `signer=...` to `verify_wallet_signer_match` directly.
-3. **MPP tempo session (streaming payments)** doesn't ship a working Python implementation — there's no pip-installable `mppx` equivalent. The shape is documented in `examples/variable_cost_merchant.py`; vendors using session payments today bind to a Solana wallet library directly.
-
-For Python merchants on x402 alone or x402 + Stripe, every other helper (directives, headers, dispatch, settle-overrides, signer extraction for EVM, accepted_methods, agent_instructions, how_to_pay, well-known/mpp.json, llms.txt) is fully native.
 
 ## Stability
 

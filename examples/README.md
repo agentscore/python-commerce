@@ -2,8 +2,6 @@
 
 Runnable, copy-pasteable example integrations covering the most common merchant scenarios. Each is a single-file FastAPI app you can adapt by swapping the relevant config.
 
-These mirror the Node.js examples in `agentscore/node-commerce/examples/`; the integration shape is identical, the language and idioms are different.
-
 | Example | Scenario | What it shows |
 |---|---|---|
 | [`identity_only.py`](./identity_only.py) | Compliance gate without payment | Minimal — wraps any endpoint with KYC + age + jurisdiction checks. Vendor handles their own payment. |

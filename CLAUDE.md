@@ -1,6 +1,6 @@
 # agentscore-commerce
 
-Agent commerce SDK for Python. The full merchant-side toolkit: identity gating + payment helpers + 402 builders + discovery + Stripe multichain. One install, submodule imports per concern. Mirror of `@agent-score/commerce` (Node.js) — same surface area, idiomatic Python.
+Agent commerce SDK for Python. The full merchant-side toolkit: identity gating + payment helpers + 402 builders + discovery + Stripe multichain. One install, submodule imports per concern.
 
 ## Submodules
 
@@ -27,7 +27,7 @@ Single Python package, hatchling-built, published to PyPI as `agentscore-commerc
 | `agentscore_commerce/api/` | `AgentScore` re-export |
 | `tests/` | pytest, one file per surface |
 
-Mirror of node-commerce's structure — every helper lifted from the node version's working production code.
+Every helper lifts from working production code (`agentscore/martin-estate`) — extract from real consumers, not speculation.
 
 ## Identity model
 
@@ -71,7 +71,7 @@ uv run pytest tests/
 - **Never commit .env files or secrets**
 - **Use PRs** — never push directly to main
 - **Helpers are protocol translations + configurable opinions, not opinionated frameworks**
-- **Mirror node-commerce** — keep the surface area identical so vendors switching languages have the same mental model
+- **Cross-language API parity** — keep the surface area identical between the node and python flavors so vendors switching languages have the same mental model
 
 ## Releasing
 

@@ -1,5 +1,5 @@
-"""Address normalization tests — must mirror node-commerce's tests/address.test.ts so EVM
-and Solana addresses are normalized identically across both SDK languages."""
+"""Address normalization tests — must produce identical results to the node SDK
+so EVM and Solana addresses are normalized identically across both SDK languages."""
 
 from __future__ import annotations
 

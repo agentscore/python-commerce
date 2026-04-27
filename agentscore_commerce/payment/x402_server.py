@@ -1,8 +1,7 @@
 """One-call x402 server setup wrapping the official `x402` Python package.
 
-Mirror of node-commerce's `createX402Server` factory. Resolves the facilitator,
-constructs the server, registers schemes per network with v1+v2 dual-register,
-and optionally adds the Bazaar discovery extension.
+Resolves the facilitator, constructs the server, registers schemes per network
+with v1+v2 dual-register, and optionally adds the Bazaar discovery extension.
 
 Replaces ~15 lines of boilerplate with a single config call::
 
@@ -53,10 +52,7 @@ class CustomScheme:
 
 @dataclass
 class CreateX402ServerOptions:
-    """Configuration for :func:`create_x402_server`.
-
-    Mirrors the node ``CreateX402ServerOptions`` shape.
-    """
+    """Configuration for :func:`create_x402_server`."""
 
     facilitator: X402FacilitatorChoice | Any = "http"
     """Facilitator selection — ``"coinbase"`` (requires ``coinbase-x402``), ``"http"``
@@ -97,8 +93,8 @@ async def create_x402_server(
     Returns a configured ``x402ResourceServer`` instance. Raises ``ImportError``
     with a guiding install command when a required peer dep is missing.
 
-    Mirror of node-commerce's ``createX402Server``. Async because the underlying
-    ``initialize()`` call is async (talks to the facilitator).
+    Async because the underlying ``initialize()`` call is async (talks to the
+    facilitator).
     """
     rails_list = list(rails or [])
     schemes_list = list(schemes or [])

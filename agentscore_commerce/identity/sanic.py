@@ -68,7 +68,7 @@ def get_assess_data(request: Request) -> dict[str, Any] | None:
     """Return the `/v1/assess` response the middleware stashed on ``request.ctx``.
 
     Returns ``None`` when identity was missing or the gate short-circuited with a
-    denial. Mirrors :func:`agentscore_commerce.identity.fastapi.get_assess_data`.
+    denial.
     """
     return getattr(request.ctx, ASSESS_STATE_ATTR, None)
 

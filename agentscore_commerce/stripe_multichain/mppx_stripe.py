@@ -1,8 +1,7 @@
 """Stripe SPT method wrapper for ``pympp`` server merchants.
 
-Mirror of node-commerce's ``createMppxStripe``. Wraps the ``pympp.stripe.charge(...)``
-boilerplate so vendors only declare config, not method instantiation. Returns the
-value vendors pass into ``Mppx.create(methods=[...])``.
+Wraps the ``pympp.stripe.charge(...)`` boilerplate so vendors only declare config,
+not method instantiation. Returns the value vendors pass into ``Mppx.create(methods=[...])``.
 
 Example::
 

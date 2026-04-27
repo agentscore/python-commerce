@@ -1,10 +1,9 @@
 """Network-aware signer extraction from x402 (EVM EIP-3009) credentials.
 
-Mirror of node-commerce's `extract_payment_signer` shape — returns `{address, network}` so
-vendors can pass the network into `capture_wallet(...)` without inferring it themselves.
-For Tempo MPP and Solana SPL Token signers, callers must extract the signer themselves
-(no pip-installable equivalent of `mppx` / `@x402/svm` today) and pass it directly to
-`verify_wallet_signer_match` via the `signer=` argument.
+Returns `{address, network}` so vendors can pass the network into `capture_wallet(...)`
+without inferring it themselves. For Tempo MPP and Solana SPL Token signers, callers must
+extract the signer themselves (no pip-installable equivalent of `mppx` / `@x402/svm` today)
+and pass it directly to `verify_wallet_signer_match` via the `signer=` argument.
 """
 
 from __future__ import annotations
@@ -73,8 +72,8 @@ def extract_payment_signer(x402_payment_header: str | None) -> PaymentSigner | N
 def extract_payment_signer_address(x402_payment_header: str | None) -> str | None:
     """Address-only convenience over :func:`extract_payment_signer`.
 
-    Mirrors node-commerce's ``extractPaymentSignerAddress`` — used by gate adapters
-    where only the address matters for operator-equivalence comparison.
+    Used by gate adapters where only the address matters for operator-equivalence
+    comparison.
     """
     result = extract_payment_signer(x402_payment_header)
     return result.address if result else None
@@ -84,9 +83,8 @@ def read_x402_payment_header(headers: Mapping[str, str]) -> str | None:
     """Read the x402 payment header from a request headers mapping (case-insensitive).
 
     Tries ``payment-signature`` first, then ``x-payment`` — both names appear in the wild
-    as the binary-friendly transport name evolved. Mirrors node-commerce's
-    ``readX402PaymentHeader``; takes a mapping rather than a framework Request so the
-    same helper works across FastAPI / Flask / Django / aiohttp / Sanic / ASGI.
+    as the binary-friendly transport name evolved. Takes a mapping rather than a framework
+    Request so the same helper works across FastAPI / Flask / Django / aiohttp / Sanic / ASGI.
     """
     lower = {k.lower(): v for k, v in headers.items()}
     return lower.get("payment-signature") or lower.get("x-payment")

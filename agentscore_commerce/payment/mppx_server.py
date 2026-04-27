@@ -1,9 +1,8 @@
 """One-call MPP server setup wrapping the official `pympp` Python package.
 
-Mirror of node-commerce's `createMppxServer` factory. Wires Tempo charge,
-Tempo session (channel-based for variable-cost / streaming), and Stripe SPT
-methods from symbolic rail config — replaces the boilerplate of constructing
-each method by hand.
+Wires Tempo charge, Tempo session (channel-based for variable-cost /
+streaming), and Stripe SPT methods from symbolic rail config — replaces
+the boilerplate of constructing each method by hand.
 
 Usage::
 
@@ -115,8 +114,8 @@ async def create_mppx_server(
     Returns a configured ``Mppx`` server instance. Raises ``ImportError`` with a
     guiding install command when ``pympp`` (or a per-rail extra) is missing.
 
-    Mirror of node-commerce's ``createMppxServer``. Async because Stripe SPT method
-    construction may require an HTTP setup call to the Stripe API.
+    Async because Stripe SPT method construction may require an HTTP setup call
+    to the Stripe API.
     """
     pympp = _import_optional("pympp.server")
     if pympp is None or not hasattr(pympp, "Mppx"):

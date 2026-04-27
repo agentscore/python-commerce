@@ -67,7 +67,7 @@ def get_assess_data() -> dict[str, Any] | None:
     """Return the `/v1/assess` response the gate stashed on Flask's request-scoped ``g``.
 
     Returns ``None`` outside a gated request, when identity was missing, or when the gate
-    short-circuited with a denial. Mirrors :func:`agentscore_commerce.identity.fastapi.get_assess_data`.
+    short-circuited with a denial.
     """
     from flask import g
 

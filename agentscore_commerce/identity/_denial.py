@@ -1,4 +1,4 @@
-"""Universal denial helpers shared across every adapter — Python mirror of node-commerce/src/_denial.ts.
+"""Universal denial helpers shared across every adapter.
 
 What lives here:
     FIXABLE_DENIAL_REASONS / is_fixable_denial — classifier for compliance reasons that can

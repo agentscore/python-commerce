@@ -1,4 +1,4 @@
-"""Tests for the denial helpers (mirror of node-commerce/tests/denial.test.ts)."""
+"""Tests for the denial helpers."""
 
 import pytest
 

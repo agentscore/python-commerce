@@ -43,7 +43,7 @@ def test_build_payment_request_blob_includes_decimals_for_node_parity():
     """
     blob = build_payment_request_blob(PaymentRequestInput(rail="tempo-mainnet", amount_usd="1.50", recipient="0xabc"))
     decoded = _decode(blob)
-    # Mirror node-commerce/src/payment/directive.ts buildPaymentRequestBlob output keys exactly
+    # Output keys must match buildPaymentRequestBlob exactly across both SDK languages
     assert set(decoded.keys()) >= {"amount", "currency", "decimals"}
     assert decoded["amount"] == "1500000"  # 1.50 USDC at 6 decimals
     assert decoded["decimals"] == 6

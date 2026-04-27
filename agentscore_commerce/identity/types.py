@@ -3,10 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-Network = Literal["evm", "solana"]
-"""Key-derivation family for capture_wallet. ``'evm'`` covers every EVM chain (Base, Tempo,
-Ethereum, …) because EOA addresses derive from the same private key on all of them; ``'solana'``
-is a separate namespace with a different key scheme."""
+from agentscore import Network as Network  # noqa: TC002 — runtime re-export for vendors
 
 Grade = Literal["A", "B", "C", "D", "F"]
 

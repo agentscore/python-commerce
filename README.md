@@ -21,7 +21,7 @@ pip install agentscore-commerce[fastapi]   # or [flask], [django], [aiohttp], [s
 | `agentscore_commerce.discovery` | `is_discovery_probe_request`, `build_discovery_probe_response`, `build_well_known_mpp`, `build_llms_txt` + `llms_txt_identity_section` + `llms_txt_payment_section` (compact + verbose modes), `agentscore_openapi_snippets`, `build_bazaar_discovery_payload`. |
 | `agentscore_commerce.challenge` | `build_402_body`, `build_accepted_methods`, `build_identity_metadata`, `build_how_to_pay`, `build_agent_instructions`; `respond_402` — drop-in 402 emit that preserves pympp's `WWW-Authenticate` and layers x402's `PAYMENT-REQUIRED`. |
 | `agentscore_commerce.stripe_multichain` | `create_multichain_payment_intent`, `get_deposit_address`, `simulate_crypto_deposit`; `create_pi_cache` (TTL'd PI / deposit-address cache, Redis-backed when `redis_url` set, in-memory otherwise), `simulate_deposit_if_test_mode` (gates on `sk_test_` and looks up the PI for you), `STRIPE_TEST_TX_HASH_SUCCESS` / `STRIPE_TEST_TX_HASH_FAILED` constants. Peer dep on `stripe`. |
-| `agentscore_commerce.api` | Everything from `agentscore-py` re-exported in one place: `AgentScore` + `AgentScoreError`, `verify_webhook_signature` (+ `VerifyWebhookSignatureResult`), `AGENTSCORE_TEST_ADDRESSES` + `is_agentscore_test_address`. **Don't add `agentscore-py` as a separate dep** — the two can drift versions and cause subtle type mismatches. |
+| `agentscore_commerce.api` | Everything from `agentscore-py` re-exported in one place: `AgentScore` + `AgentScoreError`, `AGENTSCORE_TEST_ADDRESSES` + `is_agentscore_test_address`. **Don't add `agentscore-py` as a separate dep** — the two can drift versions and cause subtle type mismatches. |
 
 ## Quick start (FastAPI)
 

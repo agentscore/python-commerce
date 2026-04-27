@@ -23,6 +23,7 @@ import stripe
 from fastapi import FastAPI
 
 from agentscore_commerce.stripe_multichain import (
+    STRIPE_TEST_TX_HASH_SUCCESS,
     CreateMultichainPaymentIntentInput,
     SimulateCryptoDepositInput,
     create_multichain_payment_intent,
@@ -51,19 +52,26 @@ async def buy(body: dict):
     base_addr = get_deposit_address(result, "base")
     tempo_addr = get_deposit_address(result, "tempo")
 
-    # On testnet you can simulate a deposit so end-to-end tests don't need real on-chain transfers.
-    if os.environ.get("STRIPE_SECRET_KEY", "").startswith("sk_test_"):
-        await simulate_crypto_deposit(
-            SimulateCryptoDepositInput(
-                payment_intent_id=result.payment_intent_id,
-                network="base",
-                stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
-                token_currency="usdc",
-            )
-        )
-
     return {
         "payment_intent_id": result.payment_intent_id,
         "deposit_addresses": result.deposit_addresses,
         "pay_to": {"base": base_addr, "tempo": tempo_addr},
     }
+
+
+# Testnet helper: simulate a deposit landing on a PI. Useful for end-to-end testing without
+# real on-chain transfers. For the typical "fire after PI mint if sk_test_" pattern, prefer
+# `simulate_deposit_if_test_mode` which gates internally — see multi_rail_merchant.py.
+@app.post("/testnet/simulate-deposit")
+async def simulate_deposit(body: dict):
+    await simulate_crypto_deposit(
+        SimulateCryptoDepositInput(
+            payment_intent_id=body["payment_intent_id"],
+            network=body["network"],
+            stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
+            stripe_version="2026-03-04.preview",
+            token_currency="usdc",
+            transaction_hash=STRIPE_TEST_TX_HASH_SUCCESS,
+        )
+    )
+    return {"ok": True, "simulated": True}

@@ -1,5 +1,28 @@
-"""Re-exports the AgentScore SDK so vendors install one package for both gating + raw API access."""
+"""AgentScore SDK re-export — single import path for the underlying agentscore-py.
 
-from agentscore import AgentScore, AgentScoreError
+Vendors install only ``agentscore-commerce`` and reach everything from the underlying
+``agentscore-py`` here. Don't add ``agentscore-py`` as a separate dep; the two can
+drift versions and cause subtle type mismatches.
 
-__all__ = ["AgentScore", "AgentScoreError"]
+Use this for: programmatic API calls (sessions, credentials, reputation), webhook
+signature verification on inbound AgentScore webhooks, and the test-mode address
+fixtures for integration tests.
+"""
+
+from agentscore import (
+    AGENTSCORE_TEST_ADDRESSES,
+    AgentScore,
+    AgentScoreError,
+    VerifyWebhookSignatureResult,
+    is_agentscore_test_address,
+    verify_webhook_signature,
+)
+
+__all__ = [
+    "AGENTSCORE_TEST_ADDRESSES",
+    "AgentScore",
+    "AgentScoreError",
+    "VerifyWebhookSignatureResult",
+    "is_agentscore_test_address",
+    "verify_webhook_signature",
+]

@@ -158,13 +158,9 @@ from agentscore_commerce.identity import (
     UCPSigningKey,
     UCPPaymentHandler,
     A2AAgentCardCapabilities,
-    build_erc8004_attribute,
     build_a2a_agent_card,
     build_ucp_profile,
 )
-
-# On-chain ERC-8004 (Trustless Agents) — vendor signs + submits via their wallet.
-attr = build_erc8004_attribute(assess_result)
 
 # Google A2A v1.0 Signed Agent Card — publish at /.well-known/agent-card.json
 card = build_a2a_agent_card(name="My Service", url=base_url, capabilities=A2AAgentCardCapabilities(...), data=assess_result)

@@ -18,11 +18,6 @@ from agentscore_commerce.identity.a2a import (
     build_a2a_agent_card,
 )
 from agentscore_commerce.identity.client import GateClient
-from agentscore_commerce.identity.erc8004 import (
-    AGENTSCORE_ERC8004_SCHEMA,
-    AgentScoreERC8004Attribute,
-    build_erc8004_attribute,
-)
 from agentscore_commerce.identity.signer import extract_x402_signer
 from agentscore_commerce.identity.types import (
     Activity,
@@ -72,7 +67,6 @@ def _load_asgi_middleware() -> tuple[Any, Any]:
 AgentScoreGate, CreateSessionOnMissing = _load_asgi_middleware()
 
 __all__ = [
-    "AGENTSCORE_ERC8004_SCHEMA",
     "AGENTSCORE_UCP_CAPABILITY",
     "FIXABLE_DENIAL_REASONS",
     "A2AAgentCard",
@@ -81,7 +75,6 @@ __all__ = [
     "Activity",
     "AgentIdentity",
     "AgentMemoryHint",
-    "AgentScoreERC8004Attribute",
     "AgentScoreGate",
     "AssessResult",
     "Classification",
@@ -103,7 +96,6 @@ __all__ = [
     "build_a2a_agent_card",
     "build_agent_memory_hint",
     "build_contact_support_next_steps",
-    "build_erc8004_attribute",
     "build_signer_mismatch_body",
     "build_ucp_profile",
     "denial_reason_status",

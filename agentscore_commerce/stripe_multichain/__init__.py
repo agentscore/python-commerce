@@ -11,21 +11,37 @@ from agentscore_commerce.stripe_multichain.payment_intent import (
     create_multichain_payment_intent,
     get_deposit_address,
 )
+from agentscore_commerce.stripe_multichain.pi_cache import (
+    PiCache,
+    PiCacheOptions,
+    create_pi_cache,
+)
 from agentscore_commerce.stripe_multichain.simulate_deposit import (
     DEFAULT_BUYER_WALLET,
+    STRIPE_TEST_TX_HASH_FAILED,
+    STRIPE_TEST_TX_HASH_SUCCESS,
     SimulateCryptoDepositInput,
+    SimulateDepositIfTestModeInput,
     simulate_crypto_deposit,
+    simulate_deposit_if_test_mode,
 )
 
 __all__ = [
     "DEFAULT_BUYER_WALLET",
     "DEFAULT_PAYMENT_METHOD_TYPES",
+    "STRIPE_TEST_TX_HASH_FAILED",
+    "STRIPE_TEST_TX_HASH_SUCCESS",
     "CreateMultichainPaymentIntentInput",
     "MultichainPaymentIntentResult",
+    "PiCache",
+    "PiCacheOptions",
     "SimulateCryptoDepositInput",
+    "SimulateDepositIfTestModeInput",
     "StripeClientLike",
     "create_mppx_stripe",
     "create_multichain_payment_intent",
+    "create_pi_cache",
     "get_deposit_address",
     "simulate_crypto_deposit",
+    "simulate_deposit_if_test_mode",
 ]

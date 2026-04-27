@@ -12,7 +12,14 @@ from typing import TYPE_CHECKING, Any, NoReturn
 
 from starlette.requests import Request  # noqa: TC002 - runtime import required for FastAPI DI
 
-from agentscore_commerce.identity._denial import denial_reason_status
+from agentscore_commerce.identity._denial import (
+    FIXABLE_DENIAL_REASONS,
+    build_contact_support_next_steps,
+    build_signer_mismatch_body,
+    denial_reason_status,
+    is_fixable_denial,
+    verification_agent_instructions,
+)
 from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
 from agentscore_commerce.identity.client import (
     GateClient,
@@ -30,6 +37,11 @@ from agentscore_commerce.identity.types import (
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
 )
+from agentscore_commerce.payment.signer import (
+    extract_payment_signer,
+    extract_payment_signer_address,
+    read_x402_payment_header,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -40,10 +52,21 @@ GATE_STATE_KEY = "__agentscore_gate"
 ASSESS_STATE_KEY = "agentscore"
 
 __all__ = [
+    "FIXABLE_DENIAL_REASONS",
     "AgentScoreGate",
     "CreateSessionOnMissing",
+    "build_contact_support_next_steps",
+    "build_signer_mismatch_body",
     "capture_wallet",
+    "denial_reason_status",
+    "denial_reason_to_body",
+    "extract_payment_signer",
+    "extract_payment_signer_address",
     "get_assess_data",
+    "is_fixable_denial",
+    "read_x402_payment_header",
+    "verification_agent_instructions",
+    "verify_wallet_signer_match",
 ]
 
 

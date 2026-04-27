@@ -8,7 +8,7 @@ import pytest
 from flask import Flask
 
 from agentscore_commerce.identity.client import PaymentRequiredError
-from agentscore_commerce.identity.flask import agentscore_gate
+from agentscore_commerce.identity.flask import agentscore_gate, get_assess_data
 from agentscore_commerce.identity.types import AssessResult
 
 
@@ -42,6 +42,25 @@ class TestFlaskGate:
             data = resp.get_json()
             assert data["ok"] is True
             assert data["agentscore"] is not None
+
+    def test_get_assess_data_returns_assess_after_pass(self) -> None:
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        agentscore_gate(app, api_key="test-key")
+
+        @app.route("/")
+        def index() -> dict[str, object]:
+            return {"assess": get_assess_data()}
+
+        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=_mock_result()):
+            resp = app.test_client().get("/", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 200
+            assert resp.get_json()["assess"] == {"score": 80, "grade": "B"}
+
+    def test_get_assess_data_returns_none_outside_request(self) -> None:
+        app = Flask(__name__)
+        with app.app_context():
+            assert get_assess_data() is None
 
     def test_blocks_untrusted_wallet(self) -> None:
         app = _make_app()

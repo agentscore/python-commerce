@@ -11,7 +11,7 @@ import respx
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from agentscore_commerce.identity.aiohttp import agentscore_gate_middleware, capture_wallet
+from agentscore_commerce.identity.aiohttp import agentscore_gate_middleware, capture_wallet, get_assess_data
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
 ASSESS_URL = "https://api.agentscore.sh/v1/assess"
@@ -59,6 +59,21 @@ class TestIdentityExtraction:
             assert resp.status == 200
             data = await resp.json()
             assert data["ok"] is True
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_get_assess_data_returns_assess_after_pass(self):
+        _mock_assess("allow")
+
+        async def handler(request: web.Request) -> web.Response:
+            return web.json_response({"assess": get_assess_data(request)})
+
+        client = await _client(_make_app(handler=handler))
+        async with client:
+            resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["assess"] == {"decision": "allow", "decision_reasons": []}
 
     @pytest.mark.asyncio
     @respx.mock

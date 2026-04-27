@@ -1,18 +1,32 @@
-"""Example: full agent-commerce merchant (Martin-Estate-style stripped down)
+"""Example: full agent-commerce merchant (Martin-Estate-style stripped down).
 
 Scenario: you sell a regulated good. Identity gate (KYC + age + jurisdiction + sanctions),
 plus 402 payment challenge advertising multiple rails so agents can pay with whatever they
 have — Tempo USDC (MPP), x402 USDC on Base + Solana, Stripe SPT.
 
-Peer deps:
-    pip install agentscore-commerce[fastapi,x402,mppx]
+The flow on each /purchase POST:
+    1. Identity gate (AgentScoreGate): KYC + age + jurisdiction + sanctions
+    2. If ``X-Payment`` header present (x402 client paying) → ``verify_x402_request`` →
+       ``process_x402_settle`` → return 200 with ``payment-response`` header
+    3. Else mint a Stripe multichain PI (deposit addresses for tempo/base/solana)
+       and run pympp's compose() to validate any ``Authorization: Payment`` header
+    4. If pympp returns 402 → ``respond_402`` (preserves pympp's WWW-Auth + adds x402's
+       PAYMENT-REQUIRED) with the rich body
+    5. If pympp returns 200 → also fire ``simulate_deposit_if_test_mode`` for testnet
+
+Peer deps::
+
+    pip install agentscore-commerce[fastapi,x402,pympp]
 
 Env vars:
     AGENTSCORE_API_KEY    — your AgentScore API key
-    TEMPO_RECIPIENT       — Tempo wallet for receiving USDC.e
-    X402_BASE_RECIPIENT   — Base wallet for receiving USDC
-    X402_SOLANA_RECIPIENT — Solana wallet for receiving USDC
-    STRIPE_PROFILE_ID     — your Stripe profile id (for SPT)
+    APP_URL               — public URL of your service
+    STRIPE_SECRET_KEY     — sk_test_... or sk_live_...
+    STRIPE_PROFILE_ID     — your Stripe Connect profile id (for SPT)
+    TEMPO_USDC_ADDRESS    — USDC token address on Tempo (mainnet or testnet)
+    X402_BASE_NETWORK     — CAIP-2
+    X402_SVM_NETWORK      — CAIP-2
+    REDIS_URL             — optional; in-memory PI cache otherwise
 
 Run: uvicorn examples.multi_rail_merchant:app --port 3000
 """
@@ -28,6 +42,7 @@ from agentscore_commerce.challenge import (
     BuildAgentInstructionsInput,
     BuildHowToPayInput,
     HowToPayRails,
+    Respond402Input,
     StripeConfig,
     StripeRailConfig,
     TempoConfig,
@@ -36,21 +51,45 @@ from agentscore_commerce.challenge import (
     X402BaseRailConfig,
     X402SolanaConfig,
     X402SolanaRailConfig,
-    build_402_body,
     build_accepted_methods,
     build_agent_instructions,
     build_how_to_pay,
     build_pricing_block,
     first_encounter_agent_memory,
+    respond_402,
 )
 from agentscore_commerce.identity.fastapi import AgentScoreGate, get_assess_data
 from agentscore_commerce.payment import (
-    BuildPaymentHeadersInput,
-    PaymentHeadersRail,
-    build_payment_headers,
+    PaymentRequiredHeaderInput,
+    ProcessX402SettleInput,
+    ValidateX402NetworkConfigInput,
+    VerifyX402RequestInput,
+    networks,
+    process_x402_settle,
+    validate_x402_network_config,
+    verify_x402_request,
+)
+from agentscore_commerce.stripe_multichain import (
+    PiCacheOptions,
+    SimulateDepositIfTestModeInput,
+    create_pi_cache,
+    simulate_deposit_if_test_mode,
 )
 
-APP_URL = "https://my-merchant.example.com/purchase"
+APP_URL = os.environ["APP_URL"]
+X402_BASE_NETWORK = os.environ.get("X402_BASE_NETWORK", networks.base.mainnet.caip2)
+X402_SVM_NETWORK = os.environ.get("X402_SVM_NETWORK", networks.solana.mainnet.caip2)
+
+# Boot-time guard: validate the configured x402 networks are in the supported set.
+# Raises on misconfigured deploys before the first request.
+validate_x402_network_config(
+    ValidateX402NetworkConfigInput(base_network=X402_BASE_NETWORK, svm_network=X402_SVM_NETWORK)
+)
+
+# Singleton Stripe PI / deposit-address cache. Backed by Redis when REDIS_URL is set
+# (multi-instance deployments need this so a deposit lands on whichever instance
+# settles it); falls back to in-process dict for single-instance dev.
+pi_cache = create_pi_cache(PiCacheOptions(redis_url=os.environ.get("REDIS_URL")))
 
 app = FastAPI()
 gate = AgentScoreGate(
@@ -60,6 +99,10 @@ gate = AgentScoreGate(
     min_age=21,
     allowed_jurisdictions=["US"],
 )
+
+# Vendor-instantiated x402 server + pympp server are stubs in this example —
+# replace with your `create_x402_server(...)` + `create_mppx_server(...)` setup.
+x402_server: object = ...  # type: ignore[assignment]
 
 
 @app.post("/purchase", dependencies=[Depends(gate)])
@@ -74,24 +117,76 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
     pricing = build_pricing_block(
         subtotal_cents=subtotal_cents,
         tax_cents=tax_cents,
-        # Pass shipping_cents=0 for digital goods if you want the field present;
-        # omit entirely (default) if your merchant has no shipping concept at all.
         tax_rate=0.08,
         tax_state=body.get("shipping", {}).get("state", "CA"),
         currency="USD",
     )
 
-    # Payment present? Validate + settle against facilitator HTTP, run the order, return 200.
-    if request.headers.get("x-payment") or (request.headers.get("authorization", "").startswith("Payment ")):
-        # ... your facilitator-validate + settle + insert order ...
-        return {"status": "completed", "operator": assess.get("resolved_operator")}
+    # ──────────────────────────────────────────────────────────────────────────
+    # Path A: x402 X-Payment header present → verify + settle on chain
+    # ──────────────────────────────────────────────────────────────────────────
+    if request.headers.get("payment-signature") or request.headers.get("x-payment"):
+        verified = await verify_x402_request(
+            VerifyX402RequestInput(
+                headers=dict(request.headers),
+                is_cached_address=pi_cache.has_address,
+                accepted_base_network=X402_BASE_NETWORK,
+                accepted_svm_network=X402_SVM_NETWORK,
+            )
+        )
+        if not verified.ok:
+            return JSONResponse(verified.body, status_code=verified.status)
 
-    # No payment yet — return 402 with multi-rail challenge.
+        settle = await process_x402_settle(
+            ProcessX402SettleInput(
+                x402_server=x402_server,
+                payload=verified.payload,
+                resource_config={
+                    "scheme": "exact",
+                    "network": verified.signed_network,
+                    "price": f"${total_usd}",
+                    "payTo": verified.signed_pay_to,
+                    "maxTimeoutSeconds": 300,
+                },
+                resource_meta={
+                    "url": str(request.url),
+                    "description": "Agent purchase via x402",
+                    "mimeType": "application/json",
+                },
+            )
+        )
+        if not settle.success:
+            return JSONResponse({"error": {"code": "payment_proof_invalid", "phase": settle.phase}}, status_code=400)
+
+        # Fire Stripe testnet sim — no-ops on live keys.
+        await simulate_deposit_if_test_mode(
+            SimulateDepositIfTestModeInput(
+                get_payment_intent_id=pi_cache.get_payment_intent_id,
+                deposit_address=verified.signed_pay_to,
+                network="solana" if verified.is_solana else "base",
+                stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
+            )
+        )
+
+        headers: dict[str, str] = {}
+        if settle.payment_response_header:
+            headers["payment-response"] = settle.payment_response_header
+        return JSONResponse({"ok": True, "operator": assess.get("resolved_operator")}, headers=headers)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Path B: cold call OR Authorization: Payment (pympp) — mint PI + compose pympp
+    # ──────────────────────────────────────────────────────────────────────────
+    # ... your createMultichainPaymentIntent + cache writeback here ...
+    # ... your pympp.compose() to validate Authorization: Payment header ...
+    # If pympp returns 402, build the rich 402 with respond_402 (preserves pympp's
+    # WWW-Auth + adds x402's PAYMENT-REQUIRED):
+    pympx_challenge_headers = {"www-authenticate": 'Payment id="..."'}  # from pympp.compose
+    deposit_addresses = {"tempo": "0x...", "base": "0x...", "solana": "..."}  # from create_multichain_payment_intent
     accepted = build_accepted_methods(
         BuildAcceptedMethodsInput(
-            tempo=TempoConfig(recipient=os.environ["TEMPO_RECIPIENT"]),
-            x402_base=X402BaseConfig(recipient=os.environ["X402_BASE_RECIPIENT"]),
-            x402_solana=X402SolanaConfig(recipient=os.environ["X402_SOLANA_RECIPIENT"]),
+            tempo=TempoConfig(recipient=deposit_addresses["tempo"]),
+            x402_base=X402BaseConfig(recipient=deposit_addresses["base"]),
+            x402_solana=X402SolanaConfig(recipient=deposit_addresses["solana"]),
             stripe=StripeConfig(profile_id=os.environ["STRIPE_PROFILE_ID"]),
         )
     )
@@ -101,59 +196,35 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
             retry_body_json=str(body),
             total_usd=total_usd,
             rails=HowToPayRails(
-                tempo=TempoRailConfig(recipient=os.environ["TEMPO_RECIPIENT"]),
-                x402_base=X402BaseRailConfig(recipient=os.environ["X402_BASE_RECIPIENT"]),
-                x402_solana=X402SolanaRailConfig(recipient=os.environ["X402_SOLANA_RECIPIENT"]),
+                tempo=TempoRailConfig(recipient=deposit_addresses["tempo"]),
+                x402_base=X402BaseRailConfig(recipient=deposit_addresses["base"]),
+                x402_solana=X402SolanaRailConfig(recipient=deposit_addresses["solana"]),
                 stripe=StripeRailConfig(profile_id=os.environ["STRIPE_PROFILE_ID"]),
             ),
         )
     )
-    # One-call header bundle: composes WWW-Authenticate + PAYMENT-REQUIRED from a
-    # single rails declaration. Replaces ~10 lines of inline directive construction.
-    headers = build_payment_headers(
-        BuildPaymentHeadersInput(
-            order_id="chg",
-            realm="my-merchant.example.com",
-            rails=[
-                PaymentHeadersRail(
-                    rail="tempo-mainnet",
-                    amount_usd=total_usd,
-                    recipient=os.environ["TEMPO_RECIPIENT"],
-                    method="tempo",
-                ),
-                PaymentHeadersRail(
-                    rail="x402-base-mainnet",
-                    amount_usd=total_usd,
-                    recipient=os.environ["X402_BASE_RECIPIENT"],
-                ),
-                PaymentHeadersRail(
-                    rail="x402-solana-mainnet",
-                    amount_usd=total_usd,
-                    recipient=os.environ["X402_SOLANA_RECIPIENT"],
-                ),
-                PaymentHeadersRail(
-                    rail="stripe",
-                    amount_usd=total_usd,
-                    network_id=os.environ["STRIPE_PROFILE_ID"],
-                    method="stripe",
-                ),
-            ],
-        ),
-    )
-    return JSONResponse(
-        build_402_body(
-            Build402BodyInput(
+
+    result = respond_402(
+        Respond402Input(
+            mppx_challenge_headers=pympx_challenge_headers,
+            body=Build402BodyInput(
                 accepted_methods=accepted,
-                agent_instructions=build_agent_instructions(
-                    BuildAgentInstructionsInput(how_to_pay=how_to_pay),
-                ),
+                agent_instructions=build_agent_instructions(BuildAgentInstructionsInput(how_to_pay=how_to_pay)),
                 pricing=pricing,
                 amount_usd=total_usd,
+                retry_body=body,
                 # Production merchants track first-encounter state in their own DB;
                 # for demo purposes we always emit the cross-merchant pattern hint.
                 agent_memory=first_encounter_agent_memory(first_encounter=True),
             ),
-        ),
-        status_code=402,
-        headers={"www-authenticate": headers["www_authenticate"]},
+            x402=PaymentRequiredHeaderInput(
+                x402_version=2,
+                accepts=[
+                    {"scheme": "exact", "network": X402_BASE_NETWORK, "payTo": deposit_addresses["base"]},
+                    {"scheme": "exact", "network": X402_SVM_NETWORK, "payTo": deposit_addresses["solana"]},
+                ],
+                resource={"url": str(request.url), "mimeType": "application/json"},
+            ),
+        )
     )
+    return JSONResponse(result.body, status_code=result.status, headers=result.headers)

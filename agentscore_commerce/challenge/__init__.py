@@ -40,6 +40,7 @@ from agentscore_commerce.challenge.order_receipt import (
     ShippingAddress,
 )
 from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
+from agentscore_commerce.challenge.respond_402 import Respond402Input, Respond402Result, respond_402
 
 __all__ = [
     "AgentMemoryHint",
@@ -54,6 +55,8 @@ __all__ = [
     "OrderProductInfo",
     "OrderReceipt",
     "PricingBlock",
+    "Respond402Input",
+    "Respond402Result",
     "ShippingAddress",
     "SignerMatchResult",
     "StripeConfig",
@@ -73,4 +76,5 @@ __all__ = [
     "build_identity_metadata",
     "build_pricing_block",
     "first_encounter_agent_memory",
+    "respond_402",
 ]

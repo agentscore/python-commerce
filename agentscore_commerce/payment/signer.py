@@ -13,9 +13,12 @@ import base64
 import json
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from agentscore_commerce.identity.signer import extract_x402_signer
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 SignerNetwork = Literal["evm", "solana"]
 _EVM_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
@@ -67,4 +70,33 @@ def extract_payment_signer(x402_payment_header: str | None) -> PaymentSigner | N
     return None
 
 
-__all__ = ["PaymentSigner", "SignerNetwork", "extract_payment_signer", "extract_x402_signer"]
+def extract_payment_signer_address(x402_payment_header: str | None) -> str | None:
+    """Address-only convenience over :func:`extract_payment_signer`.
+
+    Mirrors node-commerce's ``extractPaymentSignerAddress`` — used by gate adapters
+    where only the address matters for operator-equivalence comparison.
+    """
+    result = extract_payment_signer(x402_payment_header)
+    return result.address if result else None
+
+
+def read_x402_payment_header(headers: Mapping[str, str]) -> str | None:
+    """Read the x402 payment header from a request headers mapping (case-insensitive).
+
+    Tries ``payment-signature`` first, then ``x-payment`` — both names appear in the wild
+    as the binary-friendly transport name evolved. Mirrors node-commerce's
+    ``readX402PaymentHeader``; takes a mapping rather than a framework Request so the
+    same helper works across FastAPI / Flask / Django / aiohttp / Sanic / ASGI.
+    """
+    lower = {k.lower(): v for k, v in headers.items()}
+    return lower.get("payment-signature") or lower.get("x-payment")
+
+
+__all__ = [
+    "PaymentSigner",
+    "SignerNetwork",
+    "extract_payment_signer",
+    "extract_payment_signer_address",
+    "extract_x402_signer",
+    "read_x402_payment_header",
+]

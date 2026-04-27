@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from agentscore_commerce.identity.middleware import AgentScoreGate, CreateSessionOnMissing
+from agentscore_commerce.identity.middleware import AgentScoreGate, CreateSessionOnMissing, get_assess_data
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -35,6 +35,10 @@ SESSION_RESPONSE = {
 def _homepage(request: Request) -> JSONResponse:
     agentscore_data = request.state.agentscore if hasattr(request.state, "agentscore") else None
     return JSONResponse({"ok": True, "agentscore": agentscore_data})
+
+
+def _homepage_via_getter(request: Request) -> JSONResponse:
+    return JSONResponse({"assess": get_assess_data(request)})
 
 
 def _make_app(**gate_kwargs: object) -> Starlette:
@@ -133,6 +137,16 @@ class TestCreateSessionOnMissing:
         assert resp.status_code == 403
         data = resp.json()
         assert data["error"] == "missing_identity"
+
+    @respx.mock
+    def test_get_assess_data_returns_assess_after_pass(self):
+        _mock_assess()
+        app = Starlette(routes=[Route("/", _homepage_via_getter)])
+        gated = AgentScoreGate(app, api_key="ask_test_key")
+        client = TestClient(gated, raise_server_exceptions=False)
+        resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+        assert resp.status_code == 200
+        assert resp.json()["assess"] == {"decision": "allow", "decision_reasons": []}
 
     @respx.mock
     def test_does_not_create_session_when_identity_is_present(self):

@@ -153,16 +153,16 @@ def build_agent_memory_hint() -> AgentMemoryHint:
         identity_paths={
             "wallet": (
                 "If paying from a crypto wallet you have used before on any AgentScore merchant, send "
-                "X-Wallet-Address: 0x.... Shortest path; no token lifecycle to manage."
+                "`X-Wallet-Address: 0x...`. Shortest path; no token lifecycle to manage."
             ),
             "operator_token": (
                 "For any rail (Stripe SPT, card, or a wallet you have not linked yet), send "
-                "X-Operator-Token: opc_.... Reusable across merchants until the token expires."
+                "`X-Operator-Token: opc_...`. Reusable across merchants until the token expires."
             ),
         },
         bootstrap=(
             "If you have neither a linked wallet nor a valid operator_token, follow the session/verify "
-            "flow in the per-request agent_instructions block. This happens at most once per agent "
+            "flow in the per-request `agent_instructions` block. This happens at most once per agent "
             "identity — after first verification, the operator_token and any subsequently used wallet "
             "are reusable everywhere."
         ),

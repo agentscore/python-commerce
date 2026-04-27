@@ -21,6 +21,7 @@ def test_build_payment_request_blob_with_rail():
     decoded = _decode(blob)
     assert decoded["amount"] == "1000000"  # 1 USDC at 6 decimals
     assert decoded["currency"] == "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    assert decoded["decimals"] == 6
     assert decoded["methodDetails"]["chainId"] == 8453
 
 
@@ -31,7 +32,21 @@ def test_build_payment_request_blob_overrides_take_precedence():
     decoded = _decode(blob)
     assert decoded["amount"] == "200"
     assert decoded["currency"] == "usd"
+    assert decoded["decimals"] == 2
     assert decoded["methodDetails"]["networkId"] == "acct_x"
+
+
+def test_build_payment_request_blob_includes_decimals_for_node_parity():
+    """Wire-format parity with @agent-score/commerce — the decoded JSON must include `decimals`
+    (mppx tempo schema requires it). If this assertion fails, node-commerce and python-commerce
+    are emitting different request blobs for the same payment, which breaks cross-SDK interop.
+    """
+    blob = build_payment_request_blob(PaymentRequestInput(rail="tempo-mainnet", amount_usd="1.50", recipient="0xabc"))
+    decoded = _decode(blob)
+    # Mirror node-commerce/src/payment/directive.ts buildPaymentRequestBlob output keys exactly
+    assert set(decoded.keys()) >= {"amount", "currency", "decimals"}
+    assert decoded["amount"] == "1500000"  # 1.50 USDC at 6 decimals
+    assert decoded["decimals"] == 6
 
 
 def test_payment_directive_format():

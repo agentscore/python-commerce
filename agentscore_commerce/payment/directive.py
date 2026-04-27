@@ -32,7 +32,7 @@ def build_payment_request_blob(input: PaymentRequestInput) -> str:
 
     amount_num = float(input.amount_usd) if isinstance(input.amount_usd, str) else input.amount_usd
     amount_raw = str(round(amount_num * 10**decimals))
-    blob: dict[str, object] = {"amount": amount_raw, "currency": currency}
+    blob: dict[str, object] = {"amount": amount_raw, "currency": currency, "decimals": decimals}
     if input.recipient:
         blob["recipient"] = input.recipient
     method_details: dict[str, object] = {}

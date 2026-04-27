@@ -89,7 +89,7 @@ async def search(request: Request):
             {
                 "scheme": "exact",
                 "network": networks.base.mainnet.caip2,
-                "maxAmountRequired": str(int(PRICE_USDC * 1_000_000)),
+                "amount": str(int(PRICE_USDC * 1_000_000)),
                 "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
                 "payTo": os.environ["X402_BASE_RECIPIENT"],
                 "extra": {"decimals": 6},
@@ -97,14 +97,14 @@ async def search(request: Request):
             {
                 "scheme": "exact",
                 "network": networks.solana.mainnet.caip2,
-                "maxAmountRequired": str(int(PRICE_USDC * 1_000_000)),
+                "amount": str(int(PRICE_USDC * 1_000_000)),
                 "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
                 "payTo": os.environ["X402_SOLANA_RECIPIENT"],
                 "extra": {"decimals": 6},
             },
         ]
         return JSONResponse(
-            {"payment_required": True, "x402Version": 1, "accepts": accepts},
+            {"payment_required": True, "x402Version": 2, "accepts": accepts},
             status_code=402,
             headers={
                 "www-authenticate": www_authenticate_header(directives),

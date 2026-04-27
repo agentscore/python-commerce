@@ -66,6 +66,7 @@ dev = [
     "pytest-cov>=6.0",
     "python-dotenv>=1.2.2",
     "stripe>=11.0.0",
+    "lefthook>=2.1.6",
 ]
 
 [tool.uv.sources]

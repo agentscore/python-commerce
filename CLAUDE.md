@@ -50,6 +50,7 @@ Captured wallets: `capture_wallet(...)` is fire-and-forget — reads `operator_t
 
 ```bash
 uv sync --all-extras
+uv run lefthook install   # one-time per clone — wires pre-commit + pre-push
 uv run ruff check .
 uv run ruff format .
 uv run ty check agentscore_commerce/

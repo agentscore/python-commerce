@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 keywords = ["agentscore", "agent-commerce", "agentic-payments", "402", "x402", "mpp", "machine-payments-protocol", "fastapi", "starlette", "flask", "django", "aiohttp", "sanic", "middleware", "trust", "reputation", "kyc", "identity", "stripe", "tempo", "solana", "base", "ai-agent"]
 dependencies = [
     "httpx>=0.25.0,<1.0.0",
-    "agentscore-py>=1.9.0",
+    "agentscore-py>=2.0.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -70,8 +70,8 @@ dev = [
 ]
 
 [tool.uv.sources]
-# Local-first dev: use the linked python-sdk repo for agentscore-py until 1.9.0 publishes (Phase 0 cascade).
-# Switch to PyPI by removing this stanza after publish.
+# Local-first dev: editable install of the sibling python-sdk. Remove this stanza
+# to consume the published version from PyPI instead.
 agentscore-py = { path = "../python-sdk", editable = true }
 
 [tool.ty.src]

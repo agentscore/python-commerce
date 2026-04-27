@@ -5,6 +5,9 @@ scope  # noqa: F821
 receive  # noqa: F821
 send  # noqa: F821
 
+# Redis SET kwarg in _RedisLike Protocol (structural type for redis.asyncio.Redis)
+ex  # noqa: F821
+
 # Public API exports
 Activity  # noqa: F821
 AgentScoreGate  # noqa: F821

@@ -116,12 +116,32 @@ def _header_lookup(headers: dict[str, str], *names: str) -> str | None:
     return None
 
 
+_REGENERATE_WARNING = (
+    "If you're trying to pay with Tempo USDC, use `tempo request` (sends Authorization: Payment), "
+    "not a manual X-Payment header. Do NOT use `tempo wallet transfer` — that sends USDC on-chain "
+    "but will not complete the MPP handshake. For x402 on Base/Solana, use `agentscore-pay pay` so "
+    "the X-Payment credential is signed and submitted; bare wallet transfers do not complete the handshake."
+)
+
+
+def _regenerate_body(message: str, user_message: str) -> dict[str, Any]:
+    return {
+        "error": {"code": "payment_proof_invalid", "message": message},
+        "next_steps": {
+            "action": "regenerate_payment_credential",
+            "user_message": user_message,
+            "warning": _REGENERATE_WARNING,
+        },
+    }
+
+
 async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402RequestResult:
     """Parse the x402 X-Payment header and validate network + payTo + cache hit.
 
     Returns ``VerifyX402RequestSuccess`` when valid; the caller passes ``payload``
     straight into :func:`process_x402_settle`. Returns ``VerifyX402RequestFailure``
-    when invalid — the merchant just returns ``body`` with HTTP ``status``.
+    when invalid — ``body`` includes ``next_steps`` with ``regenerate_payment_credential``
+    so agents can recover deterministically from the response alone.
 
     Reads the header from ``payment-signature`` first, falling back to ``x-payment``
     (both are in the wild as the binary-friendly transport name evolved).
@@ -129,19 +149,26 @@ async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402Reques
     header_value = _header_lookup(input.headers, "payment-signature", "x-payment")
     if not header_value:
         return VerifyX402RequestFailure(
-            body={"error": {"code": "payment_proof_invalid", "message": "X-Payment header missing"}},
+            body=_regenerate_body(
+                "X-Payment header missing",
+                (
+                    "No X-Payment header was sent. Generate the credential from the 402 "
+                    "challenge and resubmit on the same endpoint."
+                ),
+            ),
         )
 
     try:
         payload = json.loads(base64.b64decode(header_value).decode())
     except Exception:
         return VerifyX402RequestFailure(
-            body={
-                "error": {
-                    "code": "payment_proof_invalid",
-                    "message": "X-Payment header is not valid base64 JSON",
-                }
-            },
+            body=_regenerate_body(
+                "X-Payment header is not valid base64 JSON",
+                (
+                    "The payment credential could not be decoded. Reconstruct the "
+                    "credential from the 402 challenge and retry."
+                ),
+            ),
         )
 
     accepted = payload.get("accepted") or {}
@@ -153,40 +180,41 @@ async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402Reques
         input.accepted_svm_network,
     ):
         return VerifyX402RequestFailure(
-            body={
-                "error": {
-                    "code": "payment_proof_invalid",
-                    "message": (
-                        f"Unsupported x402 network {signed_network or '<missing>'}; "
-                        f"this server accepts {input.accepted_base_network} (Base) "
-                        f"and {input.accepted_svm_network} (Solana)"
-                    ),
-                }
-            },
+            body=_regenerate_body(
+                (
+                    f"Unsupported x402 network {signed_network or '<missing>'}; "
+                    f"this server accepts {input.accepted_base_network} (Base) "
+                    f"and {input.accepted_svm_network} (Solana)"
+                ),
+                (
+                    "The credential signed for an unsupported network. Pick one of the "
+                    "accepted networks from the 402 challenge and re-sign."
+                ),
+            ),
         )
 
     is_solana = network_family(signed_network) == "solana"
     re_match = _SOLANA_ADDRESS_RE if is_solana else _EVM_ADDRESS_RE
     if not signed_pay_to or not isinstance(signed_pay_to, str) or not re_match.match(signed_pay_to):
         return VerifyX402RequestFailure(
-            body={
-                "error": {
-                    "code": "payment_proof_invalid",
-                    "message": (
-                        f"Payment payload missing or malformed accepted.payTo address for network {signed_network}"
-                    ),
-                }
-            },
+            body=_regenerate_body(
+                f"Payment payload missing or malformed accepted.payTo address for network {signed_network}",
+                (
+                    "The credential payload is missing or malformed payTo for the signed "
+                    "network. Reconstruct the credential from the 402 challenge."
+                ),
+            ),
         )
 
     if not await input.is_cached_address(signed_pay_to):
         return VerifyX402RequestFailure(
-            body={
-                "error": {
-                    "code": "payment_proof_invalid",
-                    "message": "payTo address not found in cache or expired. Request a fresh 402 challenge and retry.",
-                }
-            },
+            body=_regenerate_body(
+                "payTo address not found in cache or expired. Request a fresh 402 challenge and retry.",
+                (
+                    "The deposit address is unknown or expired on this server. Request a "
+                    "fresh 402 challenge and re-sign against the new payTo."
+                ),
+            ),
         )
 
     return VerifyX402RequestSuccess(

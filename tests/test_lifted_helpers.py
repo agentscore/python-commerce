@@ -300,6 +300,23 @@ async def test_verify_x402_pay_to_not_in_cache():
 
 
 @pytest.mark.asyncio
+async def test_verify_x402_failures_carry_regenerate_next_steps():
+    """Every failure path emits next_steps with regenerate_payment_credential + user_message + warning."""
+    res = await verify_x402_request(
+        VerifyX402RequestInput(
+            headers={},
+            is_cached_address=_always_true,
+            accepted_base_network=networks.base.sepolia.caip2,
+            accepted_svm_network=networks.solana.devnet.caip2,
+        )
+    )
+    assert isinstance(res, VerifyX402RequestFailure)
+    assert res.body["next_steps"]["action"] == "regenerate_payment_credential"
+    assert "user_message" in res.body["next_steps"]
+    assert "tempo wallet transfer" in res.body["next_steps"]["warning"]
+
+
+@pytest.mark.asyncio
 async def test_verify_x402_success_evm():
     pay_to = "0x" + "1" * 40
     payload = {"accepted": {"network": networks.base.sepolia.caip2, "payTo": pay_to}}

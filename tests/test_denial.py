@@ -142,3 +142,20 @@ class TestVerificationAgentInstructions:
         assert inst["steps"][-1] == "Resume by including order_id in the retry body."
         assert "1 hour" in inst["order_ttl"]
         assert inst["vendor_field"] == "value"
+
+    def test_retry_step_replaces_canonical_step(self):
+        custom = "Retry POST /purchase with X-Operator-Token AND include order_id from this response."
+        inst = verification_agent_instructions(retry_step=custom)
+        assert inst["steps"][4] == custom
+        canonical = "Retry the original merchant request with header X-Operator-Token set to the operator_token value."
+        assert canonical not in inst["steps"]
+
+    def test_retry_step_and_extra_steps_compose(self):
+        inst = verification_agent_instructions(
+            retry_step="Custom retry.",
+            extra_steps=["Then do X.", "Then do Y."],
+        )
+        assert len(inst["steps"]) == 7
+        assert inst["steps"][4] == "Custom retry."
+        assert inst["steps"][5] == "Then do X."
+        assert inst["steps"][6] == "Then do Y."

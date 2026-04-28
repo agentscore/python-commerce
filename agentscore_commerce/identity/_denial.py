@@ -136,6 +136,7 @@ def build_contact_support_next_steps(support_email: str, message: str | None = N
 def verification_agent_instructions(
     *,
     user_action: str | None = None,
+    retry_step: str | None = None,
     extra_steps: list[str] | None = None,
     poll_interval_seconds: int = 5,
     timeout_seconds: int = 3600,
@@ -147,6 +148,12 @@ def verification_agent_instructions(
     Tells the agent how to present verify_url, poll for the operator_token, and retry the
     original request. Universal across every AgentScore-gated merchant — overrides let vendors
     add merchant-specific steps.
+
+    ``retry_step`` REPLACES the generic "Retry the original merchant request..." step with a
+    merchant-specific one (e.g. "Retry POST /purchase with X-Operator-Token AND include
+    order_id..."). Use it when your retry instruction is a refinement of the canonical retry,
+    not an additional step. ``extra_steps`` is for genuinely additional steps that come AFTER
+    the retry (e.g. "After payment the same call returns 200").
     """
     base_steps = [
         "Present the verify_url directly to the user — it is a complete, ready-to-open URL with the session "
@@ -158,7 +165,8 @@ def verification_agent_instructions(
         "and closes the tab. They do NOT need to copy or paste anything back to you.",
         'When your poll returns status "verified", extract operator_token from the response. This is a one-time '
         'value — save it immediately. Subsequent polls return status "consumed" without the token.',
-        "Retry the original merchant request with header X-Operator-Token set to the operator_token value.",
+        retry_step
+        or "Retry the original merchant request with header X-Operator-Token set to the operator_token value.",
     ]
     out: dict[str, Any] = {
         "action": "poll_for_credential",

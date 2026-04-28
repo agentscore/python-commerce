@@ -68,6 +68,33 @@ def test_payment_required_header_base64_encodes_json():
     assert decoded["resource"]["url"] == "https://x"
 
 
+def test_payment_required_header_emits_v1_alias_for_v2_clients():
+    """v1-only parsers (Coinbase awal) read maxAmountRequired; v2-strict parsers read amount.
+
+    Header carries both so either side works.
+    """
+    from agentscore_commerce.payment import alias_amount_fields
+
+    h = payment_required_header(
+        PaymentRequiredHeaderInput(
+            x402_version=2,
+            accepts=[{"scheme": "exact", "network": "eip155:84532", "amount": "110000"}],
+        )
+    )
+    decoded = json.loads(base64.b64decode(h))
+    assert decoded["accepts"][0]["amount"] == "110000"
+    assert decoded["accepts"][0]["maxAmountRequired"] == "110000"
+
+    # Reverse: vendor emitting v1 shape gets amount alias added.
+    aliased = alias_amount_fields([{"scheme": "exact", "maxAmountRequired": "110000"}])
+    assert aliased[0]["amount"] == "110000"
+    assert aliased[0]["maxAmountRequired"] == "110000"
+
+    # Idempotent: both already set → unchanged.
+    both = alias_amount_fields([{"amount": "1", "maxAmountRequired": "1"}])
+    assert both[0] == {"amount": "1", "maxAmountRequired": "1"}
+
+
 def test_settlement_override_header_returns_name_value_pair():
     name, value = settlement_override_header(SettlementOverrides(amount="1500"))
     assert name == SETTLEMENT_OVERRIDES_HEADER

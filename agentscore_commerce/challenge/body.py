@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from agentscore_commerce.challenge.pricing import PricingBlock
+from agentscore_commerce.payment.wwwauthenticate import alias_amount_fields
 
 
 @dataclass
@@ -34,7 +35,7 @@ def build_402_body(input: Build402BodyInput) -> dict[str, Any]:
     body: dict[str, Any] = {"payment_required": True, "accepted_methods": input.accepted_methods}
     if input.x402:
         body["x402Version"] = input.x402.version
-        body["accepts"] = input.x402.accepts
+        body["accepts"] = alias_amount_fields(input.x402.accepts)
     if input.amount_usd is not None:
         body["amount_usd"] = input.amount_usd
     if input.currency:

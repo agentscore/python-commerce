@@ -148,3 +148,19 @@ def test_build_402_body_assembles_full_response():
     assert body["pricing"]["total"] == "108"
     assert body["identity_mode"] == "wallet"
     assert body["agent_instructions"]["how_to_pay"] == {}
+
+
+def test_build_402_body_emits_v1_alias_on_accepts_entries():
+    """Each accepts entry carries both `amount` (v2) and `maxAmountRequired` (v1)."""
+    body = build_402_body(
+        Build402BodyInput(
+            accepted_methods=[],
+            x402=X402PaymentRequired(
+                accepts=[{"scheme": "exact", "network": "eip155:84532", "amount": "110000"}],
+                version=2,
+            ),
+        )
+    )
+    entry = body["accepts"][0]
+    assert entry["amount"] == "110000"
+    assert entry["maxAmountRequired"] == "110000"

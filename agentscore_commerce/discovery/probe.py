@@ -1,9 +1,10 @@
 """Discovery probe — answers empty-body POSTs from MPP crawlers (mppscan, link-cli) with a sample 402."""
 
+import base64
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from agentscore_commerce.payment.directive import (
     PaymentDirectiveInput,
@@ -11,6 +12,25 @@ from agentscore_commerce.payment.directive import (
     build_payment_request_blob,
     payment_directive,
 )
+from agentscore_commerce.payment.wwwauthenticate import (
+    PaymentRequiredHeaderInput,
+    payment_required_header,
+)
+
+
+@dataclass
+class X402SampleProbe:
+    """Sample x402 accepts to embed in the discovery probe's PAYMENT-REQUIRED header.
+
+    Crawlers (e.g. ``awal x402 details``) can find this endpoint's x402 support
+    without a real business-shaped request. Each entry is run through
+    ``alias_amount_fields`` so v1-only parsers find ``maxAmountRequired`` and
+    v2-strict parsers find ``amount``.
+    """
+
+    accepts: list[Any]
+    version: Literal[1, 2] = 2
+    resource_url: str | None = None
 
 
 @dataclass
@@ -23,6 +43,7 @@ class DiscoveryProbeOptions:
     ttl_seconds: int = 300
     docs_url: str | None = None
     message: str | None = None
+    x402_sample: X402SampleProbe | None = field(default=None)
 
 
 @dataclass
@@ -54,9 +75,29 @@ def build_discovery_probe_response(opts: DiscoveryProbeOptions) -> DiscoveryProb
     }
     if opts.docs_url:
         body_obj["docs"] = opts.docs_url
+    headers: dict[str, str] = {"content-type": "application/json", "www-authenticate": directive}
+
+    if opts.x402_sample is not None:
+        x402v = opts.x402_sample.version
+        # payment_required_header internally runs alias_amount_fields, so v1+v2
+        # parsers both find their expected field name on the header decode.
+        header_kwargs: dict[str, Any] = {"x402_version": x402v, "accepts": opts.x402_sample.accepts}
+        if opts.x402_sample.resource_url:
+            header_kwargs["resource"] = {
+                "url": opts.x402_sample.resource_url,
+                "mimeType": "application/json",
+            }
+        encoded = payment_required_header(PaymentRequiredHeaderInput(**header_kwargs))
+        headers["payment-required"] = encoded
+        # Mirror the aliased accepts in the body so clients that fall back from
+        # header → body (e.g. awal's discover) can still extract requirements.
+        decoded = json.loads(base64.b64decode(encoded).decode())
+        body_obj["x402Version"] = x402v
+        body_obj["accepts"] = decoded["accepts"]
+
     return DiscoveryProbeResponse(
         status=402,
-        headers={"content-type": "application/json", "www-authenticate": directive},
+        headers=headers,
         body=json.dumps(body_obj, separators=(",", ":")),
     )
 

@@ -20,6 +20,7 @@ from agentscore_commerce.discovery.openapi import (
 from agentscore_commerce.discovery.probe import (
     DiscoveryProbeOptions,
     DiscoveryProbeResponse,
+    X402SampleProbe,
     build_discovery_probe_response,
     is_discovery_probe_request,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "LlmsTxtSection",
     "PaymentMethodConfig",
     "WellKnownMppInput",
+    "X402SampleProbe",
     "agentscore_denial_schemas",
     "agentscore_openapi_snippets",
     "agentscore_payment_required_schema",

@@ -60,6 +60,7 @@ from agentscore_commerce.challenge import (
 )
 from agentscore_commerce.identity.fastapi import AgentScoreGate, get_assess_data
 from agentscore_commerce.payment import (
+    USDC,
     PaymentRequiredHeaderInput,
     ProcessX402SettleInput,
     ValidateX402NetworkConfigInput,
@@ -220,8 +221,22 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
             x402=PaymentRequiredHeaderInput(
                 x402_version=2,
                 accepts=[
-                    {"scheme": "exact", "network": X402_BASE_NETWORK, "payTo": deposit_addresses["base"]},
-                    {"scheme": "exact", "network": X402_SVM_NETWORK, "payTo": deposit_addresses["solana"]},
+                    {
+                        "scheme": "exact",
+                        "network": X402_BASE_NETWORK,
+                        "amount": str(round(float(total_usd) * 1_000_000)),
+                        "asset": USDC.base.mainnet.address,
+                        "payTo": deposit_addresses["base"],
+                        "maxTimeoutSeconds": 300,
+                    },
+                    {
+                        "scheme": "exact",
+                        "network": X402_SVM_NETWORK,
+                        "amount": str(round(float(total_usd) * 1_000_000)),
+                        "asset": USDC.solana.mainnet.mint,
+                        "payTo": deposit_addresses["solana"],
+                        "maxTimeoutSeconds": 300,
+                    },
                 ],
                 resource={"url": str(request.url), "mimeType": "application/json"},
             ),

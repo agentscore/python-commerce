@@ -84,7 +84,7 @@ class TestIdentityExtraction:
             resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
             assert resp.status == 403
             data = await resp.json()
-            assert data["error"] == "wallet_not_trusted"
+            assert data["error"]["code"] == "wallet_not_trusted"
             assert data["reasons"] == ["not_kyc"]
 
     @pytest.mark.asyncio
@@ -94,7 +94,7 @@ class TestIdentityExtraction:
             resp = await client.get("/")
             assert resp.status == 403
             data = await resp.json()
-            assert data["error"] == "missing_identity"
+            assert data["error"]["code"] == "missing_identity"
 
     @pytest.mark.asyncio
     async def test_fail_open_allows_through_when_identity_missing(self):
@@ -124,7 +124,7 @@ class TestErrorPaths:
             resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
             assert resp.status == 403
             data = await resp.json()
-            assert data["error"] == "payment_required"
+            assert data["error"]["code"] == "payment_required"
 
     @pytest.mark.asyncio
     @respx.mock
@@ -135,7 +135,7 @@ class TestErrorPaths:
             resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
             assert resp.status == 503
             data = await resp.json()
-            assert data["error"] == "api_error"
+            assert data["error"]["code"] == "api_error"
 
     @pytest.mark.asyncio
     @respx.mock
@@ -217,7 +217,7 @@ class TestCreateSessionOnMissing:
             resp = await client.get("/")
             assert resp.status == 403
             data = await resp.json()
-            assert data["error"] == "identity_verification_required"
+            assert data["error"]["code"] == "identity_verification_required"
             assert data["session_id"] == "sess_abc123"
             assert data["verify_url"] == "https://agentscore.sh/verify/sess_abc123"
             assert data["poll_secret"] == "ps_secret"
@@ -237,7 +237,7 @@ class TestCreateSessionOnMissing:
             resp = await client.get("/")
             assert resp.status == 403
             data = await resp.json()
-            assert data["error"] == "missing_identity"
+            assert data["error"]["code"] == "missing_identity"
 
 
 class TestCaptureWallet:
@@ -338,7 +338,7 @@ async def test_aiohttp_passes_through_token_expired():
         resp = await client.get("/", headers={"x-operator-token": "opc_exp"})
         assert resp.status == 401
         body = await resp.json()
-        assert body["error"] == "token_expired"
+        assert body["error"]["code"] == "token_expired"
         assert json.loads(body["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
 
 
@@ -361,4 +361,4 @@ async def test_aiohttp_api_error_on_unexpected_exception():
         resp = await client.get("/", headers={"x-wallet-address": "0xabc"})
         assert resp.status == 503
         body = await resp.json()
-        assert body["error"] == "api_error"
+        assert body["error"]["code"] == "api_error"

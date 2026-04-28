@@ -64,7 +64,7 @@ class TestDependency:
         assert resp.status_code == 403
         body = resp.json()
         # FastAPI wraps HTTPException detail in {"detail": {...}}.
-        assert body["detail"]["error"] == "wallet_not_trusted"
+        assert body["detail"]["error"]["code"] == "wallet_not_trusted"
         assert body["detail"]["reasons"] == ["not_kyc"]
 
     def test_missing_identity_returns_403(self):
@@ -72,7 +72,7 @@ class TestDependency:
         client = TestClient(_make_app(gate))
         resp = client.get("/")
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"] == "missing_identity"
+        assert resp.json()["detail"]["error"]["code"] == "missing_identity"
 
     def test_fail_open_allows_through_when_identity_missing(self):
         gate = AgentScoreGate(api_key="ask_test", fail_open=True)
@@ -96,7 +96,7 @@ class TestDependency:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"] == "payment_required"
+        assert resp.json()["detail"]["error"]["code"] == "payment_required"
 
     @respx.mock
     def test_api_error_returns_403_api_error(self):
@@ -105,7 +105,7 @@ class TestDependency:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 503
-        assert resp.json()["detail"]["error"] == "api_error"
+        assert resp.json()["detail"]["error"]["code"] == "api_error"
 
 
 class TestOnDenied:
@@ -181,7 +181,7 @@ class TestCreateSessionOnMissing:
         resp = client.get("/")
         assert resp.status_code == 403
         detail = resp.json()["detail"]
-        assert detail["error"] == "identity_verification_required"
+        assert detail["error"]["code"] == "identity_verification_required"
         assert detail["session_id"] == "sess_abc123"
         assert detail["verify_url"] == "https://agentscore.sh/verify/sess_abc123"
         assert detail["poll_secret"] == "ps_secret"
@@ -202,7 +202,7 @@ class TestCreateSessionOnMissing:
         client = TestClient(_make_app(gate))
         resp = client.get("/")
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"] == "missing_identity"
+        assert resp.json()["detail"]["error"]["code"] == "missing_identity"
 
 
 class TestCaptureWallet:
@@ -318,7 +318,7 @@ def test_fastapi_passes_through_token_expired():
     assert resp.status_code == 401
     # FastAPI wraps the denial body under HTTPException.detail.
     detail = resp.json()["detail"]
-    assert detail["error"] == "token_expired"
+    assert detail["error"]["code"] == "token_expired"
     assert json.loads(detail["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
 
 
@@ -337,4 +337,4 @@ def test_fastapi_api_error_on_unexpected_exception():
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.get("/", headers={"x-wallet-address": "0xabc"})
     assert resp.status_code == 503
-    assert resp.json()["detail"]["error"] == "api_error"
+    assert resp.json()["detail"]["error"]["code"] == "api_error"

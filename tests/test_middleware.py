@@ -71,7 +71,7 @@ class TestCreateSessionOnMissing:
 
         assert resp.status_code == 403
         data = resp.json()
-        assert data["error"] == "identity_verification_required"
+        assert data["error"]["code"] == "identity_verification_required"
         assert data["verify_url"] == "https://agentscore.sh/verify/sess_abc123"
         assert data["session_id"] == "sess_abc123"
         assert data["poll_secret"] == "ps_secret_456"
@@ -122,7 +122,7 @@ class TestCreateSessionOnMissing:
 
         assert resp.status_code == 403
         data = resp.json()
-        assert data["error"] == "missing_identity"
+        assert data["error"]["code"] == "missing_identity"
 
     @respx.mock
     def test_falls_back_to_missing_identity_on_network_error(self):
@@ -136,7 +136,7 @@ class TestCreateSessionOnMissing:
 
         assert resp.status_code == 403
         data = resp.json()
-        assert data["error"] == "missing_identity"
+        assert data["error"]["code"] == "missing_identity"
 
     @respx.mock
     def test_get_assess_data_returns_assess_after_pass(self):
@@ -307,7 +307,7 @@ def test_middleware_surfaces_generic_api_error_on_unexpected_exception():
     resp = client.get("/", headers={"x-wallet-address": "0xabc"})
 
     assert resp.status_code == 503
-    assert resp.json()["error"] == "api_error"
+    assert resp.json()["error"]["code"] == "api_error"
 
 
 @respx.mock
@@ -347,7 +347,7 @@ def test_middleware_passes_through_token_expired_with_auto_session():
 
     assert resp.status_code == 401
     body = resp.json()
-    assert body["error"] == "token_expired"
+    assert body["error"]["code"] == "token_expired"
     assert body["session_id"] == "sess_auto"
     assert body["poll_secret"] == "poll_auto"
     assert body["verify_url"] == "https://agentscore.sh/verify?session=sess_auto"
@@ -373,7 +373,7 @@ def test_middleware_emits_invalid_credential_no_session():
 
     assert resp.status_code == 401
     body = resp.json()
-    assert body["error"] == "invalid_credential"
+    assert body["error"]["code"] == "invalid_credential"
     # Agent_instructions guides the agent to switch tokens or restart the session flow.
     instructions = json.loads(body["agent_instructions"])
     assert instructions["action"] == "switch_token_or_restart_session"
@@ -400,7 +400,7 @@ def test_middleware_passes_through_token_expired_without_next_steps():
 
     assert resp.status_code == 401
     body = resp.json()
-    assert body["error"] == "token_expired"
+    assert body["error"]["code"] == "token_expired"
     # next_steps absent → agent_instructions omitted entirely.
     assert "agent_instructions" not in body
 
@@ -423,7 +423,7 @@ def test_middleware_emits_wallet_not_trusted_on_policy_deny():
 
     assert resp.status_code == 403
     body = resp.json()
-    assert body["error"] == "wallet_not_trusted"
+    assert body["error"]["code"] == "wallet_not_trusted"
     assert body["decision"] == "deny"
     assert body["reasons"] == ["kyc_required"]
     assert body["verify_url"] == "https://agentscore.sh/verify"
@@ -438,7 +438,7 @@ def test_middleware_emits_payment_required_on_402():
     resp = client.get("/", headers={"x-wallet-address": "0xabc"})
 
     assert resp.status_code == 403
-    assert resp.json()["error"] == "payment_required"
+    assert resp.json()["error"]["code"] == "payment_required"
 
 
 @respx.mock

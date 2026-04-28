@@ -77,14 +77,14 @@ class TestIdentityExtraction:
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status == 403
-        assert resp.json["error"] == "wallet_not_trusted"
+        assert resp.json["error"]["code"] == "wallet_not_trusted"
         assert resp.json["reasons"] == ["not_kyc"]
 
     def test_missing_identity_returns_403(self):
         app = _make_app("sanic_missing")
         _, resp = app.test_client.get("/")
         assert resp.status == 403
-        assert resp.json["error"] == "missing_identity"
+        assert resp.json["error"]["code"] == "missing_identity"
 
     def test_fail_open_allows_through_when_identity_missing(self):
         app = _make_app("sanic_fail_open", fail_open=True)
@@ -113,7 +113,7 @@ class TestErrorPaths:
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status == 403
-        assert resp.json["error"] == "payment_required"
+        assert resp.json["error"]["code"] == "payment_required"
 
     def test_returns_503_api_error_on_exception(self):
         app = _make_app("sanic_api_error")
@@ -123,7 +123,7 @@ class TestErrorPaths:
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status == 503
-        assert resp.json["error"] == "api_error"
+        assert resp.json["error"]["code"] == "api_error"
 
     def test_fail_open_allows_through_on_402(self):
         from agentscore_commerce.identity.client import PaymentRequiredError
@@ -192,7 +192,7 @@ class TestCreateSessionOnMissing:
         ):
             _, resp = app.test_client.get("/")
         assert resp.status == 403
-        assert resp.json["error"] == "identity_verification_required"
+        assert resp.json["error"]["code"] == "identity_verification_required"
         assert resp.json["session_id"] == "sess_abc"
         assert resp.json["verify_url"] == "https://agentscore.sh/verify/sess_abc"
         assert resp.json["poll_secret"] == "ps_secret"
@@ -208,7 +208,7 @@ class TestCreateSessionOnMissing:
         ):
             _, resp = app.test_client.get("/")
         assert resp.status == 403
-        assert resp.json["error"] == "missing_identity"
+        assert resp.json["error"]["code"] == "missing_identity"
 
 
 class TestCaptureWallet:
@@ -295,7 +295,7 @@ def test_sanic_passes_through_token_expired():
 
     assert resp.status == 401
     body = resp.json
-    assert body["error"] == "token_expired"
+    assert body["error"]["code"] == "token_expired"
     # Auto-session fields forwarded from the API's 401 body.
     assert body["session_id"] == "sess_abc"
     assert body["poll_secret"] == "poll_xyz"
@@ -319,4 +319,4 @@ def test_sanic_api_error_on_unexpected_exception():
         _req, resp = app.test_client.get("/", headers={"x-wallet-address": "0xabc"})
 
     assert resp.status == 503
-    assert resp.json["error"] == "api_error"
+    assert resp.json["error"]["code"] == "api_error"

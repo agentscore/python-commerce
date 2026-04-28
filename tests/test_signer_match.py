@@ -350,7 +350,7 @@ def test_denial_reason_to_body_includes_agent_memory() -> None:
     )
     body = denial_reason_to_body(reason)
 
-    assert body["error"] == "missing_identity"
+    assert body["error"]["code"] == "missing_identity"
     assert "agent_memory" in body
     assert body["agent_memory"]["save_for_future_agentscore_gates"] is True
     assert "identity_paths" in body["agent_memory"]
@@ -371,7 +371,7 @@ def test_denial_reason_to_body_includes_wallet_signer_mismatch_fields() -> None:
     )
     body = denial_reason_to_body(reason)
 
-    assert body["error"] == "wallet_signer_mismatch"
+    assert body["error"]["code"] == "wallet_signer_mismatch"
     assert body["claimed_operator"] == "op_claimed"
     assert body["actual_signer_operator"] == "op_signer"
     assert body["expected_signer"] == WALLET_A.lower()
@@ -573,7 +573,7 @@ def test_denial_reason_to_body_omits_agent_memory_on_non_bootstrap_denial() -> N
     )
     body = denial_reason_to_body(reason)
 
-    assert body["error"] == "wallet_signer_mismatch"
+    assert body["error"]["code"] == "wallet_signer_mismatch"
     assert "agent_memory" not in body
 
 
@@ -583,7 +583,7 @@ def test_denial_reason_to_body_omits_agent_memory_on_wallet_not_trusted() -> Non
     from agentscore_commerce.identity.types import DenialReason
 
     body = denial_reason_to_body(DenialReason(code="wallet_not_trusted"))
-    assert body["error"] == "wallet_not_trusted"
+    assert body["error"]["code"] == "wallet_not_trusted"
     assert "agent_memory" not in body
 
 
@@ -698,7 +698,7 @@ def test_asgi_middleware_surfaces_token_denied_as_granular_denial() -> None:
 
     assert res.status_code == 401
     body = res.json()
-    assert body["error"] == "token_expired"
+    assert body["error"]["code"] == "token_expired"
     # agent_instructions is a JSON string of next_steps
     assert json.loads(body["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
 

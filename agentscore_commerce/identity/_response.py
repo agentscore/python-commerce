@@ -3,6 +3,11 @@
 Every adapter (ASGI, FastAPI, Flask, Django, AIOHTTP, Sanic) renders the same
 body shape for a denial — this helper keeps them in sync and in one place.
 Includes the wallet-signer-match fields and the agent_memory payload.
+
+Body shape: ``{"error": {"code": ..., "message": ...}, ...}`` — matches the
+canonical AgentScore core API response shape so downstream agents see one
+consistent ``error.code`` + ``error.message`` pair regardless of which layer
+produced the denial.
 """
 
 from __future__ import annotations
@@ -136,13 +141,42 @@ def build_missing_identity_reason() -> DenialReason:
     )
 
 
+_DEFAULT_MESSAGES: dict[str, str] = {
+    "missing_identity": "No identity provided. Send X-Wallet-Address (wallet) or X-Operator-Token (credential).",
+    "identity_verification_required": (
+        "Identity verification is required to access this resource. Visit verify_url to complete KYC."
+    ),
+    "wallet_not_trusted": "The wallet does not meet the merchant compliance policy.",
+    "api_error": "AgentScore is unreachable. This is transient — retry in a few seconds.",
+    "payment_required": "AgentScore tier does not support assess. Contact support.",
+    "wallet_signer_mismatch": (
+        "Payment signer does not match the wallet claimed via X-Wallet-Address. The signer and the "
+        "claimed wallet must both resolve to the same AgentScore operator."
+    ),
+    "wallet_auth_requires_wallet_signing": (
+        "X-Wallet-Address was sent with a rail that has no wallet signature (Stripe SPT / card). "
+        "Switch to X-Operator-Token, or use a wallet-signing rail (Tempo MPP, x402)."
+    ),
+    "token_expired": (
+        "The operator token is expired or revoked. A fresh verification session has been minted — "
+        "visit verify_url to mint a new token."
+    ),
+    "invalid_credential": (
+        "The operator token is not recognized. Switch to a different stored token, or drop the "
+        "header to bootstrap a fresh session."
+    ),
+}
+
+
 def denial_reason_to_body(reason: DenialReason) -> dict[str, Any]:
     """Marshal a DenialReason dataclass into a flat dict suitable for the 403 JSON body.
 
     Shared across all adapters. Omits falsy optional fields so the body stays compact.
-    Always includes ``error`` set from ``reason.code``.
+    Emits ``error: {code, message}`` matching the core API canonical shape; ``message``
+    falls back to a per-code default when ``reason.message`` is None.
     """
-    body: dict[str, Any] = {"error": reason.code}
+    message = reason.message or _DEFAULT_MESSAGES.get(reason.code, "")
+    body: dict[str, Any] = {"error": {"code": reason.code, "message": message}}
     if reason.decision is not None:
         body["decision"] = reason.decision
     if reason.reasons:

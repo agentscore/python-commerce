@@ -65,6 +65,8 @@ class DenialReason:
     """Reason a request was denied by the gate middleware."""
 
     code: DenialCode
+    # Human-readable explanation. When None, denial_reason_to_body substitutes a per-code default.
+    message: str | None = None
     decision: str | None = None
     reasons: list[str] = field(default_factory=list)
     verify_url: str | None = None

@@ -67,7 +67,7 @@ class TestDjangoMiddleware:
             resp = mw(request)
             assert resp.status_code == 403
             data = json.loads(resp.content)
-            assert data["error"] == "wallet_not_trusted"
+            assert data["error"]["code"] == "wallet_not_trusted"
 
     def test_missing_wallet_returns_403(self) -> None:
         mw = self._make_middleware()
@@ -75,7 +75,7 @@ class TestDjangoMiddleware:
         resp = mw(request)
         assert resp.status_code == 403
         data = json.loads(resp.content)
-        assert data["error"] == "missing_identity"
+        assert data["error"]["code"] == "missing_identity"
 
     def test_missing_wallet_fail_open(self) -> None:
         mw = self._make_middleware(fail_open=True)
@@ -97,7 +97,7 @@ class TestDjangoMiddleware:
             resp = mw(request)
             assert resp.status_code == 503
             data = json.loads(resp.content)
-            assert data["error"] == "api_error"
+            assert data["error"]["code"] == "api_error"
 
     def test_payment_required_fail_open(self) -> None:
         mw = self._make_middleware(fail_open=True)
@@ -113,7 +113,7 @@ class TestDjangoMiddleware:
             resp = mw(request)
             assert resp.status_code == 403
             data = json.loads(resp.content)
-            assert data["error"] == "payment_required"
+            assert data["error"]["code"] == "payment_required"
 
     def test_extract_chain_passed_to_api(self) -> None:
         def custom_extract_chain(_request):
@@ -189,7 +189,7 @@ class TestDjangoMiddleware:
             resp = mw(request)
             assert resp.status_code == 403
             data = json.loads(resp.content)
-            assert data["error"] == "wallet_not_trusted"
+            assert data["error"]["code"] == "wallet_not_trusted"
             assert "kyc_required" in data["reasons"]
             assert "sanctions_check_pending" in data["reasons"]
 
@@ -223,7 +223,7 @@ class TestDjangoMiddleware:
             resp = mw(request)
             assert resp.status_code == 403
             data = json.loads(resp.content)
-            assert data["error"] == "wallet_not_trusted"
+            assert data["error"]["code"] == "wallet_not_trusted"
 
 
 class TestDjangoCreateSessionOnMissing:
@@ -261,7 +261,7 @@ class TestDjangoCreateSessionOnMissing:
             resp = mw(request)
         assert resp.status_code == 403
         data = json.loads(resp.content)
-        assert data["error"] == "identity_verification_required"
+        assert data["error"]["code"] == "identity_verification_required"
         assert data["session_id"] == "sess_abc"
         assert data["verify_url"] == "https://agentscore.sh/verify/sess_abc"
         assert data["poll_secret"] == "ps_secret"
@@ -281,7 +281,7 @@ class TestDjangoCreateSessionOnMissing:
             resp = mw(request)
         assert resp.status_code == 403
         data = json.loads(resp.content)
-        assert data["error"] == "missing_identity"
+        assert data["error"]["code"] == "missing_identity"
 
 
 class TestDjangoIdentityModel:
@@ -321,7 +321,7 @@ class TestDjangoIdentityModel:
         resp = mw(request)
         assert resp.status_code == 403
         data = json.loads(resp.content)
-        assert data["error"] == "missing_identity"
+        assert data["error"]["code"] == "missing_identity"
 
     def test_missing_identity_fail_open(self) -> None:
         mw = self._make_middleware(fail_open=True)

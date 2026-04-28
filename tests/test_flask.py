@@ -70,7 +70,7 @@ class TestFlaskGate:
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 403
             data = resp.get_json()
-            assert data["error"] == "wallet_not_trusted"
+            assert data["error"]["code"] == "wallet_not_trusted"
 
     def test_missing_wallet_returns_403(self) -> None:
         app = _make_app()
@@ -78,7 +78,7 @@ class TestFlaskGate:
         resp = client.get("/")
         assert resp.status_code == 403
         data = resp.get_json()
-        assert data["error"] == "missing_identity"
+        assert data["error"]["code"] == "missing_identity"
 
     def test_missing_wallet_fail_open(self) -> None:
         app = _make_app(fail_open=True)
@@ -100,7 +100,7 @@ class TestFlaskGate:
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 503
             data = resp.get_json()
-            assert data["error"] == "api_error"
+            assert data["error"]["code"] == "api_error"
 
     def test_payment_required_fail_open(self) -> None:
         app = _make_app(fail_open=True)
@@ -122,7 +122,7 @@ class TestFlaskGate:
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 403
             data = resp.get_json()
-            assert data["error"] == "payment_required"
+            assert data["error"]["code"] == "payment_required"
 
     def test_extract_chain_passed_to_api(self) -> None:
         def custom_extract_chain(_request):
@@ -187,7 +187,7 @@ class TestFlaskGate:
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 403
             data = resp.get_json()
-            assert data["error"] == "wallet_not_trusted"
+            assert data["error"]["code"] == "wallet_not_trusted"
             assert "kyc_required" in data["reasons"]
             assert "sanctions_check_pending" in data["reasons"]
 
@@ -222,7 +222,7 @@ class TestFlaskGate:
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 403
             data = resp.get_json()
-            assert data["error"] == "wallet_not_trusted"
+            assert data["error"]["code"] == "wallet_not_trusted"
 
 
 class TestFlaskCreateSessionOnMissing:
@@ -248,7 +248,7 @@ class TestFlaskCreateSessionOnMissing:
             resp = client.get("/")
             assert resp.status_code == 403
             data = resp.get_json()
-            assert data["error"] == "identity_verification_required"
+            assert data["error"]["code"] == "identity_verification_required"
             assert data["session_id"] == "sess_abc"
             assert data["verify_url"] == "https://agentscore.sh/verify/sess_abc"
             assert data["poll_secret"] == "ps_secret"
@@ -266,7 +266,7 @@ class TestFlaskCreateSessionOnMissing:
             resp = client.get("/")
             assert resp.status_code == 403
             data = resp.get_json()
-            assert data["error"] == "missing_identity"
+            assert data["error"]["code"] == "missing_identity"
 
 
 class TestFlaskIdentityModel:
@@ -309,7 +309,7 @@ class TestFlaskIdentityModel:
         resp = client.get("/")
         assert resp.status_code == 403
         data = resp.get_json()
-        assert data["error"] == "missing_identity"
+        assert data["error"]["code"] == "missing_identity"
 
     def test_missing_identity_fail_open(self) -> None:
         app = _make_app(fail_open=True)
@@ -477,7 +477,7 @@ class TestFlaskTokenDenied:
         import json as _json
 
         body = resp.get_json()
-        assert body["error"] == "token_expired"
+        assert body["error"]["code"] == "token_expired"
         assert body["session_id"] == "sess_flask"
         assert body["poll_secret"] == "poll_flask"
         assert _json.loads(body["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
@@ -495,7 +495,7 @@ class TestFlaskTokenDenied:
 
         assert resp.status_code == 401
         body = resp.get_json()
-        assert body["error"] == "token_expired"
+        assert body["error"]["code"] == "token_expired"
         assert "agent_instructions" not in body
 
 
@@ -514,7 +514,7 @@ class TestFlaskGenericFailure:
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
 
         assert resp.status_code == 503
-        assert resp.get_json()["error"] == "api_error"
+        assert resp.get_json()["error"]["code"] == "api_error"
 
     def test_fail_open_lets_request_through_on_unexpected_exception(self) -> None:
         import httpx
@@ -540,7 +540,7 @@ class TestFlaskGenericFailure:
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
 
         assert resp.status_code == 403
-        assert resp.get_json()["error"] == "payment_required"
+        assert resp.get_json()["error"]["code"] == "payment_required"
 
 
 class TestFlaskBadOnDenied:

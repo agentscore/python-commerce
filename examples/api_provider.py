@@ -35,6 +35,7 @@ from fastapi.responses import JSONResponse
 
 from agentscore_commerce.discovery import (
     DiscoveryProbeOptions,
+    X402SampleProbe,
     build_discovery_probe_response,
     is_discovery_probe_request,
 )
@@ -67,6 +68,13 @@ async def search(request: Request):
                 sample_rail="tempo-mainnet",
                 sample_amount_usd=PRICE_USDC,
                 sample_recipient=os.environ["TEMPO_RECIPIENT"],
+                # Advertise x402 support so crawlers (e.g. ``awal x402 details``)
+                # can find it on an empty-body POST. Commerce synthesizes USDC
+                # sample accepts from the registry per CAIP-2 network passed.
+                x402_sample=X402SampleProbe(
+                    networks=[networks.base.mainnet.caip2, networks.solana.mainnet.caip2],
+                    resource_url=f"{REALM}/search",
+                ),
             )
         )
         return JSONResponse(json.loads(probe.body), status_code=probe.status, headers=probe.headers)

@@ -115,6 +115,22 @@ def test_build_agent_instructions_uses_defaults():
     assert any("tempo wallet transfer" in w for w in out["warnings"])
 
 
+def test_build_agent_instructions_warnings_match_rails():
+    """Defaults adapt to which rails are present in how_to_pay."""
+    x402_only = build_agent_instructions(BuildAgentInstructionsInput(how_to_pay={"x402_base": {}}))
+    assert not any("tempo wallet transfer" in w for w in x402_only["warnings"])
+    assert any("x402 deposit addresses" in w for w in x402_only["warnings"])
+    assert not any("tempo request" in t for t in x402_only["recommended_tools"])
+    assert any("agentscore-pay" in t for t in x402_only["recommended_tools"])
+
+    tempo_only = build_agent_instructions(BuildAgentInstructionsInput(how_to_pay={"tempo": {}}))
+    assert not any("x402 deposit addresses" in w for w in tempo_only["warnings"])
+
+    stripe_only = build_agent_instructions(BuildAgentInstructionsInput(how_to_pay={"stripe": {}}))
+    assert stripe_only["warnings"] == []
+    assert stripe_only["recommended_tools"] == []
+
+
 def test_build_402_body_assembles_full_response():
     body = build_402_body(
         Build402BodyInput(

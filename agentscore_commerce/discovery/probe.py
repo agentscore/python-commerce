@@ -12,10 +12,64 @@ from agentscore_commerce.payment.directive import (
     build_payment_request_blob,
     payment_directive,
 )
+from agentscore_commerce.payment.networks import networks
+from agentscore_commerce.payment.usdc import USDC
 from agentscore_commerce.payment.wwwauthenticate import (
     PaymentRequiredHeaderInput,
     payment_required_header,
 )
+
+# Placeholder payTo for x402 sample accepts in the discovery probe — the probe
+# exists for crawlers to find that we support x402, not for actual payment.
+_ZERO_EVM_PAYTO = "0x0000000000000000000000000000000000000000"
+_ZERO_SOLANA_PAYTO = "11111111111111111111111111111111"
+
+
+def sample_x402_accept_for_network(caip2: str, amount_atomic: str = "1000000") -> dict[str, Any] | None:
+    """Build a sample x402 accepts entry for a known CAIP-2 network using the USDC registry.
+
+    Returns None for networks not in the registry — vendors with custom networks
+    should construct accepts entries by hand and pass them via ``x402_sample.accepts``.
+    """
+    if caip2 == networks.base.mainnet.caip2:
+        return {
+            "scheme": "exact",
+            "network": caip2,
+            "amount": amount_atomic,
+            "asset": USDC.base.mainnet.address,
+            "payTo": _ZERO_EVM_PAYTO,
+            "maxTimeoutSeconds": 300,
+            "extra": {"name": "USDC", "version": "2"},
+        }
+    if caip2 == networks.base.sepolia.caip2:
+        return {
+            "scheme": "exact",
+            "network": caip2,
+            "amount": amount_atomic,
+            "asset": USDC.base.sepolia.address,
+            "payTo": _ZERO_EVM_PAYTO,
+            "maxTimeoutSeconds": 300,
+            "extra": {"name": "USDC", "version": "2"},
+        }
+    if caip2 == networks.solana.mainnet.caip2:
+        return {
+            "scheme": "exact",
+            "network": caip2,
+            "amount": amount_atomic,
+            "asset": USDC.solana.mainnet.mint,
+            "payTo": _ZERO_SOLANA_PAYTO,
+            "maxTimeoutSeconds": 300,
+        }
+    if caip2 == networks.solana.devnet.caip2:
+        return {
+            "scheme": "exact",
+            "network": caip2,
+            "amount": amount_atomic,
+            "asset": USDC.solana.devnet.mint,
+            "payTo": _ZERO_SOLANA_PAYTO,
+            "maxTimeoutSeconds": 300,
+        }
+    return None
 
 
 @dataclass
@@ -26,9 +80,15 @@ class X402SampleProbe:
     without a real business-shaped request. Each entry is run through
     ``alias_amount_fields`` so v1-only parsers find ``maxAmountRequired`` and
     v2-strict parsers find ``amount``.
+
+    Pass ``networks`` (shorthand) for the common case — each CAIP-2 network is
+    mapped to a sample USDC accepts entry via ``sample_x402_accept_for_network``.
+    Or pass ``accepts`` directly for full control over the sample shape.
     """
 
-    accepts: list[Any]
+    networks: list[str] | None = None
+    accepts: list[Any] | None = None
+    amount_atomic: str = "1000000"
     version: Literal[1, 2] = 2
     resource_url: str | None = None
 
@@ -79,9 +139,18 @@ def build_discovery_probe_response(opts: DiscoveryProbeOptions) -> DiscoveryProb
 
     if opts.x402_sample is not None:
         x402v = opts.x402_sample.version
+        if opts.x402_sample.accepts is not None:
+            sample_accepts: list[Any] = opts.x402_sample.accepts
+        else:
+            sample_accepts = [
+                e
+                for n in (opts.x402_sample.networks or [])
+                for e in [sample_x402_accept_for_network(n, opts.x402_sample.amount_atomic)]
+                if e is not None
+            ]
         # payment_required_header internally runs alias_amount_fields, so v1+v2
         # parsers both find their expected field name on the header decode.
-        header_kwargs: dict[str, Any] = {"x402_version": x402v, "accepts": opts.x402_sample.accepts}
+        header_kwargs: dict[str, Any] = {"x402_version": x402v, "accepts": sample_accepts}
         if opts.x402_sample.resource_url:
             header_kwargs["resource"] = {
                 "url": opts.x402_sample.resource_url,

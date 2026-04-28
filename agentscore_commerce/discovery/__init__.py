@@ -23,6 +23,7 @@ from agentscore_commerce.discovery.probe import (
     X402SampleProbe,
     build_discovery_probe_response,
     is_discovery_probe_request,
+    sample_x402_accept_for_network,
 )
 from agentscore_commerce.discovery.well_known_mpp import (
     PaymentMethodConfig,
@@ -53,4 +54,5 @@ __all__ = [
     "is_discovery_probe_request",
     "llms_txt_identity_section",
     "llms_txt_payment_section",
+    "sample_x402_accept_for_network",
 ]

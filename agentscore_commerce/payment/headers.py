@@ -65,7 +65,7 @@ class X402AcceptsBlock:
     """x402 PAYMENT-REQUIRED header inputs."""
 
     accepts: list[Any]
-    version: Literal[1, 2] = 1
+    version: Literal[1, 2] = 2
     resource: dict[str, str] | None = None
 
 
@@ -118,7 +118,7 @@ def build_payment_headers(input: BuildPaymentHeadersInput) -> PaymentHeadersResu
                 PaymentHeadersRail(rail="x402-base-mainnet", amount_usd=25, recipient=BASE_ADDR),
                 PaymentHeadersRail(rail="stripe", amount_usd=25, network_id=STRIPE_PROFILE_ID),
             ],
-            x402=X402AcceptsBlock(accepts=x402_accepts, version=1),
+            x402=X402AcceptsBlock(accepts=x402_accepts, version=2),
         ))
     """
     directives = []

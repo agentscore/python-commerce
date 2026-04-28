@@ -9,7 +9,7 @@ from agentscore_commerce.challenge.pricing import PricingBlock
 @dataclass
 class X402PaymentRequired:
     accepts: list[Any]
-    version: Literal[1, 2] = 1
+    version: Literal[1, 2] = 2
 
 
 @dataclass

@@ -128,7 +128,7 @@ def test_build_402_body_assembles_full_response():
         )
     )
     assert body["payment_required"] is True
-    assert body["x402Version"] == 1
+    assert body["x402Version"] == 2
     assert body["pricing"]["total"] == "108"
     assert body["identity_mode"] == "wallet"
     assert body["agent_instructions"]["how_to_pay"] == {}

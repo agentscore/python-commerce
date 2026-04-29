@@ -69,11 +69,6 @@ dev = [
     "lefthook>=2.1.6",
 ]
 
-[tool.uv.sources]
-# Local-first dev: editable install of the sibling python-sdk. Remove this stanza
-# to consume the published version from PyPI instead.
-agentscore-py = { path = "../python-sdk", editable = true }
-
 [tool.ty.src]
 include = ["agentscore_commerce"]
 

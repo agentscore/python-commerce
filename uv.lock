@@ -72,7 +72,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentscore-py", editable = "../python-sdk" },
+    { name = "agentscore-py", specifier = ">=2.0.0" },
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
     { name = "django", marker = "extra == 'django'", specifier = ">=4.0" },
     { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.100.0" },
@@ -111,30 +111,13 @@ dev = [
 [[package]]
 name = "agentscore-py"
 version = "2.0.0"
-source = { editable = "../python-sdk" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.25.0,<1.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21" },
-    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
-]
-provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "lefthook", specifier = ">=2.1.6" },
-    { name = "pytest-asyncio", specifier = ">=1.2.0" },
-    { name = "pytest-cov", specifier = ">=6.0" },
-    { name = "python-dotenv", specifier = ">=1.2.1" },
-    { name = "respx", specifier = ">=0.22.0" },
-    { name = "ruff", specifier = ">=0.11.0" },
-    { name = "ty", specifier = ">=0.0.32" },
-    { name = "vulture", specifier = ">=2.15" },
+sdist = { url = "https://files.pythonhosted.org/packages/31/2d/2fc4330e447ccbd13ee668014527b7756e6143c3933dc21ad62a52ee5458/agentscore_py-2.0.0.tar.gz", hash = "sha256:aaffe64da63c35e4c6ce898949d5618875a99991c38698ea215379ab41ca06e8", size = 50349, upload-time = "2026-04-29T12:02:02.3Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/68/86afad9fa422faf5cf7526e872af440b88b4925a7d87b4bc4e4e0944edba/agentscore_py-2.0.0-py3-none-any.whl", hash = "sha256:a5d2d281b76a7a90dde7ea5efc15129fbad179cefabaf70f088320e19af34c04", size = 14196, upload-time = "2026-04-29T12:02:00.986Z" },
 ]
 
 [[package]]

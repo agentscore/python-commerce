@@ -25,6 +25,12 @@ from agentscore_commerce.discovery.probe import (
     is_discovery_probe_request,
     sample_x402_accept_for_network,
 )
+from agentscore_commerce.discovery.robots_tag import (
+    DEFAULT_DISCOVERY_PATHS,
+    DEFAULT_ROBOTS_TAG,
+    NoindexNonDiscoveryMiddleware,
+    is_discovery_path,
+)
 from agentscore_commerce.discovery.well_known_mpp import (
     PaymentMethodConfig,
     WellKnownMppInput,
@@ -32,6 +38,8 @@ from agentscore_commerce.discovery.well_known_mpp import (
 )
 
 __all__ = [
+    "DEFAULT_DISCOVERY_PATHS",
+    "DEFAULT_ROBOTS_TAG",
     "BazaarDiscoveryConfig",
     "BuildAgentScoreOpenApiSnippetsInput",
     "BuildLlmsTxtInput",
@@ -40,6 +48,7 @@ __all__ = [
     "LlmsTxtIdentitySectionInput",
     "LlmsTxtPaymentSectionInput",
     "LlmsTxtSection",
+    "NoindexNonDiscoveryMiddleware",
     "PaymentMethodConfig",
     "WellKnownMppInput",
     "X402SampleProbe",
@@ -51,6 +60,7 @@ __all__ = [
     "build_discovery_probe_response",
     "build_llms_txt",
     "build_well_known_mpp",
+    "is_discovery_path",
     "is_discovery_probe_request",
     "llms_txt_identity_section",
     "llms_txt_payment_section",

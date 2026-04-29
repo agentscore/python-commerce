@@ -41,6 +41,10 @@ from agentscore_commerce.challenge.order_receipt import (
 )
 from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
 from agentscore_commerce.challenge.respond_402 import Respond402Input, Respond402Result, respond_402
+from agentscore_commerce.challenge.validation_error import (
+    BuildValidationErrorInput,
+    build_validation_error,
+)
 
 __all__ = [
     "AgentMemoryHint",
@@ -48,6 +52,7 @@ __all__ = [
     "BuildAcceptedMethodsInput",
     "BuildAgentInstructionsInput",
     "BuildHowToPayInput",
+    "BuildValidationErrorInput",
     "HowToPayRails",
     "IdentityMetadataInput",
     "IdentityMode",
@@ -75,6 +80,7 @@ __all__ = [
     "build_how_to_pay",
     "build_identity_metadata",
     "build_pricing_block",
+    "build_validation_error",
     "first_encounter_agent_memory",
     "respond_402",
 ]

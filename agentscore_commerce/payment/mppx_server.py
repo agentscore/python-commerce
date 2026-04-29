@@ -107,73 +107,87 @@ def _import_optional(module_name: str) -> Any | None:
 async def create_mppx_server(
     secret_key: str,
     rails: MppxRails | None = None,
-    methods: list[Any] | None = None,
+    method: Any = None,
+    realm: str | None = None,
 ) -> Any:
     """One-call pympp server setup.
 
-    Returns a configured ``Mppx`` server instance. Raises ``ImportError`` with a
-    guiding install command when ``pympp`` (or a per-rail extra) is missing.
+    Returns a configured ``Mpp`` server instance from ``pympp>=0.6``. Raises
+    ``ImportError`` with a guiding install command when ``pympp`` or a per-rail
+    extra is missing.
 
     Async because Stripe SPT method construction may require an HTTP setup call
     to the Stripe API.
+
+    Note: pympp 0.6 takes a single ``method`` per ``Mpp`` instance (the prior
+    multi-method ``Mppx`` API was removed). If multiple rails are configured on
+    ``rails``, the first non-None one wins; merchants supporting multiple
+    distinct methods (e.g. tempo charge + tempo session, or tempo + Stripe SPT)
+    construct a separate ``Mpp`` instance per method and route by the method
+    name they detect on the request. Mirrors how pympp 0.6 separates methods.
     """
-    pympp = _import_optional("pympp.server")
-    if pympp is None or not hasattr(pympp, "Mppx"):
+    # The pympp distribution publishes its modules under the top-level `mpp`
+    # package (the dist name is `pympp` but `import pympp` doesn't resolve —
+    # only `import mpp`).
+    pympp = _import_optional("mpp.server")
+    if pympp is None or not hasattr(pympp, "Mpp"):
         msg = "pympp not installed — run `pip install 'pympp[server,tempo,stripe]>=0.6,<1'` to use create_mppx_server."
         raise ImportError(msg)
 
-    method_list: list[Any] = list(methods or [])
     rails_cfg = rails or MppxRails()
+    resolved_method: Any = method
 
-    if rails_cfg.tempo is not None:
+    if resolved_method is None and rails_cfg.tempo is not None:
         tempo_module = _import_optional("mpp.methods.tempo")
-        charge_factory = getattr(tempo_module, "charge", None) if tempo_module else None
-        if not callable(charge_factory):
+        tempo_factory = getattr(tempo_module, "tempo", None) if tempo_module else None
+        if not callable(tempo_factory):
             msg = "pympp[tempo] not installed — run `pip install 'pympp[tempo]'` for Tempo MPP rails."
+            raise ImportError(msg)
+        charge_intent_cls = getattr(tempo_module, "ChargeIntent", None) if tempo_module else None
+        if charge_intent_cls is None:
+            msg = "pympp[tempo] missing ChargeIntent — upgrade pympp to 0.6+."
             raise ImportError(msg)
         t = rails_cfg.tempo
         default_currency = USDC.tempo.testnet.address if t.testnet else USDC.tempo.mainnet.address
-        method_list.append(
-            charge_factory(
-                currency=t.currency or default_currency,
-                recipient=t.recipient,
-                testnet=t.testnet,
-            ),
+        chain_id = 42431 if t.testnet else 4217
+        resolved_method = tempo_factory(
+            intents={"charge": charge_intent_cls()},
+            currency=t.currency or default_currency,
+            recipient=t.recipient,
+            chain_id=chain_id,
         )
 
-    if rails_cfg.tempo_session is not None:
-        tempo_module = _import_optional("mpp.methods.tempo")
-        session_factory = getattr(tempo_module, "session", None) if tempo_module else None
-        if not callable(session_factory):
-            msg = (
-                "pympp[tempo] session support not available — your pympp version may "
-                "not ship sessions yet. Upgrade with `pip install -U pympp`."
-            )
-            raise ImportError(msg)
-        s = rails_cfg.tempo_session
-        default_currency = USDC.tempo.testnet.address if s.testnet else USDC.tempo.mainnet.address
-        kwargs: dict[str, Any] = {
-            "currency": s.currency or default_currency,
-            "recipient": s.recipient,
-            "escrow_contract": s.escrow_contract,
-            "store": s.store,
-            "testnet": s.testnet,
-        }
-        if s.chains is not None:
-            kwargs["chains"] = s.chains
-        method_list.append(session_factory(**kwargs))
+    if resolved_method is None and rails_cfg.tempo_session is not None:
+        # pympp 0.6 has not shipped a session intent factory under the same
+        # naming. Keep the surface (TempoSessionRail), but vendors must wait
+        # for pympp to expose ``SessionIntent`` before this branch resolves.
+        msg = (
+            "pympp[tempo] session support not available — pympp 0.6 has not "
+            "shipped a SessionIntent factory yet. Upgrade pympp when it does "
+            "or pass `method=` directly with a hand-built TempoMethod."
+        )
+        raise ImportError(msg)
 
-    if rails_cfg.stripe is not None:
+    if resolved_method is None and rails_cfg.stripe is not None:
         from agentscore_commerce.stripe_multichain.mppx_stripe import create_mppx_stripe
 
-        stripe_method = await create_mppx_stripe(
+        resolved_method = await create_mppx_stripe(
             profile_id=rails_cfg.stripe.profile_id,
             secret_key=rails_cfg.stripe.secret_key,
             payment_method_types=rails_cfg.stripe.payment_method_types,
         )
-        method_list.append(stripe_method)
 
-    return pympp.Mppx.create(methods=method_list, secret_key=secret_key)
+    if resolved_method is None:
+        msg = (
+            "create_mppx_server called with no method or rails — pass at least one of "
+            "`method=`, `rails.tempo`, `rails.tempo_session`, or `rails.stripe`."
+        )
+        raise ValueError(msg)
+
+    kwargs: dict[str, Any] = {"method": resolved_method, "secret_key": secret_key}
+    if realm is not None:
+        kwargs["realm"] = realm
+    return pympp.Mpp.create(**kwargs)
 
 
 __all__ = [

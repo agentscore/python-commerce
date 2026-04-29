@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from agentscore_commerce.payment.networks import networks
-from agentscore_commerce.payment.x402 import register_x402_schemes_v1_v2
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -105,36 +104,30 @@ async def create_x402_server(
             msg = f'Rail "{rail}" not supported — the Solana x402 scheme does not ship an upto variant yet (EVM-only).'
             raise ValueError(msg)
 
-    # Core x402 package. The Python `x402` package re-exports the server primitives
-    # under top-level submodules; we import them defensively to surface a clear
-    # peer-dep error instead of an opaque AttributeError.
-    x402_servers = _import_optional("x402.servers")
-    x402_facilitator = _import_optional("x402.facilitator")
-    if x402_servers is None or x402_facilitator is None:
-        msg = "x402 not installed — run `pip install 'x402[evm,svm,fastapi]>=2.8,<3'` to use create_x402_server."
+    # x402 2.9 layout: top-level `x402` package (with `x402` re-exports of
+    # `x402ResourceServer`, `x402Facilitator`); schemes under
+    # `x402.mechanisms.{evm,svm}.{exact,upto}.server`. The 2.8-era v1+v2 dual
+    # register helper is obsolete — `register()` is v2 only and the resource
+    # server handles v1 fallback internally via the facilitator.
+    x402_top = _import_optional("x402")
+    if x402_top is None or not hasattr(x402_top, "x402ResourceServer"):
+        msg = "x402 not installed — run `pip install 'x402[evm,svm,fastapi]>=2.9,<3'` to use create_x402_server."
         raise ImportError(msg)
 
     facilitator_instance: Any
     if facilitator == "coinbase":
-        # The Coinbase facilitator is reachable through the main `x402` package
-        # — no separate Python peer dep. Prefer the official preset on `x402.facilitator`
-        # if the SDK ships one; otherwise fall back to the published Coinbase URL.
-        coinbase_preset = getattr(x402_facilitator, "coinbase_facilitator", None) or getattr(
-            x402_facilitator, "COINBASE_FACILITATOR", None
-        )
-        if coinbase_preset is not None:
-            facilitator_instance = x402_facilitator.HTTPFacilitatorClient(coinbase_preset)
-        else:
-            facilitator_instance = x402_facilitator.HTTPFacilitatorClient(
-                "https://api.cdp.coinbase.com/platform/v2/x402",
-            )
+        # x402 2.9's x402Facilitator() takes no constructor args. Coinbase
+        # facilitator selection happens via FacilitatorConfig at construction
+        # time — for the Coinbase preset, use facilitator="http" with hooks
+        # or pass a pre-built instance via facilitator=<your_facilitator>.
+        facilitator_instance = x402_top.x402Facilitator()
     elif facilitator == "http":
-        facilitator_instance = x402_facilitator.HTTPFacilitatorClient()
+        facilitator_instance = x402_top.x402Facilitator()
     else:
         # Pre-built facilitator instance passed directly.
         facilitator_instance = facilitator
 
-    server = x402_servers.x402ResourceServer(facilitator_instance)
+    server = x402_top.x402ResourceServer(facilitator_clients=facilitator_instance)
 
     # Lazy-load scheme modules so vendors only need the peer deps for rails they use.
     evm_exact_module: Any | None = None
@@ -148,29 +141,32 @@ async def create_x402_server(
             network = networks.base.mainnet.caip2 if base_rail == "x402-base-mainnet" else networks.base.sepolia.caip2
             if is_upto:
                 if evm_upto_module is None:
-                    evm_upto_module = _import_optional("x402.schemes.upto.evm")
-                if evm_upto_module is None or not getattr(evm_upto_module, "UptoEvmServerScheme", None):
+                    evm_upto_module = _import_optional("x402.mechanisms.evm.upto.server")
+                scheme_cls = getattr(evm_upto_module, "UptoEvmScheme", None) if evm_upto_module else None
+                if scheme_cls is None:
                     msg = "x402[evm] not installed — run `pip install 'x402[evm]'` for x402 base upto rails."
                     raise ImportError(msg)
-                register_x402_schemes_v1_v2(server, network, evm_upto_module.UptoEvmServerScheme())
+                server.register(network, scheme_cls())
             else:
                 if evm_exact_module is None:
-                    evm_exact_module = _import_optional("x402.schemes.exact.evm")
-                if evm_exact_module is None or not getattr(evm_exact_module, "ExactEvmServerScheme", None):
+                    evm_exact_module = _import_optional("x402.mechanisms.evm.exact.server")
+                scheme_cls = getattr(evm_exact_module, "ExactEvmScheme", None) if evm_exact_module else None
+                if scheme_cls is None:
                     msg = "x402[evm] not installed — run `pip install 'x402[evm]'` for x402 base rails."
                     raise ImportError(msg)
-                register_x402_schemes_v1_v2(server, network, evm_exact_module.ExactEvmServerScheme())
+                server.register(network, scheme_cls())
         elif rail.startswith("x402-solana"):
             if svm_module is None:
-                svm_module = _import_optional("x402.schemes.exact.svm")
-            if svm_module is None or not getattr(svm_module, "ExactSvmServerScheme", None):
+                svm_module = _import_optional("x402.mechanisms.svm.exact.server")
+            scheme_cls = getattr(svm_module, "ExactSvmScheme", None) if svm_module else None
+            if scheme_cls is None:
                 msg = "x402[svm] not installed — run `pip install 'x402[svm]'` for x402 solana rails."
                 raise ImportError(msg)
             network = networks.solana.mainnet.caip2 if rail == "x402-solana-mainnet" else networks.solana.devnet.caip2
-            register_x402_schemes_v1_v2(server, network, svm_module.ExactSvmServerScheme())
+            server.register(network, scheme_cls())
 
     for custom in schemes_list:
-        register_x402_schemes_v1_v2(server, custom.network, custom.scheme)
+        server.register(custom.network, custom.scheme)
 
     if bazaar:
         bazaar_module = _import_optional("x402.extensions.bazaar")
@@ -187,7 +183,11 @@ async def create_x402_server(
     if initialize:
         init_fn = getattr(server, "initialize", None)
         if callable(init_fn):
-            await init_fn()
+            result = init_fn()
+            # x402 2.9 made initialize() sync; older versions had it async.
+            # Await only if the call returned an awaitable to stay compatible.
+            if hasattr(result, "__await__"):
+                await result
 
     return server
 

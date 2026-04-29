@@ -2,6 +2,8 @@
 
 Agent commerce SDK for Python. The full merchant-side toolkit: identity gating + payment helpers + 402 builders + discovery + Stripe multichain. One install, submodule imports per concern.
 
+Every helper lifts directly from working production code (`agentscore/martin-estate`) — extract from real consumers, not speculation.
+
 ## Submodules
 
 | Submodule | What it is |
@@ -25,9 +27,23 @@ Single Python package, hatchling-built, published to PyPI as `agentscore-commerc
 | `agentscore_commerce/challenge/` | 402-body builders |
 | `agentscore_commerce/stripe_multichain/` | Stripe multichain PaymentIntent helpers |
 | `agentscore_commerce/api/` | `AgentScore` re-export |
+| `examples/` | Runnable single-file FastAPI apps for each common scenario |
 | `tests/` | pytest, one file per surface |
 
-Every helper lifts from working production code (`agentscore/martin-estate`) — extract from real consumers, not speculation.
+Peer-dep pattern: payment/x402/mppx/stripe modules import lazily at runtime — vendors install only what they use via extras (`pip install agentscore-commerce[fastapi,stripe]` etc.). Underlying packages: `x402[evm,svm]`, `pympp[server,tempo,stripe]`, `stripe`. Missing peer dep raises a guiding `ImportError` with the install command.
+
+## Examples
+
+`examples/` contains full single-file FastAPI apps for the most common merchant scenarios — copy-paste templates, not frameworks:
+
+| Example | Scenario |
+|---|---|
+| `api_provider.py` | Per-call API billing on multiple rails: Tempo MPP + x402 (Base + Solana); no compliance gate |
+| `identity_only.py` | Compliance gate without payment (vendor handles their own) |
+| `multi_rail_merchant.py` | Full agent-commerce: identity + Tempo MPP + x402 + Stripe SPT |
+| `stripe_multichain_merchant.py` | Stripe-anchored multichain (PaymentIntent → tempo/base/solana deposit addresses) |
+| `variable_cost_merchant.py` | Pay-per-actual-usage on **two protocols**: x402 upto (Permit2 + Settlement-Overrides) AND MPP tempo session (channel + SSE + mid-stream vouchers) |
+| `compliance_merchant.py` | Regulated-goods merchant — full compliance gate + custom `on_denied` composing the denial helpers (`verification_agent_instructions`, `is_fixable_denial`, `build_signer_mismatch_body`, `build_contact_support_next_steps`, `denial_reason_to_body`/`denial_reason_status`) |
 
 ## Identity model
 
@@ -61,6 +77,10 @@ async def purchase(...): ...
 ```
 
 Anonymous POST flows through to the handler unauthenticated and gets a 402 with all rails + per-order pricing. Identity is verified at settle time on the retry leg (when the agent submits `X-Payment` / `Authorization: Payment`); `create_session_on_missing` still auto-mints a verification session there. The same wrap pattern works identically across all 6 framework adapters (fastapi, flask, django, aiohttp, sanic, middleware/ASGI). See `examples/multi_rail_merchant.py` and `examples/compliance_merchant.py`.
+
+### `compatible_clients` field on emitted 402s
+
+`build_agent_instructions` emits a `compatible_clients` field in the 402 body, derived automatically from `how_to_pay` — per-rail list of CLIs the AgentScore team has smoke-verified end-to-end. Vendors override with `BuildAgentInstructionsInput(compatible_clients={...})` to add their own tested clients. Set to an empty dict `{}` to suppress the default. Same data is published as `core/docs/integrations/x402-clients.mdx` for human-side rationale + per-rail commands.
 
 ## Tooling
 

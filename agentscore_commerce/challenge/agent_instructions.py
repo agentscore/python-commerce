@@ -46,6 +46,30 @@ def _default_warnings(how_to_pay: dict[str, Any]) -> list[str]:
     return w
 
 
+def _default_compatible_clients(how_to_pay: dict[str, Any]) -> dict[str, list[str]] | None:
+    """Default ``compatible_clients`` derived from the rails declared in ``how_to_pay``.
+
+    Lists clients the AgentScore team has smoke-verified end-to-end against an
+    ``agentscore-commerce`` merchant; entries appear only for rails the vendor actually
+    offers. Vendors override this in ``BuildAgentInstructionsInput(compatible_clients=...)``
+    to add their own tested clients or remove entries that don't fit their endpoint.
+
+    Verified state as of the SDK release. The same data is also published as a docs page
+    for humans (rationale, per-rail commands, why some clients don't fully work, last
+    verified date) — this default keeps the merchant-side surface in sync.
+    """
+    out: dict[str, list[str]] = {}
+    if "tempo" in how_to_pay:
+        out["tempo_mpp"] = ["agentscore-pay", "tempo request", "x402-proxy"]
+    if "x402_base" in how_to_pay:
+        out["x402_base"] = ["agentscore-pay", "x402-proxy", "purl (omit --network flag)"]
+    if "x402_solana" in how_to_pay:
+        out["x402_solana"] = ["agentscore-pay"]
+    if "stripe" in how_to_pay:
+        out["stripe"] = ["link-cli"]
+    return out or None
+
+
 @dataclass
 class BuildAgentInstructionsInput:
     how_to_pay: dict[str, Any]
@@ -54,6 +78,11 @@ class BuildAgentInstructionsInput:
     timeout_seconds: int = 300
     warnings: list[str] | None = None
     recommended: str | None = None
+    # Per-rail list of client names the merchant has verified work end-to-end.
+    # Vendors set this from their own smoke matrix — defaults to None, in which case
+    # the field is not emitted (avoids vouching for clients the merchant has not tested).
+    # Keys are rail identifiers (e.g. "x402_base", "tempo_mpp"); values are display labels.
+    compatible_clients: dict[str, list[str]] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -68,6 +97,11 @@ def build_agent_instructions(input: BuildAgentInstructionsInput) -> dict[str, An
         input.recommended_tools if input.recommended_tools is not None else _default_recommended_tools(input.how_to_pay)
     )
     warnings = input.warnings if input.warnings is not None else _default_warnings(input.how_to_pay)
+    compatible_clients = (
+        input.compatible_clients
+        if input.compatible_clients is not None
+        else _default_compatible_clients(input.how_to_pay)
+    )
     out: dict[str, Any] = {
         "how_to_pay": input.how_to_pay,
         "recommended_tools": recommended_tools,
@@ -77,5 +111,7 @@ def build_agent_instructions(input: BuildAgentInstructionsInput) -> dict[str, An
     }
     if input.recommended:
         out["recommended"] = input.recommended
+    if compatible_clients:
+        out["compatible_clients"] = compatible_clients
     out.update(input.extra)
     return out

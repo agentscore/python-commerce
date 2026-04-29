@@ -255,17 +255,35 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
                         "scheme": "exact",
                         "network": X402_BASE_NETWORK,
                         "amount": str(round(float(total_usd) * 1_000_000)),
-                        "asset": USDC.base.mainnet.address,
+                        # Asset must match the configured network — sepolia + mainnet
+                        # use different USDC contracts.
+                        "asset": (
+                            USDC.base.sepolia.address
+                            if networks.base.sepolia.caip2 == X402_BASE_NETWORK
+                            else USDC.base.mainnet.address
+                        ),
                         "payTo": deposit_addresses["base"],
                         "maxTimeoutSeconds": 300,
+                        # EIP-712 domain — required by every x402 EVM client to
+                        # sign EIP-3009 TransferWithAuthorization.
+                        "extra": {"name": "USDC", "version": "2"},
                     },
                     {
                         "scheme": "exact",
                         "network": X402_SVM_NETWORK,
                         "amount": str(round(float(total_usd) * 1_000_000)),
-                        "asset": USDC.solana.mainnet.mint,
+                        "asset": (
+                            USDC.solana.devnet.mint
+                            if networks.solana.devnet.caip2 == X402_SVM_NETWORK
+                            else USDC.solana.mainnet.mint
+                        ),
                         "payTo": deposit_addresses["solana"],
                         "maxTimeoutSeconds": 300,
+                        # SVM transactions require feePayer in extra. Default to
+                        # the recipient (round-trip safe for dev). Production
+                        # merchants typically point at the Coinbase facilitator's
+                        # payer address.
+                        "extra": {"feePayer": deposit_addresses["solana"]},
                     },
                 ],
                 resource={"url": str(request.url), "mimeType": "application/json"},

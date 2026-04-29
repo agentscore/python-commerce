@@ -22,6 +22,10 @@ Env vars:
     TEMPO_RECIPIENT       — your Tempo wallet for receiving USDC.e
     X402_BASE_RECIPIENT   — your Base wallet for receiving USDC
     X402_SOLANA_RECIPIENT — your Solana wallet for receiving USDC
+    X402_BASE_NETWORK     — CAIP-2 (default eip155:8453 = Base mainnet;
+                            override to eip155:84532 for Sepolia testnet)
+    X402_SVM_NETWORK      — CAIP-2 (default solana mainnet; override to
+                            solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1 for devnet)
 
 Run: uvicorn examples.api_provider:app --port 3000
 """
@@ -41,6 +45,7 @@ from agentscore_commerce.discovery import (
     is_discovery_probe_request,
 )
 from agentscore_commerce.payment import (
+    USDC,
     PaymentDirectiveInput,
     networks,
     payment_directive,
@@ -49,6 +54,15 @@ from agentscore_commerce.payment import (
 
 PRICE_USDC = 0.01  # per-call price in USD
 REALM = "api.example.com"
+
+# Read network selection from env so the same example serves mainnet + testnet.
+X402_BASE_NETWORK = os.environ.get("X402_BASE_NETWORK", networks.base.mainnet.caip2)
+X402_SVM_NETWORK = os.environ.get("X402_SVM_NETWORK", networks.solana.mainnet.caip2)
+_BASE_USDC = (
+    USDC.base.sepolia.address if networks.base.sepolia.caip2 == X402_BASE_NETWORK else USDC.base.mainnet.address
+)
+_SVM_USDC = USDC.solana.devnet.mint if networks.solana.devnet.caip2 == X402_SVM_NETWORK else USDC.solana.mainnet.mint
+_TEMPO_RAIL = "tempo-testnet" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "tempo-mainnet"
 
 app = FastAPI()
 
@@ -72,14 +86,14 @@ async def search(request: Request):
         probe = build_discovery_probe_response(
             DiscoveryProbeOptions(
                 realm=REALM,
-                sample_rail="tempo-mainnet",
+                sample_rail=_TEMPO_RAIL,
                 sample_amount_usd=PRICE_USDC,
                 sample_recipient=os.environ["TEMPO_RECIPIENT"],
                 # Advertise x402 support so crawlers (e.g. ``awal x402 details``)
                 # can find it on an empty-body POST. Commerce synthesizes USDC
                 # sample accepts from the registry per CAIP-2 network passed.
                 x402_sample=X402SampleProbe(
-                    networks=[networks.base.mainnet.caip2, networks.solana.mainnet.caip2],
+                    networks=[X402_BASE_NETWORK, X402_SVM_NETWORK],
                     resource_url=f"{REALM}/search",
                 ),
             )
@@ -89,33 +103,47 @@ async def search(request: Request):
     # No payment? Return a 402 with directives for all accepted rails (Tempo + x402).
     if not (auth and auth.startswith("Payment ")) and not x402_header:
         challenge_id = f"chg_{os.urandom(8).hex()}"
+        x402_base_rail = (
+            "x402-base-sepolia" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "x402-base-mainnet"
+        )
+        x402_svm_rail = (
+            "x402-solana-devnet" if networks.solana.devnet.caip2 == X402_SVM_NETWORK else "x402-solana-mainnet"
+        )
         directives = [
             payment_directive(
-                PaymentDirectiveInput(rail="tempo-mainnet", id=f"{challenge_id}_tempo", realm=REALM, request="")
+                PaymentDirectiveInput(rail=_TEMPO_RAIL, id=f"{challenge_id}_tempo", realm=REALM, request="")
             ),
             payment_directive(
-                PaymentDirectiveInput(rail="x402-base-mainnet", id=f"{challenge_id}_base", realm=REALM, request="")
+                PaymentDirectiveInput(rail=x402_base_rail, id=f"{challenge_id}_base", realm=REALM, request="")
             ),
             payment_directive(
-                PaymentDirectiveInput(rail="x402-solana-mainnet", id=f"{challenge_id}_solana", realm=REALM, request="")
+                PaymentDirectiveInput(rail=x402_svm_rail, id=f"{challenge_id}_solana", realm=REALM, request="")
             ),
         ]
+        x402_solana_recipient = os.environ["X402_SOLANA_RECIPIENT"]
         accepts = [
             {
                 "scheme": "exact",
-                "network": networks.base.mainnet.caip2,
+                "network": X402_BASE_NETWORK,
                 "amount": str(int(PRICE_USDC * 1_000_000)),
-                "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "asset": _BASE_USDC,
                 "payTo": os.environ["X402_BASE_RECIPIENT"],
-                "extra": {"decimals": 6},
+                "maxTimeoutSeconds": 300,
+                # EIP-712 domain — required by every x402 EVM client to sign
+                # EIP-3009 TransferWithAuthorization.
+                "extra": {"name": "USDC", "version": "2"},
             },
             {
                 "scheme": "exact",
-                "network": networks.solana.mainnet.caip2,
+                "network": X402_SVM_NETWORK,
                 "amount": str(int(PRICE_USDC * 1_000_000)),
-                "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                "payTo": os.environ["X402_SOLANA_RECIPIENT"],
-                "extra": {"decimals": 6},
+                "asset": _SVM_USDC,
+                "payTo": x402_solana_recipient,
+                "maxTimeoutSeconds": 300,
+                # SVM transactions require feePayer in extra. Default to the
+                # recipient (round-trip safe for dev). Production merchants
+                # typically point at the Coinbase facilitator's payer address.
+                "extra": {"feePayer": x402_solana_recipient},
             },
         ]
         return JSONResponse(

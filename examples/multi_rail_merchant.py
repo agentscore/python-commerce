@@ -93,7 +93,7 @@ validate_x402_network_config(
 pi_cache = create_pi_cache(PiCacheOptions(redis_url=os.environ.get("REDIS_URL")))
 
 app = FastAPI()
-gate = AgentScoreGate(
+_gate = AgentScoreGate(
     api_key=os.environ["AGENTSCORE_API_KEY"],
     require_kyc=True,
     require_sanctions_clear=True,
@@ -101,12 +101,30 @@ gate = AgentScoreGate(
     allowed_jurisdictions=["US"],
 )
 
+
+# Conditional gate: fires only when a payment credential is already attached. Anonymous
+# requests (no payment header) fall through to the handler unauthenticated and receive
+# a clean 402 with all rails advertised — so any spec-compliant x402 wallet (Coinbase
+# awal, Phantom, Solflare, etc.) can discover prices before AgentScore identity exists.
+# Identity is verified at settle time (when X-Payment / Authorization: Payment arrives),
+# and `create_session_on_missing` then auto-mints a verification session.
+async def gate_on_settle(request: Request) -> None:
+    has_payment_header = bool(
+        request.headers.get("payment-signature")
+        or request.headers.get("x-payment")
+        or (request.headers.get("authorization") or "").startswith("Payment ")
+    )
+    if not has_payment_header:
+        return None
+    return await _gate(request)
+
+
 # Vendor-instantiated x402 server + pympp server are stubs in this example —
 # replace with your `create_x402_server(...)` + `create_mppx_server(...)` setup.
 x402_server: object = ...  # type: ignore[assignment]
 
 
-@app.post("/purchase", dependencies=[Depends(gate)])
+@app.post("/purchase", dependencies=[Depends(gate_on_settle)])
 async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
     body = await request.json()
 

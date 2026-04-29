@@ -39,6 +39,29 @@ Two identity types: wallet (`X-Wallet-Address`) and operator-token (`X-Operator-
 
 Captured wallets: `capture_wallet(...)` is fire-and-forget — reads `operator_token` stashed during gating and POSTs to `/v1/credentials/wallets`. No-ops for wallet-authenticated requests.
 
+### Mount posture: gate-first vs gate-conditional
+
+`AgentScoreGate(...)` (or `agentscore_gate(app, ...)` on Flask/Sanic) is mounted directly when the route is AgentScore-only — every request runs identity + policy. To support **anonymous discovery by any spec-compliant x402 wallet** (Coinbase awal, Phantom, Solflare, …), wrap the gate so it fires only when a payment credential is attached:
+
+```python
+_gate = AgentScoreGate(api_key=..., require_kyc=True, ...)
+
+async def gate_on_settle(request: Request) -> None:
+    has_payment_header = bool(
+        request.headers.get("payment-signature")
+        or request.headers.get("x-payment")
+        or (request.headers.get("authorization") or "").startswith("Payment ")
+    )
+    if not has_payment_header:
+        return None
+    return await _gate(request)
+
+@app.post("/purchase", dependencies=[Depends(gate_on_settle)])
+async def purchase(...): ...
+```
+
+Anonymous POST flows through to the handler unauthenticated and gets a 402 with all rails + per-order pricing. Identity is verified at settle time on the retry leg (when the agent submits `X-Payment` / `Authorization: Payment`); `create_session_on_missing` still auto-mints a verification session there. The same wrap pattern works identically across all 6 framework adapters (fastapi, flask, django, aiohttp, sanic, middleware/ASGI). See `examples/multi_rail_merchant.py` and `examples/compliance_merchant.py`.
+
 ## Tooling
 
 - **uv** — package manager.

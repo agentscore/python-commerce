@@ -100,7 +100,7 @@ def _on_denied(_request: Request, reason: DenialReason) -> tuple[dict[str, Any],
 
 
 app = FastAPI()
-gate = AgentScoreGate(
+_gate = AgentScoreGate(
     api_key=os.environ["AGENTSCORE_API_KEY"],
     require_kyc=True,
     require_sanctions_clear=True,
@@ -110,7 +110,22 @@ gate = AgentScoreGate(
 )
 
 
-@app.post("/buy", dependencies=[Depends(gate)])
+# Conditional gate. Fires only when a payment credential is already attached so
+# anonymous discovery returns a 402 challenge (not a 403 missing_identity). Compliance
+# gating + signer-match still run on the retry leg when X-Payment / Authorization:
+# Payment arrives — the full denial branching above triggers there.
+async def gate_on_settle(request: Request) -> None:
+    has_payment_header = bool(
+        request.headers.get("payment-signature")
+        or request.headers.get("x-payment")
+        or (request.headers.get("authorization") or "").startswith("Payment ")
+    )
+    if not has_payment_header:
+        return None
+    return await _gate(request)
+
+
+@app.post("/buy", dependencies=[Depends(gate_on_settle)])
 async def buy(request: Request, assess: dict = Depends(get_assess_data)):
     # Wallet-auth: verify the payment signer matches the claimed wallet (or a same-operator
     # linked wallet). No-ops for operator_token requests. Pass `signer=` from your real x402/MPP

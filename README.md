@@ -35,14 +35,30 @@ from agentscore_commerce.identity.fastapi import (
 )
 
 app = FastAPI()
-gate = AgentScoreGate(
+_gate = AgentScoreGate(
     api_key="as_live_...",
     require_kyc=True,
     min_age=21,
     allowed_jurisdictions=["US"],
 )
 
-@app.post("/purchase", dependencies=[Depends(gate)])
+
+# Run the gate CONDITIONALLY — only when a payment credential is already attached.
+# Anonymous discovery (no payment header) flows through to the handler so any spec-
+# compliant x402 wallet can read the 402 challenge with rails + pricing without first
+# proving identity. Identity is verified at settle time on the retry leg.
+async def gate_on_settle(request: Request) -> None:
+    has_payment_header = bool(
+        request.headers.get("payment-signature")
+        or request.headers.get("x-payment")
+        or (request.headers.get("authorization") or "").startswith("Payment ")
+    )
+    if not has_payment_header:
+        return None
+    return await _gate(request)
+
+
+@app.post("/purchase", dependencies=[Depends(gate_on_settle)])
 async def purchase(request: Request, assess=Depends(get_assess_data)):
     # ... settle payment ...
     # After payment, capture the signer wallet for cross-merchant attribution

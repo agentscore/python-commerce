@@ -18,6 +18,16 @@ from agentscore_commerce.identity.a2a import (
     build_a2a_agent_card,
 )
 from agentscore_commerce.identity.client import GateClient
+from agentscore_commerce.identity.policy import (
+    EnforcementMode,
+    GateResult,
+    IdentityStatus,
+    PolicyBlock,
+    build_gate_from_policy,
+    run_gate_with_enforcement,
+    shipping_country_allowed,
+    shipping_state_allowed,
+)
 from agentscore_commerce.identity.signer import extract_x402_signer
 from agentscore_commerce.identity.types import (
     Activity,
@@ -81,10 +91,14 @@ __all__ = [
     "CreateSessionOnMissing",
     "DenialCode",
     "DenialReason",
+    "EnforcementMode",
     "GateClient",
+    "GateResult",
     "Grade",
     "Identity",
+    "IdentityStatus",
     "OperatorVerification",
+    "PolicyBlock",
     "ScoreDetail",
     "UCPCapability",
     "UCPPaymentHandler",
@@ -96,11 +110,15 @@ __all__ = [
     "build_a2a_agent_card",
     "build_agent_memory_hint",
     "build_contact_support_next_steps",
+    "build_gate_from_policy",
     "build_signer_mismatch_body",
     "build_ucp_profile",
     "denial_reason_status",
     "denial_reason_to_body",
     "extract_x402_signer",
     "is_fixable_denial",
+    "run_gate_with_enforcement",
+    "shipping_country_allowed",
+    "shipping_state_allowed",
     "verification_agent_instructions",
 ]

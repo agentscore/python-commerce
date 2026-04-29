@@ -32,11 +32,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
-from agentscore_commerce.identity.fastapi import AgentScoreGate
-
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from agentscore_commerce.identity.fastapi import AgentScoreGate
     from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
 EnforcementMode = Literal["hard", "soft"]
@@ -100,6 +99,10 @@ def build_gate_from_policy(
         return None
     if not policy.get("enforcement"):
         return None
+    # Lazy import — avoids circular import at package init time
+    # (identity package init pulls policy → fastapi → payment.signer → identity).
+    from agentscore_commerce.identity.fastapi import AgentScoreGate
+
     return AgentScoreGate(
         api_key=api_key,
         base_url=base_url,

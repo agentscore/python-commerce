@@ -349,3 +349,21 @@ class TestOnBeforeSessionAsync:
         reason = await try_create_session_denial_reason(cfg, user_agent="ua", ctx={"x": 1})
         assert reason is not None
         assert reason.extra is None
+
+
+# ── _apply_dynamic_options edge cases ───────────────────────────────────────
+
+
+def test_apply_dynamic_options_passes_through_non_dict() -> None:
+    from agentscore_commerce.identity.sessions import _apply_dynamic_options
+
+    body: dict[str, str] = {}
+    assert _apply_dynamic_options(body, "not-a-dict") is body
+
+
+def test_apply_dynamic_options_picks_js_style_product_name() -> None:
+    from agentscore_commerce.identity.sessions import _apply_dynamic_options
+
+    body: dict[str, str] = {}
+    out = _apply_dynamic_options(body, {"productName": "Wine Store"})
+    assert out["product_name"] == "Wine Store"

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from agentscore_commerce.discovery import (
     BuildAgentScoreOpenApiSnippetsInput,
     DiscoveryProbeOptions,
@@ -152,3 +154,172 @@ class TestLlmsTxtPaymentSectionVerbose:
         assert "### How to pay with x402 (Solana)" in section
         assert "--chain solana" in section
         assert "--chain base" not in section
+
+
+# ── sample_x402_accept_for_network: every registry branch ───────────────────
+
+
+def test_sample_accept_base_mainnet() -> None:
+    from agentscore_commerce.discovery.probe import sample_x402_accept_for_network
+
+    e = sample_x402_accept_for_network("eip155:8453")
+    assert e is not None
+    assert e["network"] == "eip155:8453"
+    assert e["scheme"] == "exact"
+    assert e["extra"] == {"name": "USDC", "version": "2"}
+
+
+def test_sample_accept_base_sepolia() -> None:
+    from agentscore_commerce.discovery.probe import sample_x402_accept_for_network
+
+    e = sample_x402_accept_for_network("eip155:84532")
+    assert e is not None
+    assert e["network"] == "eip155:84532"
+
+
+def test_sample_accept_solana_mainnet() -> None:
+    from agentscore_commerce.discovery.probe import sample_x402_accept_for_network
+
+    e = sample_x402_accept_for_network("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+    assert e is not None
+    assert "extra" not in e
+    assert e["payTo"] == "11111111111111111111111111111111"
+
+
+def test_sample_accept_solana_devnet() -> None:
+    from agentscore_commerce.discovery.probe import sample_x402_accept_for_network
+
+    e = sample_x402_accept_for_network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
+    assert e is not None
+    assert e["network"].startswith("solana:")
+
+
+def test_sample_accept_unknown_network_returns_none() -> None:
+    from agentscore_commerce.discovery.probe import sample_x402_accept_for_network
+
+    assert sample_x402_accept_for_network("eip155:1") is None
+
+
+# ── build_discovery_probe_response: x402 sample paths ───────────────────────
+
+
+def _probe_opts(**overrides: object):
+    from agentscore_commerce.discovery.probe import DiscoveryProbeOptions
+
+    base: dict[str, object] = {
+        "realm": "https://example.com",
+        "sample_rail": "tempo-mainnet",
+        "sample_amount_usd": 1.00,
+        "sample_recipient": "0x0000000000000000000000000000000000000001",
+    }
+    base.update(overrides)
+    return DiscoveryProbeOptions(**base)  # type: ignore[arg-type]
+
+
+def test_probe_response_without_x402_sample() -> None:
+    from agentscore_commerce.discovery.probe import build_discovery_probe_response
+
+    resp = build_discovery_probe_response(_probe_opts())
+    assert resp.status == 402
+    assert "www-authenticate" in resp.headers
+    assert "payment-required" not in resp.headers
+
+
+def test_probe_response_with_x402_sample_via_networks_shorthand() -> None:
+    import json as _json
+
+    from agentscore_commerce.discovery.probe import X402SampleProbe, build_discovery_probe_response
+
+    resp = build_discovery_probe_response(
+        _probe_opts(x402_sample=X402SampleProbe(networks=["eip155:84532", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"]))
+    )
+    assert resp.status == 402
+    assert "payment-required" in resp.headers
+    body = _json.loads(resp.body)
+    assert body["x402Version"] == 2
+    assert len(body["accepts"]) == 2
+
+
+def test_probe_response_with_explicit_accepts_overrides_networks_shorthand() -> None:
+    import json as _json
+
+    from agentscore_commerce.discovery.probe import X402SampleProbe, build_discovery_probe_response
+
+    custom = [{"scheme": "exact", "network": "fake", "asset": "X", "payTo": "Y"}]
+    resp = build_discovery_probe_response(_probe_opts(x402_sample=X402SampleProbe(accepts=custom, version=1)))
+    body = _json.loads(resp.body)
+    assert body["x402Version"] == 1
+    assert body["accepts"][0]["network"] == "fake"
+
+
+def test_probe_response_with_resource_url() -> None:
+    import base64
+    import json as _json
+
+    from agentscore_commerce.discovery.probe import X402SampleProbe, build_discovery_probe_response
+
+    resp = build_discovery_probe_response(
+        _probe_opts(x402_sample=X402SampleProbe(networks=["eip155:84532"], resource_url="https://example.com/api"))
+    )
+    decoded = _json.loads(base64.b64decode(resp.headers["payment-required"]).decode())
+    assert decoded["resource"]["url"] == "https://example.com/api"
+
+
+def test_probe_response_with_docs_url() -> None:
+    import json as _json
+
+    from agentscore_commerce.discovery.probe import build_discovery_probe_response
+
+    resp = build_discovery_probe_response(_probe_opts(docs_url="https://docs.example.com"))
+    body = _json.loads(resp.body)
+    assert body["docs"] == "https://docs.example.com"
+
+
+def test_probe_response_unknown_network_filtered_out() -> None:
+    import json as _json
+
+    from agentscore_commerce.discovery.probe import X402SampleProbe, build_discovery_probe_response
+
+    resp = build_discovery_probe_response(
+        _probe_opts(x402_sample=X402SampleProbe(networks=["eip155:84532", "eip155:99999"]))
+    )
+    body = _json.loads(resp.body)
+    assert len(body["accepts"]) == 1
+
+
+# ── is_discovery_probe_request ──────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_is_probe_empty_post() -> None:
+    from agentscore_commerce.discovery.probe import is_discovery_probe_request
+
+    assert await is_discovery_probe_request("POST", None, "") is True
+
+
+@pytest.mark.asyncio
+async def test_is_probe_empty_object_post() -> None:
+    from agentscore_commerce.discovery.probe import is_discovery_probe_request
+
+    assert await is_discovery_probe_request("POST", None, "{}") is True
+
+
+@pytest.mark.asyncio
+async def test_is_probe_non_post_rejected() -> None:
+    from agentscore_commerce.discovery.probe import is_discovery_probe_request
+
+    assert await is_discovery_probe_request("GET", None, "") is False
+
+
+@pytest.mark.asyncio
+async def test_is_probe_with_payment_authz_rejected() -> None:
+    from agentscore_commerce.discovery.probe import is_discovery_probe_request
+
+    assert await is_discovery_probe_request("POST", "Payment foo", "") is False
+
+
+@pytest.mark.asyncio
+async def test_is_probe_with_real_body_rejected() -> None:
+    from agentscore_commerce.discovery.probe import is_discovery_probe_request
+
+    assert await is_discovery_probe_request("POST", None, '{"product": "x"}') is False

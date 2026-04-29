@@ -89,3 +89,92 @@ async def test_simulate_crypto_deposit_raises_on_non_2xx():
         await simulate_crypto_deposit(
             SimulateCryptoDepositInput(payment_intent_id="pi_2", network="base", stripe_secret_key="sk_test_x")
         )
+
+
+# ── create_mppx_stripe: the pympp wrapper ───────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_mppx_stripe_calls_pympp_charge_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from agentscore_commerce.stripe_multichain import mppx_stripe
+
+    fake_charge = MagicMock(return_value="fake-method")
+    fake_module = SimpleNamespace(charge=fake_charge)
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name: fake_module if name == "pympp.methods.stripe" else importlib.__import__(name),
+    )
+    try:
+        result = await mppx_stripe.create_mppx_stripe(profile_id="prof_test", secret_key="sk_test")
+        assert result == "fake-method"
+        fake_charge.assert_called_once()
+        kwargs = fake_charge.call_args.kwargs
+        assert kwargs["network_id"] == "prof_test"
+        assert kwargs["secret_key"] == "sk_test"
+        assert kwargs["payment_method_types"] == ["card", "link"]
+    finally:
+        sys.modules.pop("pympp.methods.stripe", None)
+
+
+@pytest.mark.asyncio
+async def test_create_mppx_stripe_custom_payment_method_types(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from agentscore_commerce.stripe_multichain import mppx_stripe
+
+    fake_charge = MagicMock(return_value=object())
+    fake_module = SimpleNamespace(charge=fake_charge)
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name: fake_module if name == "pympp.methods.stripe" else importlib.__import__(name),
+    )
+    try:
+        await mppx_stripe.create_mppx_stripe(profile_id="prof", secret_key="sk", payment_method_types=["card"])
+        assert fake_charge.call_args.kwargs["payment_method_types"] == ["card"]
+    finally:
+        sys.modules.pop("pympp.methods.stripe", None)
+
+
+@pytest.mark.asyncio
+async def test_create_mppx_stripe_missing_pympp_raises_guiding_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+
+    from agentscore_commerce.stripe_multichain import mppx_stripe
+
+    def _missing(name: str) -> object:
+        raise ImportError("no module named " + name)
+
+    monkeypatch.setattr(importlib, "import_module", _missing)
+    with pytest.raises(ImportError, match=r"pympp\[stripe\]"):
+        await mppx_stripe.create_mppx_stripe(profile_id="prof", secret_key="sk")
+
+
+@pytest.mark.asyncio
+async def test_create_mppx_stripe_missing_charge_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+    import sys
+    from types import SimpleNamespace
+
+    from agentscore_commerce.stripe_multichain import mppx_stripe
+
+    fake_module = SimpleNamespace()
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name: fake_module if name == "pympp.methods.stripe" else importlib.__import__(name),
+    )
+    try:
+        with pytest.raises(ImportError, match="charge not found"):
+            await mppx_stripe.create_mppx_stripe(profile_id="prof", secret_key="sk")
+    finally:
+        sys.modules.pop("pympp.methods.stripe", None)

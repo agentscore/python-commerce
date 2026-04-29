@@ -1,11 +1,5 @@
 """Discovery helpers — probe responder, Bazaar payload builder, .well-known/mpp.json, llms.txt, OpenAPI snippets."""
 
-from agentscore_commerce.discovery.agent_card import (
-    A2AAgentCardInput,
-    A2AComplianceBlock,
-    A2AEndpoint,
-    build_a2a_agent_card,
-)
 from agentscore_commerce.discovery.bazaar import BazaarDiscoveryConfig, build_bazaar_discovery_payload
 from agentscore_commerce.discovery.llms_txt import (
     BuildLlmsTxtInput,
@@ -48,9 +42,6 @@ from agentscore_commerce.discovery.well_known_mpp import (
 __all__ = [
     "DEFAULT_DISCOVERY_PATHS",
     "DEFAULT_ROBOTS_TAG",
-    "A2AAgentCardInput",
-    "A2AComplianceBlock",
-    "A2AEndpoint",
     "BazaarDiscoveryConfig",
     "BuildAgentScoreOpenApiSnippetsInput",
     "BuildLlmsTxtInput",
@@ -68,7 +59,6 @@ __all__ = [
     "agentscore_openapi_snippets",
     "agentscore_payment_required_schema",
     "agentscore_security_schemes",
-    "build_a2a_agent_card",
     "build_bazaar_discovery_payload",
     "build_discovery_probe_response",
     "build_llms_txt",

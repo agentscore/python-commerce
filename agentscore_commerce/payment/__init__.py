@@ -47,6 +47,7 @@ from agentscore_commerce.payment.wwwauthenticate import (
     www_authenticate_header,
 )
 from agentscore_commerce.payment.x402 import register_x402_schemes_v1_v2
+from agentscore_commerce.payment.x402_accepts import X402Accept, build_x402_accept, build_x402_accepts
 from agentscore_commerce.payment.x402_server import (
     CreateX402ServerOptions,
     CustomScheme,
@@ -105,6 +106,7 @@ __all__ = [
     "VerifyX402RequestInput",
     "VerifyX402RequestResult",
     "VerifyX402RequestSuccess",
+    "X402Accept",
     "X402AcceptsBlock",
     "X402FacilitatorChoice",
     "X402SymbolicRail",
@@ -113,6 +115,8 @@ __all__ = [
     "build_payment_directive",
     "build_payment_headers",
     "build_payment_request_blob",
+    "build_x402_accept",
+    "build_x402_accepts",
     "create_mppx_server",
     "create_x402_server",
     "dispatch_settlement_by_network",

@@ -1,6 +1,6 @@
 """build_402_body — full enriched 402 response body builder."""
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any, Literal
 
 from agentscore_commerce.challenge.pricing import PricingBlock
@@ -55,6 +55,13 @@ def build_402_body(input: Build402BodyInput) -> dict[str, Any]:
     if input.agent_instructions:
         body["agent_instructions"] = input.agent_instructions
     if input.agent_memory is not None:
-        body["agent_memory"] = input.agent_memory
+        # AgentMemoryHint is a dataclass; merchants pass it directly via
+        # first_encounter_agent_memory(...). Convert here so JSONResponse /
+        # json.dumps can serialise without per-merchant boilerplate.
+        body["agent_memory"] = (
+            asdict(input.agent_memory)
+            if is_dataclass(input.agent_memory) and not isinstance(input.agent_memory, type)
+            else input.agent_memory
+        )
     body.update(input.extra)
     return body

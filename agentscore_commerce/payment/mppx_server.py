@@ -126,7 +126,7 @@ async def create_mppx_server(
     rails_cfg = rails or MppxRails()
 
     if rails_cfg.tempo is not None:
-        tempo_module = _import_optional("pympp.methods.tempo")
+        tempo_module = _import_optional("mpp.methods.tempo")
         charge_factory = getattr(tempo_module, "charge", None) if tempo_module else None
         if not callable(charge_factory):
             msg = "pympp[tempo] not installed — run `pip install 'pympp[tempo]'` for Tempo MPP rails."
@@ -142,7 +142,7 @@ async def create_mppx_server(
         )
 
     if rails_cfg.tempo_session is not None:
-        tempo_module = _import_optional("pympp.methods.tempo")
+        tempo_module = _import_optional("mpp.methods.tempo")
         session_factory = getattr(tempo_module, "session", None) if tempo_module else None
         if not callable(session_factory):
             msg = (

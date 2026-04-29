@@ -41,6 +41,7 @@ from agentscore_commerce.challenge import (
     BuildAcceptedMethodsInput,
     BuildAgentInstructionsInput,
     BuildHowToPayInput,
+    BuildValidationErrorInput,
     HowToPayRails,
     Respond402Input,
     StripeConfig,
@@ -55,6 +56,7 @@ from agentscore_commerce.challenge import (
     build_agent_instructions,
     build_how_to_pay,
     build_pricing_block,
+    build_validation_error,
     first_encounter_agent_memory,
     respond_402,
 )
@@ -175,7 +177,17 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
             )
         )
         if not settle.success:
-            return JSONResponse({"error": {"code": "payment_proof_invalid", "phase": settle.phase}}, status_code=400)
+            return JSONResponse(
+                build_validation_error(
+                    BuildValidationErrorInput(
+                        code="payment_proof_invalid",
+                        message=f"Payment failed during settlement (phase: {settle.phase or 'unknown'}).",
+                        next_steps={"action": "regenerate_payment_credential"},
+                        extra={"phase": settle.phase},
+                    )
+                ),
+                status_code=400,
+            )
 
         # Fire Stripe testnet sim — no-ops on live keys.
         await simulate_deposit_if_test_mode(

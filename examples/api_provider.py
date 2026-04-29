@@ -35,6 +35,7 @@ from fastapi.responses import JSONResponse
 
 from agentscore_commerce.discovery import (
     DiscoveryProbeOptions,
+    NoindexNonDiscoveryMiddleware,
     X402SampleProbe,
     build_discovery_probe_response,
     is_discovery_probe_request,
@@ -50,6 +51,12 @@ PRICE_USDC = 0.01  # per-call price in USD
 REALM = "api.example.com"
 
 app = FastAPI()
+
+# noindex non-discovery paths so /search doesn't end up in human-shaped SERPs.
+# Defaults cover /openapi.json, /llms.txt, /.well-known/{mpp.json,agent-card.json,ucp},
+# /favicon.{png,ico} — pass `custom_paths={"/sitemap.xml"}` to extend or
+# `replace_paths=True` to swap the set entirely.
+app.add_middleware(NoindexNonDiscoveryMiddleware)
 
 
 @app.post("/search")

@@ -139,3 +139,74 @@ async def test_middleware_passthrough_for_non_http_scope() -> None:
     await mw({"type": "websocket", "path": "/socket"}, receive, send)
     # Inner app emits http.response.start with content-type, no x-robots-tag injected.
     assert _hdr(captured, "x-robots-tag") is None
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Flask wrapper
+# ────────────────────────────────────────────────────────────────────────────
+
+
+def test_install_flask_noindex_sets_header_on_non_discovery_path() -> None:
+    pytest.importorskip("flask")
+    from flask import Flask
+
+    from agentscore_commerce.discovery import install_flask_noindex
+
+    app = Flask(__name__)
+    install_flask_noindex(app)
+
+    @app.route("/purchase", methods=["GET"])
+    def purchase() -> str:
+        return "ok"
+
+    @app.route("/llms.txt", methods=["GET"])
+    def llms() -> str:
+        return "agent-doc"
+
+    client = app.test_client()
+    purchase_resp = client.get("/purchase")
+    assert purchase_resp.headers.get("X-Robots-Tag") == "noindex, nofollow, noarchive, nosnippet"
+
+    llms_resp = client.get("/llms.txt")
+    assert "X-Robots-Tag" not in llms_resp.headers
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Django middleware class
+# ────────────────────────────────────────────────────────────────────────────
+
+
+def test_django_middleware_sets_header_on_non_discovery_path() -> None:
+    from agentscore_commerce.discovery import DjangoNoindexMiddleware
+
+    class _FakeResponse(dict[str, str]):
+        pass
+
+    def get_response(request: object) -> _FakeResponse:
+        return _FakeResponse()
+
+    mw = DjangoNoindexMiddleware(get_response)
+
+    class _Req:
+        path = "/purchase"
+
+    response = mw(_Req())
+    assert response["X-Robots-Tag"] == "noindex, nofollow, noarchive, nosnippet"
+
+
+def test_django_middleware_skips_discovery_path() -> None:
+    from agentscore_commerce.discovery import DjangoNoindexMiddleware
+
+    class _FakeResponse(dict[str, str]):
+        pass
+
+    def get_response(request: object) -> _FakeResponse:
+        return _FakeResponse()
+
+    mw = DjangoNoindexMiddleware(get_response)
+
+    class _Req:
+        path = "/openapi.json"
+
+    response = mw(_Req())
+    assert "X-Robots-Tag" not in response

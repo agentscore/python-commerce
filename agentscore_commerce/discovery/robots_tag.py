@@ -115,3 +115,76 @@ class NoindexNonDiscoveryMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_header)
+
+
+def install_flask_noindex(
+    app: Any,
+    custom_paths: Iterable[str] | None = None,
+    replace_paths: bool = False,
+    robots_tag: str = DEFAULT_ROBOTS_TAG,
+) -> None:
+    """Wire ``X-Robots-Tag`` into a Flask app via ``after_request``.
+
+    Flask is WSGI, so the ASGI middleware doesn't fit. Call this once during
+    app construction:
+
+    .. code-block:: python
+
+        from flask import Flask
+        from agentscore_commerce.discovery import install_flask_noindex
+        app = Flask(__name__)
+        install_flask_noindex(app)
+    """
+    custom = frozenset(custom_paths or [])
+
+    @app.after_request  # type: ignore[misc]
+    def _add_robots_tag(response: Any) -> Any:
+        # ``request.path`` is available on Flask via the import; we read it
+        # lazily to keep the import optional.
+        from flask import request  # type: ignore[import-not-found]
+
+        path = request.path
+        is_discovery = (path in custom) if replace_paths else (path in DEFAULT_DISCOVERY_PATHS or path in custom)
+        if not is_discovery:
+            response.headers["X-Robots-Tag"] = robots_tag
+        return response
+
+
+class DjangoNoindexMiddleware:
+    """Django middleware that emits ``X-Robots-Tag`` on non-discovery paths.
+
+    Wire into ``settings.MIDDLEWARE``:
+
+    .. code-block:: python
+
+        MIDDLEWARE = [
+            ...,
+            'agentscore_commerce.discovery.DjangoNoindexMiddleware',
+        ]
+
+    Configure via ``settings.AGENTSCORE_NOINDEX = {"custom_paths": [...],
+    "replace_paths": False, "robots_tag": "..."}`` (all keys optional).
+    """
+
+    def __init__(self, get_response: Callable[[Any], Any]) -> None:
+        self.get_response = get_response
+        # Read settings lazily so importing this file doesn't require Django.
+        try:
+            from django.conf import settings  # type: ignore[import-not-found]
+
+            cfg = getattr(settings, "AGENTSCORE_NOINDEX", {}) or {}
+        except Exception:
+            cfg = {}
+        self._custom = frozenset(cfg.get("custom_paths") or [])
+        self._replace = bool(cfg.get("replace_paths", False))
+        self._tag = cfg.get("robots_tag", DEFAULT_ROBOTS_TAG)
+
+    def __call__(self, request: Any) -> Any:
+        response = self.get_response(request)
+        path = getattr(request, "path", "")
+        is_discovery = (
+            (path in self._custom) if self._replace else (path in DEFAULT_DISCOVERY_PATHS or path in self._custom)
+        )
+        if not is_discovery:
+            response["X-Robots-Tag"] = self._tag
+        return response

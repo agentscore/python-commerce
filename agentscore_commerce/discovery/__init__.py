@@ -28,7 +28,9 @@ from agentscore_commerce.discovery.probe import (
 from agentscore_commerce.discovery.robots_tag import (
     DEFAULT_DISCOVERY_PATHS,
     DEFAULT_ROBOTS_TAG,
+    DjangoNoindexMiddleware,
     NoindexNonDiscoveryMiddleware,
+    install_flask_noindex,
     is_discovery_path,
 )
 from agentscore_commerce.discovery.well_known_mpp import (
@@ -45,6 +47,7 @@ __all__ = [
     "BuildLlmsTxtInput",
     "DiscoveryProbeOptions",
     "DiscoveryProbeResponse",
+    "DjangoNoindexMiddleware",
     "LlmsTxtIdentitySectionInput",
     "LlmsTxtPaymentSectionInput",
     "LlmsTxtSection",
@@ -60,6 +63,7 @@ __all__ = [
     "build_discovery_probe_response",
     "build_llms_txt",
     "build_well_known_mpp",
+    "install_flask_noindex",
     "is_discovery_path",
     "is_discovery_probe_request",
     "llms_txt_identity_section",

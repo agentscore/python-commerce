@@ -8,7 +8,10 @@ What this example demonstrates:
     - AgentScoreGate with full compliance policy (KYC + sanctions + age + jurisdiction)
     - Custom on_denied composing commerce helpers:
         * verification_agent_instructions for the canonical poll-and-retry instructions
-        * is_fixable_denial to branch fixable (KYC re-do) vs unfixable (sanctions/age)
+        * is_fixable_denial defensive fallback for fixable (KYC re-do) vs unfixable
+          (sanctions / age / jurisdiction_restricted) compliance fails. Gate normally
+          re-routes fixable reasons to identity_verification_required upstream — this
+          branch only fires if the /v1/sessions mint blipped.
         * build_contact_support_next_steps for the unfixable branch
         * denial_reason_to_body + denial_reason_status for the standard fall-through
           (token_expired, invalid_credential, api_error get the right status + body for free)
@@ -76,11 +79,17 @@ def _on_denied(_request: Request, reason: DenialReason) -> tuple[dict[str, Any],
         body["agent_instructions"] = VERIFICATION_INSTRUCTIONS
         return body, 403
 
-    # wallet_not_trusted = compliance fail. Branch on fixable vs not — fixable (KYC pending/failed/
-    # required, jurisdiction) gets a fresh session; unfixable (sanctions, age) gets contact-support.
+    # wallet_not_trusted = UNFIXABLE compliance fail (sanctions / age / jurisdiction_restricted).
+    # The gate auto-routes fixable reasons (kyc_required / kyc_pending / kyc_failed) to
+    # identity_verification_required upstream — by the time on_denied sees wallet_not_trusted,
+    # the reasons should be unfixable. The is_fixable_denial branch below is a defensive
+    # fallback in case the gate's /v1/sessions mint blipped and fell back to bare denial.
     if reason.code == "wallet_not_trusted":
         reasons = reason.reasons or []
         if is_fixable_denial(reasons):
+            # Defensive: gate normally bootstraps these into identity_verification_required.
+            # If we hit this branch, the gate's /v1/sessions mint failed — surface verify_url
+            # so the agent can recover via the manual session flow.
             return {
                 "error": {"code": "compliance_recoverable", "message": "Re-verify identity and retry."},
                 "reasons": reasons,

@@ -283,6 +283,60 @@ class TestDjangoCreateSessionOnMissing:
         data = json.loads(resp.content)
         assert data["error"]["code"] == "missing_identity"
 
+    def test_fixable_wallet_denial_bootstraps_session(self) -> None:
+        from agentscore_commerce.identity.sessions import CreateSessionOnMissing
+        from agentscore_commerce.identity.types import DenialReason
+
+        mw = self._make_middleware(
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        session_reason = DenialReason(
+            code="identity_verification_required",
+            verify_url="https://agentscore.sh/verify/sess_kyc",
+            session_id="sess_kyc",
+            poll_secret="ps_kyc",
+        )
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        with (
+            patch(
+                "agentscore_commerce.identity.django.GateClient.check",
+                return_value=result,
+            ),
+            patch(
+                "agentscore_commerce.identity.django.try_create_session_denial_reason_sync",
+                return_value=session_reason,
+            ),
+        ):
+            resp = mw(request)
+        assert resp.status_code == 403
+        data = json.loads(resp.content)
+        assert data["error"]["code"] == "identity_verification_required"
+        assert data["session_id"] == "sess_kyc"
+
+    def test_unfixable_wallet_denial_returns_bare_wallet_not_trusted(self) -> None:
+        from agentscore_commerce.identity.sessions import CreateSessionOnMissing
+
+        mw = self._make_middleware(
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        result = AssessResult(allow=False, decision="deny", reasons=["sanctions_flagged"], raw={})
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        with (
+            patch(
+                "agentscore_commerce.identity.django.GateClient.check",
+                return_value=result,
+            ),
+            patch(
+                "agentscore_commerce.identity.django.try_create_session_denial_reason_sync",
+            ) as session_helper,
+        ):
+            resp = mw(request)
+        assert resp.status_code == 403
+        data = json.loads(resp.content)
+        assert data["error"]["code"] == "wallet_not_trusted"
+        session_helper.assert_not_called()
+
 
 class TestDjangoIdentityModel:
     """Django middleware identity model tests."""

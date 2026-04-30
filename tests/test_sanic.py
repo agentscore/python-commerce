@@ -210,6 +210,55 @@ class TestCreateSessionOnMissing:
         assert resp.status == 403
         assert resp.json["error"]["code"] == "missing_identity"
 
+    def test_fixable_wallet_denial_bootstraps_session(self):
+        kyc_result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        session_reason = DenialReason(
+            code="identity_verification_required",
+            verify_url="https://agentscore.sh/verify/sess_kyc",
+            session_id="sess_kyc",
+            poll_secret="ps_kyc",
+        )
+        app = _make_app(
+            "sanic_fixable_wallet",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        with (
+            patch(
+                "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+                new=AsyncMock(return_value=kyc_result),
+            ),
+            patch(
+                "agentscore_commerce.identity.sanic.try_create_session_denial_reason",
+                new=AsyncMock(return_value=session_reason),
+            ),
+        ):
+            _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 403
+        assert resp.json["error"]["code"] == "identity_verification_required"
+        assert resp.json["session_id"] == "sess_kyc"
+
+    def test_unfixable_wallet_denial_returns_bare_wallet_not_trusted(self):
+        unfixable = AssessResult(allow=False, decision="deny", reasons=["sanctions_flagged"], raw={})
+        session_helper = AsyncMock()
+        app = _make_app(
+            "sanic_unfixable_wallet",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        with (
+            patch(
+                "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+                new=AsyncMock(return_value=unfixable),
+            ),
+            patch(
+                "agentscore_commerce.identity.sanic.try_create_session_denial_reason",
+                new=session_helper,
+            ),
+        ):
+            _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 403
+        assert resp.json["error"]["code"] == "wallet_not_trusted"
+        session_helper.assert_not_called()
+
 
 class TestCaptureWallet:
     def test_captures_when_operator_token_present(self):

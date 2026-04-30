@@ -268,6 +268,56 @@ class TestFlaskCreateSessionOnMissing:
             data = resp.get_json()
             assert data["error"]["code"] == "missing_identity"
 
+    def test_fixable_wallet_denial_bootstraps_session(self) -> None:
+        from agentscore_commerce.identity.sessions import CreateSessionOnMissing
+        from agentscore_commerce.identity.types import DenialReason
+
+        app = _make_app(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"))
+        result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        session_reason = DenialReason(
+            code="identity_verification_required",
+            verify_url="https://agentscore.sh/verify/sess_kyc",
+            session_id="sess_kyc",
+            poll_secret="ps_kyc",
+        )
+        with (
+            patch(
+                "agentscore_commerce.identity.flask.GateClient.check",
+                return_value=result,
+            ),
+            patch(
+                "agentscore_commerce.identity.flask.try_create_session_denial_reason_sync",
+                return_value=session_reason,
+            ),
+        ):
+            client = app.test_client()
+            resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 403
+            data = resp.get_json()
+            assert data["error"]["code"] == "identity_verification_required"
+            assert data["session_id"] == "sess_kyc"
+
+    def test_unfixable_wallet_denial_returns_bare_wallet_not_trusted(self) -> None:
+        from agentscore_commerce.identity.sessions import CreateSessionOnMissing
+
+        app = _make_app(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"))
+        result = AssessResult(allow=False, decision="deny", reasons=["sanctions_flagged"], raw={})
+        with (
+            patch(
+                "agentscore_commerce.identity.flask.GateClient.check",
+                return_value=result,
+            ),
+            patch(
+                "agentscore_commerce.identity.flask.try_create_session_denial_reason_sync",
+            ) as session_helper,
+        ):
+            client = app.test_client()
+            resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 403
+            data = resp.get_json()
+            assert data["error"]["code"] == "wallet_not_trusted"
+            session_helper.assert_not_called()
+
 
 class TestFlaskIdentityModel:
     """Flask adapter identity model tests."""
@@ -496,7 +546,11 @@ class TestFlaskTokenDenied:
         assert resp.status_code == 401
         body = resp.get_json()
         assert body["error"]["code"] == "token_expired"
-        assert "agent_instructions" not in body
+        # API didn't supply next_steps → fallback agent_instructions injected by
+        # _response.py so agents always have a recovery action.
+        import json as _json
+
+        assert _json.loads(body["agent_instructions"])["action"] == "deliver_verify_url_and_poll"
 
 
 class TestFlaskGenericFailure:

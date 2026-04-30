@@ -125,6 +125,115 @@ WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS = json.dumps(
     }
 )
 
+WALLET_NOT_TRUSTED_INSTRUCTIONS = json.dumps(
+    {
+        "action": "contact_support",
+        "steps": [
+            (
+                "The wallet's operator failed an UNFIXABLE compliance check (sanctions, "
+                "age, or jurisdiction). `reasons` lists which: `sanctions_flagged` / "
+                "`age_insufficient` / `jurisdiction_restricted`. KYC re-verification "
+                "won't change the outcome — the policy denial is structural."
+            ),
+            (
+                "Surface the denial to the user with the merchant's support contact. "
+                "Do not retry the same merchant request; do not hand the user a "
+                "verify_url (verification won't fix this code path)."
+            ),
+            (
+                "Fixable compliance reasons (`kyc_required`, `kyc_pending`, "
+                "`kyc_failed`, `jurisdiction_required` without explicit restriction) "
+                "do NOT land on this code — the gate auto-mints a verification session "
+                "for those and returns `identity_verification_required` with poll "
+                "endpoints, same shape as `missing_identity`."
+            ),
+        ],
+        "user_message": (
+            "This purchase is denied by the merchant's compliance policy and cannot be "
+            "resolved by re-verifying. Contact the merchant's support if you believe "
+            "this is in error."
+        ),
+    }
+)
+
+PAYMENT_REQUIRED_INSTRUCTIONS = json.dumps(
+    {
+        "action": "contact_merchant",
+        "steps": [
+            (
+                "The merchant's AgentScore tier does not include the assess feature, so "
+                "agent identity cannot be evaluated. This is a merchant-side configuration "
+                "gap — there is no agent-side recovery."
+            ),
+            (
+                "Contact the merchant (their support channel — typically listed in "
+                "/llms.txt or the OpenAPI servers metadata) and request they upgrade "
+                "their AgentScore plan."
+            ),
+        ],
+        "user_message": (
+            "This merchant's identity gate is misconfigured (AgentScore tier doesn't "
+            "support assess). Contact the merchant — there's nothing to fix on the "
+            "agent side."
+        ),
+    }
+)
+
+# Fallback when API didn't supply next_steps. Normal path provides them; this is
+# defense-in-depth so 403s never go out without a machine-readable recovery step.
+IDENTITY_VERIFICATION_REQUIRED_FALLBACK_INSTRUCTIONS = json.dumps(
+    {
+        "action": "deliver_verify_url_and_poll",
+        "steps": [
+            "Share verify_url with the user — they complete identity verification on AgentScore.",
+            (
+                "If session_id + poll_secret are present in the body, poll poll_url every "
+                "5 seconds with header `X-Poll-Secret: <poll_secret>` until status=verified. "
+                "The poll returns a one-time operator_token."
+            ),
+            "Retry the original request with header `X-Operator-Token: <opc_...>`.",
+        ],
+        "user_message": (
+            "Identity verification is required. Visit verify_url, then poll poll_url for the operator token and retry."
+        ),
+    }
+)
+
+TOKEN_EXPIRED_FALLBACK_INSTRUCTIONS = json.dumps(
+    {
+        "action": "deliver_verify_url_and_poll",
+        "steps": [
+            (
+                "The operator token is expired or revoked. AgentScore auto-mints a fresh "
+                "verification session — complete it to receive a new opc_..."
+            ),
+            (
+                "Share verify_url with the user, then poll poll_url every 5 seconds with "
+                "header `X-Poll-Secret: <poll_secret>` until status=verified. The poll "
+                "returns a fresh one-time operator_token."
+            ),
+            "Retry the original request with header `X-Operator-Token: <new_opc_...>`.",
+        ],
+        "user_message": (
+            "Operator token is expired or revoked. A new verification session has been "
+            "minted — visit verify_url to refresh."
+        ),
+    }
+)
+
+# Default agent_instructions per denial code. Adapters can override by passing
+# ``agent_instructions=`` on the DenialReason; otherwise the body emitter looks
+# up this map so every denial carries a machine-readable next step.
+_DEFAULT_AGENT_INSTRUCTIONS: dict[str, str] = {
+    "missing_identity": _MISSING_IDENTITY_INSTRUCTIONS,
+    "wallet_signer_mismatch": WALLET_SIGNER_MISMATCH_INSTRUCTIONS,
+    "wallet_auth_requires_wallet_signing": WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,
+    "wallet_not_trusted": WALLET_NOT_TRUSTED_INSTRUCTIONS,
+    "payment_required": PAYMENT_REQUIRED_INSTRUCTIONS,
+    "identity_verification_required": IDENTITY_VERIFICATION_REQUIRED_FALLBACK_INSTRUCTIONS,
+    "token_expired": TOKEN_EXPIRED_FALLBACK_INSTRUCTIONS,
+}
+
 
 def build_missing_identity_reason() -> DenialReason:
     """Construct a missing_identity DenialReason with the cross-merchant memory hint attached.
@@ -189,8 +298,9 @@ def denial_reason_to_body(reason: DenialReason) -> dict[str, Any]:
         body["poll_secret"] = reason.poll_secret
     if reason.poll_url:
         body["poll_url"] = reason.poll_url
-    if reason.agent_instructions:
-        body["agent_instructions"] = reason.agent_instructions
+    instructions = reason.agent_instructions or _DEFAULT_AGENT_INSTRUCTIONS.get(reason.code)
+    if instructions:
+        body["agent_instructions"] = instructions
     # Cross-merchant pattern hint.
     if reason.agent_memory is not None:
         body["agent_memory"] = asdict(reason.agent_memory)

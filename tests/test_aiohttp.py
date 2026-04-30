@@ -239,6 +239,44 @@ class TestCreateSessionOnMissing:
             data = await resp.json()
             assert data["error"]["code"] == "missing_identity"
 
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fixable_wallet_denial_bootstraps_session(self):
+        _mock_assess("deny", reasons=["kyc_required"])
+        respx.post(SESSIONS_URL).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "sess_kyc",
+                    "verify_url": "https://agentscore.sh/verify/sess_kyc",
+                    "poll_secret": "ps_kyc",
+                    "next_steps": {"action": "deliver_verify_url_and_poll"},
+                },
+            )
+        )
+        app = _make_app(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"))
+        client = await _client(app)
+        async with client:
+            resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status == 403
+            data = await resp.json()
+            assert data["error"]["code"] == "identity_verification_required"
+            assert data["session_id"] == "sess_kyc"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_unfixable_wallet_denial_returns_bare_wallet_not_trusted(self):
+        _mock_assess("deny", reasons=["sanctions_flagged"])
+        sessions_route = respx.post(SESSIONS_URL)
+        app = _make_app(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"))
+        client = await _client(app)
+        async with client:
+            resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status == 403
+            data = await resp.json()
+            assert data["error"]["code"] == "wallet_not_trusted"
+            assert sessions_route.call_count == 0
+
 
 class TestCaptureWallet:
     @pytest.mark.asyncio

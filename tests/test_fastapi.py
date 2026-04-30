@@ -204,6 +204,65 @@ class TestCreateSessionOnMissing:
         assert resp.status_code == 403
         assert resp.json()["detail"]["error"]["code"] == "missing_identity"
 
+    @respx.mock
+    def test_fixable_wallet_denial_bootstraps_session(self):
+        # When /v1/assess returns deny with a fixable reason (kyc_required), the gate
+        # should mint a verification session via /v1/sessions and return
+        # identity_verification_required (not bare wallet_not_trusted), giving the
+        # agent the same poll-and-retry UX as missing_identity.
+        _mock_assess("deny", reasons=["kyc_required"])
+        respx.post(SESSIONS_URL).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "sess_kyc",
+                    "verify_url": "https://agentscore.sh/verify/sess_kyc",
+                    "poll_secret": "ps_kyc",
+                    "next_steps": {"action": "deliver_verify_url_and_poll"},
+                },
+            )
+        )
+        gate = AgentScoreGate(
+            api_key="ask_test",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 403
+        detail = resp.json()["detail"]
+        assert detail["error"]["code"] == "identity_verification_required"
+        assert detail["session_id"] == "sess_kyc"
+
+    @respx.mock
+    def test_unfixable_wallet_denial_returns_bare_wallet_not_trusted(self):
+        # Sanctions / age / jurisdiction_restricted are unfixable — re-verification
+        # won't change the outcome. Gate should emit bare wallet_not_trusted (no
+        # session bootstrap) so the agent surfaces contact-support copy.
+        _mock_assess("deny", reasons=["sanctions_flagged"])
+        sessions_route = respx.post(SESSIONS_URL)
+        gate = AgentScoreGate(
+            api_key="ask_test",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 403
+        assert resp.json()["detail"]["error"]["code"] == "wallet_not_trusted"
+        assert sessions_route.call_count == 0
+
+    @respx.mock
+    def test_fixable_wallet_falls_back_to_bare_when_session_mint_fails(self):
+        _mock_assess("deny", reasons=["kyc_required"])
+        respx.post(SESSIONS_URL).mock(return_value=httpx.Response(500, text="oops"))
+        gate = AgentScoreGate(
+            api_key="ask_test",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 403
+        assert resp.json()["detail"]["error"]["code"] == "wallet_not_trusted"
+
 
 class TestCaptureWallet:
     @respx.mock

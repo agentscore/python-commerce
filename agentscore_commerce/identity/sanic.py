@@ -181,6 +181,22 @@ def agentscore_gate(
                 request.ctx.agentscore = result.raw
                 return None
 
+            # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed,
+            # jurisdiction_required when not explicitly restricted) get the same UX as
+            # missing_identity: the gate mints a fresh verification session, the agent
+            # polls until status=verified, gets a fresh opc_..., and retries with
+            # X-Operator-Token. Unfixable reasons (sanctions, age, jurisdiction_restricted)
+            # keep the bare wallet_not_trusted denial — re-verification won't fix them.
+            if is_fixable_denial(result.reasons) and create_session_on_missing is not None:
+                session_reason = await try_create_session_denial_reason(
+                    create_session_on_missing,
+                    client.user_agent,
+                    request,
+                )
+                if session_reason is not None:
+                    body, status = _on_denied(request, session_reason)
+                    return response.json(body, status=status)
+
             reason = DenialReason(
                 code="wallet_not_trusted",
                 decision=result.decision,

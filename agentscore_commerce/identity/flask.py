@@ -144,6 +144,14 @@ def agentscore_gate(
     _extract_chain = extract_chain or _default_extract_chain
     _on_denied = on_denied or _default_on_denied
 
+    def _deny(reason: DenialReason) -> tuple[Response, int]:
+        try:
+            body, status = _on_denied(flask_request, reason)
+        except (TypeError, ValueError) as exc:
+            msg = "on_denied must return a (dict, int) tuple, e.g. ({'error': 'denied'}, 403)"
+            raise TypeError(msg) from exc
+        return jsonify(body), status
+
     @app.before_request
     def _agentscore_check() -> Response | tuple[Response, int] | None:
         identity = _resolve_identity(flask_request)
@@ -165,12 +173,7 @@ def agentscore_gate(
                 )
                 if session_reason is not None:
                     denial_reason = session_reason
-            try:
-                body, status = _on_denied(flask_request, denial_reason)
-            except (TypeError, ValueError) as exc:
-                msg = "on_denied must return a (dict, int) tuple, e.g. ({'error': 'denied'}, 403)"
-                raise TypeError(msg) from exc
-            return jsonify(body), status
+            return _deny(denial_reason)
 
         chain_override = _extract_chain(flask_request)
 
@@ -181,54 +184,44 @@ def agentscore_gate(
                 g.agentscore = result.raw
                 return None
 
-            reason = DenialReason(
-                code="wallet_not_trusted",
-                decision=result.decision,
-                reasons=result.reasons,
-                verify_url=result.verify_url,
+            # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed,
+            # jurisdiction_required when not explicitly restricted) get the same UX as
+            # missing_identity: the gate mints a fresh verification session, the agent
+            # polls until status=verified, gets a fresh opc_..., and retries with
+            # X-Operator-Token. Unfixable reasons (sanctions, age, jurisdiction_restricted)
+            # keep the bare wallet_not_trusted denial — re-verification won't fix them.
+            if is_fixable_denial(result.reasons) and create_session_on_missing is not None:
+                session_reason = try_create_session_denial_reason_sync(
+                    create_session_on_missing,
+                    client.user_agent,
+                    flask_request,
+                )
+                if session_reason is not None:
+                    return _deny(session_reason)
+
+            return _deny(
+                DenialReason(
+                    code="wallet_not_trusted",
+                    decision=result.decision,
+                    reasons=result.reasons,
+                    verify_url=result.verify_url,
+                ),
             )
-            try:
-                body, status = _on_denied(flask_request, reason)
-            except (TypeError, ValueError) as exc:
-                msg = "on_denied must return a (dict, int) tuple, e.g. ({'error': 'denied'}, 403)"
-                raise TypeError(msg) from exc
-            return jsonify(body), status
         except PaymentRequiredError:
             if client.fail_open:
                 return None
-            try:
-                body, status = _on_denied(flask_request, DenialReason(code="payment_required"))
-            except (TypeError, ValueError) as exc:
-                msg = "on_denied must return a (dict, int) tuple, e.g. ({'error': 'denied'}, 403)"
-                raise TypeError(msg) from exc
-            return jsonify(body), status
+            return _deny(DenialReason(code="payment_required"))
         except TokenDeniedError as err:
-            reason = build_token_denied_reason(err)
-            try:
-                body, status = _on_denied(flask_request, reason)
-            except (TypeError, ValueError) as exc:
-                msg = "on_denied must return a (dict, int) tuple, e.g. ({'error': 'denied'}, 403)"
-                raise TypeError(msg) from exc
-            return jsonify(body), status
+            return _deny(build_token_denied_reason(err))
         except InvalidCredentialError:
             # Permanent — no auto-session, agent should switch tokens or restart.
-            try:
-                body, status = _on_denied(flask_request, build_invalid_credential_reason())
-            except (TypeError, ValueError) as exc:
-                msg = "on_denied must return a (dict, int) tuple, e.g. ({'error': 'denied'}, 403)"
-                raise TypeError(msg) from exc
-            return jsonify(body), status
+            return _deny(build_invalid_credential_reason())
         except TypeError:
             raise
         except Exception:
             if client.fail_open:
                 return None
-            try:
-                body, status = _on_denied(flask_request, DenialReason(code="api_error"))
-            except (TypeError, ValueError) as exc:
-                msg = "on_denied must return a (dict, int) tuple, e.g. ({'error': 'denied'}, 403)"
-                raise TypeError(msg) from exc
-            return jsonify(body), status
+            return _deny(DenialReason(code="api_error"))
 
 
 def verify_wallet_signer_match(

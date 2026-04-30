@@ -10,7 +10,7 @@ resolution-markers = [
 
 [[package]]
 name = "agentscore-commerce"
-version = "1.0.0"
+version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "agentscore-py" },
@@ -110,14 +110,14 @@ dev = [
 
 [[package]]
 name = "agentscore-py"
-version = "2.0.0"
+version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/31/2d/2fc4330e447ccbd13ee668014527b7756e6143c3933dc21ad62a52ee5458/agentscore_py-2.0.0.tar.gz", hash = "sha256:aaffe64da63c35e4c6ce898949d5618875a99991c38698ea215379ab41ca06e8", size = 50349, upload-time = "2026-04-29T12:02:02.3Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/32/861a7b4d19f677f103ac2b54462e121f76906dbc5ef0119d283ae9276af1/agentscore_py-2.0.1.tar.gz", hash = "sha256:518fac4749aeaaca3a895087d2cb3f6d4e264db15fb194c2a59d4a35bb986a45", size = 50755, upload-time = "2026-04-30T04:19:44.312Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/68/86afad9fa422faf5cf7526e872af440b88b4925a7d87b4bc4e4e0944edba/agentscore_py-2.0.0-py3-none-any.whl", hash = "sha256:a5d2d281b76a7a90dde7ea5efc15129fbad179cefabaf70f088320e19af34c04", size = 14196, upload-time = "2026-04-29T12:02:00.986Z" },
+    { url = "https://files.pythonhosted.org/packages/32/4b/bb898c79e62e4b4c4d9e8b4f621192ceeecdcd03fff2d12a50f00e74a800/agentscore_py-2.0.1-py3-none-any.whl", hash = "sha256:141eee41337e2156b9324527981f64a6edbdc375c4c218dd8c8d17cb287e1281", size = 14492, upload-time = "2026-04-30T04:19:43Z" },
 ]
 
 [[package]]

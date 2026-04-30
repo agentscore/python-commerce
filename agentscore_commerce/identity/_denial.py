@@ -23,26 +23,35 @@ from typing import Any
 
 from agentscore_commerce.identity.types import DenialReason, VerifyWalletSignerResult
 
+# Compliance denial reasons that can be resolved by re-completing KYC. The API emits these
+# when KYC is missing/pending/failed; the user can re-verify and retry.
+#
+# `jurisdiction_restricted` is NOT in this set — the API only emits it AFTER KYC is verified,
+# meaning the user's KYC'd country is in the merchant's blocked list (or absent from the
+# allowed list). Re-doing KYC won't change the country, so it's permanent. Same shape as
+# `sanctions_flagged` and `age_insufficient` — surface contact_support, don't waste a
+# /v1/sessions mint.
 FIXABLE_DENIAL_REASONS: frozenset[str] = frozenset(
     {
         "kyc_required",
         "kyc_pending",
         "kyc_failed",
-        "jurisdiction_restricted",
     }
 )
 
 
 def is_fixable_denial(reasons: Iterable[str] | None) -> bool:
-    """Return True when every reason is fixable (or reasons is empty/None).
+    """Return True when every reason is fixable via KYC re-verification.
 
-    Sanctions and age failures are permanent — any of those in the list returns False.
+    False when any reason is permanent (sanctions, age, jurisdiction_restricted) OR when
+    reasons is empty/None — without a known reason we can't promise a fix, so default to
+    the bare denial path.
     """
     if not reasons:
-        return True
+        return False
     reasons_list = list(reasons)
     if not reasons_list:
-        return True
+        return False
     return all(r in FIXABLE_DENIAL_REASONS for r in reasons_list)
 
 

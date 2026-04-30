@@ -214,6 +214,37 @@ class TestCreateSessionOnMissing:
         assert resp.status_code == 200
         assert session_route.call_count == 0
 
+    @respx.mock
+    def test_fixable_wallet_denial_bootstraps_session(self):
+        _mock_assess("deny", reasons=["kyc_required"])
+        respx.post(SESSIONS_URL).mock(return_value=httpx.Response(200, json=SESSION_RESPONSE))
+
+        app = _make_app(
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session_key"),
+        )
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+
+        assert resp.status_code == 403
+        data = resp.json()
+        assert data["error"]["code"] == "identity_verification_required"
+        assert data["session_id"] == "sess_abc123"
+
+    @respx.mock
+    def test_unfixable_wallet_denial_returns_bare_wallet_not_trusted(self):
+        _mock_assess("deny", reasons=["sanctions_flagged"])
+        sessions_route = respx.post(SESSIONS_URL)
+
+        app = _make_app(
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session_key"),
+        )
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+
+        assert resp.status_code == 403
+        assert resp.json()["error"]["code"] == "wallet_not_trusted"
+        assert sessions_route.call_count == 0
+
 
 CAPTURE_URL = "https://api.agentscore.sh/v1/credentials/wallets"
 
@@ -401,8 +432,9 @@ def test_middleware_passes_through_token_expired_without_next_steps():
     assert resp.status_code == 401
     body = resp.json()
     assert body["error"]["code"] == "token_expired"
-    # next_steps absent → agent_instructions omitted entirely.
-    assert "agent_instructions" not in body
+    # API didn't supply next_steps → fallback agent_instructions injected by
+    # _response.py so agents always have a recovery action.
+    assert json.loads(body["agent_instructions"])["action"] == "deliver_verify_url_and_poll"
 
 
 @respx.mock

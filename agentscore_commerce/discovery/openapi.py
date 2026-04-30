@@ -45,8 +45,14 @@ def agentscore_denial_schemas() -> dict[str, Any]:
                 "payment_required",
             ],
             "description": (
-                "Denial code emitted by AgentScore's gate middleware in 403 responses. Each comes with a "
-                "structured agent_instructions block describing recovery actions."
+                "Denial code emitted by AgentScore's gate middleware in 403 responses. Every code carries a "
+                "structured agent_instructions block describing recovery actions (per-code action: "
+                "missing_identity → probe_identity_then_session, identity_verification_required / "
+                "token_expired → deliver_verify_url_and_poll, invalid_credential → "
+                "switch_token_or_restart_session, wallet_signer_mismatch → resign_or_switch_to_operator_token, "
+                "wallet_auth_requires_wallet_signing → switch_to_operator_token, wallet_not_trusted → "
+                "contact_support — UNFIXABLE compliance only (sanctions/age/jurisdiction_restricted); "
+                "fixable reasons re-route to identity_verification_required, payment_required → contact_merchant)."
             ),
         },
         "AgentScoreDenialBody": {
@@ -56,14 +62,20 @@ def agentscore_denial_schemas() -> dict[str, Any]:
                 "agent_instructions": {
                     "type": "string",
                     "description": (
-                        "JSON-encoded { action, steps, user_message } block. Agents parse this to learn how "
-                        "to recover (e.g., poll a verify_url, switch headers, re-sign)."
+                        "JSON-encoded { action, steps, user_message } block. Always present on every "
+                        "denial; agents parse this to learn how to recover (e.g., poll verify_url, "
+                        "switch headers, re-sign)."
                     ),
                 },
                 "verify_url": {
                     "type": "string",
                     "format": "uri",
-                    "description": "Present for missing_identity / token_expired denials.",
+                    "description": (
+                        "Present for missing_identity / identity_verification_required / token_expired "
+                        "denials. Agent shares this with the user to complete KYC or claim a wallet. "
+                        "Not present on wallet_not_trusted (UNFIXABLE compliance — re-verification "
+                        "won't change the outcome)."
+                    ),
                 },
                 "session_id": {"type": "string"},
                 "poll_url": {"type": "string", "format": "uri"},

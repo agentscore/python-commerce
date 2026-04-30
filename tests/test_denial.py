@@ -40,20 +40,29 @@ class TestDenialReasonStatus:
 
 class TestIsFixableDenial:
     def test_known_fixable_reasons_in_set(self):
-        for r in ("kyc_required", "kyc_pending", "kyc_failed", "jurisdiction_restricted"):
+        for r in ("kyc_required", "kyc_pending", "kyc_failed"):
             assert r in FIXABLE_DENIAL_REASONS
 
-    def test_empty_or_none_treated_as_fixable(self):
-        assert is_fixable_denial(None)
-        assert is_fixable_denial([])
+    def test_jurisdiction_restricted_is_unfixable(self):
+        # The API only emits jurisdiction_restricted AFTER KYC is verified, meaning the
+        # user's KYC'd country is in the merchant's blocked list. Re-doing KYC won't
+        # change the country — same shape as sanctions_flagged / age_insufficient.
+        assert "jurisdiction_restricted" not in FIXABLE_DENIAL_REASONS
+
+    def test_empty_or_none_returns_false(self):
+        # Without a known reason we can't promise a fix — default to bare denial.
+        assert not is_fixable_denial(None)
+        assert not is_fixable_denial([])
 
     def test_all_fixable_returns_true(self):
-        assert is_fixable_denial(["kyc_required", "jurisdiction_restricted"])
+        assert is_fixable_denial(["kyc_required", "kyc_pending"])
 
     def test_any_permanent_returns_false(self):
-        assert not is_fixable_denial(["sanctions_not_clear"])
-        assert not is_fixable_denial(["age_not_verified"])
-        assert not is_fixable_denial(["kyc_required", "sanctions_not_clear"])
+        assert not is_fixable_denial(["sanctions_flagged"])
+        assert not is_fixable_denial(["age_insufficient"])
+        assert not is_fixable_denial(["jurisdiction_restricted"])
+        assert not is_fixable_denial(["kyc_required", "sanctions_flagged"])
+        assert not is_fixable_denial(["kyc_required", "jurisdiction_restricted"])
 
 
 class TestBuildSignerMismatchBody:

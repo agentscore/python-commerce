@@ -170,6 +170,23 @@ class AgentScoreMiddleware:
                 setattr(request, "agentscore", result.raw)  # noqa: B010 — dynamic attribute attach on HttpRequest
                 return self.get_response(request)
 
+            # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
+            # same UX as missing_identity: the gate mints a fresh verification session,
+            # the agent polls until status=verified, gets a fresh opc_..., and retries
+            # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
+            # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
+            # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
+            # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+            # won't change the country).
+            if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
+                session_reason = try_create_session_denial_reason_sync(
+                    self._create_session_on_missing,
+                    self._client.user_agent,
+                    request,
+                )
+                if session_reason is not None:
+                    return self._on_denied(request, session_reason)
+
             reason = DenialReason(
                 code="wallet_not_trusted",
                 decision=result.decision,

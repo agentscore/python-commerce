@@ -18,8 +18,8 @@ Stripe-multichain merchants need three lookups during a request lifecycle:
 All three are TTL-bounded (default 300s — long enough for an agent to retry, short
 enough to bound memory). Backed by Redis when ``redis_url`` is set, falls back to
 in-process dict otherwise. Single-instance servers can use the in-memory cache;
-ECS Fargate / multi-task deployments need Redis so a deposit lands on whichever
-task settles it.
+multi-instance deployments need a shared cache (Redis) so a deposit lands on
+whichever instance settles it.
 """
 
 from __future__ import annotations

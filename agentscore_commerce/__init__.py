@@ -9,4 +9,13 @@ Submodules:
     agentscore_commerce.api        - AgentScore SDK re-export
 """
 
-__version__ = "1.0.0"
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
+try:
+    __version__ = _pkg_version("agentscore-commerce")
+except PackageNotFoundError:
+    # Editable install or pre-build state — fall back to a sentinel so consumers
+    # don't crash on a missing dist-info dir. Real version always comes from
+    # pyproject.toml at install time.
+    __version__ = "0.0.0+local"

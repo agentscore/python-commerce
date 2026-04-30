@@ -124,7 +124,7 @@ class TestLlmsTxtPaymentSectionVerbose:
         assert "### How to pay with x402" in section
         assert "npm install -g @agent-score/pay" in section
         assert "agentscore-pay wallet create" in section
-        assert "https://my.merchant" in section
+        assert "agentscore-pay pay POST https://my.merchant" in section
 
     def test_omits_sections_for_unconfigured_rails(self):
         section = llms_txt_payment_section(

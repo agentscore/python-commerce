@@ -78,14 +78,14 @@ class TestIdentityExtraction:
     @pytest.mark.asyncio
     @respx.mock
     async def test_denies_untrusted_wallet(self):
-        _mock_assess("deny", reasons=["not_kyc"])
+        _mock_assess("deny", reasons=["kyc_required"])
         client = await _client(_make_app())
         async with client:
             resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
             assert resp.status == 403
             data = await resp.json()
             assert data["error"]["code"] == "wallet_not_trusted"
-            assert data["reasons"] == ["not_kyc"]
+            assert data["reasons"] == ["kyc_required"]
 
     @pytest.mark.asyncio
     async def test_missing_identity_returns_403(self):

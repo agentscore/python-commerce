@@ -394,7 +394,7 @@ class TestComplianceDenyIntegration:
         """Integration test: full middleware flow with compliance deny."""
         compliance_response = {
             "decision": "deny",
-            "decision_reasons": ["kyc_required", "sanctions_check_pending"],
+            "decision_reasons": ["kyc_required", "sanctions_flagged"],
             "score": {"value": 72, "grade": "C", "status": "scored"},
             "operator_verification": {
                 "level": "none",
@@ -424,7 +424,7 @@ class TestComplianceDenyIntegration:
         assert result.allow is False
         assert result.decision == "deny"
         assert "kyc_required" in result.reasons
-        assert "sanctions_check_pending" in result.reasons
+        assert "sanctions_flagged" in result.reasons
         assert result.verify_url == "https://agentscore.sh/verify/xyz789"
         assert result.operator_verification is not None
         assert result.operator_verification.level == "none"

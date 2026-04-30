@@ -64,7 +64,7 @@ class TestFlaskGate:
 
     def test_blocks_untrusted_wallet(self) -> None:
         app = _make_app()
-        result = AssessResult(allow=False, decision="deny", reasons=["score_too_low"], raw={})
+        result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
         with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=result):
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
@@ -176,7 +176,7 @@ class TestFlaskGate:
         result = AssessResult(
             allow=False,
             decision="deny",
-            reasons=["kyc_required", "sanctions_check_pending"],
+            reasons=["kyc_required", "sanctions_flagged"],
             raw={
                 "verify_url": "https://agentscore.sh/verify/abc123",
                 "operator_verification": {"level": "none"},
@@ -189,7 +189,7 @@ class TestFlaskGate:
             data = resp.get_json()
             assert data["error"]["code"] == "wallet_not_trusted"
             assert "kyc_required" in data["reasons"]
-            assert "sanctions_check_pending" in data["reasons"]
+            assert "sanctions_flagged" in data["reasons"]
 
     def test_allow_with_operator_verification_attaches_to_g(self) -> None:
         app = _make_app()

@@ -61,7 +61,7 @@ class TestDjangoMiddleware:
 
     def test_blocks_untrusted_wallet(self) -> None:
         mw = self._make_middleware()
-        result = AssessResult(allow=False, decision="deny", reasons=["score_too_low"], raw={})
+        result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with patch("agentscore_commerce.identity.django.GateClient.check", return_value=result):
             resp = mw(request)
@@ -178,7 +178,7 @@ class TestDjangoMiddleware:
         result = AssessResult(
             allow=False,
             decision="deny",
-            reasons=["kyc_required", "sanctions_check_pending"],
+            reasons=["kyc_required", "sanctions_flagged"],
             raw={
                 "verify_url": "https://agentscore.sh/verify/abc123",
                 "operator_verification": {"level": "none"},
@@ -191,7 +191,7 @@ class TestDjangoMiddleware:
             data = json.loads(resp.content)
             assert data["error"]["code"] == "wallet_not_trusted"
             assert "kyc_required" in data["reasons"]
-            assert "sanctions_check_pending" in data["reasons"]
+            assert "sanctions_flagged" in data["reasons"]
 
     def test_allow_with_operator_verification_attaches_to_request(self) -> None:
         mw = self._make_middleware()

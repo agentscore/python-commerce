@@ -21,7 +21,7 @@ def _allow_result() -> AssessResult:
 
 
 def _deny_result() -> AssessResult:
-    return AssessResult(allow=False, decision="deny", reasons=["not_kyc"])
+    return AssessResult(allow=False, decision="deny", reasons=["kyc_required"])
 
 
 def _make_app(name: str, **gate_kwargs) -> Sanic:
@@ -78,7 +78,7 @@ class TestIdentityExtraction:
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status == 403
         assert resp.json["error"]["code"] == "wallet_not_trusted"
-        assert resp.json["reasons"] == ["not_kyc"]
+        assert resp.json["reasons"] == ["kyc_required"]
 
     def test_missing_identity_returns_403(self):
         app = _make_app("sanic_missing")

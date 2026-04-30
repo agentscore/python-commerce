@@ -57,7 +57,7 @@ class TestDependency:
 
     @respx.mock
     def test_denies_untrusted_wallet(self):
-        _mock_assess("deny", reasons=["not_kyc"])
+        _mock_assess("deny", reasons=["kyc_required"])
         gate = AgentScoreGate(api_key="ask_test")
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -65,7 +65,7 @@ class TestDependency:
         body = resp.json()
         # FastAPI wraps HTTPException detail in {"detail": {...}}.
         assert body["detail"]["error"]["code"] == "wallet_not_trusted"
-        assert body["detail"]["reasons"] == ["not_kyc"]
+        assert body["detail"]["reasons"] == ["kyc_required"]
 
     def test_missing_identity_returns_403(self):
         gate = AgentScoreGate(api_key="ask_test")

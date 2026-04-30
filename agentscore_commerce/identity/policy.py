@@ -21,10 +21,8 @@ This module ships three primitives:
    return a structured :class:`GateResult`.
 
 All three are additive — vendors that don't need per-product policy can keep
-using ``AgentScoreGate(...)`` directly. The pattern was extracted from the
-``agentscore/store`` merchant; see its ``store/routes/purchase.py`` for the
-full per-request flow including shipping checks (which most merchants will
-implement adjacent to the gate).
+using ``AgentScoreGate(...)`` directly. Most merchants will implement shipping
+checks adjacent to the gate per-request.
 """
 
 from __future__ import annotations

@@ -184,12 +184,14 @@ def agentscore_gate(
                 g.agentscore = result.raw
                 return None
 
-            # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed,
-            # jurisdiction_required when not explicitly restricted) get the same UX as
-            # missing_identity: the gate mints a fresh verification session, the agent
-            # polls until status=verified, gets a fresh opc_..., and retries with
-            # X-Operator-Token. Unfixable reasons (sanctions, age, jurisdiction_restricted)
-            # keep the bare wallet_not_trusted denial — re-verification won't fix them.
+            # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
+            # same UX as missing_identity: the gate mints a fresh verification session,
+            # the agent polls until status=verified, gets a fresh opc_..., and retries
+            # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
+            # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
+            # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
+            # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+            # won't change the country).
             if is_fixable_denial(result.reasons) and create_session_on_missing is not None:
                 session_reason = try_create_session_denial_reason_sync(
                     create_session_on_missing,

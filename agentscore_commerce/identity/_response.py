@@ -142,10 +142,13 @@ WALLET_NOT_TRUSTED_INSTRUCTIONS = json.dumps(
             ),
             (
                 "Fixable compliance reasons (`kyc_required`, `kyc_pending`, "
-                "`kyc_failed`, `jurisdiction_required` without explicit restriction) "
-                "do NOT land on this code — the gate auto-mints a verification session "
-                "for those and returns `identity_verification_required` with poll "
-                "endpoints, same shape as `missing_identity`."
+                "`kyc_failed`) do NOT land on this code — the gate auto-mints a "
+                "verification session for those and returns "
+                "`identity_verification_required` with poll endpoints, same shape as "
+                "`missing_identity`. `jurisdiction_restricted` IS in the unfixable "
+                "bucket because the API only emits it after KYC is verified (the "
+                "user's KYC'd country is in the blocked list — re-doing KYC won't "
+                "change the country)."
             ),
         ],
         "user_message": (

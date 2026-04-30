@@ -208,13 +208,14 @@ class AgentScoreGate:
             setattr(request.state, ASSESS_STATE_KEY, result.raw)
             return
 
-        # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed,
-        # jurisdiction_required when not explicitly restricted) get the same UX as
-        # missing_identity: the gate mints a fresh verification session, the agent
-        # polls until status=verified, gets a fresh opc_..., and retries with
+        # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
+        # same UX as missing_identity: the gate mints a fresh verification session, the
+        # agent polls until status=verified, gets a fresh opc_..., and retries with
         # X-Operator-Token. No "go to verify_url and tell us when done" gap.
-        # Unfixable reasons (sanctions, age, jurisdiction_restricted) keep the
-        # bare wallet_not_trusted denial — re-verification won't fix them.
+        # Unfixable reasons (sanctions_flagged, age_insufficient, jurisdiction_restricted)
+        # keep the bare wallet_not_trusted denial — re-verification won't fix them.
+        # `jurisdiction_restricted` is unfixable because the API only emits it AFTER KYC
+        # is verified (the user's KYC'd country is in the blocked list).
         if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
             session_reason = await try_create_session_denial_reason(
                 self._create_session_on_missing,

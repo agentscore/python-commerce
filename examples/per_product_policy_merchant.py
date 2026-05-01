@@ -17,10 +17,6 @@ merchant looks up from a database row). The route uses three helpers from
     - shipping_country_allowed / shipping_state_allowed
         Per-product shipping allowlists (NULL = ship anywhere).
 
-The pattern was extracted from agentscore/store. See its
-``store/routes/purchase.py`` for the full per-request flow including code
-redemption + order persistence.
-
 Peer deps:
     pip install agentscore-commerce[fastapi]
 

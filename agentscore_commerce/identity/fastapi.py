@@ -58,13 +58,29 @@ def _mark_degraded(request: Request, infra_reason: str) -> None:
     """Record that the gate fail-open'd due to AgentScore-side infra failure.
 
     Updates the gate state on ``request.state`` so merchants can read ``degraded`` +
-    ``infra_reason`` via :func:`get_gate_state` after the request handler runs. Compliance
-    is not enforced for this request — log/alert accordingly.
+    ``infra_reason`` via :func:`get_gate_degraded_state` after the request handler runs.
+    Compliance is not enforced for this request — log/alert accordingly.
     """
     state = getattr(request.state, GATE_STATE_KEY, None)
     if isinstance(state, dict):
         state["degraded"] = True
         state["infra_reason"] = infra_reason
+
+
+def get_gate_degraded_state(request: Request) -> dict[str, Any]:
+    """Return whether the gate fail-open'd due to AgentScore-side infra failure.
+
+    Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
+    "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when the gate
+    was bypassed (compliance NOT enforced — log/alert).
+
+    Only set when ``fail_open=True`` was configured AND the failure was an infra failure.
+    Real compliance denials never trigger fail-open and so never set this flag.
+    """
+    state = getattr(request.state, GATE_STATE_KEY, None)
+    if isinstance(state, dict) and state.get("degraded"):
+        return {"degraded": True, "infra_reason": state.get("infra_reason")}
+    return {"degraded": False}
 
 
 __all__ = [
@@ -79,6 +95,7 @@ __all__ = [
     "extract_payment_signer",
     "extract_payment_signer_address",
     "get_assess_data",
+    "get_gate_degraded_state",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",

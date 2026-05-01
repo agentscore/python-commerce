@@ -168,6 +168,59 @@ class TestDependency:
         assert captured.get("degraded") is True
         assert captured.get("infra_reason") == "api_error"
 
+    def test_get_gate_degraded_state_returns_default_for_normal_allow(self):
+        """get_gate_degraded_state returns {degraded: False} for normal compliance allows."""
+        from fastapi import FastAPI
+
+        from agentscore_commerce.identity.fastapi import get_gate_degraded_state
+
+        gate = AgentScoreGate(api_key="ask_test")
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            captured.update(get_gate_degraded_state(req))
+            return {"ok": True}
+
+        with patch(
+            "agentscore_commerce.identity.fastapi.GateClient.acheck_identity",
+            new=AsyncMock(
+                return_value=__import__("agentscore_commerce.identity.types", fromlist=["AssessResult"]).AssessResult(
+                    allow=True, decision="allow"
+                )
+            ),
+        ):
+            client = TestClient(app)
+            resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status_code == 200
+            assert captured == {"degraded": False}
+
+    def test_get_gate_degraded_state_returns_infra_reason_when_degraded(self):
+        """get_gate_degraded_state returns {degraded: True, infra_reason: ...} when gate degraded."""
+        from fastapi import FastAPI
+
+        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.fastapi import get_gate_degraded_state
+
+        gate = AgentScoreGate(api_key="ask_test", fail_open=True)
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            captured.update(get_gate_degraded_state(req))
+            return {"ok": True}
+
+        with patch(
+            "agentscore_commerce.identity.fastapi.GateClient.acheck_identity",
+            new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
+        ):
+            client = TestClient(app)
+            resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status_code == 200
+            assert captured == {"degraded": True, "infra_reason": "quota_exceeded"}
+
     def test_fail_open_marks_degraded_with_infra_reason_network_timeout(self):
         """fail_open=True + httpx.TimeoutException → request flows through;
         gate state carries degraded=True + infra_reason='network_timeout'."""

@@ -162,6 +162,44 @@ class TestErrorPaths:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_get_gate_degraded_state_returns_default_for_normal_allow(self):
+        from agentscore_commerce.identity.aiohttp import get_gate_degraded_state
+
+        _mock_assess("allow")
+
+        captured: dict = {}
+
+        async def _snoop(request: web.Request) -> web.Response:
+            captured.update(get_gate_degraded_state(request))
+            return web.json_response({"ok": True})
+
+        client = await _client(_make_app(handler=_snoop))
+        async with client:
+            resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status == 200
+            assert captured == {"degraded": False}
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_get_gate_degraded_state_returns_infra_reason_when_degraded(self):
+        from agentscore_commerce.identity.aiohttp import get_gate_degraded_state
+
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+
+        captured: dict = {}
+
+        async def _snoop(request: web.Request) -> web.Response:
+            captured.update(get_gate_degraded_state(request))
+            return web.json_response({"ok": True})
+
+        client = await _client(_make_app(handler=_snoop, fail_open=True))
+        async with client:
+            resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status == 200
+            assert captured == {"degraded": True, "infra_reason": "quota_exceeded"}
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_quota_exceeded_returns_503_when_fail_closed(self):
         respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
         client = await _client(_make_app())

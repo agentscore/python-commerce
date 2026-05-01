@@ -474,12 +474,16 @@ class PaymentRequiredError(Exception):
     """Raised when the AgentScore API returns 402."""
 
 
-class QuotaExceededError(Exception):
+class QuotaExceededError(RuntimeError):
     """Raised when /v1/assess returns 429 (the merchant's monthly quota is at cap).
 
     Distinct from a generic 5xx so adapters with ``fail_open=True`` can surface
     ``infra_reason='quota_exceeded'`` to merchant logs/alerts. Compliance denials
     are unaffected — those still deny regardless of fail_open.
+
+    Subclasses ``RuntimeError`` for backward compatibility — adapters or merchants that
+    previously caught ``RuntimeError`` for 429 still catch this; new code that wants to
+    distinguish quota from generic 5xx catches ``QuotaExceededError`` first.
     """
 
 

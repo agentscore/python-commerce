@@ -100,6 +100,27 @@ class TestDjangoMiddleware:
             data = json.loads(resp.content)
             assert data["error"]["code"] == "api_error"
 
+    def test_get_gate_degraded_state_returns_default_for_normal_allow(self) -> None:
+        from agentscore_commerce.identity.django import get_gate_degraded_state
+
+        mw = self._make_middleware()
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()):
+            mw(request)
+            assert get_gate_degraded_state(request) == {"degraded": False}
+
+    def test_get_gate_degraded_state_returns_infra_reason_when_degraded(self) -> None:
+        from agentscore_commerce.identity.django import get_gate_degraded_state
+
+        mw = self._make_middleware(fail_open=True)
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        with patch(
+            "agentscore_commerce.identity.django.GateClient.check",
+            side_effect=QuotaExceededError("quota_exceeded"),
+        ):
+            mw(request)
+            assert get_gate_degraded_state(request) == {"degraded": True, "infra_reason": "quota_exceeded"}
+
     def test_quota_exceeded_fail_open_marks_degraded(self) -> None:
         mw = self._make_middleware(fail_open=True)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")

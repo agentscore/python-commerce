@@ -136,6 +136,47 @@ class TestErrorPaths:
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status == 200
 
+    def test_get_gate_degraded_state_returns_default_for_normal_allow(self):
+        from agentscore_commerce.identity.sanic import get_gate_degraded_state
+
+        app = Sanic.get_app("sanic_get_state_default", force_create=True)
+        agentscore_gate(app, api_key="ask_test")
+        captured: dict = {}
+
+        @app.get("/snoop")
+        async def _snoop(request):
+            captured.update(get_gate_degraded_state(request))
+            return response.json({"ok": True})
+
+        with patch(
+            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            new=AsyncMock(return_value=_allow_result()),
+        ):
+            _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 200
+        assert captured == {"degraded": False}
+
+    def test_get_gate_degraded_state_returns_infra_reason_when_degraded(self):
+        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.sanic import get_gate_degraded_state
+
+        app = Sanic.get_app("sanic_get_state_degraded", force_create=True)
+        agentscore_gate(app, api_key="ask_test", fail_open=True)
+        captured: dict = {}
+
+        @app.get("/snoop")
+        async def _snoop(request):
+            captured.update(get_gate_degraded_state(request))
+            return response.json({"ok": True})
+
+        with patch(
+            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
+        ):
+            _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 200
+        assert captured == {"degraded": True, "infra_reason": "quota_exceeded"}
+
     def test_quota_exceeded_returns_503_when_fail_closed(self):
         from agentscore_commerce.identity.client import QuotaExceededError
 

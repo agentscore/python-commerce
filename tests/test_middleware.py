@@ -354,6 +354,51 @@ def test_middleware_fail_open_on_unexpected_exception_lets_request_through():
 
 
 @respx.mock
+def test_middleware_get_gate_degraded_state_returns_default_for_normal_allow():
+    from agentscore_commerce.identity.middleware import get_gate_degraded_state
+
+    _mock_assess("allow")
+
+    captured: dict = {}
+
+    def _snoop(request: Request) -> JSONResponse:
+        captured.update(get_gate_degraded_state(request))
+        return JSONResponse({"ok": True})
+
+    app = AgentScoreGate(
+        Starlette(routes=[Route("/", _snoop)]),
+        api_key="ask_test_key",
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+    assert resp.status_code == 200
+    assert captured == {"degraded": False}
+
+
+@respx.mock
+def test_middleware_get_gate_degraded_state_returns_infra_reason_when_degraded():
+    from agentscore_commerce.identity.middleware import get_gate_degraded_state
+
+    respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+
+    captured: dict = {}
+
+    def _snoop(request: Request) -> JSONResponse:
+        captured.update(get_gate_degraded_state(request))
+        return JSONResponse({"ok": True})
+
+    app = AgentScoreGate(
+        Starlette(routes=[Route("/", _snoop)]),
+        api_key="ask_test_key",
+        fail_open=True,
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+    assert resp.status_code == 200
+    assert captured == {"degraded": True, "infra_reason": "quota_exceeded"}
+
+
+@respx.mock
 def test_middleware_quota_exceeded_returns_503_when_fail_closed():
     """429 from /v1/assess gets dedicated handling; with fail_open=False (default) it
     surfaces as 503 api_error to the buyer."""

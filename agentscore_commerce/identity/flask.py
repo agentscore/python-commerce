@@ -59,6 +59,7 @@ __all__ = [
     "extract_payment_signer",
     "extract_payment_signer_address",
     "get_assess_data",
+    "get_gate_degraded_state",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -75,6 +76,21 @@ def get_assess_data() -> dict[str, Any] | None:
     from flask import g
 
     return getattr(g, ASSESS_STATE_KEY, None)
+
+
+def get_gate_degraded_state() -> dict[str, Any]:
+    """Return whether the gate fail-open'd due to AgentScore-side infra failure.
+
+    Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
+    "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when bypassed.
+    Only set when ``fail_open=True`` AND the failure was infra-shape.
+    """
+    from flask import g
+
+    state = getattr(g, "_agentscore_gate", None)
+    if isinstance(state, dict) and state.get("degraded"):
+        return {"degraded": True, "infra_reason": state.get("infra_reason")}
+    return {"degraded": False}
 
 
 def _default_extract_identity(request: Request) -> AgentIdentity | None:

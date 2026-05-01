@@ -103,6 +103,41 @@ class TestFlaskGate:
             data = resp.get_json()
             assert data["error"]["code"] == "api_error"
 
+    def test_get_gate_degraded_state_default_returns_not_degraded(self) -> None:
+        from agentscore_commerce.identity.flask import get_gate_degraded_state
+
+        app = _make_app()
+        captured: dict = {}
+
+        @app.route("/snoop")
+        def _snoop():
+            captured.update(get_gate_degraded_state())
+            return {"ok": True}
+
+        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=_mock_result()):
+            resp = app.test_client().get("/snoop", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 200
+            assert captured == {"degraded": False}
+
+    def test_get_gate_degraded_state_returns_infra_reason_when_degraded(self) -> None:
+        from agentscore_commerce.identity.flask import get_gate_degraded_state
+
+        app = _make_app(fail_open=True)
+        captured: dict = {}
+
+        @app.route("/snoop")
+        def _snoop():
+            captured.update(get_gate_degraded_state())
+            return {"ok": True}
+
+        with patch(
+            "agentscore_commerce.identity.flask.GateClient.check",
+            side_effect=QuotaExceededError("quota_exceeded"),
+        ):
+            resp = app.test_client().get("/snoop", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 200
+            assert captured == {"degraded": True, "infra_reason": "quota_exceeded"}
+
     def test_quota_exceeded_fail_open_marks_degraded(self) -> None:
         """fail_open=True + QuotaExceededError → request flows through; gate state on
         ``g._agentscore_gate`` carries degraded=True + infra_reason='quota_exceeded'."""

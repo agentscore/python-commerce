@@ -71,6 +71,7 @@ __all__ = [
     "extract_payment_signer",
     "extract_payment_signer_address",
     "get_assess_data",
+    "get_gate_degraded_state",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -86,6 +87,18 @@ def get_assess_data(request: Request) -> dict[str, Any] | None:
     """
     state = request.scope.get("state") or {}
     return state.get(ASSESS_STATE_KEY)
+
+
+def get_gate_degraded_state(request: Request) -> dict[str, Any]:
+    """Return whether the gate fail-open'd due to AgentScore-side infra failure.
+
+    Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
+    "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when bypassed.
+    """
+    state = (request.scope.get("state") or {}).get(GATE_STATE_KEY)
+    if isinstance(state, dict) and state.get("degraded"):
+        return {"degraded": True, "infra_reason": state.get("infra_reason")}
+    return {"degraded": False}
 
 
 def _default_extract_identity(request: Request) -> AgentIdentity | None:

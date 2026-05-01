@@ -110,13 +110,20 @@ class TestDependency:
     @respx.mock
     def test_quota_exceeded_returns_503_when_fail_closed(self):
         """429 from /v1/assess gets dedicated handling; with fail_open=False (default) it
-        surfaces as 503 api_error to the buyer."""
+        surfaces as 503 api_error to the buyer with quota-specific contact_merchant
+        instructions (NOT retry_with_backoff — quota won't recover from retry)."""
+        import json as _json
+
         respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
         gate = AgentScoreGate(api_key="ask_test")
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 503
-        assert resp.json()["detail"]["error"]["code"] == "api_error"
+        body = resp.json()["detail"]
+        assert body["error"]["code"] == "api_error"
+        instructions = _json.loads(body["agent_instructions"])
+        assert instructions["action"] == "contact_merchant"
+        assert "merchant-side issue" in instructions["steps"][0]
 
     @respx.mock
     def test_fail_open_marks_degraded_with_infra_reason_quota(self):

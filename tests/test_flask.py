@@ -162,6 +162,8 @@ class TestFlaskGate:
             assert data.get("infra_reason") == "quota_exceeded"
 
     def test_quota_exceeded_fail_closed_returns_api_error(self) -> None:
+        import json as _json
+
         app = _make_app()
         with patch(
             "agentscore_commerce.identity.flask.GateClient.check",
@@ -170,7 +172,11 @@ class TestFlaskGate:
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 503
-            assert resp.get_json()["error"]["code"] == "api_error"
+            body = resp.get_json()
+            assert body["error"]["code"] == "api_error"
+            instructions = _json.loads(body["agent_instructions"])
+            assert instructions["action"] == "contact_merchant"
+            assert "merchant-side issue" in instructions["steps"][0]
 
     def test_timeout_fail_open_marks_degraded_with_network_timeout(self) -> None:
         app = _make_app(fail_open=True)

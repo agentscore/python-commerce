@@ -14,7 +14,11 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
@@ -31,6 +35,7 @@ from agentscore_commerce.identity.types import (
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -172,11 +177,8 @@ def agentscore_gate(
         return jsonify(body), status
 
     def _mark_degraded(infra_reason: str) -> None:
-        """Record fail-open due to AgentScore-side infra failure on ``g._agentscore_gate``."""
-        state = getattr(g, "_agentscore_gate", None)
-        if isinstance(state, dict):
-            state["degraded"] = True
-            state["infra_reason"] = infra_reason
+        """Stamp the gate state on ``g._agentscore_gate`` as fail-open'd."""
+        apply_degraded(getattr(g, "_agentscore_gate", None), infra_reason)
 
     @app.before_request
     def _agentscore_check() -> Response | tuple[Response, int] | None:
@@ -248,7 +250,7 @@ def agentscore_gate(
             if client.fail_open:
                 _mark_degraded("quota_exceeded")
                 return None
-            return _deny(DenialReason(code="api_error"))
+            return _deny(DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS))
         except httpx.TimeoutException:
             if client.fail_open:
                 _mark_degraded("network_timeout")

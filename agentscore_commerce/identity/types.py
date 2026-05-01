@@ -269,6 +269,19 @@ class PolicyResult:
 FailOpenInfraReason = Literal["quota_exceeded", "api_error", "network_timeout"]
 
 
+def apply_degraded(state: dict[str, Any] | None, infra_reason: FailOpenInfraReason | str) -> None:
+    """Mark a per-request gate state dict as degraded due to AgentScore-side infra failure.
+
+    Per-adapter helpers resolve the state container in the framework's request-scoped store
+    (``request.state`` on FastAPI, ``g`` on Flask, attribute on Django, mapping on aiohttp,
+    ``request.ctx`` on Sanic, ``scope["state"]`` on ASGI) and hand that dict here. Keeps the
+    contract — `degraded: True` + `infra_reason` — in one place across all 6 adapters.
+    """
+    if isinstance(state, dict):
+        state["degraded"] = True
+        state["infra_reason"] = infra_reason
+
+
 @dataclass
 class AssessResult:
     """Result from the AgentScore assess API."""

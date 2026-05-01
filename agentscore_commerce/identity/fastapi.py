@@ -21,7 +21,11 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
@@ -38,6 +42,7 @@ from agentscore_commerce.identity.types import (
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -55,16 +60,12 @@ ASSESS_STATE_KEY = "agentscore"
 
 
 def _mark_degraded(request: Request, infra_reason: str) -> None:
-    """Record that the gate fail-open'd due to AgentScore-side infra failure.
+    """Stamp the per-request gate state on ``request.state`` as fail-open'd.
 
-    Updates the gate state on ``request.state`` so merchants can read ``degraded`` +
-    ``infra_reason`` via :func:`get_gate_degraded_state` after the request handler runs.
-    Compliance is not enforced for this request — log/alert accordingly.
+    Resolves the framework-specific state container; the shared mutation
+    contract lives in :func:`apply_degraded`.
     """
-    state = getattr(request.state, GATE_STATE_KEY, None)
-    if isinstance(state, dict):
-        state["degraded"] = True
-        state["infra_reason"] = infra_reason
+    apply_degraded(getattr(request.state, GATE_STATE_KEY, None), infra_reason)
 
 
 def get_gate_degraded_state(request: Request) -> dict[str, Any]:
@@ -235,7 +236,7 @@ class AgentScoreGate:
             if self._client.fail_open:
                 _mark_degraded(request, "quota_exceeded")
                 return
-            self._deny(request, DenialReason(code="api_error"))
+            self._deny(request, DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS))
             return
         except httpx.TimeoutException:
             if self._client.fail_open:

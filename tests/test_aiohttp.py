@@ -206,7 +206,11 @@ class TestErrorPaths:
         async with client:
             resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
             assert resp.status == 503
-            assert (await resp.json())["error"]["code"] == "api_error"
+            body = await resp.json()
+            assert body["error"]["code"] == "api_error"
+            instructions = json.loads(body["agent_instructions"])
+            assert instructions["action"] == "contact_merchant"
+            assert "merchant-side issue" in instructions["steps"][0]
 
     @pytest.mark.asyncio
     @respx.mock
@@ -506,3 +510,32 @@ async def test_aiohttp_api_error_on_unexpected_exception():
         assert resp.status == 503
         body = await resp.json()
         assert body["error"]["code"] == "api_error"
+
+
+@respx.mock
+async def test_aiohttp_handler_exception_is_not_swallowed_by_gate():
+    """Regression: gate's try-block must NOT wrap downstream handler. If the user's
+    handler raises, the exception must propagate up — NOT be misclassified as an
+    AgentScore infra failure (which under fail_open would re-invoke the handler)."""
+    respx.post("https://api.agentscore.sh/v1/assess").mock(
+        return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
+    )
+    invocations = {"count": 0}
+
+    async def boom_handler(_req):
+        invocations["count"] += 1
+        msg = "downstream handler failure"
+        raise RuntimeError(msg)
+
+    app = web.Application(
+        middlewares=[agentscore_gate_middleware(api_key="ak", fail_open=True)],
+    )
+    app.router.add_get("/", boom_handler)
+
+    async with TestClient(TestServer(app)) as client:
+        resp = await client.get("/", headers={"x-wallet-address": "0xabc"})
+        # aiohttp surfaces an unhandled exception as 500 — the important thing is the
+        # handler ran exactly once (no fail-open retry), and the gate didn't claim
+        # the exception was an AgentScore infra failure.
+        assert resp.status == 500
+    assert invocations["count"] == 1

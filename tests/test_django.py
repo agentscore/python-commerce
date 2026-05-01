@@ -143,7 +143,11 @@ class TestDjangoMiddleware:
         ):
             resp = mw(request)
             assert resp.status_code == 503
-            assert json.loads(resp.content)["error"]["code"] == "api_error"
+            body = json.loads(resp.content)
+            assert body["error"]["code"] == "api_error"
+            instructions = json.loads(body["agent_instructions"])
+            assert instructions["action"] == "contact_merchant"
+            assert "merchant-side issue" in instructions["steps"][0]
 
     def test_timeout_fail_open_marks_degraded_with_network_timeout(self) -> None:
         mw = self._make_middleware(fail_open=True)
@@ -589,3 +593,29 @@ class TestDjangoChainOption:
             mw(request)
             body = json.loads(route.calls[0].request.content)
             assert body["chain"] == "solana"
+
+    def test_handler_exception_is_not_swallowed_by_gate(self) -> None:
+        """Regression: gate's try-block must NOT wrap the downstream view (`get_response`).
+        If the user's view raises, the exception must propagate up — NOT be misclassified as
+        an AgentScore infra failure (which under fail_open would re-invoke the view)."""
+        invocations = {"count": 0}
+
+        def boom_view(_request: HttpRequest) -> JsonResponse:
+            invocations["count"] += 1
+            msg = "downstream view failure"
+            raise RuntimeError(msg)
+
+        settings.AGENTSCORE_GATE = {"api_key": "test-key", "fail_open": True}
+        mw = AgentScoreMiddleware(boom_view)
+
+        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()):
+            request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+            try:
+                mw(request)
+            except RuntimeError as exc:
+                assert str(exc) == "downstream view failure"
+            else:
+                msg = "expected the view's RuntimeError to propagate"
+                raise AssertionError(msg)
+
+        assert invocations["count"] == 1

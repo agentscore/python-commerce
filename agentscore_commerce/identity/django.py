@@ -15,7 +15,11 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
@@ -32,6 +36,7 @@ from agentscore_commerce.identity.types import (
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -41,11 +46,8 @@ from agentscore_commerce.payment.signer import (
 
 
 def _mark_degraded_django(request: HttpRequest, infra_reason: str) -> None:
-    """Record fail-open due to AgentScore-side infra failure on the gate state."""
-    state = getattr(request, "_agentscore_gate", None)
-    if isinstance(state, dict):
-        state["degraded"] = True
-        state["infra_reason"] = infra_reason
+    """Stamp the gate state on a Django request as fail-open'd."""
+    apply_degraded(getattr(request, "_agentscore_gate", None), infra_reason)
 
 
 DEFAULT_ADDRESS_HEADER = "HTTP_X_WALLET_ADDRESS"
@@ -187,37 +189,11 @@ class AgentScoreMiddleware:
 
         chain_override = self._extract_chain(request)
 
+        # Only check_identity is wrapped — get_response (which runs the downstream view) must
+        # NOT be in the try, otherwise an exception in the user's view would be misclassified
+        # as an AgentScore infra failure and (under fail_open) re-invoke their view.
         try:
             result = self._client.check_identity(identity, chain_override)
-
-            if result.allow:
-                setattr(request, "agentscore", result.raw)  # noqa: B010 — dynamic attribute attach on HttpRequest
-                return self.get_response(request)
-
-            # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
-            # same UX as missing_identity: the gate mints a fresh verification session,
-            # the agent polls until status=verified, gets a fresh opc_..., and retries
-            # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
-            # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
-            # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
-            # verified (the user's KYC'd country is in the blocked list — re-doing KYC
-            # won't change the country).
-            if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
-                session_reason = try_create_session_denial_reason_sync(
-                    self._create_session_on_missing,
-                    self._client.user_agent,
-                    request,
-                )
-                if session_reason is not None:
-                    return self._on_denied(request, session_reason)
-
-            reason = DenialReason(
-                code="wallet_not_trusted",
-                decision=result.decision,
-                reasons=result.reasons,
-                verify_url=result.verify_url,
-            )
-            return self._on_denied(request, reason)
         except PaymentRequiredError:
             if self._client.fail_open:
                 return self.get_response(request)
@@ -232,7 +208,10 @@ class AgentScoreMiddleware:
             if self._client.fail_open:
                 _mark_degraded_django(request, "quota_exceeded")
                 return self.get_response(request)
-            return self._on_denied(request, DenialReason(code="api_error"))
+            return self._on_denied(
+                request,
+                DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS),
+            )
         except httpx.TimeoutException:
             if self._client.fail_open:
                 _mark_degraded_django(request, "network_timeout")
@@ -243,6 +222,35 @@ class AgentScoreMiddleware:
                 _mark_degraded_django(request, "api_error")
                 return self.get_response(request)
             return self._on_denied(request, DenialReason(code="api_error"))
+
+        if result.allow:
+            setattr(request, "agentscore", result.raw)  # noqa: B010 — dynamic attribute attach on HttpRequest
+            return self.get_response(request)
+
+        # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
+        # same UX as missing_identity: the gate mints a fresh verification session,
+        # the agent polls until status=verified, gets a fresh opc_..., and retries
+        # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
+        # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
+        # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
+        # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+        # won't change the country).
+        if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
+            session_reason = try_create_session_denial_reason_sync(
+                self._create_session_on_missing,
+                self._client.user_agent,
+                request,
+            )
+            if session_reason is not None:
+                return self._on_denied(request, session_reason)
+
+        reason = DenialReason(
+            code="wallet_not_trusted",
+            decision=result.decision,
+            reasons=result.reasons,
+            verify_url=result.verify_url,
+        )
+        return self._on_denied(request, reason)
 
 
 def verify_wallet_signer_match(

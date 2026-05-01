@@ -164,20 +164,19 @@ PAYMENT_REQUIRED_INSTRUCTIONS = json.dumps(
         "action": "contact_merchant",
         "steps": [
             (
-                "The merchant's AgentScore tier does not include the assess feature, so "
-                "agent identity cannot be evaluated. This is a merchant-side configuration "
-                "gap — there is no agent-side recovery."
+                "The merchant's AgentScore account does not have the assess endpoint "
+                "enabled, so agent identity cannot be evaluated. This is a merchant-side "
+                "configuration gap — there is no agent-side recovery."
             ),
             (
                 "Contact the merchant (their support channel — typically listed in "
-                "/llms.txt or the OpenAPI servers metadata) and request they upgrade "
-                "their AgentScore plan."
+                "/llms.txt or the OpenAPI servers metadata) so they can resolve the "
+                "configuration on their side."
             ),
         ],
         "user_message": (
-            "This merchant's identity gate is misconfigured (AgentScore tier doesn't "
-            "support assess). Contact the merchant — there's nothing to fix on the "
-            "agent side."
+            "This merchant's identity gate is misconfigured. Contact the merchant — "
+            "there's nothing to fix on the agent side."
         ),
     }
 )
@@ -228,20 +227,32 @@ _API_ERROR_INSTRUCTIONS = json.dumps(
     {
         "action": "retry_with_backoff",
         "steps": [
-            "Verification system is temporarily unavailable (AgentScore-side issue: quota cap, "
-            "transient 5xx, or network timeout). Retry the request after 5-30 seconds with "
-            "exponential backoff.",
+            "Verification is temporarily unavailable. Retry the request after 5-30 seconds with exponential backoff.",
             "This is NOT a compliance denial — the user does not need to re-verify their "
-            "identity. The same identity headers (X-Wallet-Address or X-Operator-Token) should "
-            "be sent on retry.",
+            "identity. Send the same identity headers (X-Wallet-Address or X-Operator-Token) "
+            "on retry.",
             "If the request continues to fail after 3+ retries (~60 seconds total), surface the "
-            "error to the user with the merchant's support contact. A sustained AgentScore "
-            "outage is rare but possible; merchants generally also degrade gracefully when this "
-            "happens.",
+            "error to the user with the merchant's support contact.",
         ],
         "user_message": (
             "Verification is temporarily unavailable. Please try again in a moment — this is a "
             "transient issue, not a problem with your account."
+        ),
+    }
+)
+
+QUOTA_EXCEEDED_INSTRUCTIONS = json.dumps(
+    {
+        "action": "contact_merchant",
+        "steps": [
+            "AgentScore identity verification is unavailable for this merchant. This is a "
+            "merchant-side issue and is NOT recoverable via retry.",
+            "Do not retry: the same 503 will be returned until the merchant resolves the issue on their side.",
+            "Surface to the user with the merchant's support contact. The merchant (not the agent) needs to act.",
+        ],
+        "user_message": (
+            "This merchant's identity verification is temporarily unavailable. Try again later, "
+            "or contact the merchant directly."
         ),
     }
 )
@@ -284,7 +295,7 @@ _DEFAULT_MESSAGES: dict[str, str] = {
     ),
     "wallet_not_trusted": "The wallet does not meet the merchant compliance policy.",
     "api_error": "AgentScore is unreachable. This is transient — retry in a few seconds.",
-    "payment_required": "AgentScore tier does not support assess. Contact support.",
+    "payment_required": "Assess endpoint not enabled for this merchant. Contact support.",
     "wallet_signer_mismatch": (
         "Payment signer does not match the wallet claimed via X-Wallet-Address. The signer and the "
         "claimed wallet must both resolve to the same AgentScore operator."
@@ -345,10 +356,6 @@ def denial_reason_to_body(reason: DenialReason) -> dict[str, Any]:
         body["actual_signer"] = reason.actual_signer
     if reason.linked_wallets:
         body["linked_wallets"] = reason.linked_wallets
-    # api_error denials get a default retry hint so agents know it's transient. Vendors can
-    # override by spreading their own next_steps into a custom on_denied body.
-    if reason.code == "api_error" and not (reason.extra and reason.extra.get("next_steps")):
-        body["next_steps"] = {"action": "retry", "retry_after_seconds": 5}
     # Merchant-supplied fields from on_before_session hook. Guard against collision
     # with reserved fields — the gate owns those and can't let a hook override them.
     if reason.extra:

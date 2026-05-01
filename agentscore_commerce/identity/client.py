@@ -117,11 +117,11 @@ class GateClient:
         if resp.status_code == 402:
             raise PaymentRequiredError
 
-        # 429 quota_exceeded gets dedicated handling so the merchant's monthly cap is
-        # distinguishable from a generic 5xx. fail_open adapters surface this as
-        # infra_reason='quota_exceeded'; default-closed adapters deny with api_error.
+        # 429 gets dedicated handling so it's distinguishable from a generic 5xx.
+        # fail_open adapters surface this as infra_reason='quota_exceeded';
+        # default-closed adapters deny with api_error.
         if resp.status_code == 429:
-            _log.warning("[gate] /v1/assess returned 429 — AgentScore quota exceeded for this account")
+            _log.warning("[gate] /v1/assess returned 429")
             raise QuotaExceededError("quota_exceeded")
 
         if resp.status_code == 401:
@@ -475,7 +475,7 @@ class PaymentRequiredError(Exception):
 
 
 class QuotaExceededError(RuntimeError):
-    """Raised when /v1/assess returns 429 (the merchant's monthly quota is at cap).
+    """Raised when /v1/assess returns 429.
 
     Distinct from a generic 5xx so adapters with ``fail_open=True`` can surface
     ``infra_reason='quota_exceeded'`` to merchant logs/alerts. Compliance denials
@@ -483,7 +483,7 @@ class QuotaExceededError(RuntimeError):
 
     Subclasses ``RuntimeError`` for backward compatibility — adapters or merchants that
     previously caught ``RuntimeError`` for 429 still catch this; new code that wants to
-    distinguish quota from generic 5xx catches ``QuotaExceededError`` first.
+    distinguish 429 from generic 5xx catches ``QuotaExceededError`` first.
     """
 
 

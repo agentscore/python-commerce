@@ -401,7 +401,8 @@ def test_middleware_get_gate_degraded_state_returns_infra_reason_when_degraded()
 @respx.mock
 def test_middleware_quota_exceeded_returns_503_when_fail_closed():
     """429 from /v1/assess gets dedicated handling; with fail_open=False (default) it
-    surfaces as 503 api_error to the buyer."""
+    surfaces as 503 api_error to the buyer with quota-specific contact_merchant
+    instructions (NOT retry_with_backoff — quota won't recover from retry)."""
     respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
 
     app = _make_app()
@@ -409,7 +410,11 @@ def test_middleware_quota_exceeded_returns_503_when_fail_closed():
     resp = client.get("/", headers={"x-wallet-address": "0xabc"})
 
     assert resp.status_code == 503
-    assert resp.json()["error"]["code"] == "api_error"
+    body = resp.json()
+    assert body["error"]["code"] == "api_error"
+    instructions = json.loads(body["agent_instructions"])
+    assert instructions["action"] == "contact_merchant"
+    assert "merchant-side issue" in instructions["steps"][0]
 
 
 @respx.mock
@@ -601,3 +606,29 @@ def test_middleware_fail_open_on_402_lets_request_through():
 
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
+
+
+@respx.mock
+def test_middleware_handler_exception_is_not_swallowed_by_gate():
+    """Regression: gate's try-block must NOT wrap the downstream ASGI app. If the user's
+    app raises, the exception must propagate up — NOT be misclassified as an AgentScore
+    infra failure (which under fail_open would re-invoke the app)."""
+    _mock_assess(decision="allow")
+
+    invocations = {"count": 0}
+
+    def boom_route(_request: Request) -> JSONResponse:
+        invocations["count"] += 1
+        msg = "downstream app failure"
+        raise RuntimeError(msg)
+
+    inner = Starlette(routes=[Route("/", boom_route)])
+    app = AgentScoreGate(inner, api_key="ask_test_key", fail_open=True)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+    # Starlette surfaces unhandled exceptions as 500 — the important thing is the route
+    # ran exactly once (no fail-open retry) and the gate didn't claim the exception was
+    # an AgentScore infra failure.
+    assert resp.status_code == 500
+    assert invocations["count"] == 1

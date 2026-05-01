@@ -178,6 +178,8 @@ class TestErrorPaths:
         assert captured == {"degraded": True, "infra_reason": "quota_exceeded"}
 
     def test_quota_exceeded_returns_503_when_fail_closed(self):
+        import json as _json
+
         from agentscore_commerce.identity.client import QuotaExceededError
 
         app = _make_app("sanic_quota_closed")
@@ -188,6 +190,9 @@ class TestErrorPaths:
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status == 503
         assert resp.json["error"]["code"] == "api_error"
+        instructions = _json.loads(resp.json["agent_instructions"])
+        assert instructions["action"] == "contact_merchant"
+        assert "merchant-side issue" in instructions["steps"][0]
 
     def test_quota_exceeded_marks_degraded_when_fail_open(self):
         from agentscore_commerce.identity.client import QuotaExceededError

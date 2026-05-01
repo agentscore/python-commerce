@@ -14,7 +14,11 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
@@ -31,6 +35,7 @@ from agentscore_commerce.identity.types import (
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -50,11 +55,8 @@ ASSESS_STATE_ATTR = "agentscore"
 
 
 def _mark_degraded_sanic(request: Request, infra_reason: str) -> None:
-    """Record fail-open due to AgentScore-side infra failure on the gate state."""
-    state = getattr(request.ctx, GATE_STATE_ATTR, None)
-    if isinstance(state, dict):
-        state["degraded"] = True
-        state["infra_reason"] = infra_reason
+    """Stamp the gate state on a Sanic request as fail-open'd."""
+    apply_degraded(getattr(request.ctx, GATE_STATE_ATTR, None), infra_reason)
 
 
 __all__ = [
@@ -249,7 +251,10 @@ def agentscore_gate(
             if client.fail_open:
                 _mark_degraded_sanic(request, "quota_exceeded")
                 return None
-            body, status = _on_denied(request, DenialReason(code="api_error"))
+            body, status = _on_denied(
+                request,
+                DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS),
+            )
             return response.json(body, status=status)
         except httpx.TimeoutException:
             if client.fail_open:

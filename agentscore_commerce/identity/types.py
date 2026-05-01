@@ -266,9 +266,18 @@ class PolicyResult:
     checks: list[PolicyCheck] = field(default_factory=list)
 
 
+FailOpenInfraReason = Literal["quota_exceeded", "api_error", "network_timeout"]
+
+
 @dataclass
 class AssessResult:
-    """Result from the AgentScore assess API."""
+    """Result from the AgentScore assess API.
+
+    When the result is the product of a ``fail_open`` short-circuit due to AgentScore-side
+    infrastructure failure (429/5xx/timeout), ``degraded=True`` and ``infra_reason`` are set
+    so adapters/merchants can log/alert without parsing console output. Compliance-derived
+    allows (or denies) leave both fields at their defaults.
+    """
 
     allow: bool
     decision: str | None = None
@@ -279,3 +288,5 @@ class AssessResult:
     verify_url: str | None = None
     policy_result: PolicyResult | None = None
     raw: dict[str, Any] | None = None
+    degraded: bool = False
+    infra_reason: FailOpenInfraReason | None = None

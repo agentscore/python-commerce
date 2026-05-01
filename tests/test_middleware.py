@@ -354,6 +354,79 @@ def test_middleware_fail_open_on_unexpected_exception_lets_request_through():
 
 
 @respx.mock
+def test_middleware_quota_exceeded_returns_503_when_fail_closed():
+    """429 from /v1/assess gets dedicated handling; with fail_open=False (default) it
+    surfaces as 503 api_error to the buyer."""
+    respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+
+    app = _make_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+
+    assert resp.status_code == 503
+    assert resp.json()["error"]["code"] == "api_error"
+
+
+@respx.mock
+def test_middleware_quota_exceeded_marks_degraded_when_fail_open():
+    """fail_open=True + 429 → request flows through; ASGI scope state carries
+    degraded=True + infra_reason='quota_exceeded'."""
+    from agentscore_commerce.identity.middleware import GATE_STATE_KEY
+
+    respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+
+    captured: dict = {}
+
+    def _snoop(request: Request) -> JSONResponse:
+        state = (request.scope.get("state") or {}).get(GATE_STATE_KEY) or {}
+        captured.update(state)
+        return JSONResponse({k: v for k, v in state.items() if k != "client"})
+
+    app = AgentScoreGate(
+        Starlette(routes=[Route("/", _snoop)]),
+        api_key="ask_test_key",
+        fail_open=True,
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("degraded") is True
+    assert data.get("infra_reason") == "quota_exceeded"
+
+
+def test_middleware_timeout_marks_degraded_when_fail_open():
+    """fail_open=True + httpx.TimeoutException → request flows through; scope state
+    carries degraded=True + infra_reason='network_timeout'."""
+    from unittest.mock import AsyncMock, patch
+
+    from agentscore_commerce.identity.middleware import GATE_STATE_KEY
+
+    def _snoop(request: Request) -> JSONResponse:
+        state = (request.scope.get("state") or {}).get(GATE_STATE_KEY) or {}
+        return JSONResponse({k: v for k, v in state.items() if k != "client"})
+
+    app = AgentScoreGate(
+        Starlette(routes=[Route("/", _snoop)]),
+        api_key="ask_test_key",
+        fail_open=True,
+    )
+
+    with patch(
+        "agentscore_commerce.identity.middleware.GateClient.acheck_identity",
+        new=AsyncMock(side_effect=httpx.TimeoutException("read timeout")),
+    ):
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("degraded") is True
+    assert data.get("infra_reason") == "network_timeout"
+
+
+@respx.mock
 def test_middleware_passes_through_token_expired_with_auto_session():
     # Revoked and expired credentials both surface as token_expired from the API with an
     # auto-minted session in the 401 body. Middleware forwards all session fields so the

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from agentscore_commerce.identity._denial import (
     FIXABLE_DENIAL_REASONS,
     build_contact_support_next_steps,
@@ -17,6 +19,7 @@ from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -44,6 +47,15 @@ DEFAULT_ADDRESS_HEADER = "x-wallet-address"
 DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_ATTR = "_agentscore_gate"
 ASSESS_STATE_ATTR = "agentscore"
+
+
+def _mark_degraded_sanic(request: Request, infra_reason: str) -> None:
+    """Record fail-open due to AgentScore-side infra failure on the gate state."""
+    state = getattr(request.ctx, GATE_STATE_ATTR, None)
+    if isinstance(state, dict):
+        state["degraded"] = True
+        state["infra_reason"] = infra_reason
+
 
 __all__ = [
     "FIXABLE_DENIAL_REASONS",
@@ -220,8 +232,21 @@ def agentscore_gate(
             # Permanent — no auto-session, agent should switch tokens or restart.
             body, status = _on_denied(request, build_invalid_credential_reason())
             return response.json(body, status=status)
+        except QuotaExceededError:
+            if client.fail_open:
+                _mark_degraded_sanic(request, "quota_exceeded")
+                return None
+            body, status = _on_denied(request, DenialReason(code="api_error"))
+            return response.json(body, status=status)
+        except httpx.TimeoutException:
+            if client.fail_open:
+                _mark_degraded_sanic(request, "network_timeout")
+                return None
+            body, status = _on_denied(request, DenialReason(code="api_error"))
+            return response.json(body, status=status)
         except Exception:
             if client.fail_open:
+                _mark_degraded_sanic(request, "api_error")
                 return None
             body, status = _on_denied(request, DenialReason(code="api_error"))
             return response.json(body, status=status)

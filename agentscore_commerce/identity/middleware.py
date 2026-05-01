@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -20,6 +21,7 @@ from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -47,6 +49,15 @@ DEFAULT_ADDRESS_HEADER = "x-wallet-address"
 DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_KEY = "__agentscore_gate"
 ASSESS_STATE_KEY = "agentscore"
+
+
+def _mark_degraded_asgi(scope: Scope, infra_reason: str) -> None:
+    """Record fail-open due to AgentScore-side infra failure on the ASGI scope state."""
+    state = scope.get("state", {}).get(GATE_STATE_KEY)
+    if isinstance(state, dict):
+        state["degraded"] = True
+        state["infra_reason"] = infra_reason
+
 
 __all__ = [
     "FIXABLE_DENIAL_REASONS",
@@ -234,8 +245,25 @@ class AgentScoreGate:
             reason = build_invalid_credential_reason()
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
+        except QuotaExceededError:
+            if self._client.fail_open:
+                _mark_degraded_asgi(scope, "quota_exceeded")
+                await self.app(scope, receive, send)
+                return
+            reason = DenialReason(code="api_error")
+            response = await self._on_denied(request, reason)
+            await response(scope, receive, send)
+        except httpx.TimeoutException:
+            if self._client.fail_open:
+                _mark_degraded_asgi(scope, "network_timeout")
+                await self.app(scope, receive, send)
+                return
+            reason = DenialReason(code="api_error")
+            response = await self._on_denied(request, reason)
+            await response(scope, receive, send)
         except Exception:
             if self._client.fail_open:
+                _mark_degraded_asgi(scope, "api_error")
                 await self.app(scope, receive, send)
                 return
             reason = DenialReason(code="api_error")

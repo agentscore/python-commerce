@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
 from django.http import HttpRequest, JsonResponse
 
 from agentscore_commerce.identity._denial import (
@@ -19,6 +20,7 @@ from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -36,6 +38,15 @@ from agentscore_commerce.payment.signer import (
     extract_payment_signer_address,
     read_x402_payment_header,
 )
+
+
+def _mark_degraded_django(request: HttpRequest, infra_reason: str) -> None:
+    """Record fail-open due to AgentScore-side infra failure on the gate state."""
+    state = getattr(request, "_agentscore_gate", None)
+    if isinstance(state, dict):
+        state["degraded"] = True
+        state["infra_reason"] = infra_reason
+
 
 DEFAULT_ADDRESS_HEADER = "HTTP_X_WALLET_ADDRESS"
 DEFAULT_TOKEN_HEADER = "HTTP_X_OPERATOR_TOKEN"
@@ -204,8 +215,19 @@ class AgentScoreMiddleware:
         except InvalidCredentialError:
             # Permanent — no auto-session, agent should switch tokens or restart.
             return self._on_denied(request, build_invalid_credential_reason())
+        except QuotaExceededError:
+            if self._client.fail_open:
+                _mark_degraded_django(request, "quota_exceeded")
+                return self.get_response(request)
+            return self._on_denied(request, DenialReason(code="api_error"))
+        except httpx.TimeoutException:
+            if self._client.fail_open:
+                _mark_degraded_django(request, "network_timeout")
+                return self.get_response(request)
+            return self._on_denied(request, DenialReason(code="api_error"))
         except Exception:
             if self._client.fail_open:
+                _mark_degraded_django(request, "api_error")
                 return self.get_response(request)
             return self._on_denied(request, DenialReason(code="api_error"))
 

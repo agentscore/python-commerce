@@ -11,7 +11,12 @@ import respx
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from agentscore_commerce.identity.aiohttp import agentscore_gate_middleware, capture_wallet, get_assess_data
+from agentscore_commerce.identity.aiohttp import (
+    GATE_STATE_KEY,
+    agentscore_gate_middleware,
+    capture_wallet,
+    get_assess_data,
+)
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
 ASSESS_URL = "https://api.agentscore.sh/v1/assess"
@@ -154,6 +159,69 @@ class TestErrorPaths:
         async with client:
             resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
             assert resp.status == 200
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_quota_exceeded_returns_503_when_fail_closed(self):
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+        client = await _client(_make_app())
+        async with client:
+            resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status == 503
+            assert (await resp.json())["error"]["code"] == "api_error"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_quota_exceeded_marks_degraded_when_fail_open(self):
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+
+        async def _snoop(request: web.Request) -> web.Response:
+            state = request.get(GATE_STATE_KEY) or {}
+            return web.json_response({k: v for k, v in state.items() if k != "client"})
+
+        client = await _client(_make_app(handler=_snoop, fail_open=True))
+        async with client:
+            resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status == 200
+            data = await resp.json()
+            assert data.get("degraded") is True
+            assert data.get("infra_reason") == "quota_exceeded"
+
+    @pytest.mark.asyncio
+    async def test_timeout_marks_degraded_when_fail_open(self):
+        async def _snoop(request: web.Request) -> web.Response:
+            state = request.get(GATE_STATE_KEY) or {}
+            return web.json_response({k: v for k, v in state.items() if k != "client"})
+
+        with patch(
+            "agentscore_commerce.identity.aiohttp.GateClient.acheck_identity",
+            side_effect=httpx.TimeoutException("read timeout"),
+        ):
+            client = await _client(_make_app(handler=_snoop, fail_open=True))
+            async with client:
+                resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+                assert resp.status == 200
+                data = await resp.json()
+                assert data.get("degraded") is True
+                assert data.get("infra_reason") == "network_timeout"
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_marks_degraded_when_fail_open(self):
+        async def _snoop(request: web.Request) -> web.Response:
+            state = request.get(GATE_STATE_KEY) or {}
+            return web.json_response({k: v for k, v in state.items() if k != "client"})
+
+        with patch(
+            "agentscore_commerce.identity.aiohttp.GateClient.acheck_identity",
+            side_effect=RuntimeError("oops"),
+        ):
+            client = await _client(_make_app(handler=_snoop, fail_open=True))
+            async with client:
+                resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+                assert resp.status == 200
+                data = await resp.json()
+                assert data.get("degraded") is True
+                assert data.get("infra_reason") == "api_error"
 
 
 class TestChainOption:

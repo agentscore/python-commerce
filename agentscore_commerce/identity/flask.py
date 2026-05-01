@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from agentscore_commerce.identity._denial import (
     FIXABLE_DENIAL_REASONS,
     build_contact_support_next_steps,
@@ -17,6 +19,7 @@ from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -152,6 +155,13 @@ def agentscore_gate(
             raise TypeError(msg) from exc
         return jsonify(body), status
 
+    def _mark_degraded(infra_reason: str) -> None:
+        """Record fail-open due to AgentScore-side infra failure on ``g._agentscore_gate``."""
+        state = getattr(g, "_agentscore_gate", None)
+        if isinstance(state, dict):
+            state["degraded"] = True
+            state["infra_reason"] = infra_reason
+
     @app.before_request
     def _agentscore_check() -> Response | tuple[Response, int] | None:
         identity = _resolve_identity(flask_request)
@@ -218,10 +228,21 @@ def agentscore_gate(
         except InvalidCredentialError:
             # Permanent — no auto-session, agent should switch tokens or restart.
             return _deny(build_invalid_credential_reason())
+        except QuotaExceededError:
+            if client.fail_open:
+                _mark_degraded("quota_exceeded")
+                return None
+            return _deny(DenialReason(code="api_error"))
+        except httpx.TimeoutException:
+            if client.fail_open:
+                _mark_degraded("network_timeout")
+                return None
+            return _deny(DenialReason(code="api_error"))
         except TypeError:
             raise
         except Exception:
             if client.fail_open:
+                _mark_degraded("api_error")
                 return None
             return _deny(DenialReason(code="api_error"))
 

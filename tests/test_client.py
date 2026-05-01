@@ -271,6 +271,36 @@ class TestCheckFailOpen:
         with pytest.raises(RuntimeError, match="AgentScore API returned 500"):
             client.check("0xABC")
 
+    @respx.mock
+    def test_check_raises_quota_exceeded_on_429(self):
+        """429 must be distinguishable from generic 5xx so adapters surface
+        ``infra_reason='quota_exceeded'`` separately when fail_open=True."""
+        from agentscore_commerce.identity.client import QuotaExceededError
+
+        client = _make_client(fail_open=False)
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+
+        with pytest.raises(QuotaExceededError, match="quota_exceeded"):
+            client.check("0xABC")
+
+
+class TestAssessResultDegraded:
+    def test_default_assess_result_is_not_degraded(self):
+        """AssessResult.degraded defaults to False so normal allows are not flagged."""
+        from agentscore_commerce.identity.types import AssessResult
+
+        result = AssessResult(allow=True)
+        assert result.degraded is False
+        assert result.infra_reason is None
+
+    def test_degraded_assess_result_carries_infra_reason(self):
+        """Adapters surface degraded=True + infra_reason on fail-open infra failure."""
+        from agentscore_commerce.identity.types import AssessResult
+
+        result = AssessResult(allow=True, degraded=True, infra_reason="quota_exceeded")
+        assert result.degraded is True
+        assert result.infra_reason == "quota_exceeded"
+
 
 class TestCompliancePolicyFields:
     def test_build_body_includes_require_kyc(self):

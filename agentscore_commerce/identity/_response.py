@@ -224,10 +224,34 @@ TOKEN_EXPIRED_FALLBACK_INSTRUCTIONS = json.dumps(
     }
 )
 
+_API_ERROR_INSTRUCTIONS = json.dumps(
+    {
+        "action": "retry_with_backoff",
+        "steps": [
+            "Verification system is temporarily unavailable (AgentScore-side issue: quota cap, "
+            "transient 5xx, or network timeout). Retry the request after 5-30 seconds with "
+            "exponential backoff.",
+            "This is NOT a compliance denial — the user does not need to re-verify their "
+            "identity. The same identity headers (X-Wallet-Address or X-Operator-Token) should "
+            "be sent on retry.",
+            "If the request continues to fail after 3+ retries (~60 seconds total), surface the "
+            "error to the user with the merchant's support contact. A sustained AgentScore "
+            "outage is rare but possible; merchants generally also degrade gracefully when this "
+            "happens.",
+        ],
+        "user_message": (
+            "Verification is temporarily unavailable. Please try again in a moment — this is a "
+            "transient issue, not a problem with your account."
+        ),
+    }
+)
+
+
 # Default agent_instructions per denial code. Adapters can override by passing
 # ``agent_instructions=`` on the DenialReason; otherwise the body emitter looks
 # up this map so every denial carries a machine-readable next step.
 _DEFAULT_AGENT_INSTRUCTIONS: dict[str, str] = {
+    "api_error": _API_ERROR_INSTRUCTIONS,
     "missing_identity": _MISSING_IDENTITY_INSTRUCTIONS,
     "wallet_signer_mismatch": WALLET_SIGNER_MISMATCH_INSTRUCTIONS,
     "wallet_auth_requires_wallet_signing": WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,

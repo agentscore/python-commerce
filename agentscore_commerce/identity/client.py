@@ -117,6 +117,13 @@ class GateClient:
         if resp.status_code == 402:
             raise PaymentRequiredError
 
+        # 429 quota_exceeded gets dedicated handling so the merchant's monthly cap is
+        # distinguishable from a generic 5xx. fail_open adapters surface this as
+        # infra_reason='quota_exceeded'; default-closed adapters deny with api_error.
+        if resp.status_code == 429:
+            _log.warning("[gate] /v1/assess returned 429 — AgentScore quota exceeded for this account")
+            raise QuotaExceededError("quota_exceeded")
+
         if resp.status_code == 401:
             # Pass through the API's credential-state 401s. Two distinct cases:
             #   - token_expired: revoked or TTL-expired (the API unifies them). Body
@@ -465,6 +472,15 @@ class GateClient:
 
 class PaymentRequiredError(Exception):
     """Raised when the AgentScore API returns 402."""
+
+
+class QuotaExceededError(Exception):
+    """Raised when /v1/assess returns 429 (the merchant's monthly quota is at cap).
+
+    Distinct from a generic 5xx so adapters with ``fail_open=True`` can surface
+    ``infra_reason='quota_exceeded'`` to merchant logs/alerts. Compliance denials
+    are unaffected — those still deny regardless of fail_open.
+    """
 
 
 class TokenDeniedError(Exception):

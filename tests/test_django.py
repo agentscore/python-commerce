@@ -18,10 +18,11 @@ if not settings.configured:
     )
     django.setup()
 
+import httpx
 from django.http import HttpRequest, JsonResponse
 from django.test import RequestFactory
 
-from agentscore_commerce.identity.client import PaymentRequiredError
+from agentscore_commerce.identity.client import PaymentRequiredError, QuotaExceededError
 from agentscore_commerce.identity.django import AgentScoreMiddleware, get_assess_data
 from agentscore_commerce.identity.types import AssessResult
 
@@ -98,6 +99,56 @@ class TestDjangoMiddleware:
             assert resp.status_code == 503
             data = json.loads(resp.content)
             assert data["error"]["code"] == "api_error"
+
+    def test_quota_exceeded_fail_open_marks_degraded(self) -> None:
+        mw = self._make_middleware(fail_open=True)
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        with patch(
+            "agentscore_commerce.identity.django.GateClient.check",
+            side_effect=QuotaExceededError("quota_exceeded"),
+        ):
+            resp = mw(request)
+            assert resp.status_code == 200
+            state = getattr(request, "_agentscore_gate", {})
+            assert state.get("degraded") is True
+            assert state.get("infra_reason") == "quota_exceeded"
+
+    def test_quota_exceeded_fail_closed_returns_api_error(self) -> None:
+        mw = self._make_middleware()
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        with patch(
+            "agentscore_commerce.identity.django.GateClient.check",
+            side_effect=QuotaExceededError("quota_exceeded"),
+        ):
+            resp = mw(request)
+            assert resp.status_code == 503
+            assert json.loads(resp.content)["error"]["code"] == "api_error"
+
+    def test_timeout_fail_open_marks_degraded_with_network_timeout(self) -> None:
+        mw = self._make_middleware(fail_open=True)
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        with patch(
+            "agentscore_commerce.identity.django.GateClient.check",
+            side_effect=httpx.TimeoutException("read timeout"),
+        ):
+            resp = mw(request)
+            assert resp.status_code == 200
+            state = getattr(request, "_agentscore_gate", {})
+            assert state.get("degraded") is True
+            assert state.get("infra_reason") == "network_timeout"
+
+    def test_generic_exception_fail_open_marks_degraded_with_api_error(self) -> None:
+        mw = self._make_middleware(fail_open=True)
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        with patch(
+            "agentscore_commerce.identity.django.GateClient.check",
+            side_effect=RuntimeError("oops"),
+        ):
+            resp = mw(request)
+            assert resp.status_code == 200
+            state = getattr(request, "_agentscore_gate", {})
+            assert state.get("degraded") is True
+            assert state.get("infra_reason") == "api_error"
 
     def test_payment_required_fail_open(self) -> None:
         mw = self._make_middleware(fail_open=True)

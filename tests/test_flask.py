@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import httpx
 import pytest
 from flask import Flask
 
-from agentscore_commerce.identity.client import PaymentRequiredError
+from agentscore_commerce.identity.client import PaymentRequiredError, QuotaExceededError
 from agentscore_commerce.identity.flask import agentscore_gate, get_assess_data
 from agentscore_commerce.identity.types import AssessResult
 
@@ -101,6 +102,82 @@ class TestFlaskGate:
             assert resp.status_code == 503
             data = resp.get_json()
             assert data["error"]["code"] == "api_error"
+
+    def test_quota_exceeded_fail_open_marks_degraded(self) -> None:
+        """fail_open=True + QuotaExceededError → request flows through; gate state on
+        ``g._agentscore_gate`` carries degraded=True + infra_reason='quota_exceeded'."""
+        app = _make_app(fail_open=True)
+
+        @app.route("/snoop")
+        def _snoop():
+            from flask import g, jsonify
+
+            state = getattr(g, "_agentscore_gate", {}) or {}
+            return jsonify({k: v for k, v in state.items() if k != "client"})
+
+        with patch(
+            "agentscore_commerce.identity.flask.GateClient.check",
+            side_effect=QuotaExceededError("quota_exceeded"),
+        ):
+            client = app.test_client()
+            resp = client.get("/snoop", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data.get("degraded") is True
+            assert data.get("infra_reason") == "quota_exceeded"
+
+    def test_quota_exceeded_fail_closed_returns_api_error(self) -> None:
+        app = _make_app()
+        with patch(
+            "agentscore_commerce.identity.flask.GateClient.check",
+            side_effect=QuotaExceededError("quota_exceeded"),
+        ):
+            client = app.test_client()
+            resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 503
+            assert resp.get_json()["error"]["code"] == "api_error"
+
+    def test_timeout_fail_open_marks_degraded_with_network_timeout(self) -> None:
+        app = _make_app(fail_open=True)
+
+        @app.route("/snoop")
+        def _snoop():
+            from flask import g, jsonify
+
+            state = getattr(g, "_agentscore_gate", {}) or {}
+            return jsonify({k: v for k, v in state.items() if k != "client"})
+
+        with patch(
+            "agentscore_commerce.identity.flask.GateClient.check",
+            side_effect=httpx.TimeoutException("read timeout"),
+        ):
+            client = app.test_client()
+            resp = client.get("/snoop", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data.get("degraded") is True
+            assert data.get("infra_reason") == "network_timeout"
+
+    def test_generic_exception_fail_open_marks_degraded_with_api_error(self) -> None:
+        app = _make_app(fail_open=True)
+
+        @app.route("/snoop")
+        def _snoop():
+            from flask import g, jsonify
+
+            state = getattr(g, "_agentscore_gate", {}) or {}
+            return jsonify({k: v for k, v in state.items() if k != "client"})
+
+        with patch(
+            "agentscore_commerce.identity.flask.GateClient.check",
+            side_effect=RuntimeError("oops"),
+        ):
+            client = app.test_client()
+            resp = client.get("/snoop", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data.get("degraded") is True
+            assert data.get("infra_reason") == "api_error"
 
     def test_payment_required_fail_open(self) -> None:
         app = _make_app(fail_open=True)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, NoReturn
 
+import httpx
 from starlette.requests import Request  # noqa: TC002 - runtime import required for FastAPI DI
 
 from agentscore_commerce.identity._denial import (
@@ -25,6 +26,7 @@ from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -50,6 +52,20 @@ DEFAULT_ADDRESS_HEADER = "x-wallet-address"
 DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_KEY = "__agentscore_gate"
 ASSESS_STATE_KEY = "agentscore"
+
+
+def _mark_degraded(request: Request, infra_reason: str) -> None:
+    """Record that the gate fail-open'd due to AgentScore-side infra failure.
+
+    Updates the gate state on ``request.state`` so merchants can read ``degraded`` +
+    ``infra_reason`` via :func:`get_gate_state` after the request handler runs. Compliance
+    is not enforced for this request — log/alert accordingly.
+    """
+    state = getattr(request.state, GATE_STATE_KEY, None)
+    if isinstance(state, dict):
+        state["degraded"] = True
+        state["infra_reason"] = infra_reason
+
 
 __all__ = [
     "FIXABLE_DENIAL_REASONS",
@@ -198,8 +214,21 @@ class AgentScoreGate:
         except InvalidCredentialError:
             # Permanent — no auto-session, agent should switch tokens or restart.
             self._deny(request, build_invalid_credential_reason())
+        except QuotaExceededError:
+            if self._client.fail_open:
+                _mark_degraded(request, "quota_exceeded")
+                return
+            self._deny(request, DenialReason(code="api_error"))
+            return
+        except httpx.TimeoutException:
+            if self._client.fail_open:
+                _mark_degraded(request, "network_timeout")
+                return
+            self._deny(request, DenialReason(code="api_error"))
+            return
         except Exception:
             if self._client.fail_open:
+                _mark_degraded(request, "api_error")
                 return
             self._deny(request, DenialReason(code="api_error"))
             return

@@ -292,7 +292,7 @@ async def purchase(request: Request):
 
 ## Examples
 
-The [examples/](./examples) directory has 6 runnable single-file FastAPI apps covering common merchant scenarios. See [examples/README.md](./examples/README.md) for the full table.
+The [examples/](./examples) directory has 7 runnable single-file FastAPI apps covering common merchant scenarios. See [examples/README.md](./examples/README.md) for the full table.
 
 ## Stability
 

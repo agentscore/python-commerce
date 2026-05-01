@@ -110,14 +110,14 @@ dev = [
 
 [[package]]
 name = "agentscore-py"
-version = "2.0.1"
+version = "2.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/32/861a7b4d19f677f103ac2b54462e121f76906dbc5ef0119d283ae9276af1/agentscore_py-2.0.1.tar.gz", hash = "sha256:518fac4749aeaaca3a895087d2cb3f6d4e264db15fb194c2a59d4a35bb986a45", size = 50755, upload-time = "2026-04-30T04:19:44.312Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/b4/198df9e3f774ab9366b34f68cddfb0ababde0bf3c1bb58ee7c6ca9d10a68/agentscore_py-2.0.2.tar.gz", hash = "sha256:16b16af6a93e56db00dee17db3d1c17772c99a4c98ccc5c544895c7abfce1747", size = 50747, upload-time = "2026-05-01T04:15:08.931Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/4b/bb898c79e62e4b4c4d9e8b4f621192ceeecdcd03fff2d12a50f00e74a800/agentscore_py-2.0.1-py3-none-any.whl", hash = "sha256:141eee41337e2156b9324527981f64a6edbdc375c4c218dd8c8d17cb287e1281", size = 14492, upload-time = "2026-04-30T04:19:43Z" },
+    { url = "https://files.pythonhosted.org/packages/14/b4/ee74a2f1baa6863ac09d8b0c6a72e67d4e2b2bc20f386b2607ad04085e39/agentscore_py-2.0.2-py3-none-any.whl", hash = "sha256:95447ae29cdb490f988534ac53fabc49d6029b7605cb24f5b3bc0e3b524e98df", size = 14483, upload-time = "2026-05-01T04:15:07.475Z" },
 ]
 
 [[package]]

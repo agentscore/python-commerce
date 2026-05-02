@@ -482,6 +482,61 @@ class TestGetAssessData:
         assert resp.json()["assess"] is None
 
 
+class TestGetGateQuotaInfo:
+    @respx.mock
+    def test_propagates_quota_from_assess_response_headers(self):
+        # API emits X-Quota-* on the assess response → SDK populates AssessResponse.quota →
+        # gate stashes onto request state → adapter exposes via get_gate_quota_info().
+        from agentscore_commerce.identity.fastapi import get_gate_quota_info
+
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"X-Quota-Limit": "1500", "X-Quota-Used": "1200", "X-Quota-Reset": "2026-06-01T00:00:00Z"},
+                json={"decision": "allow", "decision_reasons": []},
+            ),
+        )
+
+        captured = {}
+        gate = AgentScoreGate(api_key="ask_test")
+        app = FastAPI()
+
+        @app.get("/", dependencies=[Depends(gate)])
+        async def index(request: Request):
+            quota = get_gate_quota_info(request)
+            captured["quota"] = quota
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        assert captured["quota"] is not None
+        assert captured["quota"].limit == 1500
+        assert captured["quota"].used == 1200
+        assert captured["quota"].reset == "2026-06-01T00:00:00Z"
+
+    @respx.mock
+    def test_returns_none_when_api_omits_quota_headers(self):
+        # Enterprise / unlimited tiers don't emit X-Quota-* headers — the gate state
+        # carries no quota and get_gate_quota_info returns None.
+        from agentscore_commerce.identity.fastapi import get_gate_quota_info
+
+        _mock_assess("allow")  # no quota headers
+        gate = AgentScoreGate(api_key="ask_test")
+        app = FastAPI()
+        captured = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        async def index(request: Request):
+            captured["quota"] = get_gate_quota_info(request)
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        assert captured["quota"] is None
+
+
 class TestUserAgent:
     @respx.mock
     def test_default_user_agent_format(self):

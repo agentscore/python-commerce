@@ -32,6 +32,7 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
@@ -65,6 +66,7 @@ __all__ = [
     "extract_payment_signer_address",
     "get_assess_data",
     "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -96,6 +98,23 @@ def get_gate_degraded_state() -> dict[str, Any]:
     if isinstance(state, dict) and state.get("degraded"):
         return {"degraded": True, "infra_reason": state.get("infra_reason")}
     return {"degraded": False}
+
+
+def get_gate_quota_info() -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    Returns ``None`` when the request was a fail-open pass-through or when the API
+    didn't emit quota headers.
+    """
+    from flask import g
+
+    state = getattr(g, "_agentscore_gate", None)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
 
 
 def _default_extract_identity(request: Request) -> AgentIdentity | None:
@@ -210,6 +229,10 @@ def agentscore_gate(
 
             if result.allow:
                 g.agentscore = result.raw
+                if result.quota is not None:
+                    state = getattr(g, "_agentscore_gate", None)
+                    if isinstance(state, dict):
+                        state["quota"] = result.quota
                 return None
 
             # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the

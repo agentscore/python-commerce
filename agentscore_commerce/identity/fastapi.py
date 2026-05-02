@@ -39,6 +39,7 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
@@ -84,6 +85,22 @@ def get_gate_degraded_state(request: Request) -> dict[str, Any]:
     return {"degraded": False}
 
 
+def get_gate_quota_info(request: Request) -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    Returns ``None`` when the request was a fail-open pass-through (no assess call)
+    or when the API didn't emit quota headers (Enterprise / unlimited tiers).
+    Use to monitor approach-to-cap proactively (warn at 80%, alert at 95%).
+    """
+    state = getattr(request.state, GATE_STATE_KEY, None)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
+
+
 __all__ = [
     "FIXABLE_DENIAL_REASONS",
     "AgentScoreGate",
@@ -97,6 +114,7 @@ __all__ = [
     "extract_payment_signer_address",
     "get_assess_data",
     "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -253,6 +271,11 @@ class AgentScoreGate:
 
         if result.allow:
             setattr(request.state, ASSESS_STATE_KEY, result.raw)
+            # Stash quota on gate state so get_gate_quota_info(request) can read it.
+            if result.quota is not None:
+                state = getattr(request.state, GATE_STATE_KEY, None)
+                if isinstance(state, dict):
+                    state["quota"] = result.quota
             return
 
         # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the

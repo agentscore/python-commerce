@@ -632,3 +632,31 @@ def test_middleware_handler_exception_is_not_swallowed_by_gate():
     # an AgentScore infra failure.
     assert resp.status_code == 500
     assert invocations["count"] == 1
+
+
+@respx.mock
+def test_middleware_propagates_quota_from_assess_response_headers():
+    """API X-Quota-* → SDK populates AssessResponse.quota → adapter stashes onto scope state."""
+    from agentscore_commerce.identity.middleware import get_gate_quota_info
+
+    respx.post(ASSESS_URL).mock(
+        return_value=httpx.Response(
+            200,
+            headers={"X-Quota-Limit": "1500", "X-Quota-Used": "1200", "X-Quota-Reset": "2026-06-01T00:00:00Z"},
+            json={"decision": "allow", "decision_reasons": []},
+        ),
+    )
+
+    captured: dict = {}
+
+    def quota_route(request: Request) -> JSONResponse:
+        captured["quota"] = get_gate_quota_info(request)
+        return JSONResponse({"ok": True})
+
+    inner = Starlette(routes=[Route("/", quota_route)])
+    app = AgentScoreGate(inner, api_key="ask_test_key")
+    client = TestClient(app)
+    resp = client.get("/", headers={"x-wallet-address": "0xabc"})
+    assert resp.status_code == 200
+    assert captured["quota"] is not None
+    assert captured["quota"].limit == 1500

@@ -33,6 +33,7 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
@@ -67,6 +68,7 @@ __all__ = [
     "extract_payment_signer_address",
     "get_assess_data",
     "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -93,6 +95,19 @@ def get_gate_degraded_state(request: HttpRequest) -> dict[str, Any]:
     if isinstance(state, dict) and state.get("degraded"):
         return {"degraded": True, "infra_reason": state.get("infra_reason")}
     return {"degraded": False}
+
+
+def get_gate_quota_info(request: HttpRequest) -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    """
+    state = getattr(request, "_agentscore_gate", None)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
 
 
 class AgentScoreMiddleware:
@@ -225,6 +240,10 @@ class AgentScoreMiddleware:
 
         if result.allow:
             setattr(request, "agentscore", result.raw)  # noqa: B010 — dynamic attribute attach on HttpRequest
+            if result.quota is not None:
+                state = getattr(request, "_agentscore_gate", None)
+                if isinstance(state, dict):
+                    state["quota"] = result.quota
             return self.get_response(request)
 
         # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the

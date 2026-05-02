@@ -95,7 +95,10 @@ class VerifyWalletSignerMatchOptions:
 
     claimed_wallet: str
     signer: str | None
-    network: Network = "evm"
+    # Optional explicit network. When omitted, the gate infers from the signer's address
+    # shape (EVM `0x...` → "evm", base58 → "solana"). Parity with node-commerce, where
+    # this field is optional with no default.
+    network: Network | None = None
 
 
 VerifyWalletSignerKind = Literal[
@@ -283,6 +286,21 @@ def apply_degraded(state: dict[str, Any] | None, infra_reason: FailOpenInfraReas
 
 
 @dataclass
+class GateQuotaInfo:
+    """Per-account assess quota observability captured from ``X-Quota-*`` response headers.
+
+    Mirrors the SDK's ``QuotaInfo`` shape. Use to monitor approach-to-cap proactively
+    (warn at 80%, alert at 95%). Numeric fields are ``None`` when the API didn't include
+    the header (Enterprise / unlimited tiers).
+    """
+
+    limit: int | None
+    used: int | None
+    # ISO-8601 timestamp, or the literal string "never" for unlimited tiers.
+    reset: str | None
+
+
+@dataclass
 class AssessResult:
     """Result from the AgentScore assess API."""
 
@@ -295,3 +313,13 @@ class AssessResult:
     verify_url: str | None = None
     policy_result: PolicyResult | None = None
     raw: dict[str, Any] | None = None
+    # Per-account assess quota captured from X-Quota-* response headers. Absent on
+    # Enterprise / unlimited tiers, or when the gate didn't call assess.
+    quota: GateQuotaInfo | None = None
+    # Per-signer wallet-match verdicts cached from prior verify_wallet_signer_match() calls
+    # for this same claimed wallet. Each signer gets its own slot so two payments under the
+    # same claimed identity but from different signer wallets don't serve stale verdicts to
+    # each other. Verdicts come from the API's ``signer_match`` response field (populated
+    # when the assess request carried ``resolve_signer``), so reading a hit skips the round
+    # trip altogether.
+    signer_match_by_signer: dict[str, dict[str, Any]] = field(default_factory=dict)

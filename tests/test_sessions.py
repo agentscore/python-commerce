@@ -104,7 +104,9 @@ class TestSyncHelper:
         )
         headers = route.calls[0].request.headers
         assert headers["X-API-Key"] == "ask_my_key"
-        assert headers["User-Agent"] == "myapp/1.0"
+        # SDK appends its own UA segment to the chain: `<merchant> (agentscore-py/<v>)`
+        assert headers["User-Agent"].startswith("myapp/1.0")
+        assert "agentscore-py/" in headers["User-Agent"]
 
     @respx.mock
     def test_respects_custom_base_url(self):

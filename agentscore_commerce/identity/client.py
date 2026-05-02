@@ -5,9 +5,28 @@ from __future__ import annotations
 import json
 import logging
 from importlib.metadata import version as _pkg_version
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import httpx
+from agentscore import (
+    AgentScore,
+    AgentScoreError,
+)
+from agentscore import (
+    InvalidCredentialError as SdkInvalidCredentialError,
+)
+from agentscore import (
+    PaymentRequiredError as SdkPaymentRequiredError,
+)
+from agentscore import (
+    QuotaExceededError as SdkQuotaExceededError,
+)
+from agentscore import (
+    TimeoutError as SdkTimeoutError,
+)
+from agentscore import (
+    TokenExpiredError as SdkTokenExpiredError,
+)
 
 from agentscore_commerce.identity._response import (
     WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,
@@ -18,6 +37,7 @@ from agentscore_commerce.identity.cache import TTLCache
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     AssessResult,
+    GateQuotaInfo,
     Network,
     OperatorVerification,
     VerifyWalletSignerMatchOptions,
@@ -25,6 +45,8 @@ from agentscore_commerce.identity.types import (
 )
 
 if TYPE_CHECKING:
+    from agentscore.types import DecisionPolicy, ResolveSigner
+
     from agentscore_commerce.identity.types import DenialReason
 
 _log = logging.getLogger(__name__)
@@ -37,6 +59,8 @@ class GateClient:
     """Shared client for calling the AgentScore assess API.
 
     Manages caching and policy construction. Used by all framework adapters.
+    Wraps the official ``agentscore`` SDK so HTTP/retry/quota/typed-error logic
+    stays consistent across consumers.
     """
 
     def __init__(
@@ -80,8 +104,27 @@ class GateClient:
         if allowed_jurisdictions is not None:
             self._policy["allowed_jurisdictions"] = allowed_jurisdictions
 
-        self._async_client = httpx.AsyncClient(timeout=10.0)
-        self._sync_client = httpx.Client(timeout=10.0)
+        self._sdk = AgentScore(
+            api_key=api_key,
+            base_url=base_url,
+            user_agent=self.user_agent,
+        )
+
+    @property
+    def _sync_client(self) -> Any:
+        """Underlying httpx Client used by the wrapped SDK.
+
+        Exposed for tests that patch transport behavior directly via ``unittest.mock.patch.object``.
+        """
+        return self._sdk._get_sync_client()
+
+    @property
+    def _async_client(self) -> Any:
+        """Underlying httpx AsyncClient used by the wrapped SDK.
+
+        Exposed for tests that patch transport behavior directly via ``unittest.mock.patch.object``.
+        """
+        return self._sdk._get_async_client()
 
     def _cache_key(self, address: str | None = None, operator_token: str | None = None) -> str:
         # operator_token is opaque ASCII — lowercasing is safe. Wallet addresses go through
@@ -93,6 +136,11 @@ class GateClient:
     def _build_body(
         self, address: str | None = None, chain: str | None = None, operator_token: str | None = None
     ) -> dict[str, Any]:
+        """Construct the assess request body.
+
+        Testable helper for the policy/chain wiring contract — pinned so a future SDK
+        body-shape regression would fail the gate's own tests as well.
+        """
         body: dict[str, Any] = {}
         if address:
             body["address"] = address
@@ -106,6 +154,11 @@ class GateClient:
         return body
 
     def _headers(self) -> dict[str, str]:
+        """Construct the canonical assess request headers.
+
+        Testable helper for the X-API-Key + User-Agent contract — pinned independently
+        so a regression on either header would fail the gate's own tests.
+        """
         return {
             "X-API-Key": self._api_key,
             "Content-Type": "application/json",
@@ -113,30 +166,21 @@ class GateClient:
             "User-Agent": self.user_agent,
         }
 
-    def _parse_response(self, resp: httpx.Response) -> AssessResult:
-        if resp.status_code == 402:
-            raise PaymentRequiredError
+    def _parse_response(self, resp: Any) -> AssessResult:
+        """Parse a raw httpx Response into an AssessResult.
 
-        # 429 gets dedicated handling so it's distinguishable from a generic 5xx.
-        # fail_open adapters surface this as infra_reason='quota_exceeded';
-        # default-closed adapters deny with api_error.
-        if resp.status_code == 429:
+        Testable helper for the gate's status-code → typed-error mapping contract.
+        """
+        status = resp.status_code
+        if status == 402:
+            raise PaymentRequiredError
+        if status == 429:
             _log.warning("[gate] /v1/assess returned 429")
             raise QuotaExceededError("quota_exceeded")
-
-        if resp.status_code == 401:
-            # Pass through the API's credential-state 401s. Two distinct cases:
-            #   - token_expired: revoked or TTL-expired (the API unifies them). Body
-            #     carries an auto-minted session so the agent recovers without an
-            #     API key.
-            #   - invalid_credential: the token doesn't exist at all (typo, never
-            #     minted). No auto-session — the agent likely has another token to
-            #     try first, or should drop the header to bootstrap.
+        if status == 401:
             try:
                 err_body = resp.json()
             except (ValueError, json.JSONDecodeError) as parse_err:
-                # Don't silently swallow — schema drift on /v1/assess used to mask
-                # itself this way for hours. Log and keep falling through.
                 _log.warning("[gate] /v1/assess 401 body parse failed: %s", parse_err)
                 err_body = {}
             error = err_body.get("error") if isinstance(err_body, dict) else None
@@ -150,14 +194,15 @@ class GateClient:
                     "[gate] /v1/assess returned 401 %s — no specific handler, surfacing as RuntimeError.",
                     code,
                 )
-            msg = f"AgentScore API returned {resp.status_code}"
+            msg = f"AgentScore API returned {status}"
             raise RuntimeError(msg)
-
         if not resp.is_success:
-            msg = f"AgentScore API returned {resp.status_code}"
+            msg = f"AgentScore API returned {status}"
             raise RuntimeError(msg)
-
         data: dict[str, Any] = resp.json()
+        return self._project(data)
+
+    def _project(self, data: dict[str, Any]) -> AssessResult:
         decision = data.get("decision")
         reasons: list[str] = data.get("decision_reasons", [])
         allow = decision == "allow" or decision is None
@@ -173,6 +218,19 @@ class GateClient:
             else None
         )
 
+        # SDK populates `quota` on the AssessResponse from X-Quota-* headers. Surface up
+        # to adapters so merchants can monitor approach-to-cap proactively.
+        quota_raw = data.get("quota")
+        quota = (
+            GateQuotaInfo(
+                limit=quota_raw.get("limit"),
+                used=quota_raw.get("used"),
+                reset=quota_raw.get("reset"),
+            )
+            if isinstance(quota_raw, dict)
+            else None
+        )
+
         return AssessResult(
             allow=allow,
             decision=decision,
@@ -182,6 +240,7 @@ class GateClient:
             resolved_operator=data.get("resolved_operator"),
             verify_url=data.get("verify_url"),
             policy_result=data.get("policy_result"),
+            quota=quota,
             raw=data,
         )
 
@@ -195,12 +254,45 @@ class GateClient:
         if cached is not None:
             return cached
 
-        resp = self._sync_client.post(
-            f"{self._base_url}/v1/assess",
-            headers=self._headers(),
-            content=json.dumps(self._build_body(address, chain, operator_token)),
-        )
-        result = self._parse_response(resp)
+        effective_chain = chain or self._chain
+        # SDK typed errors map onto commerce's bespoke 401/402/429 exception surface.
+        try:
+            data = self._sdk.assess(
+                address=address,
+                operator_token=operator_token,
+                chain=effective_chain,
+                policy=cast("DecisionPolicy | None", self._policy or None),
+            )
+        except SdkPaymentRequiredError as exc:
+            raise PaymentRequiredError from exc
+        except SdkQuotaExceededError as exc:
+            _log.warning("[gate] /v1/assess returned 429")
+            raise QuotaExceededError("quota_exceeded") from exc
+        except SdkTokenExpiredError as exc:
+            raise TokenDeniedError(getattr(exc, "details", {}) or {}) from exc
+        except SdkInvalidCredentialError as exc:
+            raise InvalidCredentialError() from exc
+        except SdkTimeoutError as exc:
+            # Re-raise as httpx.TimeoutException so adapters keep their existing
+            # `except httpx.TimeoutException` clauses for `infra_reason='network_timeout'`
+            # without each having to learn about the SDK's typed timeout class.
+            raise httpx.TimeoutException(str(exc)) from exc
+        except AgentScoreError as exc:
+            # Defensive: SDK only routes 429 → QuotaExceededError when body has
+            # `error.code='quota_exceeded'`. Real API always emits the code, but a
+            # mock or proxy returning bare `429` falls through to generic. Reroute by
+            # status_code so the gate's fail_open path still surfaces 'quota_exceeded'.
+            if exc.status_code == 429:
+                _log.warning("[gate] /v1/assess returned 429 (untyped — defensive)")
+                raise QuotaExceededError("quota_exceeded") from exc
+            # Wraps any other 401 (schema drift), 5xx, network errors, body-parse failures.
+            # Surface code so ops notice schema-drift cases instead of a silent 503.
+            _log.warning("[gate] /v1/assess call failed (%s): %s", exc.code, exc)
+            # Message format pinned for downstream merchant log scrapers.
+            status = exc.status_code or 0
+            raise RuntimeError(f"AgentScore API returned {status}: {exc}") from exc
+
+        result = self._project(cast("dict[str, Any]", data))
         self._cache.set(key, result)
         return result
 
@@ -214,12 +306,36 @@ class GateClient:
         if cached is not None:
             return cached
 
-        resp = await self._async_client.post(
-            f"{self._base_url}/v1/assess",
-            headers=self._headers(),
-            content=json.dumps(self._build_body(address, chain, operator_token)),
-        )
-        result = self._parse_response(resp)
+        effective_chain = chain or self._chain
+        try:
+            data = await self._sdk.aassess(
+                address=address,
+                operator_token=operator_token,
+                chain=effective_chain,
+                policy=cast("DecisionPolicy | None", self._policy or None),
+            )
+        except SdkPaymentRequiredError as exc:
+            raise PaymentRequiredError from exc
+        except SdkQuotaExceededError as exc:
+            _log.warning("[gate] /v1/assess returned 429")
+            raise QuotaExceededError("quota_exceeded") from exc
+        except SdkTokenExpiredError as exc:
+            raise TokenDeniedError(getattr(exc, "details", {}) or {}) from exc
+        except SdkInvalidCredentialError as exc:
+            raise InvalidCredentialError() from exc
+        except SdkTimeoutError as exc:
+            # Same re-raise pattern as the sync path; see :meth:`check`.
+            raise httpx.TimeoutException(str(exc)) from exc
+        except AgentScoreError as exc:
+            if exc.status_code == 429:
+                _log.warning("[gate] /v1/assess returned 429 (untyped — defensive)")
+                raise QuotaExceededError("quota_exceeded") from exc
+            _log.warning("[gate] /v1/assess call failed (%s): %s", exc.code, exc)
+            # Message format pinned for downstream merchant log scrapers.
+            status = exc.status_code or 0
+            raise RuntimeError(f"AgentScore API returned {status}: {exc}") from exc
+
+        result = self._project(cast("dict[str, Any]", data))
         self._cache.set(key, result)
         return result
 
@@ -243,20 +359,12 @@ class GateClient:
         Fire-and-forget: silently swallows non-fatal errors. ``idempotency_key`` (payment intent
         id, tx hash, …) lets the server dedupe agent retries of the same logical payment.
         """
-        body: dict[str, Any] = {
-            "operator_token": operator_token,
-            "wallet_address": wallet_address,
-            "network": network,
-        }
-        if idempotency_key:
-            body["idempotency_key"] = idempotency_key
-        # Fire-and-forget: don't raise. Log so a persistent capture outage is visible
-        # to merchant ops — otherwise wallet↔operator linkage silently stops.
         try:
-            self._sync_client.post(
-                f"{self._base_url}/v1/credentials/wallets",
-                headers=self._headers(),
-                content=json.dumps(body),
+            self._sdk.associate_wallet(
+                operator_token=operator_token,
+                wallet_address=wallet_address,
+                network=network,
+                idempotency_key=idempotency_key,
             )
         except Exception as err:
             _log.warning("capture_wallet failed: %s", err)
@@ -269,19 +377,12 @@ class GateClient:
         idempotency_key: str | None = None,
     ) -> None:
         """Async variant of :meth:`capture_wallet`."""
-        body: dict[str, Any] = {
-            "operator_token": operator_token,
-            "wallet_address": wallet_address,
-            "network": network,
-        }
-        if idempotency_key:
-            body["idempotency_key"] = idempotency_key
-        # Fire-and-forget: don't raise. Log so a persistent capture outage is visible.
         try:
-            await self._async_client.post(
-                f"{self._base_url}/v1/credentials/wallets",
-                headers=self._headers(),
-                content=json.dumps(body),
+            await self._sdk.aassociate_wallet(
+                operator_token=operator_token,
+                wallet_address=wallet_address,
+                network=network,
+                idempotency_key=idempotency_key,
             )
         except Exception as err:
             _log.warning("acapture_wallet failed: %s", err)
@@ -329,19 +430,13 @@ class GateClient:
         if hit:
             return True, op, links
         try:
-            resp = self._sync_client.post(
-                f"{self._base_url}/v1/assess",
-                headers=self._headers(),
-                content=json.dumps({"address": wallet}),
-            )
-        except httpx.HTTPError:
+            data = self._sdk.assess(address=wallet)
+        except AgentScoreError:
             return False, None, []
-        if not resp.is_success:
-            return False, None, []
-        data: dict[str, Any] = resp.json()
-        self._cache.set(f"resolve:{wallet}", AssessResult(allow=True, raw=data))
-        op_value = data.get("resolved_operator")
-        linked_raw = data.get("linked_wallets")
+        data_dict = cast("dict[str, Any]", data)
+        self._cache.set(f"resolve:{wallet}", AssessResult(allow=True, raw=data_dict))
+        op_value = data_dict.get("resolved_operator")
+        linked_raw = data_dict.get("linked_wallets")
         linked = [w for w in linked_raw if isinstance(w, str)] if isinstance(linked_raw, list) else []
         return True, (op_value if isinstance(op_value, str) else None), linked
 
@@ -352,45 +447,72 @@ class GateClient:
         if hit:
             return True, op, links
         try:
-            resp = await self._async_client.post(
-                f"{self._base_url}/v1/assess",
-                headers=self._headers(),
-                content=json.dumps({"address": wallet}),
-            )
-        except httpx.HTTPError:
+            data = await self._sdk.aassess(address=wallet)
+        except AgentScoreError:
             return False, None, []
-        if not resp.is_success:
-            return False, None, []
-        data: dict[str, Any] = resp.json()
-        self._cache.set(f"resolve:{wallet}", AssessResult(allow=True, raw=data))
-        op_value = data.get("resolved_operator")
-        linked_raw = data.get("linked_wallets")
+        data_dict = cast("dict[str, Any]", data)
+        self._cache.set(f"resolve:{wallet}", AssessResult(allow=True, raw=data_dict))
+        op_value = data_dict.get("resolved_operator")
+        linked_raw = data_dict.get("linked_wallets")
         linked = [w for w in linked_raw if isinstance(w, str)] if isinstance(linked_raw, list) else []
         return True, (op_value if isinstance(op_value, str) else None), linked
 
     def _report_signer_event_sync(self, kind: str) -> None:
-        """Fire-and-forget telemetry post. Never raises."""
-        try:
-            self._sync_client.post(
-                f"{self._base_url}/v1/telemetry/signer-match",
-                headers=self._headers(),
-                content=json.dumps({"kind": kind}),
-            )
-        except Exception as err:
-            _log.warning("signer-match telemetry failed: %s", err)
+        """Fire-and-forget telemetry post. Never raises.
+
+        The SDK's ``telemetry_signer_match`` already swallows all errors internally —
+        this method is just the commerce-side dispatch.
+        """
+        self._sdk.telemetry_signer_match({"kind": kind})
 
     async def _report_signer_event_async(self, kind: str) -> None:
-        try:
-            await self._async_client.post(
-                f"{self._base_url}/v1/telemetry/signer-match",
-                headers=self._headers(),
-                content=json.dumps({"kind": kind}),
+        """Async variant. SDK swallows all errors internally."""
+        await self._sdk.atelemetry_signer_match({"kind": kind})
+
+    def _project_signer_match(
+        self, sm: dict[str, Any], claimed_norm: str, signer_norm: str
+    ) -> VerifyWalletSignerResult:
+        """Project the API's ``signer_match`` block onto :class:`VerifyWalletSignerResult`.
+
+        The API authors agent_instructions, claimed/signer operators, and the linked-wallet
+        set (deny-guarded server-side); commerce just shapes those fields.
+        """
+        kind = sm.get("kind")
+        if kind == "pass":
+            return VerifyWalletSignerResult(
+                kind="pass",
+                claimed_operator=sm.get("claimed_operator"),
+                signer_operator=sm.get("signer_operator"),
             )
-        except Exception as err:
-            _log.warning("signer-match telemetry failed: %s", err)
+        if kind == "wallet_auth_requires_wallet_signing":
+            return VerifyWalletSignerResult(
+                kind="wallet_auth_requires_wallet_signing",
+                claimed_wallet=sm.get("claimed_wallet") or claimed_norm,
+                agent_instructions=sm.get("agent_instructions") or WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,
+            )
+        # Default: wallet_signer_mismatch
+        linked_raw = sm.get("linked_wallets")
+        linked = [w for w in linked_raw if isinstance(w, str)] if isinstance(linked_raw, list) else []
+        return VerifyWalletSignerResult(
+            kind="wallet_signer_mismatch",
+            claimed_operator=sm.get("claimed_operator"),
+            actual_signer_operator=sm.get("signer_operator"),
+            expected_signer=sm.get("expected_signer") or claimed_norm,
+            actual_signer=sm.get("actual_signer") or signer_norm,
+            linked_wallets=linked,
+            agent_instructions=sm.get("agent_instructions") or WALLET_SIGNER_MISMATCH_INSTRUCTIONS,
+        )
+
+    def _infer_signer_network(self, signer: str) -> str:
+        return "evm" if signer.startswith("0x") else "solana"
 
     def verify_wallet_signer_match(self, options: VerifyWalletSignerMatchOptions) -> VerifyWalletSignerResult:
         """Verify payment signer resolves to the same operator as the claimed wallet.
+
+        Single-call path: makes one ``/v1/assess`` request with ``resolve_signer`` set;
+        the response carries a ``signer_match`` verdict the gate projects directly. Falls
+        back to a two-resolve path when the response has no ``signer_match`` so the gate
+        still produces a verdict.
 
         Returns:
             ``kind='pass'`` when the signer is the claimed wallet (byte-equal) or both resolve
@@ -408,13 +530,54 @@ class GateClient:
                 agent_instructions=WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,
             )
         # Network-aware normalization: lowercase EVM, preserve Solana base58. Both the
-        # byte-equal short-circuit AND the resolve-cache key derive from this — lowercasing
+        # byte-equal short-circuit AND the cache key derive from this — lowercasing
         # Solana would corrupt both and make every Solana signer-match return api_error.
         claimed = normalize_address(options.claimed_wallet)
         signer_norm = normalize_address(signer)
         if claimed == signer_norm:
             self._report_signer_event_sync("pass")
             return VerifyWalletSignerResult(kind="pass")
+
+        # Cache hit: a prior call for this same (claimed, signer) pair populated signer_match.
+        # Skip both the round trip AND the SDK telemetry post (the API recorded it last time).
+        cached_entry = self._cache.get(claimed)
+        if cached_entry is not None:
+            cached_match = cached_entry.signer_match_by_signer.get(signer_norm)
+            if cached_match is not None:
+                return self._project_signer_match(cached_match, claimed, signer_norm)
+
+        # Single resolve_signer-aware assess call — server-side resolves both wallets and
+        # returns a verdict in one round trip.
+        network = options.network or self._infer_signer_network(signer_norm)
+        try:
+            data = self._sdk.assess(
+                address=claimed,
+                resolve_signer=cast("ResolveSigner", {"address": signer_norm, "network": network}),
+            )
+        except AgentScoreError as exc:
+            _log.warning("[gate] verify_wallet_signer_match assess failed: %s", exc)
+            self._report_signer_event_sync("api_error")
+            return VerifyWalletSignerResult(kind="api_error", claimed_wallet=claimed)
+
+        data_dict = cast("dict[str, Any]", data)
+        sm = data_dict.get("signer_match")
+        if isinstance(sm, dict):
+            if cached_entry is not None:
+                # Mutate in place — TTLCache.get() returns a reference, so the stored
+                # entry sees the new sub-dict without a set() call. This preserves the
+                # gate's original cache TTL window (set() would reset it forward,
+                # causing the gate verdict to be served past its intended freshness).
+                cached_entry.signer_match_by_signer[signer_norm] = sm
+            else:
+                # No prior gate cache for this wallet — create a fresh entry with the
+                # verdict attached so a subsequent same-pair call hits cache.
+                entry = AssessResult(allow=True, raw=data_dict)
+                entry.signer_match_by_signer[signer_norm] = sm
+                self._cache.set(claimed, entry)
+            return self._project_signer_match(sm, claimed, signer_norm)
+
+        # API response had no signer_match (server didn't compute one). Two-resolve
+        # path produces a verdict from the same operator graph.
         claimed_ok, claimed_op, claimed_links = self._resolve_wallet_to_operator(claimed)
         signer_ok, signer_op, _ = self._resolve_wallet_to_operator(signer_norm)
         if not claimed_ok or not signer_ok:
@@ -444,12 +607,42 @@ class GateClient:
                 claimed_wallet=options.claimed_wallet,
                 agent_instructions=WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,
             )
-        # Same network-aware normalization as the sync path.
         claimed = normalize_address(options.claimed_wallet)
         signer_norm = normalize_address(signer)
         if claimed == signer_norm:
             await self._report_signer_event_async("pass")
             return VerifyWalletSignerResult(kind="pass")
+
+        cached_entry = self._cache.get(claimed)
+        if cached_entry is not None:
+            cached_match = cached_entry.signer_match_by_signer.get(signer_norm)
+            if cached_match is not None:
+                return self._project_signer_match(cached_match, claimed, signer_norm)
+
+        network = options.network or self._infer_signer_network(signer_norm)
+        try:
+            data = await self._sdk.aassess(
+                address=claimed,
+                resolve_signer=cast("ResolveSigner", {"address": signer_norm, "network": network}),
+            )
+        except AgentScoreError as exc:
+            _log.warning("[gate] averify_wallet_signer_match assess failed: %s", exc)
+            await self._report_signer_event_async("api_error")
+            return VerifyWalletSignerResult(kind="api_error", claimed_wallet=claimed)
+
+        data_dict = cast("dict[str, Any]", data)
+        sm = data_dict.get("signer_match")
+        if isinstance(sm, dict):
+            if cached_entry is not None:
+                # Async mirror of the in-place-mutate optimization in :meth:`verify_wallet_signer_match`.
+                cached_entry.signer_match_by_signer[signer_norm] = sm
+            else:
+                entry = AssessResult(allow=True, raw=data_dict)
+                entry.signer_match_by_signer[signer_norm] = sm
+                self._cache.set(claimed, entry)
+            return self._project_signer_match(sm, claimed, signer_norm)
+
+        # Legacy fallback — async mirror of the sync path.
         claimed_ok, claimed_op, claimed_links = await self._aresolve_wallet_to_operator(claimed)
         signer_ok, signer_op, _ = await self._aresolve_wallet_to_operator(signer_norm)
         if not claimed_ok or not signer_ok:
@@ -470,6 +663,11 @@ class GateClient:
         )
 
 
+# Re-export the timeout error class so adapters can recognize SDK-side timeouts
+# without having to import it from the underlying SDK directly.
+__all_sdk_timeout__ = SdkTimeoutError
+
+
 class PaymentRequiredError(Exception):
     """Raised when the AgentScore API returns 402."""
 
@@ -481,9 +679,9 @@ class QuotaExceededError(RuntimeError):
     ``infra_reason='quota_exceeded'`` to merchant logs/alerts. Compliance denials
     are unaffected — those still deny regardless of fail_open.
 
-    Subclasses ``RuntimeError`` for backward compatibility — adapters or merchants that
-    previously caught ``RuntimeError`` for 429 still catch this; new code that wants to
-    distinguish 429 from generic 5xx catches ``QuotaExceededError`` first.
+    Subclasses ``RuntimeError`` so a broad ``except RuntimeError`` still catches the
+    429 case; specific code that wants to distinguish 429 from generic 5xx catches
+    ``QuotaExceededError`` directly.
     """
 
 

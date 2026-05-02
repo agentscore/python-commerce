@@ -473,3 +473,35 @@ def test_sanic_api_error_on_unexpected_exception():
 
     assert resp.status == 503
     assert resp.json["error"]["code"] == "api_error"
+
+
+def test_sanic_propagates_quota_from_assess_response():
+    """API X-Quota-* → SDK populates AssessResponse.quota → adapter stashes onto ctx."""
+    from agentscore_commerce.identity.sanic import get_gate_quota_info
+    from agentscore_commerce.identity.types import GateQuotaInfo
+
+    app = Sanic("sanic_quota_test")
+    agentscore_gate(app, api_key="ak")
+    captured: dict = {}
+
+    @app.get("/")
+    async def index(request):
+        captured["quota"] = get_gate_quota_info(request)
+        return response.json({"ok": True})
+
+    result = AssessResult(
+        allow=True,
+        decision="allow",
+        reasons=[],
+        raw={"decision": "allow"},
+        quota=GateQuotaInfo(limit=1500, used=1200, reset="2026-06-01T00:00:00Z"),
+    )
+    with patch(
+        "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+        new=AsyncMock(return_value=result),
+    ):
+        _req, resp = app.test_client.get("/", headers={"x-wallet-address": "0xabc"})
+
+    assert resp.status == 200
+    assert captured["quota"] is not None
+    assert captured["quota"].limit == 1500

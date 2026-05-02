@@ -539,3 +539,32 @@ async def test_aiohttp_handler_exception_is_not_swallowed_by_gate():
         # the exception was an AgentScore infra failure.
         assert resp.status == 500
     assert invocations["count"] == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_aiohttp_propagates_quota_from_assess_response_headers() -> None:
+    """API X-Quota-* headers → SDK populates AssessResponse.quota → adapter stashes it."""
+    from agentscore_commerce.identity.aiohttp import get_gate_quota_info
+
+    respx.post(ASSESS_URL).mock(
+        return_value=httpx.Response(
+            200,
+            headers={"X-Quota-Limit": "1500", "X-Quota-Used": "1200", "X-Quota-Reset": "2026-06-01T00:00:00Z"},
+            json={"decision": "allow", "decision_reasons": []},
+        ),
+    )
+
+    captured: dict = {}
+
+    async def handler(request):
+        captured["quota"] = get_gate_quota_info(request)
+        return web.json_response({"ok": True})
+
+    app = _make_app(handler=handler)
+    async with TestClient(TestServer(app)) as client:
+        resp = await client.get("/", headers={"x-wallet-address": "0xabc"})
+        assert resp.status == 200
+    assert captured["quota"] is not None
+    assert captured["quota"].limit == 1500
+    assert captured["quota"].used == 1200

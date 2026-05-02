@@ -34,6 +34,7 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
@@ -74,6 +75,7 @@ __all__ = [
     "extract_payment_signer_address",
     "get_assess_data",
     "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -101,6 +103,19 @@ def get_gate_degraded_state(request: Request) -> dict[str, Any]:
     if isinstance(state, dict) and state.get("degraded"):
         return {"degraded": True, "infra_reason": state.get("infra_reason")}
     return {"degraded": False}
+
+
+def get_gate_quota_info(request: Request) -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    """
+    state = (request.scope.get("state") or {}).get(GATE_STATE_KEY)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
 
 
 def _default_extract_identity(request: Request) -> AgentIdentity | None:
@@ -264,6 +279,10 @@ class AgentScoreGate:
 
         if result.allow:
             scope["state"] = {**scope.get("state", {}), "agentscore": result.raw}
+            if result.quota is not None:
+                state = scope["state"].get(GATE_STATE_KEY)
+                if isinstance(state, dict):
+                    state["quota"] = result.quota
             await self.app(scope, receive, send)
             return
 

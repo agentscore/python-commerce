@@ -801,3 +801,32 @@ class TestFlaskCaptureWalletNoOp:
         app = Flask(__name__)
         with app.test_request_context("/"):
             capture_wallet("0xwallet", "evm")  # should not raise
+
+
+class TestFlaskQuotaPropagation:
+    def test_propagates_quota_from_assess_response(self) -> None:
+        """API X-Quota-* → SDK populates AssessResponse.quota → adapter stashes onto g."""
+        from agentscore_commerce.identity.flask import get_gate_quota_info
+        from agentscore_commerce.identity.types import GateQuotaInfo
+
+        app = _make_app()
+        captured: dict = {}
+
+        @app.route("/quota")
+        def quota_route():
+            captured["quota"] = get_gate_quota_info()
+            return {"ok": True}
+
+        result = AssessResult(
+            allow=True,
+            decision="allow",
+            reasons=[],
+            raw={"decision": "allow"},
+            quota=GateQuotaInfo(limit=1500, used=1200, reset="2026-06-01T00:00:00Z"),
+        )
+        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=result):
+            client = app.test_client()
+            resp = client.get("/quota", headers={"x-wallet-address": "0xabc"})
+            assert resp.status_code == 200
+        assert captured["quota"] is not None
+        assert captured["quota"].limit == 1500

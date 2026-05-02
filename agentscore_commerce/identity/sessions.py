@@ -6,10 +6,10 @@ import inspect
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, cast
 
-import httpx
+from agentscore import AgentScore, AgentScoreError
 
 from agentscore_commerce.identity.types import DenialReason, build_agent_memory_hint
 
@@ -62,29 +62,16 @@ async def _maybe_await(value: _Hookable) -> Any:
     return value
 
 
-def _session_headers(cfg: CreateSessionOnMissing, user_agent: str) -> dict[str, str]:
-    return {
-        "X-API-Key": cfg.api_key,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent": user_agent,
-    }
-
-
-def _session_url(cfg: CreateSessionOnMissing) -> str:
-    return f"{cfg.base_url.rstrip('/')}/v1/sessions"
-
-
-def _base_session_body(cfg: CreateSessionOnMissing) -> dict[str, Any]:
-    body: dict[str, Any] = {}
-    if cfg.context is not None:
-        body["context"] = cfg.context
-    if cfg.product_name is not None:
-        body["product_name"] = cfg.product_name
-    return body
+def _build_sdk(cfg: CreateSessionOnMissing, user_agent: str) -> AgentScore:
+    return AgentScore(api_key=cfg.api_key, base_url=cfg.base_url, user_agent=user_agent)
 
 
 def _apply_dynamic_options(body: dict[str, Any], dynamic: Any) -> dict[str, Any]:
+    """Merge a per-request override dict over a base body.
+
+    Non-dict ``dynamic`` is treated as a no-op so hooks may return ``None`` without
+    crashing the path.
+    """
     if not isinstance(dynamic, dict):
         return body
     if dynamic.get("context") is not None:
@@ -95,6 +82,16 @@ def _apply_dynamic_options(body: dict[str, Any], dynamic: Any) -> dict[str, Any]
     if dynamic.get("productName") is not None:
         body["product_name"] = dynamic["productName"]
     return body
+
+
+def _resolved_session_options(cfg: CreateSessionOnMissing, dynamic: Any) -> dict[str, Any]:
+    """Merge static cfg fields with any dynamic per-request override dict."""
+    options: dict[str, Any] = {}
+    if cfg.context is not None:
+        options["context"] = cfg.context
+    if cfg.product_name is not None:
+        options["product_name"] = cfg.product_name
+    return _apply_dynamic_options(options, dynamic)
 
 
 def _session_denial_reason(
@@ -150,24 +147,20 @@ async def try_create_session_denial_reason(
     if set — both may be sync or async.
     """
     try:
-        body = _base_session_body(cfg)
+        dynamic: Any = None
         if cfg.get_session_options is not None and ctx is not None:
             try:
                 dynamic = await _maybe_await(cfg.get_session_options(ctx))
-                body = _apply_dynamic_options(body, dynamic)
             except Exception as err:
                 logger.warning("get_session_options hook failed: %s", err)
+                dynamic = None
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                _session_url(cfg),
-                headers=_session_headers(cfg, user_agent),
-                json=body,
-            )
-        if not resp.is_success:
+        options = _resolved_session_options(cfg, dynamic)
+        sdk = _build_sdk(cfg, user_agent)
+        try:
+            data = dict(await sdk.acreate_session(**options))
+        except AgentScoreError:
             return None
-
-        data = resp.json()
 
         extra: dict[str, Any] | None = None
         if cfg.on_before_session is not None and ctx is not None:
@@ -194,28 +187,25 @@ def try_create_session_denial_reason_sync(
     async hook is passed in a sync adapter config, it's skipped with a warning.
     """
     try:
-        body = _base_session_body(cfg)
+        dynamic: Any = None
         if cfg.get_session_options is not None and ctx is not None:
             try:
-                dynamic = cfg.get_session_options(ctx)
-                if inspect.iscoroutine(dynamic):
+                hook_dynamic = cfg.get_session_options(ctx)
+                if inspect.iscoroutine(hook_dynamic):
                     logger.warning("get_session_options returned a coroutine in a sync adapter — skipping")
-                    dynamic.close()
+                    hook_dynamic.close()
                 else:
-                    body = _apply_dynamic_options(body, dynamic)
+                    dynamic = hook_dynamic
             except Exception as err:
                 logger.warning("get_session_options hook failed: %s", err)
+                dynamic = None
 
-        with httpx.Client(timeout=10.0) as client:
-            resp = client.post(
-                _session_url(cfg),
-                headers=_session_headers(cfg, user_agent),
-                json=body,
-            )
-        if not resp.is_success:
+        options = _resolved_session_options(cfg, dynamic)
+        sdk = _build_sdk(cfg, user_agent)
+        try:
+            data = dict(sdk.create_session(**options))
+        except AgentScoreError:
             return None
-
-        data = resp.json()
 
         extra: dict[str, Any] | None = None
         if cfg.on_before_session is not None and ctx is not None:
@@ -232,8 +222,3 @@ def try_create_session_denial_reason_sync(
         return _session_denial_reason(data, extra)
     except Exception:
         return None
-
-
-# Backwards-compat placeholder: old call sites that don't pass ctx still work because
-# the parameter defaults to None. Adapters updated in this change always pass ctx.
-_ = field  # keep import stable for downstream tools that inspect the module

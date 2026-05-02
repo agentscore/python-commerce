@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 keywords = ["agentscore", "agent-commerce", "agentic-payments", "402", "x402", "mpp", "machine-payments-protocol", "fastapi", "starlette", "flask", "django", "aiohttp", "sanic", "middleware", "trust", "reputation", "kyc", "identity", "stripe", "tempo", "solana", "base", "ai-agent"]
 dependencies = [
     "httpx>=0.25.0,<1.0.0",
-    "agentscore-py>=2.0.0",
+    "agentscore-py>=2.1.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -68,6 +68,9 @@ dev = [
     "stripe>=11.0.0",
     "lefthook>=2.1.6",
 ]
+
+[tool.uv.sources]
+agentscore-py = { path = "../python-sdk", editable = true }
 
 [tool.ty.src]
 include = ["agentscore_commerce"]

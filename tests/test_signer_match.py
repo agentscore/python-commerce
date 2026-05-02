@@ -125,15 +125,33 @@ def test_verify_wallet_signer_match_same_operator_pass() -> None:
 
 
 def test_verify_wallet_signer_match_different_operator_rejects() -> None:
+    """New 1-call path: API returns signer_match in the assess response."""
     client = GateClient(api_key=API_KEY)
-    operators = iter(["op_claimed", "op_attacker"])
 
     def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
         resp = MagicMock()
         resp.is_success = True
         resp.status_code = 200
-        op = next(operators)
-        resp.json = lambda op=op: {"resolved_operator": op}
+        resp.json = lambda: {
+            "decision": "allow",
+            "decision_reasons": [],
+            "resolved_operator": "op_claimed",
+            "signer_match": {
+                "kind": "wallet_signer_mismatch",
+                "claimed_operator": "op_claimed",
+                "signer_operator": "op_attacker",
+                "expected_signer": WALLET_A.lower(),
+                "actual_signer": WALLET_B.lower(),
+                "linked_wallets": [WALLET_A.lower()],
+                "agent_instructions": json.dumps(
+                    {
+                        "action": "resign_or_switch_to_operator_token",
+                        "steps": ["re-sign with linked_wallets"],
+                        "user_message": "Different operator detected",
+                    }
+                ),
+            },
+        }
         return resp
 
     with patch.object(client._sync_client, "post", side_effect=fake_post):
@@ -176,6 +194,9 @@ async def test_averify_wallet_signer_match_transient_error_emits_api_error() -> 
 
     async def fake_apost(*_args: object, **_kwargs: object) -> MagicMock:
         resp = MagicMock()
+        # SDK gates response handling on status_code >= 400 — set 503 so the SDK
+        # raises AgentScoreError, which commerce maps to api_error.
+        resp.status_code = 503
         resp.is_success = False
         return resp
 
@@ -187,15 +208,25 @@ async def test_averify_wallet_signer_match_transient_error_emits_api_error() -> 
 
 
 def test_verify_wallet_signer_match_unlinked_signer_rejects() -> None:
+    """New 1-call path: API returns signer_match with signer_operator=None for unlinked wallet."""
     client = GateClient(api_key=API_KEY)
-    operators = iter(["op_claimed", None])
 
     def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
         resp = MagicMock()
         resp.is_success = True
         resp.status_code = 200
-        op = next(operators)
-        resp.json = lambda op=op: {"resolved_operator": op}
+        resp.json = lambda: {
+            "decision": "allow",
+            "decision_reasons": [],
+            "resolved_operator": "op_claimed",
+            "signer_match": {
+                "kind": "wallet_signer_mismatch",
+                "claimed_operator": "op_claimed",
+                "signer_operator": None,
+                "expected_signer": WALLET_A.lower(),
+                "actual_signer": WALLET_B.lower(),
+            },
+        }
         return resp
 
     with patch.object(client._sync_client, "post", side_effect=fake_post):
@@ -217,23 +248,31 @@ async def test_averify_wallet_signer_match_byte_equal_pass() -> None:
 
 @pytest.mark.asyncio
 async def test_averify_wallet_signer_match_linked_wallets_threaded_through() -> None:
-    """Async path surfaces linked_wallets from the claimed wallet's /v1/assess response."""
+    """Async path surfaces linked_wallets from the server-side signer_match response."""
     from unittest.mock import AsyncMock
 
     client = GateClient(api_key=API_KEY)
     extra_wallet = "0xcccc000000000000000000000000000000000000"
-    responses = iter(
-        [
-            {"resolved_operator": "op_claimed", "linked_wallets": [WALLET_A.lower(), extra_wallet]},
-            {"resolved_operator": "op_signer", "linked_wallets": []},
-        ]
-    )
 
     async def fake_apost(*_args: object, **_kwargs: object) -> MagicMock:
         resp = MagicMock()
         resp.is_success = True
         resp.status_code = 200
-        resp.json = MagicMock(return_value=next(responses))
+        resp.json = MagicMock(
+            return_value={
+                "decision": "allow",
+                "decision_reasons": [],
+                "resolved_operator": "op_claimed",
+                "signer_match": {
+                    "kind": "wallet_signer_mismatch",
+                    "claimed_operator": "op_claimed",
+                    "signer_operator": "op_signer",
+                    "expected_signer": WALLET_A.lower(),
+                    "actual_signer": WALLET_B.lower(),
+                    "linked_wallets": [WALLET_A.lower(), extra_wallet],
+                },
+            }
+        )
         return resp
 
     client._async_client.post = AsyncMock(side_effect=fake_apost)
@@ -241,7 +280,7 @@ async def test_averify_wallet_signer_match_linked_wallets_threaded_through() -> 
         VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B),
     )
     assert result.kind == "wallet_signer_mismatch"
-    assert result.linked_wallets == [WALLET_A.lower(), "0xcccc000000000000000000000000000000000000"]
+    assert result.linked_wallets == [WALLET_A.lower(), extra_wallet]
 
 
 @pytest.mark.asyncio
@@ -528,20 +567,27 @@ async def test_sanic_verify_wallet_signer_match_no_op_when_both_headers_sent() -
 
 
 def test_verify_wallet_signer_match_linked_wallets_threaded_through_sync() -> None:
-    """Sync path surfaces linked_wallets from the claimed wallet's /v1/assess response."""
+    """Sync path surfaces linked_wallets from the server-side signer_match response."""
     client = GateClient(api_key=API_KEY)
     extra_wallet = "0xcccc000000000000000000000000000000000000"
-    responses = iter(
-        [
-            {"resolved_operator": "op_claimed", "linked_wallets": [WALLET_A.lower(), extra_wallet]},
-            {"resolved_operator": "op_signer", "linked_wallets": []},
-        ]
-    )
 
     def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
         resp = MagicMock()
+        resp.status_code = 200
         resp.is_success = True
-        resp.json.return_value = next(responses)
+        resp.json.return_value = {
+            "decision": "allow",
+            "decision_reasons": [],
+            "resolved_operator": "op_claimed",
+            "signer_match": {
+                "kind": "wallet_signer_mismatch",
+                "claimed_operator": "op_claimed",
+                "signer_operator": "op_signer",
+                "expected_signer": WALLET_A.lower(),
+                "actual_signer": WALLET_B.lower(),
+                "linked_wallets": [WALLET_A.lower(), extra_wallet],
+            },
+        }
         return resp
 
     with patch.object(client._sync_client, "post", side_effect=fake_post):
@@ -714,8 +760,13 @@ def test_verify_wallet_signer_match_posts_pass_telemetry() -> None:
 
     def capture(url: str, **kwargs: object) -> MagicMock:
         if "/v1/telemetry/signer-match" in url:
-            body = json.loads(kwargs["content"])  # type: ignore[arg-type]
-            telemetry_calls.append(body["kind"])
+            # SDK uses httpx's `json=` kwarg (auto-serializes dict). Older tests
+            # patched a raw httpx call that took `content=<string>`; both shapes
+            # carry the same payload — try `json` first, fall back to `content`.
+            payload = kwargs.get("json")
+            if payload is None and "content" in kwargs:
+                payload = json.loads(kwargs["content"])  # type: ignore[arg-type]
+            telemetry_calls.append(payload["kind"])  # type: ignore[index]
         resp = MagicMock()
         resp.is_success = True
         resp.status_code = 201
@@ -737,8 +788,13 @@ def test_verify_wallet_signer_match_posts_requires_signing_telemetry() -> None:
 
     def capture(url: str, **kwargs: object) -> MagicMock:
         if "/v1/telemetry/signer-match" in url:
-            body = json.loads(kwargs["content"])  # type: ignore[arg-type]
-            telemetry_calls.append(body["kind"])
+            # SDK uses httpx's `json=` kwarg (auto-serializes dict). Older tests
+            # patched a raw httpx call that took `content=<string>`; both shapes
+            # carry the same payload — try `json` first, fall back to `content`.
+            payload = kwargs.get("json")
+            if payload is None and "content" in kwargs:
+                payload = json.loads(kwargs["content"])  # type: ignore[arg-type]
+            telemetry_calls.append(payload["kind"])  # type: ignore[index]
         resp = MagicMock()
         resp.is_success = True
         resp.status_code = 201
@@ -766,3 +822,336 @@ def test_verify_wallet_signer_match_telemetry_failure_does_not_raise() -> None:
             VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_A),
         )
     assert result.kind == "pass"
+
+
+@pytest.mark.asyncio
+async def test_averify_wallet_signer_match_telemetry_failure_does_not_raise() -> None:
+    """Async path mirror — telemetry outage must not break gate decisions."""
+    client = GateClient(api_key=API_KEY)
+
+    async def araiser(*_args: object, **_kwargs: object) -> MagicMock:
+        raise httpx.HTTPError("telemetry outage")
+
+    from unittest.mock import AsyncMock
+
+    client._async_client.post = AsyncMock(side_effect=araiser)
+    result = await client.averify_wallet_signer_match(
+        VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_A),
+    )
+    assert result.kind == "pass"
+
+
+@pytest.mark.asyncio
+async def test_averify_wallet_signer_match_pass_via_shared_operator() -> None:
+    """Different signer wallet but same operator → pass.
+
+    Mirrors the sync ``test_verify_wallet_signer_match_pass_via_shared_operator``
+    branch — pinned independently because the async path's signer_match decode +
+    telemetry chain is wired separately and a regression in either wouldn't show
+    up via the sync test.
+    """
+    client = GateClient(api_key=API_KEY)
+
+    async def fake_apost(*_args: object, **_kwargs: object) -> MagicMock:
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.is_success = True
+        resp.json.return_value = {
+            "decision": "allow",
+            "decision_reasons": [],
+            "resolved_operator": "op_shared",
+            "signer_match": {
+                "kind": "pass",
+                "claimed_operator": "op_shared",
+                "signer_operator": "op_shared",
+            },
+        }
+        return resp
+
+    from unittest.mock import AsyncMock
+
+    client._async_client.post = AsyncMock(side_effect=fake_apost)
+    result = await client.averify_wallet_signer_match(
+        VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B),
+    )
+    assert result.kind == "pass"
+    assert result.claimed_operator == "op_shared"
+    assert result.signer_operator == "op_shared"
+
+
+def test_verify_wallet_signer_match_cache_hit_skips_assess() -> None:
+    """Repeat (claimed, signer) lookup hits the signer_match cache — no fresh assess."""
+    client = GateClient(api_key=API_KEY)
+    call_count = 0
+
+    def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
+        nonlocal call_count
+        call_count += 1
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        resp.json = lambda: {
+            "decision": "allow",
+            "decision_reasons": [],
+            "resolved_operator": "op_shared",
+            "signer_match": {"kind": "pass", "claimed_operator": "op_shared", "signer_operator": "op_shared"},
+        }
+        return resp
+
+    opts = VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B)
+    with patch.object(client._sync_client, "post", side_effect=fake_post):
+        client.verify_wallet_signer_match(opts)
+        first = call_count
+        client.verify_wallet_signer_match(opts)
+    assert call_count == first  # second run reads cached signer_match
+
+
+def test_verify_wallet_signer_match_legacy_fallback_when_signer_match_absent() -> None:
+    """Old API responses lack signer_match — commerce falls back to the 2-resolve path."""
+    client = GateClient(api_key=API_KEY)
+    call_index = 0
+
+    def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
+        nonlocal call_index
+        call_index += 1
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        bodies = [
+            {"decision": "allow", "decision_reasons": [], "resolved_operator": "op_claimed"},
+            {
+                "decision": "allow",
+                "decision_reasons": [],
+                "resolved_operator": "op_claimed",
+                "linked_wallets": [WALLET_A.lower()],
+            },
+            {"decision": "allow", "decision_reasons": [], "resolved_operator": "op_signer"},
+        ]
+        resp.json = lambda i=call_index - 1: bodies[i] if i < len(bodies) else {}
+        return resp
+
+    with patch.object(client._sync_client, "post", side_effect=fake_post):
+        result = client.verify_wallet_signer_match(
+            VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B),
+        )
+    assert result.kind == "wallet_signer_mismatch"
+    assert result.claimed_operator == "op_claimed"
+    assert result.actual_signer_operator == "op_signer"
+
+
+def test_verify_wallet_signer_match_assess_failure_returns_api_error() -> None:
+    """SDK raising AgentScoreError on the resolve_signer-aware assess → api_error."""
+    from agentscore import AgentScoreError as SdkErr
+
+    client = GateClient(api_key=API_KEY)
+
+    def raise_err(*_args: object, **_kwargs: object) -> object:
+        raise SdkErr("network_error", "DNS failure", 0)
+
+    with patch.object(client._sdk, "assess", side_effect=raise_err):
+        result = client.verify_wallet_signer_match(
+            VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B),
+        )
+    assert result.kind == "api_error"
+    assert result.claimed_wallet == WALLET_A.lower()
+
+
+@pytest.mark.asyncio
+async def test_averify_wallet_signer_match_assess_failure_returns_api_error() -> None:
+    """Async mirror — SDK raising AgentScoreError on aassess → api_error."""
+    from unittest.mock import AsyncMock
+
+    from agentscore import AgentScoreError as SdkErr
+
+    client = GateClient(api_key=API_KEY)
+
+    async def raise_err(*_args: object, **_kwargs: object) -> object:
+        raise SdkErr("network_error", "DNS failure", 0)
+
+    client._sdk.aassess = AsyncMock(side_effect=raise_err)
+    result = await client.averify_wallet_signer_match(
+        VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B),
+    )
+    assert result.kind == "api_error"
+    assert result.claimed_wallet == WALLET_A.lower()
+
+
+@pytest.mark.asyncio
+async def test_averify_wallet_signer_match_cache_hit_skips_assess() -> None:
+    """Async mirror of cache hit test."""
+    from unittest.mock import AsyncMock
+
+    client = GateClient(api_key=API_KEY)
+    call_count = 0
+
+    async def fake_apost(*_args: object, **_kwargs: object) -> MagicMock:
+        nonlocal call_count
+        call_count += 1
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        resp.json = MagicMock(
+            return_value={
+                "decision": "allow",
+                "decision_reasons": [],
+                "resolved_operator": "op_shared",
+                "signer_match": {"kind": "pass", "claimed_operator": "op_shared", "signer_operator": "op_shared"},
+            }
+        )
+        return resp
+
+    client._async_client.post = AsyncMock(side_effect=fake_apost)
+    opts = VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B)
+    await client.averify_wallet_signer_match(opts)
+    first = call_count
+    await client.averify_wallet_signer_match(opts)
+    assert call_count == first
+
+
+def test_verify_wallet_signer_match_solana_signer_normalizes_correctly() -> None:
+    """Solana base58 signers must NOT be lowercased — `_infer_signer_network` returns 'solana'."""
+    client = GateClient(api_key=API_KEY)
+    solana_claimed = "DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    solana_signer = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+
+    captured_body: dict[str, object] = {}
+
+    def fake_post(*_args: object, **kwargs: object) -> MagicMock:
+        # SDK serializes the body via httpx `json=` kwarg.
+        if "json" in kwargs:
+            payload = kwargs["json"]
+            if isinstance(payload, dict):
+                captured_body.update(payload)
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        resp.json = lambda: {
+            "decision": "allow",
+            "decision_reasons": [],
+            "resolved_operator": "op_x",
+            "signer_match": {"kind": "pass", "claimed_operator": "op_x", "signer_operator": "op_x"},
+        }
+        return resp
+
+    with patch.object(client._sync_client, "post", side_effect=fake_post):
+        result = client.verify_wallet_signer_match(
+            VerifyWalletSignerMatchOptions(claimed_wallet=solana_claimed, signer=solana_signer),
+        )
+    assert result.kind == "pass"
+    # Solana detection: base58 (no 0x prefix) → network='solana' on the request body.
+    rs = captured_body.get("resolve_signer", {})
+    if isinstance(rs, dict):
+        assert rs.get("network") == "solana"
+
+
+def test_verify_wallet_signer_match_signer_match_with_wallet_auth_requires_signing_kind() -> None:
+    """API-side `wallet_auth_requires_wallet_signing` verdict (e.g. signer null on the API
+    side) projects onto VerifyWalletSignerResult of the same kind. Distinct from the
+    client-side null short-circuit because the API may emit this for other reasons.
+    """
+    client = GateClient(api_key=API_KEY)
+
+    def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        resp.json = lambda: {
+            "decision": "allow",
+            "decision_reasons": [],
+            "resolved_operator": "op_x",
+            "signer_match": {
+                "kind": "wallet_auth_requires_wallet_signing",
+                "claimed_wallet": WALLET_A.lower(),
+                "agent_instructions": json.dumps(
+                    {
+                        "action": "switch_to_operator_token",
+                        "steps": [],
+                        "user_message": "test",
+                    }
+                ),
+            },
+        }
+        return resp
+
+    with patch.object(client._sync_client, "post", side_effect=fake_post):
+        result = client.verify_wallet_signer_match(
+            VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B),
+        )
+    assert result.kind == "wallet_auth_requires_wallet_signing"
+    assert result.claimed_wallet == WALLET_A.lower()
+
+
+def test_verify_wallet_signer_match_legacy_fallback_uses_resolve_cache() -> None:
+    """Legacy fallback path reads the resolve: cache when a previous resolveWalletToOperator
+    call already populated it — saves the second /v1/assess on the legacy branch.
+    """
+    from agentscore_commerce.identity.types import AssessResult
+
+    client = GateClient(api_key=API_KEY)
+    # Pre-warm the resolve: cache for both wallets so the legacy fallback hits cache,
+    # not the network. Mirrors what would happen if a prior signer-match-disabled
+    # API response had already left these entries in cache from a different gate path.
+    client._cache.set(
+        f"resolve:{WALLET_A.lower()}",
+        AssessResult(
+            allow=True, raw={"resolved_operator": "op_shared", "linked_wallets": [WALLET_A.lower(), WALLET_B.lower()]}
+        ),
+    )
+    client._cache.set(
+        f"resolve:{WALLET_B.lower()}",
+        AssessResult(
+            allow=True, raw={"resolved_operator": "op_shared", "linked_wallets": [WALLET_A.lower(), WALLET_B.lower()]}
+        ),
+    )
+
+    def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
+        # Only the resolveSigner-aware assess hits the wire; both legacy resolves hit cache.
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        # No signer_match in body → falls through to legacy. Cache hits for both resolves.
+        resp.json = lambda: {"decision": "allow", "decision_reasons": [], "resolved_operator": "op_shared"}
+        return resp
+
+    with patch.object(client._sync_client, "post", side_effect=fake_post):
+        result = client.verify_wallet_signer_match(
+            VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B),
+        )
+    assert result.kind == "pass"
+    assert result.claimed_operator == "op_shared"
+
+
+@pytest.mark.asyncio
+async def test_averify_wallet_signer_match_legacy_fallback_when_signer_match_absent() -> None:
+    """Async mirror of legacy fallback path."""
+    from unittest.mock import AsyncMock
+
+    client = GateClient(api_key=API_KEY)
+    call_index = 0
+
+    async def fake_apost(*_args: object, **_kwargs: object) -> MagicMock:
+        nonlocal call_index
+        call_index += 1
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        bodies = [
+            {"decision": "allow", "decision_reasons": [], "resolved_operator": "op_claimed"},
+            {
+                "decision": "allow",
+                "decision_reasons": [],
+                "resolved_operator": "op_claimed",
+                "linked_wallets": [WALLET_A.lower()],
+            },
+            {"decision": "allow", "decision_reasons": [], "resolved_operator": "op_signer"},
+        ]
+        resp.json = MagicMock(return_value=bodies[call_index - 1] if call_index <= len(bodies) else {})
+        return resp
+
+    client._async_client.post = AsyncMock(side_effect=fake_apost)
+    result = await client.averify_wallet_signer_match(
+        VerifyWalletSignerMatchOptions(claimed_wallet=WALLET_A, signer=WALLET_B),
+    )
+    assert result.kind == "wallet_signer_mismatch"
+    assert result.claimed_operator == "op_claimed"
+    assert result.actual_signer_operator == "op_signer"

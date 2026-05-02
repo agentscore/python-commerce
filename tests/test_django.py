@@ -619,3 +619,38 @@ class TestDjangoChainOption:
                 raise AssertionError(msg)
 
         assert invocations["count"] == 1
+
+
+class TestDjangoQuotaPropagation:
+    factory = RequestFactory()
+
+    def test_propagates_quota_from_assess_response(self) -> None:
+        """API X-Quota-* → SDK populates AssessResponse.quota → adapter stashes onto request."""
+        from agentscore_commerce.identity.django import get_gate_quota_info
+        from agentscore_commerce.identity.types import GateQuotaInfo
+
+        captured: dict = {}
+
+        def view(request: HttpRequest) -> JsonResponse:
+            captured["quota"] = get_gate_quota_info(request)
+            return JsonResponse({"ok": True})
+
+        original = settings.AGENTSCORE_GATE.copy() if hasattr(settings, "AGENTSCORE_GATE") else {}
+        settings.AGENTSCORE_GATE = {"api_key": "test-key"}
+        try:
+            mw = AgentScoreMiddleware(view)
+            result = AssessResult(
+                allow=True,
+                decision="allow",
+                reasons=[],
+                raw={"decision": "allow"},
+                quota=GateQuotaInfo(limit=1500, used=1200, reset="2026-06-01T00:00:00Z"),
+            )
+            request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+            with patch("agentscore_commerce.identity.django.GateClient.check", return_value=result):
+                resp = mw(request)
+                assert resp.status_code == 200
+            assert captured["quota"] is not None
+            assert captured["quota"].limit == 1500
+        finally:
+            settings.AGENTSCORE_GATE = original

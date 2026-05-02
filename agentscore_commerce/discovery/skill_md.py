@@ -214,8 +214,12 @@ def _quote_yaml(value: str) -> str:
 
 
 def _table_cell(value: str) -> str:
-    """Sanitize a string for a markdown table cell — pipes break the row."""
-    return value.replace("|", "\\|")
+    r"""Sanitize a string for a markdown table cell.
+
+    Escape backslashes first (so existing ``\\`` aren't treated as escapes), then escape
+    pipes (which would otherwise terminate the cell).
+    """
+    return value.replace("\\", "\\\\").replace("|", "\\|")
 
 
 def _frontmatter(input: BuildSkillMdInput) -> str:

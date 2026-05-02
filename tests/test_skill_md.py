@@ -210,6 +210,14 @@ class TestImportantFiles:
         out = build_skill_md(cfg)
         assert "| a\\|b | `https://x.example/foo\\|bar` |" in out
 
+    def test_escapes_backslashes_before_pipes(self) -> None:
+        """Backslashes must escape first, otherwise existing `\\` consumes the pipe escape."""
+        cfg = _base()
+        cfg.files = [SkillMdLink(label="a\\|b", url="https://x.example/c\\d")]
+        out = build_skill_md(cfg)
+        # Backslash → `\\`, then pipe → `\|`. Combined for `a\|b`: `a\\\|b`.
+        assert "| a\\\\\\|b | `https://x.example/c\\\\d` |" in out
+
 
 class TestPaymentSection:
     def test_renders_one_row_per_rail(self) -> None:

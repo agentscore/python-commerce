@@ -48,6 +48,13 @@ class TestFrontmatter:
         out2 = build_skill_md(cfg)
         assert '  version: "2.0.1"' in out2
 
+    def test_version_zero_passes_through(self) -> None:
+        """Parity lock: Node uses ?? (nullish coalescing); Python uses str(); both pass 0 through."""
+        cfg = _base()
+        cfg.version = 0
+        out = build_skill_md(cfg)
+        assert '  version: "0"' in out
+
     def test_quotes_description_with_colons(self) -> None:
         cfg = _base()
         cfg.description = "Use when: buying premium wine"

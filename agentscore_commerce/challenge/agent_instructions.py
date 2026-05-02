@@ -1,7 +1,8 @@
 """agent_instructions block builder for the 402 body."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 _TEMPO_WARNING = (
     "Do NOT use `tempo wallet transfer` to pay to the address above. That moves USDC on-chain but does not "
@@ -46,28 +47,48 @@ def _default_warnings(how_to_pay: dict[str, Any]) -> list[str]:
     return w
 
 
+RailKey = Literal["tempo_mpp", "x402_base", "x402_solana", "stripe"]
+
+_RAIL_CLIENTS: dict[str, list[str]] = {
+    "tempo_mpp": ["agentscore-pay", "tempo request", "x402-proxy"],
+    "x402_base": ["agentscore-pay", "x402-proxy", "purl (omit --network flag)"],
+    "x402_solana": ["agentscore-pay"],
+    "stripe": ["link-cli"],
+}
+
+
+def compatible_clients_by_rails(rails: Iterable[str]) -> dict[str, list[str]] | None:
+    """Smoke-verified client list for a set of rail keys.
+
+    The single source of truth for "which CLIs we've verified end-to-end on each rail" —
+    consumed both by the 402-body builder (``build_agent_instructions``) and by discovery
+    surfaces (skill.md, llms.txt, etc.). Update here, every surface inherits.
+    """
+    out: dict[str, list[str]] = {}
+    for r in rails:
+        clients = _RAIL_CLIENTS.get(r)
+        if clients is not None:
+            out[r] = list(clients)
+    return out or None
+
+
 def _default_compatible_clients(how_to_pay: dict[str, Any]) -> dict[str, list[str]] | None:
     """Default ``compatible_clients`` derived from the rails declared in ``how_to_pay``.
 
-    Lists clients the AgentScore team has smoke-verified end-to-end against an
-    ``agentscore-commerce`` merchant; entries appear only for rails the vendor actually
-    offers. Vendors override this in ``BuildAgentInstructionsInput(compatible_clients=...)``
+    Vendors override this in ``BuildAgentInstructionsInput(compatible_clients=...)``
     to add their own tested clients or remove entries that don't fit their endpoint.
-
-    Verified state as of the SDK release. The same data is also published as a docs page
-    for humans (rationale, per-rail commands, why some clients don't fully work, last
-    verified date) — this default keeps the merchant-side surface in sync.
+    Verified state as of the SDK release.
     """
-    out: dict[str, list[str]] = {}
+    rails: list[str] = []
     if "tempo" in how_to_pay:
-        out["tempo_mpp"] = ["agentscore-pay", "tempo request", "x402-proxy"]
+        rails.append("tempo_mpp")
     if "x402_base" in how_to_pay:
-        out["x402_base"] = ["agentscore-pay", "x402-proxy", "purl (omit --network flag)"]
+        rails.append("x402_base")
     if "x402_solana" in how_to_pay:
-        out["x402_solana"] = ["agentscore-pay"]
+        rails.append("x402_solana")
     if "stripe" in how_to_pay:
-        out["stripe"] = ["link-cli"]
-    return out or None
+        rails.append("stripe")
+    return compatible_clients_by_rails(rails)
 
 
 @dataclass

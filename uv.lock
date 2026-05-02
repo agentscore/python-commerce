@@ -72,7 +72,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentscore-py", editable = "../python-sdk" },
+    { name = "agentscore-py", specifier = ">=2.1.0" },
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
     { name = "django", marker = "extra == 'django'", specifier = ">=4.0" },
     { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.100.0" },
@@ -111,30 +111,13 @@ dev = [
 [[package]]
 name = "agentscore-py"
 version = "2.1.0"
-source = { editable = "../python-sdk" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.25.0,<1.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21" },
-    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
-]
-provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "lefthook", specifier = ">=2.1.6" },
-    { name = "pytest-asyncio", specifier = ">=1.2.0" },
-    { name = "pytest-cov", specifier = ">=6.0" },
-    { name = "python-dotenv", specifier = ">=1.2.1" },
-    { name = "respx", specifier = ">=0.22.0" },
-    { name = "ruff", specifier = ">=0.11.0" },
-    { name = "ty", specifier = ">=0.0.32" },
-    { name = "vulture", specifier = ">=2.15" },
+sdist = { url = "https://files.pythonhosted.org/packages/4b/aa/d857b03cd36cbc44cdce45f180fb639762a658bec492767c11aa97936bf1/agentscore_py-2.1.0.tar.gz", hash = "sha256:4fc811703ccc463dcd689b90fede67b016ea62d6a344e209d9669cd66ec5463c", size = 57894, upload-time = "2026-05-02T04:51:19.978Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/85/cccf18bbf9752edbc39f5dcc718afcdf4973a8be62067582a3d385085894/agentscore_py-2.1.0-py3-none-any.whl", hash = "sha256:11e6fb0c346540d68c11526b01046b6bdbdb0db66ae3a424490587206ce03af1", size = 19086, upload-time = "2026-05-02T04:51:18.503Z" },
 ]
 
 [[package]]

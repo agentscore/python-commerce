@@ -35,11 +35,13 @@ from agentscore_commerce.discovery.robots_tag import (
 )
 from agentscore_commerce.discovery.skill_md import (
     BuildSkillMdInput,
+    RailKey,
     SkillMdEndpoint,
     SkillMdIdentityRequirements,
     SkillMdLink,
     SkillMdShippingPolicy,
     build_skill_md,
+    compatible_clients_by_rails,
 )
 from agentscore_commerce.discovery.well_known_mpp import (
     PaymentMethodConfig,
@@ -62,6 +64,7 @@ __all__ = [
     "LlmsTxtSection",
     "NoindexNonDiscoveryMiddleware",
     "PaymentMethodConfig",
+    "RailKey",
     "SkillMdEndpoint",
     "SkillMdIdentityRequirements",
     "SkillMdLink",
@@ -77,6 +80,7 @@ __all__ = [
     "build_llms_txt",
     "build_skill_md",
     "build_well_known_mpp",
+    "compatible_clients_by_rails",
     "install_flask_noindex",
     "is_discovery_path",
     "is_discovery_probe_request",

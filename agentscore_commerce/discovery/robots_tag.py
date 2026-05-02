@@ -22,6 +22,7 @@ DEFAULT_DISCOVERY_PATHS: frozenset[str] = frozenset(
         "/openapi.json",
         "/llms.txt",
         "/skill.md",
+        "/SKILL.md",
         "/.well-known/mpp.json",
         "/.well-known/agent-card.json",
         "/.well-known/ucp",

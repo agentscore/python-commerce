@@ -1,4 +1,4 @@
-"""skill.md renderer — Claude-Skill-compatible agent-discovery surface.
+"""skill.md renderer — agentskills.io-compatible agent-discovery surface.
 
 Emits a YAML-frontmatter + markdown body manifest describing a merchant's agent-facing
 contract: payment rails, compatible clients per rail, identity requirements as outcomes,
@@ -8,20 +8,39 @@ Renders strictly agent-facing data — no ``fail_open``, no mount-strategy names
 vendor names, no defense parameters, no idempotency construction. Internal posture stays
 in merchant runtime config.
 
+Spec compliance (https://agentskills.io/specification):
+  * ``name`` validated against the spec regex (lowercase alphanumeric + hyphens, no
+    leading/trailing/consecutive hyphens, ≤64 chars).
+  * ``description`` length capped at 1024.
+  * ``metadata`` values always emitted as quoted strings.
+  * ``description`` (and other user scalars) double-quoted to defuse the colon /
+    newline / quote pitfall the spec explicitly warns about.
+
 The compatible-clients-per-rail table sources from the same SDK constant
 (``compatible_clients_by_rails`` in ``challenge.agent_instructions``) that drives the live
 402 body's ``compatible_clients`` field — single source of truth across surfaces.
 """
 
+import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
-from agentscore_commerce.challenge.agent_instructions import compatible_clients_by_rails
+from agentscore_commerce.challenge.agent_instructions import (
+    RailKey,
+    compatible_clients_by_rails,
+)
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable
+__all__ = [
+    "BuildSkillMdInput",
+    "RailKey",
+    "SkillMdEndpoint",
+    "SkillMdIdentityRequirements",
+    "SkillMdLink",
+    "SkillMdShippingPolicy",
+    "build_skill_md",
+    "compatible_clients_by_rails",
+]
 
-RailKey = Literal["tempo_mpp", "x402_base", "x402_solana", "stripe"]
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 
@@ -35,6 +54,12 @@ class SkillMdEndpoint:
 
 @dataclass
 class SkillMdIdentityRequirements:
+    """Agent-observable identity requirements only (kyc / age / jurisdictions / sanctions).
+
+    Internal posture (``fail_open``, mount strategy, KYC vendor) is intentionally not
+    part of this shape — agents act on outcomes, not implementation.
+    """
+
     kyc_required: bool = False
     min_age: int | None = None
     allowed_jurisdictions: list[str] | None = None
@@ -57,70 +82,77 @@ class SkillMdLink:
 class BuildSkillMdInput:
     """Inputs for ``build_skill_md``.
 
-    Fields without defaults are required: ``name``, ``description``, ``homepage``,
-    ``merchant_name``, ``accepted_rails``, ``endpoints``, ``triggers``.
+    Required fields: ``name``, ``description``, ``homepage``, ``merchant_name``,
+    ``accepted_rails``, ``endpoints``, ``triggers``.
     """
 
-    # Frontmatter
+    # Required frontmatter / body
     name: str
-    """Skill manifest identifier — kebab-case, e.g. 'martin-estate-wine-commerce'."""
+    """Skill manifest identifier — kebab-case per agentskills.io spec: 1-64 chars,
+    lowercase alphanumeric + hyphens, no leading/trailing/consecutive hyphens. Validated
+    at build time; invalid names raise ``ValueError``."""
     description: str
-    """One-line description of what this skill does. Surfaces in skill catalogs."""
+    """Skill description — agentskills.io spec: 1-1024 chars, non-empty. Should describe
+    both what the skill does AND when to use it; imperative phrasing recommended
+    ("Use when…"). Validated at build time; over-length raises ``ValueError``."""
     homepage: str
-    """Merchant homepage (or domain root) — appears in frontmatter."""
+    """Merchant homepage (or domain root). Emitted as ``metadata.homepage`` per spec
+    (top-level non-spec fields go under metadata)."""
     merchant_name: str
     """Human display name (e.g. 'Martin Estate Winery')."""
     accepted_rails: list[RailKey]
     """Rails the merchant accepts. Drives the Payment + Compatible Clients sections.
-    Order is preserved in render. Keep these in sync with the merchant's ``respond_402``
-    rail config."""
+    Order is preserved in render."""
     endpoints: list[SkillMdEndpoint]
     """Agent-facing endpoints — path, method, whether auth is required, brief purpose."""
     triggers: list[str]
     """When this skill should fire (skill loader uses for trigger matching)."""
 
-    # Frontmatter (optional)
-    version: int = 1
-    """Skill schema version — increment when the skill body materially changes. Default 1."""
+    # Optional frontmatter
+    version: str | int = 1
+    """Skill schema version — emitted as a quoted string under ``metadata.version`` per
+    spec (metadata values must be strings). Accepts string or int; ints are converted."""
+    license: str | None = None
+    """Optional ``license:`` frontmatter — license name or path to a bundled license file."""
+    compatibility: str | None = None
+    """Optional ``compatibility:`` frontmatter — environment requirements (max 500 chars).
+    e.g. 'Requires Python 3.11+'."""
+    allowed_tools: str | None = None
+    """Optional ``allowed-tools:`` frontmatter — space-separated string of pre-approved
+    tools (experimental per spec)."""
+    metadata: dict[str, str | int] = field(default_factory=dict)
+    """Additional caller-defined metadata entries — flat string keys/values nested under
+    ``metadata:``. Spec requires string values; ints are converted. ``version`` and
+    ``homepage`` keys are always sourced from the dedicated fields, never from this
+    mapping."""
 
-    # Body
+    # Optional body
     tagline: str | None = None
     """Optional one-line tagline appearing under the title."""
     intro: str | None = None
-    """Optional short prose intro describing what the merchant offers. Renders below the title."""
-
-    # Linked discovery surfaces
+    """Optional short prose intro describing what the merchant offers."""
     files: list[SkillMdLink] = field(default_factory=list)
-    """Files / well-known URLs surfaced under the 'Important Files' table. The skill.md URL
-    itself is added automatically — list other discovery surfaces (llms.txt, mpp.json,
+    """Discovery surface URLs surfaced under the 'Important Files' table. The skill.md
+    URL itself is added automatically — list other surfaces (llms.txt, mpp.json,
     openapi.json, agent-card.json)."""
-
-    # Override the per-rail compatible-clients matrix. When omitted, derives from
-    # ``accepted_rails`` via the SDK's smoke-verified default.
     compatible_clients: dict[str, list[str]] | None = None
-
-    # Identity requirements as agent-observable outcomes (kyc / age / jurisdiction /
-    # sanctions). Internal posture (``fail_open``, mount strategy, KYC vendor) is
-    # intentionally not part of this shape — agents act on outcomes, not implementation.
+    """Override the per-rail compatible-clients matrix. When omitted, derives from
+    ``accepted_rails`` via the SDK's smoke-verified default. Override entries for rails
+    not in ``accepted_rails`` are ignored (the rail isn't accepted, so the row isn't
+    rendered)."""
     identity: SkillMdIdentityRequirements | None = None
     identity_bootstrap_url: str | None = None
-    """URL to the identity-bootstrap skill (typically ``https://agentscore.sh/skill.md``).
-    Linked from the Identity Prerequisite section so an agent without a Passport can
-    follow the bootstrap before attempting purchase."""
-
-    # Physical-goods policy. Omit for digital merchants.
+    """URL to the identity-bootstrap skill. Linked from the Identity Prerequisite section
+    so an agent without a Passport can follow the bootstrap before attempting purchase."""
     shipping: SkillMdShippingPolicy | None = None
-
-    # Optional numbered onboarding steps. Each entry renders as a numbered list item;
-    # may include shell snippets in markdown code fences.
+    """Physical-goods shipping policy. Omit for digital merchants."""
     onboarding_steps: list[str] = field(default_factory=list)
-
-    # Support / homepage / docs links rendered in the Support section.
+    """Optional numbered onboarding steps."""
     support_links: list[SkillMdLink] = field(default_factory=list)
-
-    # When True (default), append a footer noting clients can refresh skill.md to pick
-    # up new endpoints. Set to False to suppress.
+    """Support / homepage / docs links rendered in the Support section."""
     refresh_footer: bool = True
+    """When True (default), append a footer noting clients can refresh skill.md to pick
+    up new endpoints."""
 
 
 _RAIL_LABELS: dict[str, str] = {
@@ -135,27 +167,88 @@ _RAIL_NOTES: dict[str, str] = {
         "USDC. Use `agentscore-pay --chain tempo` (or `tempo request`); "
         "MPP credential goes in `Authorization: Payment`."
     ),
-    "x402_base": ("USDC (EIP-3009). Use `agentscore-pay`; X-Payment header carries the signed credential."),
-    "x402_solana": ("USDC (SPL). Use `agentscore-pay`; X-Payment header carries the signed credential."),
+    "x402_base": "USDC (EIP-3009). Use `agentscore-pay`; X-Payment header carries the signed credential.",
+    "x402_solana": "USDC (SPL). Use `agentscore-pay`; X-Payment header carries the signed credential.",
     "stripe": (
         "Card via Link wallet. Use `@stripe/link-cli` — `agentscore-pay` emits the "
         "handoff hint when this rail is picked."
     ),
 }
 
+_NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+_NAME_MAX = 64
+_DESCRIPTION_MAX = 1024
+_COMPATIBILITY_MAX = 500
+
+
+def _validate(input: BuildSkillMdInput) -> None:
+    n = input.name
+    if not n or len(n) > _NAME_MAX:
+        raise ValueError(f"build_skill_md: name must be 1-{_NAME_MAX} characters (got {len(n) if n else 0})")
+    if not _NAME_RE.match(n):
+        raise ValueError(
+            f'build_skill_md: name "{n}" is invalid — must be lowercase alphanumeric and hyphens, '
+            "no leading/trailing/consecutive hyphens (agentskills.io spec)"
+        )
+    if not input.description:
+        raise ValueError("build_skill_md: description is required and must be non-empty (agentskills.io spec)")
+    if len(input.description) > _DESCRIPTION_MAX:
+        raise ValueError(
+            f"build_skill_md: description must be ≤{_DESCRIPTION_MAX} characters (got {len(input.description)})"
+        )
+    if input.compatibility and len(input.compatibility) > _COMPATIBILITY_MAX:
+        raise ValueError(
+            f"build_skill_md: compatibility must be ≤{_COMPATIBILITY_MAX} characters (got {len(input.compatibility)})"
+        )
+
+
+def _quote_yaml(value: str) -> str:
+    r"""YAML double-quoted scalar with backslash, double-quote, and newlines escaped.
+
+    The agentskills.io spec calls out unquoted colons in ``description`` as the most
+    common parse failure across clients; emit every user-supplied scalar quoted to
+    be safe.
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    return f'"{escaped}"'
+
+
+def _table_cell(value: str) -> str:
+    """Sanitize a string for a markdown table cell — pipes break the row."""
+    return value.replace("|", "\\|")
+
 
 def _frontmatter(input: BuildSkillMdInput) -> str:
-    return "\n".join(
-        [
-            "---",
-            f"name: {input.name}",
-            f"description: {input.description}",
-            f"homepage: {input.homepage}",
-            "metadata:",
-            f"  version: {input.version}",
-            "---",
-        ]
-    )
+    lines = ["---", f"name: {input.name}", f"description: {_quote_yaml(input.description)}"]
+    if input.license:
+        lines.append(f"license: {_quote_yaml(input.license)}")
+    if input.compatibility:
+        lines.append(f"compatibility: {_quote_yaml(input.compatibility)}")
+    if input.allowed_tools:
+        lines.append(f"allowed-tools: {_quote_yaml(input.allowed_tools)}")
+
+    meta: list[tuple[str, str]] = [
+        ("version", str(input.version)),
+        ("homepage", input.homepage),
+    ]
+    for k, v in input.metadata.items():
+        if k in ("version", "homepage"):
+            continue
+        meta.append((k, str(v)))
+    lines.append("metadata:")
+    for k, v in meta:
+        lines.append(f"  {k}: {_quote_yaml(v)}")
+    lines.append("---")
+    return "\n".join(lines)
+
+
+def _title_block(input: BuildSkillMdInput) -> str:
+    parts = [f"# {input.merchant_name}"]
+    if input.tagline:
+        parts.append(f"_{input.tagline}_")
+    if input.intro:
+        parts.append(input.intro)
+    return "\n\n".join(parts)
 
 
 def _important_files(input: BuildSkillMdInput) -> str:
@@ -166,14 +259,19 @@ def _important_files(input: BuildSkillMdInput) -> str:
         f"| **SKILL.md** (this file) | `{skill_url}` |",
     ]
     for f in input.files:
-        rows.append(f"| {f.label} | `{f.url}` |")
+        rows.append(f"| {_table_cell(f.label)} | `{_table_cell(f.url)}` |")
     return "\n".join(["## Important Files", "", *rows])
 
 
 def _payment_section(input: BuildSkillMdInput) -> str:
-    clients = input.compatible_clients
-    if clients is None:
-        clients = compatible_clients_by_rails(input.accepted_rails) or {}
+    override = input.compatible_clients
+    defaults = compatible_clients_by_rails(input.accepted_rails) or {}
+    clients: dict[str, list[str]] = {}
+    for r in input.accepted_rails:
+        if override is not None and r in override:
+            clients[r] = override[r]
+        else:
+            clients[r] = defaults.get(r, [])
     rows = ["| Rail | Notes | Compatible clients |", "|---|---|---|"]
     for r in input.accepted_rails:
         client_list = ", ".join(clients.get(r, [])) or "—"
@@ -244,7 +342,7 @@ def _endpoints_section(input: BuildSkillMdInput) -> str:
     rows = ["| Method | Path | Auth | Purpose |", "|---|---|---|---|"]
     for e in input.endpoints:
         auth_label = "identity required" if e.auth_required else "anonymous"
-        rows.append(f"| {e.method} | `{e.path}` | {auth_label} | {e.description} |")
+        rows.append(f"| {e.method} | `{_table_cell(e.path)}` | {auth_label} | {_table_cell(e.description)} |")
     return "\n".join(["## Endpoints", "", *rows])
 
 
@@ -276,27 +374,18 @@ def _refresh_footer(input: BuildSkillMdInput) -> str:
 
 
 def build_skill_md(input: BuildSkillMdInput) -> str:
-    """Render a Claude-Skill-compatible ``skill.md`` for an agent-commerce merchant.
+    """Render an agentskills.io-compatible ``skill.md`` for an agent-commerce merchant.
 
-    Output is YAML frontmatter (``name`` / ``description`` / ``homepage`` /
-    ``metadata.version``) followed by markdown sections describing payment rails, identity
-    requirements, endpoints, triggers, and support links — exactly the agent-facing
-    contract, with no internal posture (no ``fail_open``, no mount-strategy names, no KYC
-    vendor, no defense parameters).
-
-    The compatible-clients-per-rail table sources from the same SDK constant
-    (``compatible_clients_by_rails``) that drives the live 402 body's
-    ``compatible_clients`` field — single source of truth across surfaces.
+    Output is YAML frontmatter (``name`` / ``description`` / optional ``license`` /
+    ``compatibility`` / ``allowed-tools`` / ``metadata``) followed by markdown sections
+    describing payment rails, identity requirements, endpoints, triggers, and support
+    links — exactly the agent-facing contract, with no internal posture (no
+    ``fail_open``, no mount-strategy names, no KYC vendor, no defense parameters).
     """
-    title_block = [f"# {input.merchant_name}"]
-    if input.tagline:
-        title_block.append(f"\n_{input.tagline}_")
-    if input.intro:
-        title_block.append(f"\n{input.intro}")
-
-    sections: Iterable[str] = (
+    _validate(input)
+    sections = [
         _frontmatter(input),
-        "\n".join(title_block),
+        _title_block(input),
         _important_files(input),
         _identity_section(input),
         _payment_section(input),
@@ -306,7 +395,7 @@ def build_skill_md(input: BuildSkillMdInput) -> str:
         _triggers_section(input),
         _support_section(input),
         _refresh_footer(input),
-    )
+    ]
     body = "\n\n".join(s for s in sections if s)
     while "\n\n\n" in body:
         body = body.replace("\n\n\n", "\n\n")

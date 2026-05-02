@@ -1,4 +1,4 @@
-"""Tests for the skill.md discovery builder."""
+"""Tests for the skill.md discovery builder (agentskills.io spec compliance)."""
 
 import re
 
@@ -22,18 +22,8 @@ def _base() -> BuildSkillMdInput:
         merchant_name="Martin Estate",
         accepted_rails=["tempo_mpp", "x402_base", "x402_solana", "stripe"],
         endpoints=[
-            SkillMdEndpoint(
-                method="GET",
-                path="/api/v1/wines",
-                auth_required=False,
-                description="Wine catalog",
-            ),
-            SkillMdEndpoint(
-                method="POST",
-                path="/api/v1/orders",
-                auth_required=True,
-                description="Place order",
-            ),
+            SkillMdEndpoint(method="GET", path="/api/v1/wines", auth_required=False, description="Wine catalog"),
+            SkillMdEndpoint(method="POST", path="/api/v1/orders", auth_required=True, description="Place order"),
         ],
         triggers=["User wants to buy wine from Martin Estate"],
     )
@@ -43,34 +33,145 @@ class TestFrontmatter:
     def test_emits_yaml_block_with_required_fields(self) -> None:
         out = build_skill_md(_base())
         assert out.startswith("---\n")
-        assert re.search(
-            r"^---\nname: martin-estate-wine-commerce\ndescription: .+\nhomepage: https://martin-estate\.com\nmetadata:\n {2}version: 1\n---",
-            out,
-        )
+        assert "name: martin-estate-wine-commerce" in out
+        assert 'description: "Buy wine from Martin Estate via an AI agent"' in out
+        assert "metadata:" in out
+        assert '  version: "1"' in out
+        assert '  homepage: "https://martin-estate.com"' in out
 
-    def test_honors_version_override(self) -> None:
+    def test_version_emitted_as_quoted_string(self) -> None:
         cfg = _base()
         cfg.version = 7
         out = build_skill_md(cfg)
-        assert "  version: 7" in out
+        assert '  version: "7"' in out
+        cfg.version = "2.0.1"
+        out2 = build_skill_md(cfg)
+        assert '  version: "2.0.1"' in out2
+
+    def test_quotes_description_with_colons(self) -> None:
+        cfg = _base()
+        cfg.description = "Use when: buying premium wine"
+        out = build_skill_md(cfg)
+        assert 'description: "Use when: buying premium wine"' in out
+
+    def test_escapes_double_quotes_in_description(self) -> None:
+        cfg = _base()
+        cfg.description = 'Buy "Estate" wine'
+        out = build_skill_md(cfg)
+        assert 'description: "Buy \\"Estate\\" wine"' in out
+
+    def test_escapes_newlines_in_description(self) -> None:
+        cfg = _base()
+        cfg.description = "line one\nline two"
+        out = build_skill_md(cfg)
+        assert 'description: "line one\\nline two"' in out
+
+    def test_emits_optional_license_compatibility_allowed_tools(self) -> None:
+        cfg = _base()
+        cfg.license = "Apache-2.0"
+        cfg.compatibility = "Requires Python 3.11+"
+        cfg.allowed_tools = "Bash(curl:*)"
+        out = build_skill_md(cfg)
+        assert 'license: "Apache-2.0"' in out
+        assert 'compatibility: "Requires Python 3.11+"' in out
+        assert 'allowed-tools: "Bash(curl:*)"' in out
+
+    def test_omits_optional_fields_by_default(self) -> None:
+        out = build_skill_md(_base())
+        assert not re.search(r"^license:", out, re.MULTILINE)
+        assert not re.search(r"^compatibility:", out, re.MULTILINE)
+        assert not re.search(r"^allowed-tools:", out, re.MULTILINE)
+
+    def test_metadata_extras_with_protected_keys(self) -> None:
+        cfg = _base()
+        cfg.metadata = {"author": "agentscore", "vendor_id": "me-001", "version": "IGNORED", "homepage": "IGNORED"}
+        out = build_skill_md(cfg)
+        assert '  author: "agentscore"' in out
+        assert '  vendor_id: "me-001"' in out
+        assert '  version: "1"' in out
+        assert '  homepage: "https://martin-estate.com"' in out
+        assert "IGNORED" not in out
 
 
-class TestTitle:
+class TestValidation:
+    def test_rejects_empty_name(self) -> None:
+        cfg = _base()
+        cfg.name = ""
+        with pytest.raises(ValueError, match=r"1-64"):
+            build_skill_md(cfg)
+
+    def test_rejects_name_over_64_chars(self) -> None:
+        cfg = _base()
+        cfg.name = "a" * 65
+        with pytest.raises(ValueError, match=r"1-64"):
+            build_skill_md(cfg)
+
+    def test_rejects_uppercase_name(self) -> None:
+        cfg = _base()
+        cfg.name = "Martin-Estate"
+        with pytest.raises(ValueError, match=r"lowercase"):
+            build_skill_md(cfg)
+
+    def test_rejects_leading_hyphen(self) -> None:
+        cfg = _base()
+        cfg.name = "-foo"
+        with pytest.raises(ValueError, match=r"hyphens"):
+            build_skill_md(cfg)
+
+    def test_rejects_trailing_hyphen(self) -> None:
+        cfg = _base()
+        cfg.name = "foo-"
+        with pytest.raises(ValueError, match=r"hyphens"):
+            build_skill_md(cfg)
+
+    def test_rejects_consecutive_hyphens(self) -> None:
+        cfg = _base()
+        cfg.name = "foo--bar"
+        with pytest.raises(ValueError, match=r"hyphens"):
+            build_skill_md(cfg)
+
+    def test_rejects_empty_description(self) -> None:
+        cfg = _base()
+        cfg.description = ""
+        with pytest.raises(ValueError, match=r"non-empty"):
+            build_skill_md(cfg)
+
+    def test_rejects_description_over_1024_chars(self) -> None:
+        cfg = _base()
+        cfg.description = "a" * 1025
+        with pytest.raises(ValueError, match=r"1024"):
+            build_skill_md(cfg)
+
+    def test_rejects_compatibility_over_500_chars(self) -> None:
+        cfg = _base()
+        cfg.compatibility = "a" * 501
+        with pytest.raises(ValueError, match=r"500"):
+            build_skill_md(cfg)
+
+
+class TestTitleBlock:
     def test_renders_merchant_name_as_h1(self) -> None:
         out = build_skill_md(_base())
         assert "\n# Martin Estate\n" in out
 
-    def test_renders_tagline_in_italics(self) -> None:
+    def test_renders_title_tagline_intro_with_blank_lines(self) -> None:
+        cfg = _base()
+        cfg.tagline = "A classic is forever"
+        cfg.intro = "Napa Valley winery, family-run."
+        out = build_skill_md(cfg)
+        assert "# Martin Estate\n\n_A classic is forever_\n\nNapa Valley winery, family-run." in out
+
+    def test_renders_tagline_only(self) -> None:
         cfg = _base()
         cfg.tagline = "A classic is forever"
         out = build_skill_md(cfg)
-        assert "_A classic is forever_" in out
+        assert "# Martin Estate\n\n_A classic is forever_" in out
 
-    def test_renders_intro_paragraph(self) -> None:
+    def test_renders_intro_only(self) -> None:
         cfg = _base()
-        cfg.intro = "Napa Valley winery, family-run."
+        cfg.intro = "Napa Valley winery."
         out = build_skill_md(cfg)
-        assert "Napa Valley winery, family-run." in out
+        assert "# Martin Estate\n\nNapa Valley winery." in out
 
 
 class TestImportantFiles:
@@ -79,7 +180,7 @@ class TestImportantFiles:
         assert "## Important Files" in out
         assert "| **SKILL.md** (this file) | `https://martin-estate.com/skill.md` |" in out
 
-    def test_appends_caller_supplied_files(self) -> None:
+    def test_appends_caller_files(self) -> None:
         cfg = _base()
         cfg.files = [
             SkillMdLink(label="llms.txt", url="https://martin-estate.com/llms.txt"),
@@ -96,9 +197,15 @@ class TestImportantFiles:
         assert "`https://martin-estate.com/skill.md`" in out
         assert "//skill.md" not in out
 
+    def test_escapes_pipes_in_files(self) -> None:
+        cfg = _base()
+        cfg.files = [SkillMdLink(label="a|b", url="https://x.example/foo|bar")]
+        out = build_skill_md(cfg)
+        assert "| a\\|b | `https://x.example/foo\\|bar` |" in out
+
 
 class TestPaymentSection:
-    def test_renders_one_row_per_accepted_rail_with_smoke_verified_clients(self) -> None:
+    def test_renders_one_row_per_rail(self) -> None:
         out = build_skill_md(_base())
         assert "## Payment" in out
         assert "**MPP on Tempo**" in out
@@ -109,7 +216,7 @@ class TestPaymentSection:
         assert "**Stripe Shared Payment Token**" in out
         assert "link-cli" in out
 
-    def test_omits_rails_not_declared(self) -> None:
+    def test_omits_unaccepted_rails(self) -> None:
         cfg = _base()
         cfg.accepted_rails = ["tempo_mpp", "x402_base", "x402_solana"]
         out = build_skill_md(cfg)
@@ -125,7 +232,15 @@ class TestPaymentSection:
         assert "agentscore-pay, merchant-custom-cli" in out
         assert "purl" not in out
 
-    def test_renders_em_dash_when_client_list_explicitly_empty(self) -> None:
+    def test_drops_overrides_for_rails_not_in_accepted(self) -> None:
+        cfg = _base()
+        cfg.accepted_rails = ["x402_base"]
+        cfg.compatible_clients = {"x402_base": ["agentscore-pay"], "stripe": ["rogue-cli"]}
+        out = build_skill_md(cfg)
+        assert "rogue-cli" not in out
+        assert "Stripe Shared Payment Token" not in out
+
+    def test_renders_em_dash_when_clients_empty(self) -> None:
         cfg = _base()
         cfg.accepted_rails = ["x402_base"]
         cfg.compatible_clients = {"x402_base": []}
@@ -134,17 +249,14 @@ class TestPaymentSection:
 
 
 class TestIdentitySection:
-    def test_omits_when_identity_not_declared(self) -> None:
+    def test_omits_when_not_declared(self) -> None:
         out = build_skill_md(_base())
         assert "## Identity Prerequisite" not in out
 
     def test_renders_kyc_age_jurisdictions_sanctions(self) -> None:
         cfg = _base()
         cfg.identity = SkillMdIdentityRequirements(
-            kyc_required=True,
-            min_age=21,
-            allowed_jurisdictions=["US"],
-            sanctions_clear=True,
+            kyc_required=True, min_age=21, allowed_jurisdictions=["US"], sanctions_clear=True
         )
         out = build_skill_md(cfg)
         assert "## Identity Prerequisite" in out
@@ -156,24 +268,21 @@ class TestIdentitySection:
     def test_renders_bootstrap_pointer(self) -> None:
         cfg = _base()
         cfg.identity = SkillMdIdentityRequirements(kyc_required=True)
-        cfg.identity_bootstrap_url = "https://agentscore.sh/skill.md"
+        cfg.identity_bootstrap_url = "https://identity.example.com/skill.md"
         out = build_skill_md(cfg)
-        assert "`https://agentscore.sh/skill.md`" in out
+        assert "`https://identity.example.com/skill.md`" in out
         assert "X-Operator-Token" in out
 
-    def test_omits_when_every_flag_falsy(self) -> None:
+    def test_omits_when_all_flags_falsy(self) -> None:
         cfg = _base()
         cfg.identity = SkillMdIdentityRequirements(kyc_required=False, sanctions_clear=False)
         out = build_skill_md(cfg)
         assert "## Identity Prerequisite" not in out
 
-    def test_does_not_leak_internal_posture(self) -> None:
+    def test_no_internal_posture_leak(self) -> None:
         cfg = _base()
         cfg.identity = SkillMdIdentityRequirements(
-            kyc_required=True,
-            min_age=21,
-            allowed_jurisdictions=["US"],
-            sanctions_clear=True,
+            kyc_required=True, min_age=21, allowed_jurisdictions=["US"], sanctions_clear=True
         )
         out = build_skill_md(cfg)
         for forbidden in [
@@ -185,15 +294,15 @@ class TestIdentitySection:
             "Persona",
             "Stripe Identity",
         ]:
-            assert forbidden not in out, f"leaked internal: {forbidden}"
+            assert forbidden not in out, f"leaked: {forbidden}"
 
 
 class TestShippingSection:
-    def test_omits_for_digital_merchants(self) -> None:
+    def test_omits_when_no_shipping(self) -> None:
         out = build_skill_md(_base())
         assert "## Shipping" not in out
 
-    def test_renders_allowed_countries_and_blocked_states(self) -> None:
+    def test_renders_both_halves(self) -> None:
         cfg = _base()
         cfg.shipping = SkillMdShippingPolicy(allowed_countries=["US"], blocked_states=["AK", "HI", "MS"])
         out = build_skill_md(cfg)
@@ -201,14 +310,14 @@ class TestShippingSection:
         assert "Ships to: US." in out
         assert "Blocked US states: AK, HI, MS." in out
 
-    def test_renders_only_populated_half(self) -> None:
+    def test_renders_only_allowed(self) -> None:
         cfg = _base()
         cfg.shipping = SkillMdShippingPolicy(allowed_countries=["US"])
         out = build_skill_md(cfg)
         assert "Ships to: US." in out
         assert "Blocked US states" not in out
 
-    def test_renders_blocked_only_with_no_allowed(self) -> None:
+    def test_renders_only_blocked(self) -> None:
         cfg = _base()
         cfg.shipping = SkillMdShippingPolicy(blocked_states=["UT", "AK"])
         out = build_skill_md(cfg)
@@ -224,11 +333,17 @@ class TestEndpointsSection:
         assert "| GET | `/api/v1/wines` | anonymous | Wine catalog |" in out
         assert "| POST | `/api/v1/orders` | identity required | Place order |" in out
 
-    def test_omits_section_when_endpoints_empty(self) -> None:
+    def test_omits_when_empty(self) -> None:
         cfg = _base()
         cfg.endpoints = []
         out = build_skill_md(cfg)
         assert "## Endpoints" not in out
+
+    def test_escapes_pipes_in_endpoints(self) -> None:
+        cfg = _base()
+        cfg.endpoints = [SkillMdEndpoint(method="GET", path="/foo|bar", auth_required=False, description="a|b")]
+        out = build_skill_md(cfg)
+        assert "| GET | `/foo\\|bar` | anonymous | a\\|b |" in out
 
 
 class TestTriggersSection:

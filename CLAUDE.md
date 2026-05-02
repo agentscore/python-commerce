@@ -17,7 +17,7 @@ Every helper is extracted from a real consumer, not speculated.
 
 ## Architecture
 
-Single Python package, hatchling-built, published to PyPI as `agentscore-commerce`. Per-framework identity adapters expose the same surface — `AgentScoreGate` (or `agentscore_gate(app, ...)` for Flask/Sanic), `capture_wallet`, `verify_wallet_signer_match`, `get_assess_data` — with network-aware address normalization (EVM lowercased, Solana base58 preserved verbatim).
+Single Python package, hatchling-built, published to PyPI as `agentscore-commerce`. Per-framework identity adapters expose the same surface — `AgentScoreGate` (or `agentscore_gate(app, ...)` for Flask/Sanic), `capture_wallet`, `verify_wallet_signer_match`, `get_assess_data`, `get_gate_degraded_state`, `get_gate_quota_info` — with network-aware address normalization (EVM lowercased, Solana base58 preserved verbatim).
 
 | Directory | Contents |
 |---|---|
@@ -55,6 +55,12 @@ Two identity types: wallet (`X-Wallet-Address`) and operator-token (`X-Operator-
 `create_session_on_missing` auto-mints a verification session when no identity is present and returns 403 with `verify_url` + poll instructions. `verify_wallet_signer_match` (per-adapter) compares the recovered signer against `linked_wallets[]` for cross-chain wallet-stack matching.
 
 Captured wallets: `capture_wallet(...)` is fire-and-forget — reads `operator_token` stashed during gating and POSTs to `/v1/credentials/wallets`. No-ops for wallet-authenticated requests.
+
+Wallet-signer-match: `verify_wallet_signer_match` / `averify_wallet_signer_match` makes a single `/v1/assess` call with `resolve_signer` set; the API resolves both wallets and emits a `signer_match` verdict in the same response — collapses the legacy 2 follow-up assess calls into one round trip. Repeat lookups for the same `(claimed, signer)` pair hit a per-cache-entry `signer_match_by_signer` sub-dict and skip the API entirely. Falls back to a 2-resolve path when the API doesn't emit `signer_match` (canary rollout safety).
+
+### Fail-open (opt-in)
+
+`fail_open=True` on `AgentScoreGate(...)` (or `agentscore_gate(app, ...)`) flips infra-failure handling: 429 / 5xx / network-timeout pass through to the handler with the gate state stamped `degraded=True` + `infra_reason="quota_exceeded" | "api_error" | "network_timeout"`. `get_gate_degraded_state(request)` (Flask: `get_gate_degraded_state()` — reads from `g`) returns `{"degraded": bool, "infra_reason"?: str}` for merchant logging/alerting. Default stays `fail_open=False` — regulated commerce should keep it. Compliance denials (sanctions, age, jurisdiction, signer-mismatch) still deny regardless of the flag. The gate's `try` wraps only the AgentScore call — never the downstream user handler.
 
 ### Mount posture: gate-first vs gate-conditional
 

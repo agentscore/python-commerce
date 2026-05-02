@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from agentscore_commerce.identity._denial import (
     FIXABLE_DENIAL_REASONS,
     build_contact_support_next_steps,
@@ -12,11 +14,16 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -25,9 +32,11 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -45,6 +54,12 @@ DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_KEY = "__agentscore_gate"
 ASSESS_STATE_KEY = "agentscore"
 
+
+def _mark_degraded_aiohttp(request: web.Request, infra_reason: str) -> None:
+    """Stamp the gate state on an aiohttp request as fail-open'd."""
+    apply_degraded(request.get(GATE_STATE_KEY), infra_reason)
+
+
 __all__ = [
     "FIXABLE_DENIAL_REASONS",
     "CreateSessionOnMissing",
@@ -57,6 +72,8 @@ __all__ = [
     "extract_payment_signer",
     "extract_payment_signer_address",
     "get_assess_data",
+    "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -71,6 +88,31 @@ def get_assess_data(request: web.Request) -> dict[str, Any] | None:
     denial.
     """
     return request.get(ASSESS_STATE_KEY)
+
+
+def get_gate_degraded_state(request: web.Request) -> dict[str, Any]:
+    """Return whether the gate fail-open'd due to AgentScore-side infra failure.
+
+    Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
+    "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when bypassed.
+    """
+    state = request.get(GATE_STATE_KEY)
+    if isinstance(state, dict) and state.get("degraded"):
+        return {"degraded": True, "infra_reason": state.get("infra_reason")}
+    return {"degraded": False}
+
+
+def get_gate_quota_info(request: web.Request) -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    """
+    state = request.get(GATE_STATE_KEY)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
 
 
 def _default_extract_identity(request: web.Request) -> AgentIdentity | None:
@@ -172,39 +214,11 @@ def agentscore_gate_middleware(
 
         chain_override = _extract_chain(request)
 
+        # Only acheck_identity is wrapped — the downstream handler call must NOT be in the
+        # try, otherwise an exception in the user's route would be misclassified as an
+        # AgentScore infra failure and (under fail_open) re-invoke their handler.
         try:
             result = await client.acheck_identity(identity, chain_override)
-
-            if result.allow:
-                request["agentscore"] = result.raw
-                return await handler(request)
-
-            # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
-            # same UX as missing_identity: the gate mints a fresh verification session,
-            # the agent polls until status=verified, gets a fresh opc_..., and retries
-            # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
-            # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
-            # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
-            # verified (the user's KYC'd country is in the blocked list — re-doing KYC
-            # won't change the country).
-            if is_fixable_denial(result.reasons) and create_session_on_missing is not None:
-                session_reason = await try_create_session_denial_reason(
-                    create_session_on_missing,
-                    client.user_agent,
-                    request,
-                )
-                if session_reason is not None:
-                    body, status = _on_denied(request, session_reason)
-                    return web.json_response(body, status=status)
-
-            reason = DenialReason(
-                code="wallet_not_trusted",
-                decision=result.decision,
-                reasons=result.reasons,
-                verify_url=result.verify_url,
-            )
-            body, status = _on_denied(request, reason)
-            return web.json_response(body, status=status)
         except PaymentRequiredError:
             if client.fail_open:
                 return await handler(request)
@@ -218,11 +232,62 @@ def agentscore_gate_middleware(
             # Permanent — no auto-session, agent should switch tokens or restart.
             body, status = _on_denied(request, build_invalid_credential_reason())
             return web.json_response(body, status=status)
-        except Exception:
+        except QuotaExceededError:
             if client.fail_open:
+                _mark_degraded_aiohttp(request, "quota_exceeded")
+                return await handler(request)
+            body, status = _on_denied(
+                request,
+                DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS),
+            )
+            return web.json_response(body, status=status)
+        except httpx.TimeoutException:
+            if client.fail_open:
+                _mark_degraded_aiohttp(request, "network_timeout")
                 return await handler(request)
             body, status = _on_denied(request, DenialReason(code="api_error"))
             return web.json_response(body, status=status)
+        except Exception:
+            if client.fail_open:
+                _mark_degraded_aiohttp(request, "api_error")
+                return await handler(request)
+            body, status = _on_denied(request, DenialReason(code="api_error"))
+            return web.json_response(body, status=status)
+
+        if result.allow:
+            request["agentscore"] = result.raw
+            if result.quota is not None:
+                state = request.get(GATE_STATE_KEY)
+                if isinstance(state, dict):
+                    state["quota"] = result.quota
+            return await handler(request)
+
+        # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
+        # same UX as missing_identity: the gate mints a fresh verification session,
+        # the agent polls until status=verified, gets a fresh opc_..., and retries
+        # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
+        # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
+        # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
+        # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+        # won't change the country).
+        if is_fixable_denial(result.reasons) and create_session_on_missing is not None:
+            session_reason = await try_create_session_denial_reason(
+                create_session_on_missing,
+                client.user_agent,
+                request,
+            )
+            if session_reason is not None:
+                body, status = _on_denied(request, session_reason)
+                return web.json_response(body, status=status)
+
+        reason = DenialReason(
+            code="wallet_not_trusted",
+            decision=result.decision,
+            reasons=result.reasons,
+            verify_url=result.verify_url,
+        )
+        body, status = _on_denied(request, reason)
+        return web.json_response(body, status=status)
 
     return _agentscore_middleware
 

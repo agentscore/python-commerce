@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, NoReturn
 
+import httpx
 from starlette.requests import Request  # noqa: TC002 - runtime import required for FastAPI DI
 
 from agentscore_commerce.identity._denial import (
@@ -20,11 +21,16 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -33,9 +39,11 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -51,6 +59,48 @@ DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_KEY = "__agentscore_gate"
 ASSESS_STATE_KEY = "agentscore"
 
+
+def _mark_degraded(request: Request, infra_reason: str) -> None:
+    """Stamp the per-request gate state on ``request.state`` as fail-open'd.
+
+    Resolves the framework-specific state container; the shared mutation
+    contract lives in :func:`apply_degraded`.
+    """
+    apply_degraded(getattr(request.state, GATE_STATE_KEY, None), infra_reason)
+
+
+def get_gate_degraded_state(request: Request) -> dict[str, Any]:
+    """Return whether the gate fail-open'd due to AgentScore-side infra failure.
+
+    Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
+    "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when the gate
+    was bypassed (compliance NOT enforced — log/alert).
+
+    Only set when ``fail_open=True`` was configured AND the failure was an infra failure.
+    Real compliance denials never trigger fail-open and so never set this flag.
+    """
+    state = getattr(request.state, GATE_STATE_KEY, None)
+    if isinstance(state, dict) and state.get("degraded"):
+        return {"degraded": True, "infra_reason": state.get("infra_reason")}
+    return {"degraded": False}
+
+
+def get_gate_quota_info(request: Request) -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    Returns ``None`` when the request was a fail-open pass-through (no assess call)
+    or when the API didn't emit quota headers (Enterprise / unlimited tiers).
+    Use to monitor approach-to-cap proactively (warn at 80%, alert at 95%).
+    """
+    state = getattr(request.state, GATE_STATE_KEY, None)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
+
+
 __all__ = [
     "FIXABLE_DENIAL_REASONS",
     "AgentScoreGate",
@@ -63,6 +113,8 @@ __all__ = [
     "extract_payment_signer",
     "extract_payment_signer_address",
     "get_assess_data",
+    "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -198,14 +250,32 @@ class AgentScoreGate:
         except InvalidCredentialError:
             # Permanent — no auto-session, agent should switch tokens or restart.
             self._deny(request, build_invalid_credential_reason())
+        except QuotaExceededError:
+            if self._client.fail_open:
+                _mark_degraded(request, "quota_exceeded")
+                return
+            self._deny(request, DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS))
+            return
+        except httpx.TimeoutException:
+            if self._client.fail_open:
+                _mark_degraded(request, "network_timeout")
+                return
+            self._deny(request, DenialReason(code="api_error"))
+            return
         except Exception:
             if self._client.fail_open:
+                _mark_degraded(request, "api_error")
                 return
             self._deny(request, DenialReason(code="api_error"))
             return
 
         if result.allow:
             setattr(request.state, ASSESS_STATE_KEY, result.raw)
+            # Stash quota on gate state so get_gate_quota_info(request) can read it.
+            if result.quota is not None:
+                state = getattr(request.state, GATE_STATE_KEY, None)
+                if isinstance(state, dict):
+                    state["quota"] = result.quota
             return
 
         # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the

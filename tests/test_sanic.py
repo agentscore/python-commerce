@@ -136,6 +136,110 @@ class TestErrorPaths:
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status == 200
 
+    def test_get_gate_degraded_state_returns_default_for_normal_allow(self):
+        from agentscore_commerce.identity.sanic import get_gate_degraded_state
+
+        app = Sanic.get_app("sanic_get_state_default", force_create=True)
+        agentscore_gate(app, api_key="ask_test")
+        captured: dict = {}
+
+        @app.get("/snoop")
+        async def _snoop(request):
+            captured.update(get_gate_degraded_state(request))
+            return response.json({"ok": True})
+
+        with patch(
+            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            new=AsyncMock(return_value=_allow_result()),
+        ):
+            _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 200
+        assert captured == {"degraded": False}
+
+    def test_get_gate_degraded_state_returns_infra_reason_when_degraded(self):
+        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.sanic import get_gate_degraded_state
+
+        app = Sanic.get_app("sanic_get_state_degraded", force_create=True)
+        agentscore_gate(app, api_key="ask_test", fail_open=True)
+        captured: dict = {}
+
+        @app.get("/snoop")
+        async def _snoop(request):
+            captured.update(get_gate_degraded_state(request))
+            return response.json({"ok": True})
+
+        with patch(
+            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
+        ):
+            _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 200
+        assert captured == {"degraded": True, "infra_reason": "quota_exceeded"}
+
+    def test_quota_exceeded_returns_503_when_fail_closed(self):
+        import json as _json
+
+        from agentscore_commerce.identity.client import QuotaExceededError
+
+        app = _make_app("sanic_quota_closed")
+        with patch(
+            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
+        ):
+            _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 503
+        assert resp.json["error"]["code"] == "api_error"
+        instructions = _json.loads(resp.json["agent_instructions"])
+        assert instructions["action"] == "contact_merchant"
+        assert "merchant-side issue" in instructions["steps"][0]
+
+    def test_quota_exceeded_marks_degraded_when_fail_open(self):
+        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.sanic import GATE_STATE_ATTR
+
+        # Build a fresh app to inspect gate state.
+        app = Sanic.get_app("sanic_quota_open", force_create=True)
+        agentscore_gate(app, api_key="ask_test", fail_open=True)
+
+        @app.get("/snoop")
+        async def _snoop(request):
+            state = getattr(request.ctx, GATE_STATE_ATTR, {}) or {}
+            return response.json({k: v for k, v in state.items() if k != "client"})
+
+        with patch(
+            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
+        ):
+            _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 200
+        data = resp.json
+        assert data.get("degraded") is True
+        assert data.get("infra_reason") == "quota_exceeded"
+
+    def test_timeout_marks_degraded_when_fail_open(self):
+        import httpx
+
+        from agentscore_commerce.identity.sanic import GATE_STATE_ATTR
+
+        app = Sanic.get_app("sanic_timeout_open", force_create=True)
+        agentscore_gate(app, api_key="ask_test", fail_open=True)
+
+        @app.get("/snoop")
+        async def _snoop(request):
+            state = getattr(request.ctx, GATE_STATE_ATTR, {}) or {}
+            return response.json({k: v for k, v in state.items() if k != "client"})
+
+        with patch(
+            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            new=AsyncMock(side_effect=httpx.TimeoutException("read timeout")),
+        ):
+            _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status == 200
+        data = resp.json
+        assert data.get("degraded") is True
+        assert data.get("infra_reason") == "network_timeout"
+
     def test_fail_open_allows_through_on_api_error(self):
         app = _make_app("sanic_fail_open_api", fail_open=True)
         with patch(
@@ -369,3 +473,35 @@ def test_sanic_api_error_on_unexpected_exception():
 
     assert resp.status == 503
     assert resp.json["error"]["code"] == "api_error"
+
+
+def test_sanic_propagates_quota_from_assess_response():
+    """API X-Quota-* → SDK populates AssessResponse.quota → adapter stashes onto ctx."""
+    from agentscore_commerce.identity.sanic import get_gate_quota_info
+    from agentscore_commerce.identity.types import GateQuotaInfo
+
+    app = Sanic("sanic_quota_test")
+    agentscore_gate(app, api_key="ak")
+    captured: dict = {}
+
+    @app.get("/")
+    async def index(request):
+        captured["quota"] = get_gate_quota_info(request)
+        return response.json({"ok": True})
+
+    result = AssessResult(
+        allow=True,
+        decision="allow",
+        reasons=[],
+        raw={"decision": "allow"},
+        quota=GateQuotaInfo(limit=1500, used=1200, reset="2026-06-01T00:00:00Z"),
+    )
+    with patch(
+        "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+        new=AsyncMock(return_value=result),
+    ):
+        _req, resp = app.test_client.get("/", headers={"x-wallet-address": "0xabc"})
+
+    assert resp.status == 200
+    assert captured["quota"] is not None
+    assert captured["quota"].limit == 1500

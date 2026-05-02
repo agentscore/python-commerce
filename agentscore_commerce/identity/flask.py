@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from agentscore_commerce.identity._denial import (
     FIXABLE_DENIAL_REASONS,
     build_contact_support_next_steps,
@@ -12,11 +14,16 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -25,9 +32,11 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -56,6 +65,8 @@ __all__ = [
     "extract_payment_signer",
     "extract_payment_signer_address",
     "get_assess_data",
+    "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -72,6 +83,38 @@ def get_assess_data() -> dict[str, Any] | None:
     from flask import g
 
     return getattr(g, ASSESS_STATE_KEY, None)
+
+
+def get_gate_degraded_state() -> dict[str, Any]:
+    """Return whether the gate fail-open'd due to AgentScore-side infra failure.
+
+    Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
+    "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when bypassed.
+    Only set when ``fail_open=True`` AND the failure was infra-shape.
+    """
+    from flask import g
+
+    state = getattr(g, "_agentscore_gate", None)
+    if isinstance(state, dict) and state.get("degraded"):
+        return {"degraded": True, "infra_reason": state.get("infra_reason")}
+    return {"degraded": False}
+
+
+def get_gate_quota_info() -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    Returns ``None`` when the request was a fail-open pass-through or when the API
+    didn't emit quota headers.
+    """
+    from flask import g
+
+    state = getattr(g, "_agentscore_gate", None)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
 
 
 def _default_extract_identity(request: Request) -> AgentIdentity | None:
@@ -152,6 +195,10 @@ def agentscore_gate(
             raise TypeError(msg) from exc
         return jsonify(body), status
 
+    def _mark_degraded(infra_reason: str) -> None:
+        """Stamp the gate state on ``g._agentscore_gate`` as fail-open'd."""
+        apply_degraded(getattr(g, "_agentscore_gate", None), infra_reason)
+
     @app.before_request
     def _agentscore_check() -> Response | tuple[Response, int] | None:
         identity = _resolve_identity(flask_request)
@@ -182,6 +229,10 @@ def agentscore_gate(
 
             if result.allow:
                 g.agentscore = result.raw
+                if result.quota is not None:
+                    state = getattr(g, "_agentscore_gate", None)
+                    if isinstance(state, dict):
+                        state["quota"] = result.quota
                 return None
 
             # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
@@ -218,10 +269,21 @@ def agentscore_gate(
         except InvalidCredentialError:
             # Permanent — no auto-session, agent should switch tokens or restart.
             return _deny(build_invalid_credential_reason())
+        except QuotaExceededError:
+            if client.fail_open:
+                _mark_degraded("quota_exceeded")
+                return None
+            return _deny(DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS))
+        except httpx.TimeoutException:
+            if client.fail_open:
+                _mark_degraded("network_timeout")
+                return None
+            return _deny(DenialReason(code="api_error"))
         except TypeError:
             raise
         except Exception:
             if client.fail_open:
+                _mark_degraded("api_error")
                 return None
             return _deny(DenialReason(code="api_error"))
 

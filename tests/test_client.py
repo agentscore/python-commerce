@@ -187,6 +187,73 @@ class TestParseResponse402:
             client._parse_response(resp)
 
 
+class TestParseResponseStatusCodes:
+    """Cover the bespoke 401/429/5xx branches in _parse_response.
+
+    Production traffic flows through the SDK (which raises typed errors directly),
+    but the helper is preserved for tests that pin the gate's contract independently.
+    """
+
+    def test_429_raises_quota_exceeded(self):
+        from agentscore_commerce.identity.client import QuotaExceededError
+
+        client = _make_client()
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = 429
+        with pytest.raises(QuotaExceededError):
+            client._parse_response(resp)
+
+    def test_401_token_expired_raises_token_denied(self):
+        from agentscore_commerce.identity.client import TokenDeniedError
+
+        client = _make_client()
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = 401
+        resp.json.return_value = {
+            "error": {"code": "token_expired"},
+            "verify_url": "https://x",
+            "session_id": "s",
+            "poll_secret": "p",
+        }
+        with pytest.raises(TokenDeniedError) as info:
+            client._parse_response(resp)
+        assert info.value.body.get("verify_url") == "https://x"
+
+    def test_401_invalid_credential_raises_invalid_credential(self):
+        from agentscore_commerce.identity.client import InvalidCredentialError
+
+        client = _make_client()
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = 401
+        resp.json.return_value = {"error": {"code": "invalid_credential"}}
+        with pytest.raises(InvalidCredentialError):
+            client._parse_response(resp)
+
+    def test_401_unknown_code_raises_runtime_error(self):
+        client = _make_client()
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = 401
+        resp.json.return_value = {"error": {"code": "future_drift"}}
+        with pytest.raises(RuntimeError, match="returned 401"):
+            client._parse_response(resp)
+
+    def test_401_body_unparseable_raises_runtime_error(self):
+        client = _make_client()
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = 401
+        resp.json.side_effect = ValueError("not json")
+        with pytest.raises(RuntimeError, match="returned 401"):
+            client._parse_response(resp)
+
+    def test_5xx_raises_runtime_error(self):
+        client = _make_client()
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = 503
+        resp.is_success = False
+        with pytest.raises(RuntimeError, match="returned 503"):
+            client._parse_response(resp)
+
+
 ASSESS_URL = "https://api.agentscore.sh/v1/assess"
 
 
@@ -270,6 +337,80 @@ class TestCheckFailOpen:
 
         with pytest.raises(RuntimeError, match="AgentScore API returned 500"):
             client.check("0xABC")
+
+    @respx.mock
+    def test_check_raises_quota_exceeded_on_429(self):
+        """429 must be distinguishable from generic 5xx so adapters surface
+        ``infra_reason='quota_exceeded'`` separately when fail_open=True."""
+        from agentscore_commerce.identity.client import QuotaExceededError
+
+        client = _make_client(fail_open=False)
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+
+        with pytest.raises(QuotaExceededError, match="quota_exceeded"):
+            client.check("0xABC")
+
+    @respx.mock
+    def test_check_raises_quota_exceeded_on_typed_429(self):
+        """SDK emits typed QuotaExceededError when body has error.code='quota_exceeded' —
+        commerce wraps it so callers get the gate's QuotaExceededError sentinel.
+        """
+        from agentscore_commerce.identity.client import QuotaExceededError
+
+        client = _make_client(fail_open=False)
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(
+                429,
+                json={"error": {"code": "quota_exceeded", "message": "cap exceeded"}},
+            )
+        )
+
+        with pytest.raises(QuotaExceededError):
+            client.check("0xABC")
+
+    @respx.mock
+    def test_check_raises_payment_required_on_402(self):
+        """402 maps to commerce's PaymentRequiredError sentinel."""
+        client = _make_client(fail_open=False)
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(402))
+
+        with pytest.raises(PaymentRequiredError):
+            client.check("0xABC")
+
+    @respx.mock
+    def test_check_raises_token_denied_on_typed_401(self):
+        """401 with error.code='token_expired' surfaces TokenDeniedError carrying body."""
+        from agentscore_commerce.identity.client import TokenDeniedError
+
+        client = _make_client(fail_open=False)
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(
+                401,
+                json={
+                    "error": {"code": "token_expired"},
+                    "verify_url": "https://x",
+                    "session_id": "s",
+                    "poll_secret": "p",
+                },
+            )
+        )
+
+        with pytest.raises(TokenDeniedError) as info:
+            client.check(operator_token="opc_x")
+        assert info.value.body.get("verify_url") == "https://x"
+
+    @respx.mock
+    def test_check_raises_invalid_credential_on_typed_401(self):
+        """401 with error.code='invalid_credential' surfaces InvalidCredentialError."""
+        from agentscore_commerce.identity.client import InvalidCredentialError
+
+        client = _make_client(fail_open=False)
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(401, json={"error": {"code": "invalid_credential"}}),
+        )
+
+        with pytest.raises(InvalidCredentialError):
+            client.check(operator_token="opc_x")
 
 
 class TestCompliancePolicyFields:
@@ -682,3 +823,113 @@ class TestResolveWalletErrorHandling:
         assert ok is False
         assert op is None
         assert links == []
+
+
+class TestAcheckTypedErrors:
+    """Async path mirror of TestCheckFailOpen — exercises SdkXxxError → commerce-error mapping
+    in :meth:`acheck`. Pinned independently of the sync path because adapters wire each
+    path separately and a regression in one wouldn't show up via the other.
+    """
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_acheck_raises_quota_exceeded_on_typed_429(self):
+        from agentscore_commerce.identity.client import QuotaExceededError
+
+        client = _make_client()
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(
+                429,
+                json={"error": {"code": "quota_exceeded", "message": "cap exceeded"}},
+            )
+        )
+
+        with pytest.raises(QuotaExceededError):
+            await client.acheck("0xABC")
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_acheck_raises_quota_exceeded_on_untyped_429(self):
+        """Mirrors the sync defensive 429-fallback path."""
+        from agentscore_commerce.identity.client import QuotaExceededError
+
+        client = _make_client()
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+
+        with pytest.raises(QuotaExceededError):
+            await client.acheck("0xABC")
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_acheck_raises_payment_required_on_402(self):
+        client = _make_client()
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(402))
+
+        with pytest.raises(PaymentRequiredError):
+            await client.acheck("0xABC")
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_acheck_raises_token_denied_on_typed_401(self):
+        from agentscore_commerce.identity.client import TokenDeniedError
+
+        client = _make_client()
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(
+                401,
+                json={
+                    "error": {"code": "token_expired"},
+                    "verify_url": "https://x",
+                    "session_id": "s",
+                    "poll_secret": "p",
+                },
+            )
+        )
+
+        with pytest.raises(TokenDeniedError) as info:
+            await client.acheck(operator_token="opc_x")
+        assert info.value.body.get("verify_url") == "https://x"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_acheck_raises_invalid_credential_on_typed_401(self):
+        from agentscore_commerce.identity.client import InvalidCredentialError
+
+        client = _make_client()
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(401, json={"error": {"code": "invalid_credential"}}),
+        )
+
+        with pytest.raises(InvalidCredentialError):
+            await client.acheck(operator_token="opc_x")
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_acheck_raises_runtime_error_on_5xx(self):
+        client = _make_client()
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(500))
+
+        with pytest.raises(RuntimeError, match="AgentScore API returned 500"):
+            await client.acheck("0xABC")
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_acheck_re_raises_timeout_as_httpx_timeoutexception(self):
+        """SDK wraps httpx timeouts in its typed TimeoutError, but commerce adapters
+        catch ``httpx.TimeoutException`` to map to ``infra_reason='network_timeout'``.
+        Client must re-raise so adapters keep their existing exception clauses.
+        """
+        client = _make_client()
+        respx.post(ASSESS_URL).mock(side_effect=httpx.TimeoutException("read timeout"))
+
+        with pytest.raises(httpx.TimeoutException):
+            await client.acheck("0xABC")
+
+    @respx.mock
+    def test_check_re_raises_timeout_as_httpx_timeoutexception(self):
+        """Sync mirror of :test:`test_acheck_re_raises_timeout_as_httpx_timeoutexception`."""
+        client = _make_client()
+        respx.post(ASSESS_URL).mock(side_effect=httpx.TimeoutException("read timeout"))
+
+        with pytest.raises(httpx.TimeoutException):
+            client.check("0xABC")

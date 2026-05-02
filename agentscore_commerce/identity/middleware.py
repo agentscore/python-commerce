@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -15,11 +16,16 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -28,9 +34,11 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -48,6 +56,12 @@ DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_KEY = "__agentscore_gate"
 ASSESS_STATE_KEY = "agentscore"
 
+
+def _mark_degraded_asgi(scope: Scope, infra_reason: str) -> None:
+    """Stamp the gate state on the ASGI scope as fail-open'd."""
+    apply_degraded(scope.get("state", {}).get(GATE_STATE_KEY), infra_reason)
+
+
 __all__ = [
     "FIXABLE_DENIAL_REASONS",
     "AgentScoreGate",
@@ -60,6 +74,8 @@ __all__ = [
     "extract_payment_signer",
     "extract_payment_signer_address",
     "get_assess_data",
+    "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -75,6 +91,31 @@ def get_assess_data(request: Request) -> dict[str, Any] | None:
     """
     state = request.scope.get("state") or {}
     return state.get(ASSESS_STATE_KEY)
+
+
+def get_gate_degraded_state(request: Request) -> dict[str, Any]:
+    """Return whether the gate fail-open'd due to AgentScore-side infra failure.
+
+    Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
+    "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when bypassed.
+    """
+    state = (request.scope.get("state") or {}).get(GATE_STATE_KEY)
+    if isinstance(state, dict) and state.get("degraded"):
+        return {"degraded": True, "infra_reason": state.get("infra_reason")}
+    return {"degraded": False}
+
+
+def get_gate_quota_info(request: Request) -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    """
+    state = (request.scope.get("state") or {}).get(GATE_STATE_KEY)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
 
 
 def _default_extract_identity(request: Request) -> AgentIdentity | None:
@@ -182,42 +223,13 @@ class AgentScoreGate:
             await response(scope, receive, send)
             return
 
+        chain_override = self._extract_chain(request) if self._extract_chain else None
+
+        # Only acheck_identity is wrapped — `await self.app(...)` (which runs the downstream
+        # ASGI app) must NOT be in the try, otherwise an exception in the user's app would
+        # be misclassified as an AgentScore infra failure and (under fail_open) re-invoke it.
         try:
-            chain_override = self._extract_chain(request) if self._extract_chain else None
             result = await self._client.acheck_identity(identity, chain_override)
-
-            if result.allow:
-                scope["state"] = {**scope.get("state", {}), "agentscore": result.raw}
-                await self.app(scope, receive, send)
-                return
-
-            # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
-            # same UX as missing_identity: the gate mints a fresh verification session,
-            # the agent polls until status=verified, gets a fresh opc_..., and retries
-            # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
-            # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
-            # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
-            # verified (the user's KYC'd country is in the blocked list — re-doing KYC
-            # won't change the country).
-            if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
-                session_reason = await try_create_session_denial_reason(
-                    self._create_session_on_missing,
-                    self._client.user_agent,
-                    request,
-                )
-                if session_reason is not None:
-                    response = await self._on_denied(request, session_reason)
-                    await response(scope, receive, send)
-                    return
-
-            reason = DenialReason(
-                code="wallet_not_trusted",
-                decision=result.decision,
-                reasons=result.reasons,
-                verify_url=result.verify_url,
-            )
-            response = await self._on_denied(request, reason)
-            await response(scope, receive, send)
         except PaymentRequiredError:
             if self._client.fail_open:
                 await self.app(scope, receive, send)
@@ -225,22 +237,82 @@ class AgentScoreGate:
             reason = DenialReason(code="payment_required")
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
+            return
         except TokenDeniedError as err:
             reason = build_token_denied_reason(err)
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
+            return
         except InvalidCredentialError:
             # Permanent — no auto-session, agent should switch tokens or restart.
             reason = build_invalid_credential_reason()
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
-        except Exception:
+            return
+        except QuotaExceededError:
             if self._client.fail_open:
+                _mark_degraded_asgi(scope, "quota_exceeded")
+                await self.app(scope, receive, send)
+                return
+            reason = DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS)
+            response = await self._on_denied(request, reason)
+            await response(scope, receive, send)
+            return
+        except httpx.TimeoutException:
+            if self._client.fail_open:
+                _mark_degraded_asgi(scope, "network_timeout")
                 await self.app(scope, receive, send)
                 return
             reason = DenialReason(code="api_error")
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
+            return
+        except Exception:
+            if self._client.fail_open:
+                _mark_degraded_asgi(scope, "api_error")
+                await self.app(scope, receive, send)
+                return
+            reason = DenialReason(code="api_error")
+            response = await self._on_denied(request, reason)
+            await response(scope, receive, send)
+            return
+
+        if result.allow:
+            scope["state"] = {**scope.get("state", {}), "agentscore": result.raw}
+            if result.quota is not None:
+                state = scope["state"].get(GATE_STATE_KEY)
+                if isinstance(state, dict):
+                    state["quota"] = result.quota
+            await self.app(scope, receive, send)
+            return
+
+        # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
+        # same UX as missing_identity: the gate mints a fresh verification session,
+        # the agent polls until status=verified, gets a fresh opc_..., and retries
+        # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
+        # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
+        # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
+        # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+        # won't change the country).
+        if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
+            session_reason = await try_create_session_denial_reason(
+                self._create_session_on_missing,
+                self._client.user_agent,
+                request,
+            )
+            if session_reason is not None:
+                response = await self._on_denied(request, session_reason)
+                await response(scope, receive, send)
+                return
+
+        reason = DenialReason(
+            code="wallet_not_trusted",
+            decision=result.decision,
+            reasons=result.reasons,
+            verify_url=result.verify_url,
+        )
+        response = await self._on_denied(request, reason)
+        await response(scope, receive, send)
 
 
 async def verify_wallet_signer_match(

@@ -107,6 +107,154 @@ class TestDependency:
         assert resp.status_code == 503
         assert resp.json()["detail"]["error"]["code"] == "api_error"
 
+    @respx.mock
+    def test_quota_exceeded_returns_503_when_fail_closed(self):
+        """429 from /v1/assess gets dedicated handling; with fail_open=False (default) it
+        surfaces as 503 api_error to the buyer with quota-specific contact_merchant
+        instructions (NOT retry_with_backoff — quota won't recover from retry)."""
+        import json as _json
+
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 503
+        body = resp.json()["detail"]
+        assert body["error"]["code"] == "api_error"
+        instructions = _json.loads(body["agent_instructions"])
+        assert instructions["action"] == "contact_merchant"
+        assert "merchant-side issue" in instructions["steps"][0]
+
+    @respx.mock
+    def test_fail_open_marks_degraded_with_infra_reason_quota(self):
+        """fail_open=True + 429 → request flows through; gate state carries
+        degraded=True + infra_reason='quota_exceeded' for merchant logging/alerts."""
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
+        from fastapi import FastAPI
+
+        from agentscore_commerce.identity.fastapi import GATE_STATE_KEY
+
+        gate = AgentScoreGate(api_key="ask_test", fail_open=True)
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            state = getattr(req.state, GATE_STATE_KEY, None)
+            captured.update(state or {})
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        assert captured.get("degraded") is True
+        assert captured.get("infra_reason") == "quota_exceeded"
+
+    @respx.mock
+    def test_fail_open_marks_degraded_with_infra_reason_api_error(self):
+        """fail_open=True + 5xx → request flows through; gate state carries
+        degraded=True + infra_reason='api_error'."""
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(500))
+        from fastapi import FastAPI
+
+        from agentscore_commerce.identity.fastapi import GATE_STATE_KEY
+
+        gate = AgentScoreGate(api_key="ask_test", fail_open=True)
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            state = getattr(req.state, GATE_STATE_KEY, None)
+            captured.update(state or {})
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        assert captured.get("degraded") is True
+        assert captured.get("infra_reason") == "api_error"
+
+    def test_get_gate_degraded_state_returns_default_for_normal_allow(self):
+        """get_gate_degraded_state returns {degraded: False} for normal compliance allows."""
+        from fastapi import FastAPI
+
+        from agentscore_commerce.identity.fastapi import get_gate_degraded_state
+
+        gate = AgentScoreGate(api_key="ask_test")
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            captured.update(get_gate_degraded_state(req))
+            return {"ok": True}
+
+        with patch(
+            "agentscore_commerce.identity.fastapi.GateClient.acheck_identity",
+            new=AsyncMock(
+                return_value=__import__("agentscore_commerce.identity.types", fromlist=["AssessResult"]).AssessResult(
+                    allow=True, decision="allow"
+                )
+            ),
+        ):
+            client = TestClient(app)
+            resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status_code == 200
+            assert captured == {"degraded": False}
+
+    def test_get_gate_degraded_state_returns_infra_reason_when_degraded(self):
+        """get_gate_degraded_state returns {degraded: True, infra_reason: ...} when gate degraded."""
+        from fastapi import FastAPI
+
+        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.fastapi import get_gate_degraded_state
+
+        gate = AgentScoreGate(api_key="ask_test", fail_open=True)
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            captured.update(get_gate_degraded_state(req))
+            return {"ok": True}
+
+        with patch(
+            "agentscore_commerce.identity.fastapi.GateClient.acheck_identity",
+            new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
+        ):
+            client = TestClient(app)
+            resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status_code == 200
+            assert captured == {"degraded": True, "infra_reason": "quota_exceeded"}
+
+    def test_fail_open_marks_degraded_with_infra_reason_network_timeout(self):
+        """fail_open=True + httpx.TimeoutException → request flows through;
+        gate state carries degraded=True + infra_reason='network_timeout'."""
+        from fastapi import FastAPI
+
+        from agentscore_commerce.identity.fastapi import GATE_STATE_KEY
+
+        gate = AgentScoreGate(api_key="ask_test", fail_open=True)
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            state = getattr(req.state, GATE_STATE_KEY, None)
+            captured.update(state or {})
+            return {"ok": True}
+
+        with patch(
+            "agentscore_commerce.identity.fastapi.GateClient.acheck_identity",
+            new=AsyncMock(side_effect=httpx.TimeoutException("read timeout")),
+        ):
+            client = TestClient(app)
+            resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status_code == 200
+            assert captured.get("degraded") is True
+            assert captured.get("infra_reason") == "network_timeout"
+
 
 class TestOnDenied:
     def test_custom_on_denied_controls_status_and_body(self):
@@ -332,6 +480,61 @@ class TestGetAssessData:
         resp = client.get("/")
         assert resp.status_code == 200
         assert resp.json()["assess"] is None
+
+
+class TestGetGateQuotaInfo:
+    @respx.mock
+    def test_propagates_quota_from_assess_response_headers(self):
+        # API emits X-Quota-* on the assess response → SDK populates AssessResponse.quota →
+        # gate stashes onto request state → adapter exposes via get_gate_quota_info().
+        from agentscore_commerce.identity.fastapi import get_gate_quota_info
+
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"X-Quota-Limit": "1500", "X-Quota-Used": "1200", "X-Quota-Reset": "2026-06-01T00:00:00Z"},
+                json={"decision": "allow", "decision_reasons": []},
+            ),
+        )
+
+        captured = {}
+        gate = AgentScoreGate(api_key="ask_test")
+        app = FastAPI()
+
+        @app.get("/", dependencies=[Depends(gate)])
+        async def index(request: Request):
+            quota = get_gate_quota_info(request)
+            captured["quota"] = quota
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        assert captured["quota"] is not None
+        assert captured["quota"].limit == 1500
+        assert captured["quota"].used == 1200
+        assert captured["quota"].reset == "2026-06-01T00:00:00Z"
+
+    @respx.mock
+    def test_returns_none_when_api_omits_quota_headers(self):
+        # Enterprise / unlimited tiers don't emit X-Quota-* headers — the gate state
+        # carries no quota and get_gate_quota_info returns None.
+        from agentscore_commerce.identity.fastapi import get_gate_quota_info
+
+        _mock_assess("allow")  # no quota headers
+        gate = AgentScoreGate(api_key="ask_test")
+        app = FastAPI()
+        captured = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        async def index(request: Request):
+            captured["quota"] = get_gate_quota_info(request)
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        assert captured["quota"] is None
 
 
 class TestUserAgent:

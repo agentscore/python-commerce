@@ -292,6 +292,32 @@ async def purchase(request: Request):
     return JSONResponse(result.body, status_code=result.status, headers=result.headers)
 ```
 
+## Fail-open behavior
+
+By default AgentScore Gate fails closed: any AgentScore-side infrastructure failure (HTTP 429, 5xx, network timeout) returns 503 to the buyer. Set `fail_open=True` on `AgentScoreGate(...)` to opt in to graceful degradation:
+
+```python
+from fastapi import Depends, FastAPI, Request
+from agentscore_commerce.identity.fastapi import AgentScoreGate, get_gate_degraded_state
+
+app = FastAPI()
+gate = AgentScoreGate(api_key=os.environ["AGENTSCORE_API_KEY"], fail_open=True)
+
+@app.post("/purchase", dependencies=[Depends(gate)])
+async def purchase(request: Request):
+    state = get_gate_degraded_state(request)
+    if state["degraded"]:
+        # Compliance was NOT enforced this request — log/alert/refund-async/etc.
+        logger.warning("gate degraded: %s", state["infra_reason"])
+    # ...rest of handler
+```
+
+When `fail_open=True` AND the failure is infra-shape, the gate state carries `degraded=True` + `infra_reason="quota_exceeded" | "api_error" | "network_timeout"` so merchants can log/alert without parsing console output. **Compliance denials (sanctions, age, jurisdiction, signer-mismatch) still deny regardless of `fail_open`** — `fail_open` only covers "AgentScore couldn't tell us," never "AgentScore said no."
+
+For regulated commerce (alcohol, age-gated, sanctioned-jurisdiction-relevant) keep the default `fail_open=False` — outage is the correct posture; bypassing compliance on infra failure is a compliance gap. For low-stakes commerce or high-uptime SLAs, opt in and use the `degraded` flag as the audit trail.
+
+The `get_gate_degraded_state` helper is exported by every framework adapter (FastAPI, Flask, Django, AIOHTTP, Sanic, ASGI middleware) and reads from the framework-appropriate request state. The signature takes a request argument everywhere except Flask, which reads from `g` and takes no arguments.
+
 ## Examples
 
 The [examples/](./examples) directory has 7 runnable single-file FastAPI apps covering common merchant scenarios. See [examples/README.md](./examples/README.md) for the full table.

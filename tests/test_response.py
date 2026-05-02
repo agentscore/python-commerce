@@ -64,10 +64,24 @@ def test_explicit_agent_instructions_takes_precedence_over_default() -> None:
     assert body["agent_instructions"] == custom
 
 
-def test_codes_without_a_default_keep_no_instructions() -> None:
-    # api_error has its own next_steps fallback (not agent_instructions),
-    # so denial_reason_to_body should NOT inject agent_instructions for it.
+def test_api_error_emits_retry_with_backoff_instructions() -> None:
+    # api_error denials get a structured agent_instructions block with retry-with-backoff
+    # guidance so agents distinguish transient AgentScore-side issues from compliance denials.
+    # agent_instructions is the single retry channel — no separate next_steps block.
     body = denial_reason_to_body(DenialReason(code="api_error"))
-    assert "agent_instructions" not in body
-    # But it still gets the default retry next_steps shape.
-    assert body.get("next_steps") == {"action": "retry", "retry_after_seconds": 5}
+    assert "agent_instructions" in body
+    instructions = json.loads(body["agent_instructions"])
+    assert instructions["action"] == "retry_with_backoff"
+    assert "Verification is temporarily unavailable" in instructions["steps"][0]
+    assert "next_steps" not in body
+
+
+def test_api_error_with_quota_instructions_overrides_retry_default() -> None:
+    # Adapters explicitly pass QUOTA_EXCEEDED_INSTRUCTIONS on the DenialReason for the 429
+    # path so the agent gets contact_merchant guidance instead of an infinite retry loop.
+    from agentscore_commerce.identity._response import QUOTA_EXCEEDED_INSTRUCTIONS
+
+    body = denial_reason_to_body(DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS))
+    instructions = json.loads(body["agent_instructions"])
+    assert instructions["action"] == "contact_merchant"
+    assert "merchant-side issue" in instructions["steps"][0]

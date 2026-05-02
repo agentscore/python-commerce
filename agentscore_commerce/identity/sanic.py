@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from agentscore_commerce.identity._denial import (
     FIXABLE_DENIAL_REASONS,
     build_contact_support_next_steps,
@@ -12,11 +14,16 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import build_missing_identity_reason, denial_reason_to_body
+from agentscore_commerce.identity._response import (
+    QUOTA_EXCEEDED_INSTRUCTIONS,
+    build_missing_identity_reason,
+    denial_reason_to_body,
+)
 from agentscore_commerce.identity.client import (
     GateClient,
     InvalidCredentialError,
     PaymentRequiredError,
+    QuotaExceededError,
     TokenDeniedError,
     build_invalid_credential_reason,
     build_token_denied_reason,
@@ -25,9 +32,11 @@ from agentscore_commerce.identity.sessions import CreateSessionOnMissing, try_cr
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     DenialReason,
+    GateQuotaInfo,
     Network,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
+    apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
@@ -45,6 +54,12 @@ DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_ATTR = "_agentscore_gate"
 ASSESS_STATE_ATTR = "agentscore"
 
+
+def _mark_degraded_sanic(request: Request, infra_reason: str) -> None:
+    """Stamp the gate state on a Sanic request as fail-open'd."""
+    apply_degraded(getattr(request.ctx, GATE_STATE_ATTR, None), infra_reason)
+
+
 __all__ = [
     "FIXABLE_DENIAL_REASONS",
     "CreateSessionOnMissing",
@@ -57,6 +72,8 @@ __all__ = [
     "extract_payment_signer",
     "extract_payment_signer_address",
     "get_assess_data",
+    "get_gate_degraded_state",
+    "get_gate_quota_info",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
@@ -71,6 +88,31 @@ def get_assess_data(request: Request) -> dict[str, Any] | None:
     denial.
     """
     return getattr(request.ctx, ASSESS_STATE_ATTR, None)
+
+
+def get_gate_degraded_state(request: Request) -> dict[str, Any]:
+    """Return whether the gate fail-open'd due to AgentScore-side infra failure.
+
+    Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
+    "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when bypassed.
+    """
+    state = getattr(request.ctx, GATE_STATE_ATTR, None)
+    if isinstance(state, dict) and state.get("degraded"):
+        return {"degraded": True, "infra_reason": state.get("infra_reason")}
+    return {"degraded": False}
+
+
+def get_gate_quota_info(request: Request) -> GateQuotaInfo | None:
+    """Read AgentScore assess quota observability for this request.
+
+    Captured from ``X-Quota-*`` response headers on this request's gate evaluate.
+    """
+    state = getattr(request.ctx, GATE_STATE_ATTR, None)
+    if isinstance(state, dict):
+        quota = state.get("quota")
+        if isinstance(quota, GateQuotaInfo):
+            return quota
+    return None
 
 
 def _default_extract_identity(request: Request) -> AgentIdentity | None:
@@ -179,6 +221,10 @@ def agentscore_gate(
 
             if result.allow:
                 request.ctx.agentscore = result.raw
+                if result.quota is not None:
+                    state = getattr(request.ctx, GATE_STATE_ATTR, None)
+                    if isinstance(state, dict):
+                        state["quota"] = result.quota
                 return None
 
             # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
@@ -220,8 +266,24 @@ def agentscore_gate(
             # Permanent — no auto-session, agent should switch tokens or restart.
             body, status = _on_denied(request, build_invalid_credential_reason())
             return response.json(body, status=status)
+        except QuotaExceededError:
+            if client.fail_open:
+                _mark_degraded_sanic(request, "quota_exceeded")
+                return None
+            body, status = _on_denied(
+                request,
+                DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS),
+            )
+            return response.json(body, status=status)
+        except httpx.TimeoutException:
+            if client.fail_open:
+                _mark_degraded_sanic(request, "network_timeout")
+                return None
+            body, status = _on_denied(request, DenialReason(code="api_error"))
+            return response.json(body, status=status)
         except Exception:
             if client.fail_open:
+                _mark_degraded_sanic(request, "api_error")
                 return None
             body, status = _on_denied(request, DenialReason(code="api_error"))
             return response.json(body, status=status)

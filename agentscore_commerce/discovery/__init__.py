@@ -33,6 +33,14 @@ from agentscore_commerce.discovery.robots_tag import (
     install_flask_noindex,
     is_discovery_path,
 )
+from agentscore_commerce.discovery.skill_md import (
+    BuildSkillMdInput,
+    SkillMdEndpoint,
+    SkillMdIdentityRequirements,
+    SkillMdLink,
+    SkillMdShippingPolicy,
+    build_skill_md,
+)
 from agentscore_commerce.discovery.well_known_mpp import (
     PaymentMethodConfig,
     WellKnownMppInput,
@@ -45,6 +53,7 @@ __all__ = [
     "BazaarDiscoveryConfig",
     "BuildAgentScoreOpenApiSnippetsInput",
     "BuildLlmsTxtInput",
+    "BuildSkillMdInput",
     "DiscoveryProbeOptions",
     "DiscoveryProbeResponse",
     "DjangoNoindexMiddleware",
@@ -53,6 +62,10 @@ __all__ = [
     "LlmsTxtSection",
     "NoindexNonDiscoveryMiddleware",
     "PaymentMethodConfig",
+    "SkillMdEndpoint",
+    "SkillMdIdentityRequirements",
+    "SkillMdLink",
+    "SkillMdShippingPolicy",
     "WellKnownMppInput",
     "X402SampleProbe",
     "agentscore_denial_schemas",
@@ -62,6 +75,7 @@ __all__ = [
     "build_bazaar_discovery_payload",
     "build_discovery_probe_response",
     "build_llms_txt",
+    "build_skill_md",
     "build_well_known_mpp",
     "install_flask_noindex",
     "is_discovery_path",

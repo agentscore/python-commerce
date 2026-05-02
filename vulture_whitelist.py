@@ -20,3 +20,7 @@ Reputation  # noqa: F821
 ScoreDetail  # noqa: F821
 ScoreStatus  # noqa: F821
 OperatorVerification  # noqa: F821
+
+# TYPE_CHECKING imports referenced inside string-literal cast() calls
+DecisionPolicy  # noqa: F821
+ResolveSigner  # noqa: F821

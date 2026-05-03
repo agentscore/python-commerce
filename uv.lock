@@ -10,7 +10,7 @@ resolution-markers = [
 
 [[package]]
 name = "agentscore-commerce"
-version = "1.2.0"
+version = "1.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "agentscore-py" },
@@ -2031,14 +2031,14 @@ wheels = [
 
 [[package]]
 name = "pympp"
-version = "0.6.0"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/90/18/9e021da617fe99e680c8eecc15a27445c85922dc0ab2987d94d55470db52/pympp-0.6.0.tar.gz", hash = "sha256:8c42eb811351c8bf73d61743ab3f5ac0641b1dfae3b966631454d6ecc99d0e0d", size = 134217, upload-time = "2026-04-07T15:31:08.201Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/65/3b/81be4aba4e44f7122a78a182d7112b02ba0b91c7f76c65a44c8811b969af/pympp-0.7.0.tar.gz", hash = "sha256:0689c3b54986b5860650596548320de6026add6409ed08ab84b45444c70d0b08", size = 141144, upload-time = "2026-05-02T19:31:56.545Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/dd/283a8812f5e542eb1e67ae5418552237089f0e4f1bfed02e7ca363853c1f/pympp-0.6.0-py3-none-any.whl", hash = "sha256:c04852dbb4f119d19253064fe0c79acbdbe77322bf78e04a062c8186b118c419", size = 80700, upload-time = "2026-04-07T15:31:06.63Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/c4/fd283dc0b3c176fe5b56d509b52b8852c0d0bd6ae335818cbc80a605c6e2/pympp-0.7.0-py3-none-any.whl", hash = "sha256:914014caffb925adab2cd99064254d1ab48bbd23648f1385b6c724ff01903a36", size = 83155, upload-time = "2026-05-02T19:31:55.391Z" },
 ]
 
 [package.optional-dependencies]
@@ -2059,7 +2059,7 @@ tempo = [
 
 [[package]]
 name = "pytempo"
-version = "0.5.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -2068,9 +2068,9 @@ dependencies = [
     { name = "rlp" },
     { name = "web3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/e5/209f8f2d28752e26162a20e6156051fa6211df6e564c57e00384e85543e5/pytempo-0.5.0.tar.gz", hash = "sha256:b39a948bb856d875e7cf03f1da540acd2035dcc4e5eebc1295bcfc574772a3b4", size = 266722, upload-time = "2026-04-10T08:02:22.939Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/5b/2a31105f61a75413a8a61274443d610a7813142c1638956c76d963228896/pytempo-0.5.1.tar.gz", hash = "sha256:3f70c0bb8b3111b7eb56a334e22df0eeb715b8f35d77fced11358e8d487a6bad", size = 267288, upload-time = "2026-05-02T19:36:30.815Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/ac/5778ad503a1a59d6d23f16db6dda888155da033742ce16a4e3ea0df6ac29/pytempo-0.5.0-py3-none-any.whl", hash = "sha256:8f82fed21db0fe3f503f796f3b70f8d2e4b7edd7e60c89e4da1855109c2cfc2e", size = 38437, upload-time = "2026-04-10T08:02:21.559Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/51/85d4f411c8768b3308b2ef40365f98b7d64ef33655b6bc67f612cdce9416/pytempo-0.5.1-py3-none-any.whl", hash = "sha256:3e912ad4e81455e54523d93dd27cf06921c624b56ec622a4d16e7726640cb04c", size = 38436, upload-time = "2026-05-02T19:36:29.667Z" },
 ]
 
 [[package]]

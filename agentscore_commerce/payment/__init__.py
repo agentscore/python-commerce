@@ -65,7 +65,6 @@ from agentscore_commerce.payment.x402_settle import (
 )
 from agentscore_commerce.payment.x402_validation import (
     X402_SUPPORTED_BASE_NETWORKS,
-    X402_SUPPORTED_SVM_NETWORKS,
     ValidateX402NetworkConfigInput,
     VerifyX402RequestFailure,
     VerifyX402RequestInput,
@@ -79,7 +78,6 @@ __all__ = [
     "SETTLEMENT_OVERRIDES_HEADER",
     "USDC",
     "X402_SUPPORTED_BASE_NETWORKS",
-    "X402_SUPPORTED_SVM_NETWORKS",
     "BuildPaymentDirectiveInput",
     "BuildPaymentHeadersInput",
     "ClassifiedX402Error",

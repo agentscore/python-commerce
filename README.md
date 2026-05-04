@@ -254,9 +254,7 @@ from agentscore_commerce.payment import (
 )
 
 # Boot-time guard — raises if a configured network isn't supported.
-validate_x402_network_config(
-    ValidateX402NetworkConfigInput(base_network=X402_BASE, svm_network=X402_SVM)
-)
+validate_x402_network_config(ValidateX402NetworkConfigInput(base_network=X402_BASE))
 
 @app.post("/purchase")
 async def purchase(request: Request):
@@ -265,8 +263,7 @@ async def purchase(request: Request):
         verified = await verify_x402_request(VerifyX402RequestInput(
             headers=dict(request.headers),
             is_cached_address=pi_cache.has_address,
-            accepted_base_network=X402_BASE,
-            accepted_svm_network=X402_SVM,
+            accepted_network=X402_BASE,
         ))
         if not verified.ok:
             return JSONResponse(verified.body, status_code=verified.status)

@@ -9,13 +9,13 @@ Replaces ~15 lines of boilerplate with a single config call::
 
     server = await create_x402_server(
         facilitator="coinbase",
-        rails=["x402-base-mainnet", "x402-solana-mainnet"],
+        rails=["x402-base-mainnet"],
         bazaar=True,
     )
 
 `x402` is an OPTIONAL peer dependency — install only the schemes you use::
 
-    pip install 'x402[evm,svm,fastapi]>=2.8,<3'   # plus 'coinbase-x402' for the Coinbase facilitator
+    pip install 'x402[evm,fastapi]>=2.8,<3'   # plus 'coinbase-x402' for the Coinbase facilitator
 """
 
 from __future__ import annotations
@@ -32,8 +32,6 @@ if TYPE_CHECKING:
 X402SymbolicRail = Literal[
     "x402-base-mainnet",
     "x402-base-sepolia",
-    "x402-solana-mainnet",
-    "x402-solana-devnet",
     "x402-base-mainnet-upto",
     "x402-base-sepolia-upto",
 ]
@@ -59,8 +57,7 @@ class CreateX402ServerOptions:
 
     rails: list[X402SymbolicRail] = field(default_factory=list)
     """Symbolic rail names to register schemes for. Each gets v1+v2 dual-register
-    applied. Requires the corresponding peer dep installed (``x402[evm]`` for base,
-    ``x402[svm]`` for solana)."""
+    applied. Requires ``x402[evm]`` peer dep installed."""
 
     schemes: list[CustomScheme] = field(default_factory=list)
     """Advanced: register custom (network, scheme) pairs in addition to ``rails``."""
@@ -98,20 +95,14 @@ async def create_x402_server(
     rails_list = list(rails or [])
     schemes_list = list(schemes or [])
 
-    # Eager validation — surface bad rail combinations before paying for peer-dep resolution.
-    for rail in rails_list:
-        if rail.startswith("x402-solana") and rail.endswith("-upto"):
-            msg = f'Rail "{rail}" not supported — the Solana x402 scheme does not ship an upto variant yet (EVM-only).'
-            raise ValueError(msg)
-
     # x402 2.9 layout: top-level `x402` package (with `x402` re-exports of
     # `x402ResourceServer`, `x402Facilitator`); schemes under
-    # `x402.mechanisms.{evm,svm}.{exact,upto}.server`. The 2.8-era v1+v2 dual
+    # `x402.mechanisms.evm.{exact,upto}.server`. The 2.8-era v1+v2 dual
     # register helper is obsolete — `register()` is v2 only and the resource
     # server handles v1 fallback internally via the facilitator.
     x402_top = _import_optional("x402")
     if x402_top is None or not hasattr(x402_top, "x402ResourceServer"):
-        msg = "x402 not installed — run `pip install 'x402[evm,svm,fastapi]>=2.9,<3'` to use create_x402_server."
+        msg = "x402 not installed — run `pip install 'x402[evm,fastapi]>=2.9,<3'` to use create_x402_server."
         raise ImportError(msg)
 
     facilitator_instance: Any
@@ -132,7 +123,6 @@ async def create_x402_server(
     # Lazy-load scheme modules so vendors only need the peer deps for rails they use.
     evm_exact_module: Any | None = None
     evm_upto_module: Any | None = None
-    svm_module: Any | None = None
 
     for rail in rails_list:
         is_upto = rail.endswith("-upto")
@@ -155,15 +145,6 @@ async def create_x402_server(
                     msg = "x402[evm] not installed — run `pip install 'x402[evm]'` for x402 base rails."
                     raise ImportError(msg)
                 server.register(network, scheme_cls())
-        elif rail.startswith("x402-solana"):
-            if svm_module is None:
-                svm_module = _import_optional("x402.mechanisms.svm.exact.server")
-            scheme_cls = getattr(svm_module, "ExactSvmScheme", None) if svm_module else None
-            if scheme_cls is None:
-                msg = "x402[svm] not installed — run `pip install 'x402[svm]'` for x402 solana rails."
-                raise ImportError(msg)
-            network = networks.solana.mainnet.caip2 if rail == "x402-solana-mainnet" else networks.solana.devnet.caip2
-            server.register(network, scheme_cls())
 
     for custom in schemes_list:
         server.register(custom.network, custom.scheme)

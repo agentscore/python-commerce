@@ -17,7 +17,6 @@ from agentscore_commerce.challenge import (
 )
 from agentscore_commerce.payment import (
     X402_SUPPORTED_BASE_NETWORKS,
-    X402_SUPPORTED_SVM_NETWORKS,
     PaymentRequiredHeaderInput,
     ProcessX402SettleFailure,
     ProcessX402SettleInput,
@@ -180,34 +179,18 @@ def test_respond_402_layers_payment_required_when_x402_set():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_validate_x402_accepts_supported_combo():
-    validate_x402_network_config(
-        ValidateX402NetworkConfigInput(
-            base_network=networks.base.sepolia.caip2,
-            svm_network=networks.solana.devnet.caip2,
-        )
-    )
+def test_validate_x402_accepts_supported_base():
+    validate_x402_network_config(ValidateX402NetworkConfigInput(base_network=networks.base.sepolia.caip2))
 
 
 def test_validate_x402_rejects_unknown_base():
     with pytest.raises(ValueError, match="X402_BASE_NETWORK=eip155:9999"):
-        validate_x402_network_config(
-            ValidateX402NetworkConfigInput(base_network="eip155:9999", svm_network=networks.solana.devnet.caip2)
-        )
-
-
-def test_validate_x402_rejects_unknown_svm():
-    with pytest.raises(ValueError, match="X402_SVM_NETWORK=solana:bogus"):
-        validate_x402_network_config(
-            ValidateX402NetworkConfigInput(base_network=networks.base.sepolia.caip2, svm_network="solana:bogus")
-        )
+        validate_x402_network_config(ValidateX402NetworkConfigInput(base_network="eip155:9999"))
 
 
 def test_x402_supported_networks_constants():
     assert networks.base.mainnet.caip2 in X402_SUPPORTED_BASE_NETWORKS
     assert networks.base.sepolia.caip2 in X402_SUPPORTED_BASE_NETWORKS
-    assert networks.solana.mainnet.caip2 in X402_SUPPORTED_SVM_NETWORKS
-    assert networks.solana.devnet.caip2 in X402_SUPPORTED_SVM_NETWORKS
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -233,8 +216,7 @@ async def test_verify_x402_missing_header():
         VerifyX402RequestInput(
             headers={},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -247,8 +229,7 @@ async def test_verify_x402_bad_base64():
         VerifyX402RequestInput(
             headers={"X-Payment": "not-base64-json"},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -262,8 +243,7 @@ async def test_verify_x402_unsupported_network():
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -277,8 +257,7 @@ async def test_verify_x402_malformed_evm_pay_to():
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -292,8 +271,7 @@ async def test_verify_x402_pay_to_not_in_cache():
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_false,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -307,8 +285,7 @@ async def test_verify_x402_failures_carry_regenerate_next_steps():
         VerifyX402RequestInput(
             headers={},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -325,32 +302,27 @@ async def test_verify_x402_success_evm():
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestSuccess)
     assert res.signed_pay_to == pay_to
     assert res.signed_network == networks.base.sepolia.caip2
-    assert res.is_solana is False
 
 
 @pytest.mark.asyncio
-async def test_verify_x402_success_solana():
-    # Real-shape Solana base58 (System Program address)
-    pay_to = "11111111111111111111111111111111"
-    payload = {"accepted": {"network": networks.solana.devnet.caip2, "payTo": pay_to}}
+async def test_verify_x402_rejects_solana_credential():
+    """Solana credentials over x402 are not supported (Solana goes through MPP)."""
+    payload = {"accepted": {"network": networks.solana.mainnet.caip2, "payTo": "11111111111111111111111111111111"}}
     res = await verify_x402_request(
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
-    assert isinstance(res, VerifyX402RequestSuccess)
-    assert res.signed_pay_to == pay_to
-    assert res.is_solana is True
+    assert isinstance(res, VerifyX402RequestFailure)
+    assert "Unsupported x402 network" in res.body["error"]["message"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

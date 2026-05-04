@@ -41,7 +41,7 @@ def test_build_accepted_methods_full_set():
         BuildAcceptedMethodsInput(
             tempo=TempoConfig(recipient="0xT"),
             x402_base=X402BaseConfig(recipient="0xB"),
-            x402_solana=X402SolanaConfig(recipient="solanaaddr"),
+            solana_mpp=X402SolanaConfig(recipient="solanaaddr"),
             stripe=StripeConfig(profile_id="acct_x"),
         )
     )

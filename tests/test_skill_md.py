@@ -20,7 +20,7 @@ def _base() -> BuildSkillMdInput:
         description="Buy wine from Martin Estate via an AI agent",
         homepage="https://martin-estate.com",
         merchant_name="Martin Estate",
-        accepted_rails=["tempo_mpp", "x402_base", "x402_solana", "stripe"],
+        accepted_rails=["tempo_mpp", "x402_base", "solana_mpp", "stripe"],
         endpoints=[
             SkillMdEndpoint(method="GET", path="/api/v1/wines", auth_required=False, description="Wine catalog"),
             SkillMdEndpoint(method="POST", path="/api/v1/orders", auth_required=True, description="Place order"),
@@ -227,13 +227,13 @@ class TestPaymentSection:
         assert "agentscore-pay, tempo request, x402-proxy" in out
         assert "**x402 on Base**" in out
         assert "agentscore-pay, x402-proxy, purl (omit --network flag)" in out
-        assert "**x402 on Solana**" in out
+        assert "**MPP on Solana**" in out
         assert "**Stripe Shared Payment Token**" in out
         assert "link-cli" in out
 
     def test_omits_unaccepted_rails(self) -> None:
         cfg = _base()
-        cfg.accepted_rails = ["tempo_mpp", "x402_base", "x402_solana"]
+        cfg.accepted_rails = ["tempo_mpp", "x402_base", "solana_mpp"]
         out = build_skill_md(cfg)
         assert "**MPP on Tempo**" in out
         assert "**Stripe Shared Payment Token**" not in out
@@ -427,7 +427,7 @@ class TestOutputHygiene:
     [
         ("tempo_mpp", "MPP on Tempo"),
         ("x402_base", "x402 on Base"),
-        ("x402_solana", "x402 on Solana"),
+        ("solana_mpp", "MPP on Solana"),
         ("stripe", "Stripe Shared Payment Token"),
     ],
 )

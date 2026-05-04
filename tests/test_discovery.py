@@ -159,7 +159,7 @@ class TestLlmsTxtPaymentSectionVerbose:
 
     def test_solana_only_no_base(self):
         section = llms_txt_payment_section(
-            LlmsTxtPaymentSectionInput(rails=["x402-solana-mainnet"], app_url="https://x", verbose=True)
+            LlmsTxtPaymentSectionInput(rails=["mpp-solana-mainnet"], app_url="https://x", verbose=True)
         )
         assert "### How to pay with x402 (Solana)" in section
         assert "--chain solana" in section

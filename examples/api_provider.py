@@ -24,7 +24,7 @@ Env vars:
     X402_SOLANA_RECIPIENT — your Solana wallet for receiving USDC
     X402_BASE_NETWORK     — CAIP-2 (default eip155:8453 = Base mainnet;
                             override to eip155:84532 for Sepolia testnet)
-    X402_SVM_NETWORK      — CAIP-2 (default solana mainnet; override to
+    SOLANA_NETWORK_CAIP2      — CAIP-2 (default solana mainnet; override to
                             solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1 for devnet)
 
 Run: uvicorn examples.api_provider:app --port 3000
@@ -57,11 +57,13 @@ REALM = "api.example.com"
 
 # Read network selection from env so the same example serves mainnet + testnet.
 X402_BASE_NETWORK = os.environ.get("X402_BASE_NETWORK", networks.base.mainnet.caip2)
-X402_SVM_NETWORK = os.environ.get("X402_SVM_NETWORK", networks.solana.mainnet.caip2)
+SOLANA_NETWORK_CAIP2 = os.environ.get("SOLANA_NETWORK_CAIP2", networks.solana.mainnet.caip2)
 _BASE_USDC = (
     USDC.base.sepolia.address if networks.base.sepolia.caip2 == X402_BASE_NETWORK else USDC.base.mainnet.address
 )
-_SVM_USDC = USDC.solana.devnet.mint if networks.solana.devnet.caip2 == X402_SVM_NETWORK else USDC.solana.mainnet.mint
+_SVM_USDC = (
+    USDC.solana.devnet.mint if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2 else USDC.solana.mainnet.mint
+)
 _TEMPO_RAIL = "tempo-testnet" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "tempo-mainnet"
 
 app = FastAPI()
@@ -93,7 +95,7 @@ async def search(request: Request):
                 # can find it on an empty-body POST. Commerce synthesizes USDC
                 # sample accepts from the registry per CAIP-2 network passed.
                 x402_sample=X402SampleProbe(
-                    networks=[X402_BASE_NETWORK, X402_SVM_NETWORK],
+                    networks=[X402_BASE_NETWORK, SOLANA_NETWORK_CAIP2],
                     resource_url=f"{REALM}/search",
                 ),
             )
@@ -107,7 +109,7 @@ async def search(request: Request):
             "x402-base-sepolia" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "x402-base-mainnet"
         )
         x402_svm_rail = (
-            "x402-solana-devnet" if networks.solana.devnet.caip2 == X402_SVM_NETWORK else "x402-solana-mainnet"
+            "mpp-solana-devnet" if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2 else "mpp-solana-mainnet"
         )
         directives = [
             payment_directive(
@@ -120,7 +122,7 @@ async def search(request: Request):
                 PaymentDirectiveInput(rail=x402_svm_rail, id=f"{challenge_id}_solana", realm=REALM, request="")
             ),
         ]
-        x402_solana_recipient = os.environ["X402_SOLANA_RECIPIENT"]
+        solana_mpp_recipient = os.environ["X402_SOLANA_RECIPIENT"]
         accepts = [
             {
                 "scheme": "exact",
@@ -135,15 +137,15 @@ async def search(request: Request):
             },
             {
                 "scheme": "exact",
-                "network": X402_SVM_NETWORK,
+                "network": SOLANA_NETWORK_CAIP2,
                 "amount": str(int(PRICE_USDC * 1_000_000)),
                 "asset": _SVM_USDC,
-                "payTo": x402_solana_recipient,
+                "payTo": solana_mpp_recipient,
                 "maxTimeoutSeconds": 300,
                 # SVM transactions require feePayer in extra. Default to the
                 # recipient (round-trip safe for dev). Production merchants
                 # typically point at the Coinbase facilitator's payer address.
-                "extra": {"feePayer": x402_solana_recipient},
+                "extra": {"feePayer": solana_mpp_recipient},
             },
         ]
         return JSONResponse(

@@ -105,7 +105,7 @@ def test_llms_txt_identity_section_includes_compliance_note():
 def test_llms_txt_payment_section_includes_all_rails():
     section = llms_txt_payment_section(
         LlmsTxtPaymentSectionInput(
-            rails=["tempo-mainnet", "x402-base-mainnet", "x402-solana-mainnet", "stripe-spt"],
+            rails=["tempo-mainnet", "x402-base-mainnet", "mpp-solana-mainnet", "stripe-spt"],
             app_url="https://ex.com/buy",
         )
     )
@@ -116,7 +116,7 @@ def test_llms_txt_payment_section_includes_all_rails():
 
 
 def test_build_accepted_methods_includes_solana_only():
-    out = build_accepted_methods(BuildAcceptedMethodsInput(x402_solana=X402SolanaConfig(recipient="solanaaddr")))
+    out = build_accepted_methods(BuildAcceptedMethodsInput(solana_mpp=X402SolanaConfig(recipient="solanaaddr")))
     assert out[0]["network"].startswith("solana:")
     assert out[0]["pay_to"] == "solanaaddr"
 
@@ -127,11 +127,11 @@ def test_build_how_to_pay_solana_only():
             url="https://ex.com",
             retry_body_json="{}",
             total_usd=5.0,
-            rails=HowToPayRails(x402_solana=X402SolanaRailConfig(recipient="solanaaddr")),
+            rails=HowToPayRails(solana_mpp=X402SolanaRailConfig(recipient="solanaaddr")),
         )
     )
-    assert "x402_solana" in out
-    assert "agentscore-pay pay POST" in out["x402_solana"]["command"]
+    assert "solana_mpp" in out
+    assert "agentscore-pay pay POST" in out["solana_mpp"]["command"]
 
 
 def test_build_how_to_pay_tempo_recommend_pay():

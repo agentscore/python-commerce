@@ -30,7 +30,7 @@ DEFAULT_WALLET_COMPATIBILITY = (
 def _default_recommended_tools(how_to_pay: dict[str, Any]) -> list[str]:
     tools: list[str] = []
     has_tempo = "tempo" in how_to_pay
-    has_x402 = "x402_base" in how_to_pay or "x402_solana" in how_to_pay
+    has_x402 = "x402_base" in how_to_pay or "solana_mpp" in how_to_pay
     if has_tempo:
         tools.append(_TEMPO_TOOL)
     if has_tempo or has_x402:
@@ -42,17 +42,17 @@ def _default_warnings(how_to_pay: dict[str, Any]) -> list[str]:
     w: list[str] = []
     if "tempo" in how_to_pay:
         w.append(_TEMPO_WARNING)
-    if "x402_base" in how_to_pay or "x402_solana" in how_to_pay:
+    if "x402_base" in how_to_pay or "solana_mpp" in how_to_pay:
         w.append(_X402_WARNING)
     return w
 
 
-RailKey = Literal["tempo_mpp", "x402_base", "x402_solana", "stripe"]
+RailKey = Literal["tempo_mpp", "x402_base", "solana_mpp", "stripe"]
 
 _RAIL_CLIENTS: dict[str, list[str]] = {
     "tempo_mpp": ["agentscore-pay", "tempo request", "x402-proxy"],
     "x402_base": ["agentscore-pay", "x402-proxy", "purl (omit --network flag)"],
-    "x402_solana": ["agentscore-pay"],
+    "solana_mpp": ["agentscore-pay"],
     "stripe": ["link-cli"],
 }
 
@@ -84,8 +84,8 @@ def _default_compatible_clients(how_to_pay: dict[str, Any]) -> dict[str, list[st
         rails.append("tempo_mpp")
     if "x402_base" in how_to_pay:
         rails.append("x402_base")
-    if "x402_solana" in how_to_pay:
-        rails.append("x402_solana")
+    if "solana_mpp" in how_to_pay:
+        rails.append("solana_mpp")
     if "stripe" in how_to_pay:
         rails.append("stripe")
     return compatible_clients_by_rails(rails)
@@ -112,7 +112,7 @@ def build_agent_instructions(input: BuildAgentInstructionsInput) -> dict[str, An
 
     Defaults adapt to the rails declared in ``how_to_pay``: only tempo-relevant warnings/tools
     appear if ``how_to_pay["tempo"]`` is set, only x402-relevant ones if ``x402_base``/
-    ``x402_solana`` are set. Vendors override ``warnings``/``recommended_tools`` for full control.
+    ``solana_mpp`` are set. Vendors override ``warnings``/``recommended_tools`` for full control.
     """
     recommended_tools = (
         input.recommended_tools if input.recommended_tools is not None else _default_recommended_tools(input.how_to_pay)

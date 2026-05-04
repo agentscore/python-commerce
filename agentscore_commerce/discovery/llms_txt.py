@@ -100,7 +100,7 @@ def _llms_txt_payment_section_compact(input: LlmsTxtPaymentSectionInput) -> str:
             f"- **x402 USDC on Base** (EIP-3009) — `agentscore-pay pay POST {input.app_url} --chain base "
             "-H \"X-Operator-Token: opc_...\" -d '{...}'`"
         )
-    if _has_rail_family(rails, "x402-solana-"):
+    if _has_rail_family(rails, "mpp-solana-"):
         lines.append(
             f"- **x402 USDC on Solana** (SPL Token) — `agentscore-pay pay POST {input.app_url} --chain solana "
             "-H \"X-Operator-Token: opc_...\" -d '{...}'`"
@@ -124,10 +124,10 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
     rails = list(input.rails)
     has_tempo = _has_rail_family(rails, "tempo-")
     has_base = _has_rail_family(rails, "x402-base-")
-    has_solana = _has_rail_family(rails, "x402-solana-")
+    has_solana = _has_rail_family(rails, "mpp-solana-")
     has_stripe = "stripe-spt" in rails
     base_network_name = "Base Sepolia" if _is_testnet_rail(rails, "x402-base-") else "Base"
-    solana_network_name = "Solana devnet" if _is_testnet_rail(rails, "x402-solana-") else "Solana"
+    solana_network_name = "Solana devnet" if _is_testnet_rail(rails, "mpp-solana-") else "Solana"
 
     lines: list[str] = ["## Payment", ""]
     lines.append(

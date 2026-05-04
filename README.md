@@ -17,7 +17,7 @@ pip install agentscore-commerce[fastapi]   # or [flask], [django], [aiohttp], [s
 |---|---|
 | `agentscore_commerce.identity.{fastapi,flask,django,aiohttp,sanic,middleware}` | Trust gate middleware: KYC, sanctions, age, jurisdiction. `AgentScoreGate(...)` (or `agentscore_gate(app, ...)` on Flask/Sanic), `get_assess_data(...)`, `capture_wallet(...)`, `verify_wallet_signer_match(...)`. |
 | `agentscore_commerce.identity` (package level) | Re-exports the denial helpers: `denial_reason_status`, `denial_reason_to_body`, `build_signer_mismatch_body`, `build_contact_support_next_steps`, `verification_agent_instructions`, `is_fixable_denial`, `FIXABLE_DENIAL_REASONS`. Also re-exports the per-product policy helpers: `PolicyBlock`, `GateResult`, `EnforcementMode`, `IdentityStatus`, `build_gate_from_policy`, `run_gate_with_enforcement`, `shipping_country_allowed`, `shipping_state_allowed` — for multi-product merchants where each product carries its own compliance config (hard gate vs soft vs none, per-product shipping allowlists). |
-| `agentscore_commerce.payment` | `networks`, `USDC`, `rails` registries; `payment_directive`, `build_payment_directive`, `www_authenticate_header`, `payment_required_header`, `alias_amount_fields` (v1↔v2 amount field shim — emits both `amount` and `maxAmountRequired` so v1-only x402 parsers like Coinbase awal can read v2 bodies), `settlement_override_header`, `dispatch_settlement_by_network`, `extract_payment_signer` (returns `PaymentSigner({address, network})`), `register_x402_schemes_v1_v2`; drop-in x402 helpers: `validate_x402_network_config` (boot-time guard), `verify_x402_request` (parse + validate inbound X-Payment), `process_x402_settle` (verify-then-settle with one call). |
+| `agentscore_commerce.payment` | `networks`, `USDC`, `rails` registries; `payment_directive`, `build_payment_directive`, `www_authenticate_header`, `payment_required_header`, `alias_amount_fields` (v1↔v2 amount field shim — emits both `amount` and `maxAmountRequired` so v1-only x402 parsers like Coinbase awal can read v2 bodies), `settlement_override_header`, `dispatch_settlement_by_network`, `extract_payment_signer` (returns `PaymentSigner({address, network})`), `register_x402_schemes_v1_v2`; drop-in x402 helpers: `validate_x402_network_config` (boot-time guard), `verify_x402_request` (parse + validate inbound X-Payment), `process_x402_settle` (verify-then-settle with one call), `classify_x402_settle_result` (maps the tagged settle result to a recommended HTTP status / code / next_steps so merchants get a controlled envelope without coupling to facilitator-specific error text). |
 | `agentscore_commerce.discovery` | `is_discovery_probe_request`, `build_discovery_probe_response` (with optional `x402_sample` for x402-aware crawlers — `awal x402 details` etc.), `sample_x402_accept_for_network` (USDC sample-accept builder for known CAIP-2 networks), `build_well_known_mpp`, `build_llms_txt` + `llms_txt_identity_section` + `llms_txt_payment_section` (compact + verbose modes), `build_skill_md` (Claude-Skill-compatible `/skill.md` agent-discovery manifest — strictly agent-facing data only, no internal posture), `agentscore_openapi_snippets`, `build_bazaar_discovery_payload`, `NoindexNonDiscoveryMiddleware` (ASGI middleware that emits `X-Robots-Tag: noindex` on every path except the agent-discovery surfaces — defaults cover `/openapi.json`, `/llms.txt`, `/skill.md`, `/.well-known/{mpp.json,agent-card.json,ucp}`, `/favicon.{png,ico}`; pure helpers `is_discovery_path` + `DEFAULT_DISCOVERY_PATHS` for non-ASGI frameworks). |
 | `agentscore_commerce.challenge` | `build_402_body`, `build_accepted_methods`, `build_identity_metadata`, `build_how_to_pay`, `build_agent_instructions` (auto-emits per-rail `compatible_clients` — smoke-verified CLIs the agent should use; vendor override supported), `build_pricing_block` (cents → dollar-string with optional shipping/tax), `first_encounter_agent_memory` (cross-merchant hint, returns the canonical block or `None` based on a per-merchant first-seen flag), `OrderReceipt` (dataclass for the post-settlement 200 response shape); `respond_402` — drop-in 402 emit that preserves pympp's `WWW-Authenticate` and layers x402's `PAYMENT-REQUIRED`. `build_validation_error` — structured 4xx body builder (`{error: {code, message}, required_fields?, example_body?, next_steps?, ...extra}`) so vendors compose body shapes by name instead of inlining at every validation site. |
 | `agentscore_commerce.stripe_multichain` | `create_multichain_payment_intent`, `get_deposit_address`, `simulate_crypto_deposit`; `create_pi_cache` (TTL'd PI / deposit-address cache, Redis-backed when `redis_url` set, in-memory otherwise), `simulate_deposit_if_test_mode` (gates on `sk_test_` and looks up the PI for you), `STRIPE_TEST_TX_HASH_SUCCESS` / `STRIPE_TEST_TX_HASH_FAILED` constants. Peer dep on `stripe`. |
@@ -247,6 +247,7 @@ from agentscore_commerce.payment import (
     ProcessX402SettleInput,
     ValidateX402NetworkConfigInput,
     VerifyX402RequestInput,
+    classify_x402_settle_result,
     process_x402_settle,
     validate_x402_network_config,
     verify_x402_request,
@@ -276,8 +277,14 @@ async def purchase(request: Request):
             resource_config={"scheme": "exact", "network": verified.signed_network, "price": f"${total}", "payTo": verified.signed_pay_to, "maxTimeoutSeconds": 300},
             resource_meta={"url": str(request.url), "mimeType": "application/json"},
         ))
-        if not settle.success:
-            return JSONResponse({"error": {"code": "payment_proof_invalid", "phase": settle.phase}}, status_code=400)
+        classified = classify_x402_settle_result(settle)
+        if classified is not None:
+            # Log raw `settle` server-side; return controlled phase-based response to the agent.
+            logger.error("x402-settle failed phase=%s raw=%r", settle.phase, settle)
+            return JSONResponse(
+                {"error": {"code": classified.code, "message": classified.message}, "next_steps": classified.next_steps},
+                status_code=classified.status,
+            )
 
         headers = {"payment-response": settle.payment_response_header} if settle.payment_response_header else {}
         return JSONResponse({"ok": True}, headers=headers)

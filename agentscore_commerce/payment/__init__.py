@@ -55,10 +55,12 @@ from agentscore_commerce.payment.x402_server import (
     create_x402_server,
 )
 from agentscore_commerce.payment.x402_settle import (
+    ClassifiedX402Error,
     ProcessX402SettleFailure,
     ProcessX402SettleInput,
     ProcessX402SettleResult,
     ProcessX402SettleSuccess,
+    classify_x402_settle_result,
     process_x402_settle,
 )
 from agentscore_commerce.payment.x402_validation import (
@@ -80,6 +82,7 @@ __all__ = [
     "X402_SUPPORTED_SVM_NETWORKS",
     "BuildPaymentDirectiveInput",
     "BuildPaymentHeadersInput",
+    "ClassifiedX402Error",
     "CreateX402ServerOptions",
     "CustomScheme",
     "MppxRails",
@@ -113,6 +116,7 @@ __all__ = [
     "build_payment_directive",
     "build_payment_headers",
     "build_payment_request_blob",
+    "classify_x402_settle_result",
     "create_mppx_server",
     "create_x402_server",
     "dispatch_settlement_by_network",

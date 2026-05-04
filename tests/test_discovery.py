@@ -4,18 +4,28 @@ import pytest
 
 from agentscore_commerce.discovery import (
     BuildAgentScoreOpenApiSnippetsInput,
+    BuildWellKnownX402Input,
     DiscoveryProbeOptions,
     LlmsTxtIdentitySectionInput,
     LlmsTxtPaymentSectionInput,
     LlmsTxtSection,
     PaymentMethodConfig,
     WellKnownMppInput,
+    WellKnownX402Resource,
+    XPaymentInfoDynamicPrice,
+    XPaymentInfoFixedPrice,
+    XPaymentInfoInput,
     agentscore_openapi_snippets,
+    agentscore_security_schemes,
     build_discovery_probe_response,
     build_llms_txt,
     build_well_known_mpp,
+    build_well_known_x402,
     is_discovery_probe_request,
     llms_txt_payment_section,
+    siwx_security_scheme,
+    x_guidance_extension,
+    x_payment_info_extension,
 )
 
 
@@ -323,3 +333,69 @@ async def test_is_probe_with_real_body_rejected() -> None:
     from agentscore_commerce.discovery.probe import is_discovery_probe_request
 
     assert await is_discovery_probe_request("POST", None, '{"product": "x"}') is False
+
+
+def test_build_well_known_x402_emits_v1_shape():
+    doc = build_well_known_x402(
+        BuildWellKnownX402Input(
+            resources=[
+                WellKnownX402Resource(method="POST", path="/purchase"),
+                WellKnownX402Resource(method="GET", path="/catalog"),
+            ]
+        )
+    )
+    assert doc == {"version": 1, "resources": ["POST /purchase", "GET /catalog"]}
+
+
+def test_build_well_known_x402_uppercases_methods():
+    doc = build_well_known_x402(BuildWellKnownX402Input(resources=[WellKnownX402Resource(method="post", path="/x")]))
+    assert doc["resources"] == ["POST /x"]
+
+
+def test_build_well_known_x402_empty_resources():
+    assert build_well_known_x402(BuildWellKnownX402Input(resources=[])) == {"version": 1, "resources": []}
+
+
+def test_siwx_security_scheme_is_http_bearer_siwx():
+    scheme = siwx_security_scheme()
+    assert scheme["type"] == "http"
+    assert scheme["scheme"] == "bearer"
+    assert scheme["bearerFormat"] == "SIWX"
+
+
+def test_agentscore_security_schemes_includes_siwx():
+    schemes = agentscore_security_schemes()
+    assert "siwx" in schemes
+    assert schemes["siwx"]["bearerFormat"] == "SIWX"
+
+
+def test_x_payment_info_extension_fixed_price():
+    ext = x_payment_info_extension(
+        XPaymentInfoInput(
+            price=XPaymentInfoFixedPrice(currency="USD", amount="0.10"),
+            protocols=[{"x402": {}}],
+        )
+    )
+    assert ext["x-payment-info"]["price"] == {"mode": "fixed", "currency": "USD", "amount": "0.10"}
+    assert ext["x-payment-info"]["protocols"] == [{"x402": {}}]
+
+
+def test_x_payment_info_extension_dynamic_price_with_mpp():
+    ext = x_payment_info_extension(
+        XPaymentInfoInput(
+            price=XPaymentInfoDynamicPrice(currency="USD", min="0.01", max="5.00"),
+            protocols=[
+                {"x402": {}},
+                {"mpp": {"method": "tempo/charge", "intent": "pay", "currency": "USD"}},
+            ],
+        )
+    )
+    assert ext["x-payment-info"]["price"]["mode"] == "dynamic"
+    assert ext["x-payment-info"]["price"]["min"] == "0.01"
+    assert len(ext["x-payment-info"]["protocols"]) == 2
+
+
+def test_x_guidance_extension_wraps_text():
+    assert x_guidance_extension("Use POST /purchase with operator token") == {
+        "x-guidance": "Use POST /purchase with operator token"
+    }

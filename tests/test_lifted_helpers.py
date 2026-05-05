@@ -312,7 +312,11 @@ async def test_verify_x402_success_evm():
 
 @pytest.mark.asyncio
 async def test_verify_x402_rejects_solana_credential():
-    """Solana credentials over x402 are not supported (Solana goes through MPP)."""
+    """Solana credentials over x402 are not supported (Solana goes through MPP).
+
+    The error message + next_steps point the client at MPP `solana/charge` so an
+    agent on a stale x402 SVM client can recover with a single re-sign.
+    """
     payload = {"accepted": {"network": networks.solana.mainnet.caip2, "payTo": "11111111111111111111111111111111"}}
     res = await verify_x402_request(
         VerifyX402RequestInput(
@@ -322,7 +326,11 @@ async def test_verify_x402_rejects_solana_credential():
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
-    assert "Unsupported x402 network" in res.body["error"]["message"]
+    msg = res.body["error"]["message"]
+    assert "Solana" in msg
+    assert "`solana/charge`" in msg
+    # Recovery guidance points at the rail in the 402 challenge, not at any CLI by name.
+    assert "solana/charge" in res.body["next_steps"]["user_message"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

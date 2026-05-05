@@ -98,6 +98,9 @@ class BuildAgentInstructionsInput:
     wallet_compatibility: str | None = None
     timeout_seconds: int = 300
     warnings: list[str] | None = None
+    # Appended to the default protocol-footgun warnings. Use this to keep the SDK's
+    # protocol warnings AND add merchant-specific notes. Ignored when ``warnings`` is set.
+    extra_warnings: list[str] | None = None
     recommended: str | None = None
     # Per-rail list of client names the merchant has verified work end-to-end.
     # Vendors set this from their own smoke matrix — defaults to None, in which case
@@ -117,7 +120,11 @@ def build_agent_instructions(input: BuildAgentInstructionsInput) -> dict[str, An
     recommended_tools = (
         input.recommended_tools if input.recommended_tools is not None else _default_recommended_tools(input.how_to_pay)
     )
-    warnings = input.warnings if input.warnings is not None else _default_warnings(input.how_to_pay)
+    warnings = (
+        input.warnings
+        if input.warnings is not None
+        else [*_default_warnings(input.how_to_pay), *(input.extra_warnings or [])]
+    )
     compatible_clients = (
         input.compatible_clients
         if input.compatible_clients is not None

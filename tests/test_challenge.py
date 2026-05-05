@@ -131,6 +131,31 @@ def test_build_agent_instructions_warnings_match_rails():
     assert stripe_only["recommended_tools"] == []
 
 
+def test_build_agent_instructions_appends_extra_warnings():
+    """extra_warnings is appended to the rail-derived defaults."""
+    out = build_agent_instructions(
+        BuildAgentInstructionsInput(
+            how_to_pay={"tempo": {}, "x402_base": {}},
+            extra_warnings=["Solana unavailable for this order; use base or tempo."],
+        )
+    )
+    assert len(out["warnings"]) == 3
+    assert "tempo wallet transfer" in out["warnings"][0]
+    assert "Solana unavailable" in out["warnings"][2]
+
+
+def test_build_agent_instructions_extra_warnings_ignored_when_warnings_set():
+    """Explicit warnings override defaults AND extra_warnings."""
+    out = build_agent_instructions(
+        BuildAgentInstructionsInput(
+            how_to_pay={"tempo": {}},
+            warnings=["custom only"],
+            extra_warnings=["ignored"],
+        )
+    )
+    assert out["warnings"] == ["custom only"]
+
+
 def test_build_402_body_assembles_full_response():
     body = build_402_body(
         Build402BodyInput(

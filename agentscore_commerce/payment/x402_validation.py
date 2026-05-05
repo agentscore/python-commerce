@@ -157,6 +157,20 @@ async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402Reques
     signed_pay_to = accepted.get("payTo")
 
     if not signed_network or signed_network != input.accepted_network:
+        if signed_network and signed_network.startswith("solana:"):
+            return VerifyX402RequestFailure(
+                body=_regenerate_body(
+                    (
+                        f"x402 on {signed_network} is not accepted; "
+                        f"Solana payments must use the `solana/charge` rail advertised in the 402 challenge. "
+                        f"This server accepts x402 on {input.accepted_network} only."
+                    ),
+                    (
+                        "Solana payments are not accepted over x402 at this merchant. "
+                        "Pick the `solana/charge` rail from the 402 challenge and re-sign."
+                    ),
+                ),
+            )
         return VerifyX402RequestFailure(
             body=_regenerate_body(
                 (

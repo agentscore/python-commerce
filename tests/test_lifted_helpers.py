@@ -339,6 +339,12 @@ async def test_verify_x402_rejects_solana_credential():
 
 
 class _FakeServer:
+    """Stubbed x402 server matching the x402 2.9 ``x402ResourceServer`` surface:
+    sync ``build_payment_requirements(config, extensions=None)`` + sync
+    ``enrich_extensions(declared, transport_context)`` + async ``verify_payment(payload,
+    requirements)`` + async ``settle_payment(payload, requirements)``.
+    """
+
     def __init__(
         self,
         requirements: list | Exception,
@@ -351,7 +357,7 @@ class _FakeServer:
         self.settle_result = settle_result
         self.enrich_result = enrich_result
 
-    async def build_payment_requirements(self, _cfg: object) -> list:
+    def build_payment_requirements(self, _cfg: object, _extensions: object = None) -> list:
         if isinstance(self.requirements, Exception):
             raise self.requirements
         return self.requirements
@@ -361,7 +367,7 @@ class _FakeServer:
             raise self.enrich_result
         return ext if self.enrich_result == "passthrough" else self.enrich_result
 
-    async def process_payment_request(self, _payload: object, _cfg: object, _meta: object, _ext: object) -> dict:
+    async def verify_payment(self, _payload: object, _req: object) -> dict:
         if isinstance(self.verify_result, Exception):
             raise self.verify_result
         return self.verify_result
@@ -496,7 +502,7 @@ async def test_process_x402_settle_wraps_enrich_extensions_throws_as_facilitator
 
 
 @pytest.mark.asyncio
-async def test_process_x402_settle_wraps_process_payment_request_throws_as_facilitator_error():
+async def test_process_x402_settle_wraps_verify_payment_throws_as_facilitator_error():
     server = _FakeServer(
         requirements=[{"id": "req1"}],
         verify_result=RuntimeError("CDP facilitator: solana:devnet not supported"),
@@ -511,7 +517,7 @@ async def test_process_x402_settle_wraps_process_payment_request_throws_as_facil
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "facilitator_error"
-    assert res.step == "process_payment_request"
+    assert res.step == "verify_payment"
     assert isinstance(res.error, RuntimeError)
 
 

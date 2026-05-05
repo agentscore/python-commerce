@@ -2,10 +2,10 @@
 
 from agentscore_commerce.challenge.accepted_methods import (
     BuildAcceptedMethodsInput,
+    SolanaMppConfig,
     StripeConfig,
     TempoConfig,
     X402BaseConfig,
-    X402SolanaConfig,
     build_accepted_methods,
 )
 from agentscore_commerce.challenge.agent_instructions import (
@@ -21,10 +21,10 @@ from agentscore_commerce.challenge.body import Build402BodyInput, X402PaymentReq
 from agentscore_commerce.challenge.how_to_pay import (
     BuildHowToPayInput,
     HowToPayRails,
+    SolanaMppRailConfig,
     StripeRailConfig,
     TempoRailConfig,
     X402BaseRailConfig,
-    X402SolanaRailConfig,
     build_how_to_pay,
 )
 from agentscore_commerce.challenge.identity import (
@@ -64,6 +64,8 @@ __all__ = [
     "Respond402Result",
     "ShippingAddress",
     "SignerMatchResult",
+    "SolanaMppConfig",
+    "SolanaMppRailConfig",
     "StripeConfig",
     "StripeRailConfig",
     "TempoConfig",
@@ -71,8 +73,6 @@ __all__ = [
     "X402BaseConfig",
     "X402BaseRailConfig",
     "X402PaymentRequired",
-    "X402SolanaConfig",
-    "X402SolanaRailConfig",
     "build_402_body",
     "build_accepted_methods",
     "build_agent_instructions",

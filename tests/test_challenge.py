@@ -7,6 +7,7 @@ from agentscore_commerce.challenge import (
     IdentityMetadataInput,
     PricingBlock,
     SignerMatchResult,
+    SolanaMppConfig,
     StripeConfig,
     StripeRailConfig,
     TempoConfig,
@@ -14,7 +15,6 @@ from agentscore_commerce.challenge import (
     X402BaseConfig,
     X402BaseRailConfig,
     X402PaymentRequired,
-    X402SolanaConfig,
     build_402_body,
     build_accepted_methods,
     build_agent_instructions,
@@ -41,7 +41,7 @@ def test_build_accepted_methods_full_set():
         BuildAcceptedMethodsInput(
             tempo=TempoConfig(recipient="0xT"),
             x402_base=X402BaseConfig(recipient="0xB"),
-            solana_mpp=X402SolanaConfig(recipient="solanaaddr"),
+            solana_mpp=SolanaMppConfig(recipient="solanaaddr"),
             stripe=StripeConfig(profile_id="acct_x"),
         )
     )

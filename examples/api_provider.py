@@ -1,31 +1,31 @@
-"""Example: API provider with per-call billing — multi-rail (Tempo MPP + x402).
+"""Example: API provider with per-call billing; multi-rail (Tempo MPP + x402 base + Solana MPP).
 
 Scenario: you sell access to an HTTP API (search, scraping, RPC, etc.). Each call costs
 a fixed price; agents pick whichever rail their wallet supports. No identity gate, no
-compliance — purely pay-or-fail. Think Exa, QuickNode, anyone in the x402 Bazaar.
+compliance: purely pay-or-fail. Think Exa, QuickNode, anyone in the x402 Bazaar.
 
 Rails advertised:
-    - **Tempo MPP** (`tempo/charge` intent)
-    - **x402 USDC on Base** (EIP-3009)
-    - **x402 USDC on Solana** (SPL Token)
+    - **Tempo MPP** (`tempo/charge` intent, carried in `Authorization: Payment`)
+    - **x402 USDC on Base** (EIP-3009, carried in `x-payment` / `payment-signature`)
+    - **Solana MPP** (`solana/charge` intent, carried in `Authorization: Payment`)
 
-The 402 lists all rails neutrally — the agent picks based on what their wallet supports.
+The 402 lists all rails neutrally; the agent picks based on what their wallet supports.
 
-Python doesn't have `mppx` / `@x402/core` peer deps — verification + settlement run against
-the facilitator HTTP API. Commerce helpers build the protocol-correct 402 body + headers;
-your route does the post-payment settle against the facilitator.
+Python merchants on Solana implement MPP `solana/charge` server-side themselves;
+there is no `@solana/mpp` Python equivalent today. This example only advertises the
+Solana rail in the 402 directives; settle the credential via your facilitator API.
 
 Peer deps:
     pip install agentscore-commerce[fastapi]
 
 Env vars:
-    TEMPO_RECIPIENT       — your Tempo wallet for receiving USDC.e
-    X402_BASE_RECIPIENT   — your Base wallet for receiving USDC
-    X402_SOLANA_RECIPIENT — your Solana wallet for receiving USDC
-    X402_BASE_NETWORK     — CAIP-2 (default eip155:8453 = Base mainnet;
-                            override to eip155:84532 for Sepolia testnet)
-    SOLANA_NETWORK_CAIP2      — CAIP-2 (default solana mainnet; override to
-                            solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1 for devnet)
+    TEMPO_RECIPIENT       your Tempo wallet for receiving USDC.e
+    X402_BASE_RECIPIENT   your Base wallet for receiving USDC
+    SOLANA_RECIPIENT      your Solana wallet for receiving USDC
+    X402_BASE_NETWORK     CAIP-2 (default eip155:8453 = Base mainnet;
+                          override to eip155:84532 for Sepolia testnet)
+    SOLANA_NETWORK_CAIP2  CAIP-2 (default solana mainnet; override to
+                          solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1 for devnet)
 
 Run: uvicorn examples.api_provider:app --port 3000
 """
@@ -60,9 +60,6 @@ X402_BASE_NETWORK = os.environ.get("X402_BASE_NETWORK", networks.base.mainnet.ca
 SOLANA_NETWORK_CAIP2 = os.environ.get("SOLANA_NETWORK_CAIP2", networks.solana.mainnet.caip2)
 _BASE_USDC = (
     USDC.base.sepolia.address if networks.base.sepolia.caip2 == X402_BASE_NETWORK else USDC.base.mainnet.address
-)
-_SVM_USDC = (
-    USDC.solana.devnet.mint if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2 else USDC.solana.mainnet.mint
 )
 _TEMPO_RAIL = "tempo-testnet" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "tempo-mainnet"
 
@@ -102,13 +99,13 @@ async def search(request: Request):
         )
         return JSONResponse(json.loads(probe.body), status_code=probe.status, headers=probe.headers)
 
-    # No payment? Return a 402 with directives for all accepted rails (Tempo + x402).
+    # No payment? Return a 402 with directives for all accepted rails.
     if not (auth and auth.startswith("Payment ")) and not x402_header:
         challenge_id = f"chg_{os.urandom(8).hex()}"
         x402_base_rail = (
             "x402-base-sepolia" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "x402-base-mainnet"
         )
-        x402_svm_rail = (
+        solana_mpp_rail = (
             "mpp-solana-devnet" if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2 else "mpp-solana-mainnet"
         )
         directives = [
@@ -119,10 +116,9 @@ async def search(request: Request):
                 PaymentDirectiveInput(rail=x402_base_rail, id=f"{challenge_id}_base", realm=REALM, request="")
             ),
             payment_directive(
-                PaymentDirectiveInput(rail=x402_svm_rail, id=f"{challenge_id}_solana", realm=REALM, request="")
+                PaymentDirectiveInput(rail=solana_mpp_rail, id=f"{challenge_id}_solana", realm=REALM, request="")
             ),
         ]
-        solana_mpp_recipient = os.environ["X402_SOLANA_RECIPIENT"]
         accepts = [
             {
                 "scheme": "exact",
@@ -131,21 +127,9 @@ async def search(request: Request):
                 "asset": _BASE_USDC,
                 "payTo": os.environ["X402_BASE_RECIPIENT"],
                 "maxTimeoutSeconds": 300,
-                # EIP-712 domain — required by every x402 EVM client to sign
+                # EIP-712 domain required by every x402 EVM client to sign
                 # EIP-3009 TransferWithAuthorization.
                 "extra": {"name": "USDC", "version": "2"},
-            },
-            {
-                "scheme": "exact",
-                "network": SOLANA_NETWORK_CAIP2,
-                "amount": str(int(PRICE_USDC * 1_000_000)),
-                "asset": _SVM_USDC,
-                "payTo": solana_mpp_recipient,
-                "maxTimeoutSeconds": 300,
-                # SVM transactions require feePayer in extra. Default to the
-                # recipient (round-trip safe for dev). Production merchants
-                # typically point at the Coinbase facilitator's payer address.
-                "extra": {"feePayer": solana_mpp_recipient},
             },
         ]
         return JSONResponse(
@@ -159,9 +143,9 @@ async def search(request: Request):
             },
         )
 
-    # Payment present — branch on which header arrived:
-    #   Authorization: Payment ... → MPP (tempo) — validate via your facilitator's MPP API
-    #   payment-signature / x-payment → x402 (base or solana) — validate via x402 facilitator
+    # Payment present; branch on which header arrived:
+    #   Authorization: Payment ... → MPP (tempo or solana); validate via your facilitator's MPP API
+    #   payment-signature / x-payment → x402 base; validate via x402 facilitator
     # Both shapes settle through the configured facilitator HTTP API, then run your operation.
 
     body_json = json.loads(body_text)

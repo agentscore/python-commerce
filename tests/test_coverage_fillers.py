@@ -6,10 +6,10 @@ from agentscore_commerce.challenge import (
     BuildAgentInstructionsInput,
     BuildHowToPayInput,
     HowToPayRails,
+    SolanaMppConfig,
+    SolanaMppRailConfig,
     StripeRailConfig,
     TempoRailConfig,
-    X402SolanaConfig,
-    X402SolanaRailConfig,
     build_402_body,
     build_accepted_methods,
     build_agent_instructions,
@@ -116,7 +116,7 @@ def test_llms_txt_payment_section_includes_all_rails():
 
 
 def test_build_accepted_methods_includes_solana_only():
-    out = build_accepted_methods(BuildAcceptedMethodsInput(solana_mpp=X402SolanaConfig(recipient="solanaaddr")))
+    out = build_accepted_methods(BuildAcceptedMethodsInput(solana_mpp=SolanaMppConfig(recipient="solanaaddr")))
     assert out[0]["network"].startswith("solana:")
     assert out[0]["pay_to"] == "solanaaddr"
 
@@ -127,7 +127,7 @@ def test_build_how_to_pay_solana_only():
             url="https://ex.com",
             retry_body_json="{}",
             total_usd=5.0,
-            rails=HowToPayRails(solana_mpp=X402SolanaRailConfig(recipient="solanaaddr")),
+            rails=HowToPayRails(solana_mpp=SolanaMppRailConfig(recipient="solanaaddr")),
         )
     )
     assert "solana_mpp" in out

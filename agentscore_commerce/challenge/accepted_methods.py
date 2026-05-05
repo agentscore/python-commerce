@@ -25,7 +25,7 @@ class X402BaseConfig:
 
 
 @dataclass
-class X402SolanaConfig:
+class SolanaMppConfig:
     recipient: str
     network: str = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
     token: str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -43,7 +43,7 @@ class StripeConfig:
 class BuildAcceptedMethodsInput:
     tempo: TempoConfig | None = None
     x402_base: X402BaseConfig | None = None
-    solana_mpp: X402SolanaConfig | None = None
+    solana_mpp: SolanaMppConfig | None = None
     stripe: StripeConfig | None = None
 
 

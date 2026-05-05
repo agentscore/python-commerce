@@ -20,7 +20,7 @@ class X402BaseRailConfig:
 
 
 @dataclass
-class X402SolanaRailConfig:
+class SolanaMppRailConfig:
     recipient: str
     network: str = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 
@@ -35,7 +35,7 @@ class StripeRailConfig:
 class HowToPayRails:
     tempo: TempoRailConfig | None = None
     x402_base: X402BaseRailConfig | None = None
-    solana_mpp: X402SolanaRailConfig | None = None
+    solana_mpp: SolanaMppRailConfig | None = None
     stripe: StripeRailConfig | None = None
 
 

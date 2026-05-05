@@ -2,14 +2,16 @@
 
 Scenario: you sell a regulated good. Identity gate (KYC + age + jurisdiction + sanctions),
 plus 402 payment challenge advertising multiple rails so agents can pay with whatever they
-have — Tempo USDC (MPP), x402 USDC on Base + Solana, Stripe SPT.
+have: Tempo USDC (MPP `tempo/charge`), x402 USDC on Base, Solana USDC (MPP `solana/charge`),
+Stripe SPT.
 
 The flow on each /purchase POST:
     1. Identity gate (AgentScoreGate): KYC + age + jurisdiction + sanctions
-    2. If ``X-Payment`` header present (x402 client paying) → ``verify_x402_request`` →
+    2. If ``X-Payment`` header present (x402 client paying base) → ``verify_x402_request`` →
        ``process_x402_settle`` → return 200 with ``payment-response`` header
     3. Else mint a Stripe multichain PI (deposit addresses for tempo/base/solana)
        and run pympp's compose() to validate any ``Authorization: Payment`` header
+       (covers tempo/charge AND solana/charge directives)
     4. If pympp returns 402 → ``respond_402`` (preserves pympp's WWW-Auth + adds x402's
        PAYMENT-REQUIRED) with the rich body
     5. If pympp returns 200 → also fire ``simulate_deposit_if_test_mode`` for testnet
@@ -44,14 +46,14 @@ from agentscore_commerce.challenge import (
     BuildValidationErrorInput,
     HowToPayRails,
     Respond402Input,
+    SolanaMppConfig,
+    SolanaMppRailConfig,
     StripeConfig,
     StripeRailConfig,
     TempoConfig,
     TempoRailConfig,
     X402BaseConfig,
     X402BaseRailConfig,
-    X402SolanaConfig,
-    X402SolanaRailConfig,
     build_accepted_methods,
     build_agent_instructions,
     build_how_to_pay,
@@ -186,12 +188,13 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
                 status_code=400,
             )
 
-        # Fire Stripe testnet sim — no-ops on live keys.
+        # Fire Stripe testnet sim; no-ops on live keys. x402 settle only ever
+        # lands on base in 1.4+ (Solana moved to MPP `solana/charge`).
         await simulate_deposit_if_test_mode(
             SimulateDepositIfTestModeInput(
                 get_payment_intent_id=pi_cache.get_payment_intent_id,
                 deposit_address=verified.signed_pay_to,
-                network="solana" if verified.is_solana else "base",
+                network="base",
                 stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
             )
         )
@@ -214,7 +217,7 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
         BuildAcceptedMethodsInput(
             tempo=TempoConfig(recipient=deposit_addresses["tempo"]),
             x402_base=X402BaseConfig(recipient=deposit_addresses["base"]),
-            solana_mpp=X402SolanaConfig(recipient=deposit_addresses["solana"]),
+            solana_mpp=SolanaMppConfig(recipient=deposit_addresses["solana"]),
             stripe=StripeConfig(profile_id=os.environ["STRIPE_PROFILE_ID"]),
         )
     )
@@ -226,7 +229,7 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
             rails=HowToPayRails(
                 tempo=TempoRailConfig(recipient=deposit_addresses["tempo"]),
                 x402_base=X402BaseRailConfig(recipient=deposit_addresses["base"]),
-                solana_mpp=X402SolanaRailConfig(recipient=deposit_addresses["solana"]),
+                solana_mpp=SolanaMppRailConfig(recipient=deposit_addresses["solana"]),
                 stripe=StripeRailConfig(profile_id=os.environ["STRIPE_PROFILE_ID"]),
             ),
         )

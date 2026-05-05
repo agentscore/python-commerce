@@ -455,6 +455,85 @@ async def test_process_x402_settle_success_returns_payment_response_header():
     assert decoded["tx_hash"] == "0xabc"
 
 
+@pytest.mark.asyncio
+async def test_process_x402_settle_coerces_dict_resource_config_with_camelcase_keys():
+    """Consumers ported from the JS / Hono stack pass dicts with camelCase keys
+    (``payTo``, ``maxTimeoutSeconds``). Coerce them into x402's ResourceConfig so
+    ``build_payment_requirements(config.network)`` doesn't ``AttributeError`` on a dict.
+    """
+    captured: dict = {}
+
+    class _CapturingServer:
+        def build_payment_requirements(self, cfg: object, _ext: object = None) -> list:
+            captured["cfg"] = cfg
+            return [{"id": "req1"}]
+
+        async def verify_payment(self, _payload: object, _req: object) -> dict:
+            return {"is_valid": True}
+
+        async def settle_payment(self, _payload: object, _req: object) -> dict:
+            return {"tx_hash": "0xabc"}
+
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=_CapturingServer(),
+            payload={},
+            resource_config={
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "price": "$0.10",
+                "payTo": "0xa43d4e316ef5f430426cd1b454167e5f85e3f4f1",
+                "maxTimeoutSeconds": 300,
+            },
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleSuccess)
+    # Coerced into x402's ResourceConfig (Pydantic model with snake_case attrs).
+    cfg = captured["cfg"]
+    assert hasattr(cfg, "network")
+    assert cfg.network == "eip155:8453"
+    assert cfg.pay_to == "0xa43d4e316ef5f430426cd1b454167e5f85e3f4f1"
+    assert cfg.max_timeout_seconds == 300
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_passes_typed_resource_config_unchanged():
+    """If the caller already provides a typed ResourceConfig, pass it through unchanged."""
+    from x402.schemas.config import ResourceConfig
+
+    typed = ResourceConfig(
+        scheme="exact",
+        network="eip155:8453",
+        price="$0.10",
+        pay_to="0xa43d4e316ef5f430426cd1b454167e5f85e3f4f1",
+        max_timeout_seconds=300,
+    )
+    captured: dict = {}
+
+    class _CapturingServer:
+        def build_payment_requirements(self, cfg: object, _ext: object = None) -> list:
+            captured["cfg"] = cfg
+            return [{"id": "req1"}]
+
+        async def verify_payment(self, _payload: object, _req: object) -> dict:
+            return {"is_valid": True}
+
+        async def settle_payment(self, _payload: object, _req: object) -> dict:
+            return {"tx_hash": "0xabc"}
+
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=_CapturingServer(),
+            payload={},
+            resource_config=typed,
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleSuccess)
+    assert captured["cfg"] is typed
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # process_x402_settle: facilitator_error wrap
 # ─────────────────────────────────────────────────────────────────────────────

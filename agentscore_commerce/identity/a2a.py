@@ -129,12 +129,12 @@ def build_a2a_agent_card(
 
         result = client.check(identity)
         card = build_a2a_agent_card(
-            name="Martin Estate Wine Concierge",
-            description="Buy regulated wines from Martin Estate via agent payments.",
-            url="https://agents.martinestate.com",
+            name="Example Merchant Concierge",
+            description="Buy regulated goods via agent payments.",
+            url="https://agents.example.com",
             capabilities=A2AAgentCardCapabilities(
                 endpoints=[{"name": "purchase", "path": "/purchase", "method": "POST"}],
-                skills=["wine-purchase", "regulated-commerce"],
+                skills=["product-purchase", "regulated-commerce"],
             ),
             data=result,
         )

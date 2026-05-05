@@ -99,7 +99,7 @@ class BuildSkillMdInput:
     """Merchant homepage (or domain root). Emitted as ``metadata.homepage`` per spec
     (top-level non-spec fields go under metadata)."""
     merchant_name: str
-    """Human display name (e.g. 'Martin Estate Winery')."""
+    """Human display name (e.g. 'Example Merchant')."""
     accepted_rails: list[RailKey]
     """Rails the merchant accepts. Drives the Payment + Compatible Clients sections.
     Order is preserved in render."""

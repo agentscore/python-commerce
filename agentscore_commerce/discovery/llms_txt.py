@@ -232,8 +232,8 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
         lines.append("")
 
     lines.append(
-        "IMPORTANT: Do NOT use `tempo wallet transfer` or send USDC manually to the x402 deposit addresses — "
-        "those bypass the payment handshake and your order will stay in pending_identity."
+        "IMPORTANT: Do NOT use `tempo wallet transfer` or send USDC manually to the x402 deposit addresses; "
+        "those bypass the payment handshake and the order will not complete."
     )
     if has_base or has_solana:
         lines.append(

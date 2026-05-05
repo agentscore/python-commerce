@@ -1,4 +1,4 @@
-"""Example: full agent-commerce merchant (Martin-Estate-style stripped down).
+"""Example: full regulated-commerce merchant.
 
 Scenario: you sell a regulated good. Identity gate (KYC + age + jurisdiction + sanctions),
 plus 402 payment challenge advertising multiple rails so agents can pay with whatever they

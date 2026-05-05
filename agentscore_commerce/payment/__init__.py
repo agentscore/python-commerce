@@ -52,6 +52,7 @@ from agentscore_commerce.payment.x402_server import (
     CustomScheme,
     X402FacilitatorChoice,
     X402SymbolicRail,
+    build_x402_accepts_for_402,
     create_x402_server,
 )
 from agentscore_commerce.payment.x402_settle import (
@@ -61,7 +62,10 @@ from agentscore_commerce.payment.x402_settle import (
     ProcessX402SettleResult,
     ProcessX402SettleSuccess,
     classify_x402_settle_result,
+    coerce_payment_payload,
+    coerce_resource_config,
     process_x402_settle,
+    settle_result_to_json_bytes,
 )
 from agentscore_commerce.payment.x402_validation import (
     X402_SUPPORTED_BASE_NETWORKS,
@@ -114,7 +118,10 @@ __all__ = [
     "build_payment_directive",
     "build_payment_headers",
     "build_payment_request_blob",
+    "build_x402_accepts_for_402",
     "classify_x402_settle_result",
+    "coerce_payment_payload",
+    "coerce_resource_config",
     "create_mppx_server",
     "create_x402_server",
     "dispatch_settlement_by_network",
@@ -130,6 +137,7 @@ __all__ = [
     "rails",
     "read_x402_payment_header",
     "register_x402_schemes_v1_v2",
+    "settle_result_to_json_bytes",
     "settlement_override_header",
     "validate_x402_network_config",
     "verify_x402_request",

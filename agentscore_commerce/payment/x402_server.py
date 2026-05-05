@@ -266,10 +266,75 @@ async def create_x402_server(
     return server
 
 
+def build_x402_accepts_for_402(
+    server: Any,
+    *,
+    network: str,
+    price: str,
+    pay_to: str,
+    scheme: str = "exact",
+    max_timeout_seconds: int = 300,
+    extensions: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Build x402 ``accepts[]`` entries for a 402 challenge body.
+
+    Wraps ``server.build_payment_requirements(...)`` so merchants don't have to:
+
+    1. Import ``x402.schemas.config.ResourceConfig`` themselves
+    2. Remember to call ``model_dump(by_alias=True, mode="json")`` on each Pydantic
+       requirement so the surrounding JSON response can serialize it
+    3. Hardcode ``extra`` (which differs by the actual on-chain contract: base mainnet
+       USDC has ``name="USD Coin"``, base sepolia USDC has ``name="USDC"`` — EIP-712
+       domain hashes differ, so getting this wrong silently breaks every signature
+       verify at the facilitator)
+
+    Returns a list of plain dicts in the shape that x402 expects on the wire — drop
+    them straight into the ``accepts`` field of the 402 challenge body.
+
+    Raises ``Exception`` if the underlying ``build_payment_requirements`` raises;
+    callers should wrap with ``try/except`` and either omit x402 from the 402 or
+    surface a 5xx (depending on whether other rails are advertised).
+    """
+    config_cls_module = _import_optional("x402.schemas.config")
+    config_cls = getattr(config_cls_module, "ResourceConfig", None) if config_cls_module else None
+    if config_cls is None:
+        msg = "x402 not installed — run `pip install 'x402[evm,fastapi]>=2.9,<3'` to use build_x402_accepts_for_402."
+        raise ImportError(msg)
+    config = config_cls(
+        scheme=scheme,
+        network=network,
+        price=price,
+        pay_to=pay_to,
+        max_timeout_seconds=max_timeout_seconds,
+    )
+    requirements = (
+        server.build_payment_requirements(config, extensions)
+        if extensions
+        else server.build_payment_requirements(config)
+    )
+    # Pydantic ``PaymentRequirements`` is the live shape under x402 2.9+. Older
+    # versions (and test stubs) return plain dicts that already match the wire form.
+    out: list[dict[str, Any]] = []
+    for req in requirements:
+        model_dump = getattr(req, "model_dump", None)
+        if callable(model_dump):
+            out.append(model_dump(by_alias=True, mode="json"))
+        elif isinstance(req, dict):
+            out.append(dict(req))
+        else:
+            msg = (
+                f"build_payment_requirements returned {type(req).__name__}; expected a "
+                "Pydantic PaymentRequirements or a dict."
+            )
+            raise TypeError(msg)
+    return out
+
+
 __all__ = [
     "CreateX402ServerOptions",
     "CustomScheme",
     "X402FacilitatorChoice",
     "X402SymbolicRail",
+    "build_x402_accepts_for_402",
     "create_x402_server",
 ]

@@ -128,8 +128,16 @@ async def search(request: Request):
                 "payTo": os.environ["X402_BASE_RECIPIENT"],
                 "maxTimeoutSeconds": 300,
                 # EIP-712 domain required by every x402 EVM client to sign
-                # EIP-3009 TransferWithAuthorization.
-                "extra": {"name": "USDC", "version": "2"},
+                # EIP-3009 TransferWithAuthorization. ``name`` MUST match the
+                # on-chain USDC contract's ``name()`` — base mainnet returns
+                # "USD Coin", base sepolia returns "USDC". Wrong value silently
+                # breaks signature verify at the facilitator. Production code
+                # should use ``build_x402_accepts_for_402(server, ...)`` which
+                # derives ``extra`` from the registered scheme metadata.
+                "extra": {
+                    "name": "USD Coin" if X402_BASE_NETWORK.split(":")[-1] == "8453" else "USDC",
+                    "version": "2",
+                },
             },
         ]
         return JSONResponse(

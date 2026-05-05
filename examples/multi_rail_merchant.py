@@ -69,6 +69,7 @@ from agentscore_commerce.payment import (
     ProcessX402SettleInput,
     ValidateX402NetworkConfigInput,
     VerifyX402RequestInput,
+    build_x402_accepts_for_402,
     networks,
     process_x402_settle,
     validate_x402_network_config,
@@ -250,24 +251,17 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
             ),
             x402=PaymentRequiredHeaderInput(
                 x402_version=2,
+                # Base accept comes from the registered x402 scheme — `extra` (incl. the
+                # network-correct USDC `name`) is filled in automatically. Solana goes
+                # through MPP `solana/charge` not x402's exact scheme, so it stays inline.
                 accepts=[
-                    {
-                        "scheme": "exact",
-                        "network": X402_BASE_NETWORK,
-                        "amount": str(round(float(total_usd) * 1_000_000)),
-                        # Asset must match the configured network — sepolia + mainnet
-                        # use different USDC contracts.
-                        "asset": (
-                            USDC.base.sepolia.address
-                            if networks.base.sepolia.caip2 == X402_BASE_NETWORK
-                            else USDC.base.mainnet.address
-                        ),
-                        "payTo": deposit_addresses["base"],
-                        "maxTimeoutSeconds": 300,
-                        # EIP-712 domain — required by every x402 EVM client to
-                        # sign EIP-3009 TransferWithAuthorization.
-                        "extra": {"name": "USDC", "version": "2"},
-                    },
+                    *build_x402_accepts_for_402(
+                        x402_server,
+                        network=X402_BASE_NETWORK,
+                        price=f"${total_usd}",
+                        pay_to=deposit_addresses["base"],
+                        max_timeout_seconds=300,
+                    ),
                     {
                         "scheme": "exact",
                         "network": SOLANA_NETWORK_CAIP2,

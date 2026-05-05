@@ -21,11 +21,11 @@ they support.
 Python rail-verification peer deps are now wrapped — see `create_x402_server` and
 `create_mppx_server` in `agentscore_commerce.payment` for one-call setup. This example
 keeps the response shape direct (helper-composed) so the variable-cost flow is readable;
-in production wire `create_x402_server(rails=["x402-base-mainnet-upto"])` and call
-`server.process_payment_request(request)` for verification + settlement.
+in production wire `create_x402_server(rails=["x402-base-mainnet-upto"], facilitator="coinbase")`
+and call `process_x402_settle(...)` for verification + settlement.
 
 Peer deps:
-    pip install agentscore-commerce[fastapi,x402,mppx]
+    pip install agentscore-commerce[fastapi,x402,mppx,coinbase]
 
 Env vars:
     X402_BASE_RECIPIENT — your Base wallet (USDC payouts for upto rail)

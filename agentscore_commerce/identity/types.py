@@ -129,9 +129,8 @@ class VerifyWalletSignerResult:
     agent_instructions: str | None = None
 
 
-# Canonical production AgentScore API — agent memory pointers are always hardcoded to this
-# value regardless of how a given merchant configured their gate. Prevents a malicious merchant
-# from emitting memory pointing agents at their own phishing endpoints.
+# Canonical production AgentScore API; agent memory pointers are always hardcoded to this
+# value regardless of how a given merchant configured their gate.
 _CANONICAL_AGENTSCORE_API = "https://api.agentscore.sh"
 
 

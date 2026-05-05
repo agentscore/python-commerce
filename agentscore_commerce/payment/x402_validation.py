@@ -157,7 +157,7 @@ async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402Reques
     signed_pay_to = accepted.get("payTo")
 
     if not signed_network or signed_network != input.accepted_network:
-        if signed_network and signed_network.startswith("solana:"):
+        if signed_network and signed_network.lower().startswith("solana:"):
             return VerifyX402RequestFailure(
                 body=_regenerate_body(
                     (

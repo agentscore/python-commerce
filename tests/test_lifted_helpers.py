@@ -534,6 +534,220 @@ async def test_process_x402_settle_passes_typed_resource_config_unchanged():
     assert captured["cfg"] is typed
 
 
+@pytest.mark.asyncio
+async def test_process_x402_settle_coerces_dict_payload_v2_to_typed_payment_payload():
+    """Same fix as resource_config: ``verify_x402_request`` returns ``payload`` as a
+    plain dict (the result of ``json.loads(base64.b64decode(X-Payment))``); x402 2.9's
+    ``server.verify_payment`` calls ``payload.get_scheme()`` and other typed-model methods
+    on it. Coerce dicts → ``PaymentPayload`` (or ``PaymentPayloadV1`` when ``x402Version=1``)
+    so the helper doesn't ``AttributeError`` at the verify leg.
+    """
+    captured: dict = {}
+
+    class _CapturingServer:
+        def build_payment_requirements(self, _cfg: object, _ext: object = None) -> list:
+            return [{"id": "req1"}]
+
+        async def verify_payment(self, payload: object, _req: object) -> dict:
+            captured["verify_payload"] = payload
+            return {"is_valid": True}
+
+        async def settle_payment(self, payload: object, _req: object) -> dict:
+            captured["settle_payload"] = payload
+            return {"tx_hash": "0xabc"}
+
+    payload_dict = {
+        "x402Version": 2,
+        "accepted": {
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "amount": "100000",
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "payTo": "0x000000000000000000000000000000000000dEaD",
+            "maxTimeoutSeconds": 300,
+        },
+        "payload": {
+            "authorization": {
+                "from": "0xeb2Ca790F72787c7e61bC6c861353a1e4ACDFCa5",
+                "to": "0x000000000000000000000000000000000000dEaD",
+                "value": "100000",
+                "validAfter": 0,
+                "validBefore": 9999999999,
+                "nonce": "0x" + "aa" * 32,
+            },
+            "signature": "0x" + "cc" * 65,
+        },
+    }
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=_CapturingServer(),
+            payload=payload_dict,
+            resource_config={
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "price": "$0.10",
+                "payTo": "0x" + "00" * 19 + "dE" + "aD",
+                "maxTimeoutSeconds": 300,
+            },
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleSuccess)
+    # Both verify and settle legs received the typed Pydantic model, not the raw dict.
+    verify_payload = captured["verify_payload"]
+    settle_payload = captured["settle_payload"]
+    assert type(verify_payload).__name__ == "PaymentPayload"
+    assert type(settle_payload).__name__ == "PaymentPayload"
+    # The typed model exposes the get_scheme() method that x402's facilitator calls.
+    assert hasattr(verify_payload, "get_scheme")
+    assert verify_payload.get_scheme() == "exact"
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_serializes_pydantic_settle_result_to_payment_response_header():
+    """x402 2.9's ``settle_payment`` returns a Pydantic ``SettleResponse`` model;
+    plain ``json.dumps`` rejects it with ``TypeError``. The helper must call
+    ``model_dump_json(by_alias=True)`` so the X-Payment-Response header stays
+    base64'd JSON with the right wire keys (``errorReason`` not ``error_reason``).
+    """
+    from x402.schemas import SettleResponse
+
+    pydantic_settle = SettleResponse(
+        success=True,
+        transaction="0xabc",
+        network="eip155:8453",
+        payer="0x000000000000000000000000000000000000dEaD",
+        amount=None,
+    )
+
+    class _PydanticSettleServer:
+        def build_payment_requirements(self, _cfg: object, _ext: object = None) -> list:
+            return [{"id": "req1"}]
+
+        async def verify_payment(self, _payload: object, _req: object) -> dict:
+            return {"is_valid": True}
+
+        async def settle_payment(self, _payload: object, _req: object) -> SettleResponse:
+            return pydantic_settle
+
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=_PydanticSettleServer(),
+            payload={},
+            resource_config={
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "price": "$0.10",
+                "payTo": "0x" + "00" * 19 + "dE" + "aD",
+                "maxTimeoutSeconds": 300,
+            },
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleSuccess)
+    assert res.payment_response_header is not None
+    decoded = json.loads(base64.b64decode(res.payment_response_header).decode())
+    assert decoded["success"] is True
+    assert decoded["transaction"] == "0xabc"
+    assert decoded["network"] == "eip155:8453"
+    # by_alias=True: wire shape uses errorReason / errorMessage (camelCase) — not snake_case.
+    assert "errorReason" in decoded
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_serializes_dict_settle_result_for_legacy_stubs():
+    """Plain-dict settle results (from older x402 / test stubs) still serialize."""
+
+    class _DictSettleServer:
+        def build_payment_requirements(self, _cfg: object, _ext: object = None) -> list:
+            return [{"id": "req1"}]
+
+        async def verify_payment(self, _payload: object, _req: object) -> dict:
+            return {"is_valid": True}
+
+        async def settle_payment(self, _payload: object, _req: object) -> dict:
+            return {"success": True, "transaction": "0xdef"}
+
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=_DictSettleServer(),
+            payload={},
+            resource_config={
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "price": "$0.10",
+                "payTo": "0x" + "00" * 19 + "dE" + "aD",
+                "maxTimeoutSeconds": 300,
+            },
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleSuccess)
+    assert res.payment_response_header is not None
+    decoded = json.loads(base64.b64decode(res.payment_response_header).decode())
+    assert decoded == {"success": True, "transaction": "0xdef"}
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_passes_typed_payment_payload_unchanged():
+    """If the caller already provides a typed PaymentPayload, pass it through unchanged."""
+    from x402.schemas import PaymentPayload
+
+    typed = PaymentPayload.model_validate(
+        {
+            "x402Version": 2,
+            "accepted": {
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "amount": "100000",
+                "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "payTo": "0x000000000000000000000000000000000000dEaD",
+                "maxTimeoutSeconds": 300,
+            },
+            "payload": {
+                "authorization": {
+                    "from": "0xeb2Ca790F72787c7e61bC6c861353a1e4ACDFCa5",
+                    "to": "0x000000000000000000000000000000000000dEaD",
+                    "value": "100000",
+                    "validAfter": 0,
+                    "validBefore": 9999999999,
+                    "nonce": "0x" + "aa" * 32,
+                },
+                "signature": "0x" + "cc" * 65,
+            },
+        }
+    )
+    captured: dict = {}
+
+    class _CapturingServer:
+        def build_payment_requirements(self, _cfg: object, _ext: object = None) -> list:
+            return [{"id": "req1"}]
+
+        async def verify_payment(self, payload: object, _req: object) -> dict:
+            captured["payload"] = payload
+            return {"is_valid": True}
+
+        async def settle_payment(self, _payload: object, _req: object) -> dict:
+            return {"tx_hash": "0xabc"}
+
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=_CapturingServer(),
+            payload=typed,
+            resource_config={
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "price": "$0.10",
+                "payTo": "0x" + "00" * 19 + "dE" + "aD",
+                "maxTimeoutSeconds": 300,
+            },
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleSuccess)
+    assert captured["payload"] is typed
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # process_x402_settle: facilitator_error wrap
 # ─────────────────────────────────────────────────────────────────────────────

@@ -45,7 +45,7 @@ AgentScore Commerce handles the agent commerce protocol layer; everything else i
 
 ## Differences from node-commerce examples
 
-Python doesn't have peer-dep equivalents for `@x402/core`, `@x402/evm`, `@x402/svm`, or `mppx` — those are TypeScript-only ecosystems today. Three implications:
+Python doesn't have peer-dep equivalents for `@x402/core`, `@x402/evm`, `@solana/mpp`, or `mppx` — those are TypeScript-only ecosystems today. Three implications:
 
 1. **No `create_x402_server` / `create_mppx_server` factories.** The commerce package exposes `register_x402_schemes_v1_v2` for the x402 v1+v2 dispatch helper, but happy-path setup (registering the facilitator, schemes, etc.) is something Python merchants do via direct HTTP calls to their facilitator of choice.
 2. **`extract_payment_signer` returns EVM only.** Solana SPL Token payer recovery requires a Solana SDK (`solders` / `solana-py`) which isn't bundled. Pass the recovered Solana payer via `signer=...` to `verify_wallet_signer_match` directly.

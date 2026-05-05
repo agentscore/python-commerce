@@ -50,26 +50,6 @@ async def test_create_x402_server_registers_base_sepolia_scheme() -> None:
     assert "exact" in server._schemes["eip155:84532"]
 
 
-@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
-@pytest.mark.asyncio
-async def test_create_x402_server_registers_solana_devnet_scheme() -> None:
-    server = await create_x402_server(
-        facilitator="http",
-        rails=["x402-solana-devnet"],
-        initialize=False,
-    )
-    assert "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" in server._schemes
-    assert "exact" in server._schemes["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"]
-
-
-@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
-@pytest.mark.asyncio
-async def test_create_x402_server_solana_upto_rejected_eagerly() -> None:
-    """Solana doesn't ship an upto variant — surface that before peer-dep load."""
-    with pytest.raises(ValueError, match="upto"):
-        await create_x402_server(rails=["x402-solana-mainnet-upto"], initialize=False)
-
-
 @pytest.mark.skipif(not _MPPX_INSTALLED or not _TEMPO_INSTALLED, reason="pympp[tempo] not installed")
 @pytest.mark.asyncio
 async def test_create_mppx_server_tempo_returns_mpp_instance() -> None:

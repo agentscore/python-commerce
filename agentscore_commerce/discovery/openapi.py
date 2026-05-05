@@ -1,11 +1,16 @@
 """OpenAPI snippets for AgentScore-related concepts (security schemes, denial schemas, 402 schema)."""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 
 def agentscore_security_schemes() -> dict[str, Any]:
-    """Standard AgentScore identity security schemes for `components.securitySchemes`."""
+    """Standard AgentScore identity security schemes for `components.securitySchemes`.
+
+    Includes ``siwx`` (Sign-In With X) per the x402scan discovery spec so identity-gated
+    operations can declare ``security: [{ "siwx": [] }]`` and stay classified as
+    identity-only, not paid.
+    """
     return {
         "OperatorToken": {
             "type": "apiKey",
@@ -25,7 +30,87 @@ def agentscore_security_schemes() -> dict[str, Any]:
                 "(Tempo MPP, x402 EIP-3009, x402 SPL Token). The wallet you claim MUST sign the payment."
             ),
         },
+        "siwx": siwx_security_scheme(),
     }
+
+
+def siwx_security_scheme() -> dict[str, Any]:
+    """Sign-In With X security scheme entry, per the x402scan discovery spec.
+
+    Reference it on identity-gated (but free) operations as
+    ``security: [{ "siwx": [] }]``. Do NOT also attach ``x-payment-info`` to those
+    routes; x402scan will misclassify them as paid.
+    """
+    return {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "SIWX",
+        "description": (
+            "Sign-In With X wallet authentication. Agent signs a challenge with their wallet (any supported chain) "
+            "and presents the proof in the Authorization header. Used for identity-gated free endpoints; "
+            "payment-required endpoints declare x-payment-info instead."
+        ),
+    }
+
+
+@dataclass
+class XPaymentInfoFixedPrice:
+    currency: str
+    amount: str
+    mode: Literal["fixed"] = "fixed"
+
+
+@dataclass
+class XPaymentInfoDynamicPrice:
+    currency: str
+    min: str
+    max: str
+    mode: Literal["dynamic"] = "dynamic"
+
+
+XPaymentInfoPrice = XPaymentInfoFixedPrice | XPaymentInfoDynamicPrice
+
+
+@dataclass
+class XPaymentInfoMpp:
+    method: str
+    intent: str
+    currency: str
+
+
+@dataclass
+class XPaymentInfoInput:
+    """Per-operation `x-payment-info` extension input, per the x402scan discovery spec.
+
+    ``protocols`` is a list of single-key dicts. Use ``{"x402": {}}`` for x402,
+    ``{"mpp": {"method": ..., "intent": ..., "currency": ...}}`` for MPP. Order is
+    preserved.
+    """
+
+    price: XPaymentInfoPrice
+    protocols: list[dict[str, Any]]
+
+
+def x_payment_info_extension(input: XPaymentInfoInput) -> dict[str, Any]:
+    """Wrap a price + protocols block under ``x-payment-info``.
+
+    For spreading into an OpenAPI operation object.
+    """
+    price = input.price
+    if isinstance(price, XPaymentInfoFixedPrice):
+        price_dict: dict[str, Any] = {"mode": "fixed", "currency": price.currency, "amount": price.amount}
+    else:
+        price_dict = {"mode": "dynamic", "currency": price.currency, "min": price.min, "max": price.max}
+    return {"x-payment-info": {"price": price_dict, "protocols": input.protocols}}
+
+
+def x_guidance_extension(text: str) -> dict[str, str]:
+    """Wrap a prose blurb under ``x-guidance`` for spreading into an OpenAPI ``info`` block.
+
+    Per the x402scan discovery spec, ``info.x-guidance`` should explain to an agent
+    how to use the API at a high level. Discovery crawlers surface this on listings.
+    """
+    return {"x-guidance": text}
 
 
 def agentscore_denial_schemas() -> dict[str, Any]:

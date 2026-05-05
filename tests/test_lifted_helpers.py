@@ -17,7 +17,6 @@ from agentscore_commerce.challenge import (
 )
 from agentscore_commerce.payment import (
     X402_SUPPORTED_BASE_NETWORKS,
-    X402_SUPPORTED_SVM_NETWORKS,
     PaymentRequiredHeaderInput,
     ProcessX402SettleFailure,
     ProcessX402SettleInput,
@@ -26,6 +25,7 @@ from agentscore_commerce.payment import (
     VerifyX402RequestFailure,
     VerifyX402RequestInput,
     VerifyX402RequestSuccess,
+    classify_x402_settle_result,
     networks,
     process_x402_settle,
     validate_x402_network_config,
@@ -179,34 +179,18 @@ def test_respond_402_layers_payment_required_when_x402_set():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_validate_x402_accepts_supported_combo():
-    validate_x402_network_config(
-        ValidateX402NetworkConfigInput(
-            base_network=networks.base.sepolia.caip2,
-            svm_network=networks.solana.devnet.caip2,
-        )
-    )
+def test_validate_x402_accepts_supported_base():
+    validate_x402_network_config(ValidateX402NetworkConfigInput(base_network=networks.base.sepolia.caip2))
 
 
 def test_validate_x402_rejects_unknown_base():
     with pytest.raises(ValueError, match="X402_BASE_NETWORK=eip155:9999"):
-        validate_x402_network_config(
-            ValidateX402NetworkConfigInput(base_network="eip155:9999", svm_network=networks.solana.devnet.caip2)
-        )
-
-
-def test_validate_x402_rejects_unknown_svm():
-    with pytest.raises(ValueError, match="X402_SVM_NETWORK=solana:bogus"):
-        validate_x402_network_config(
-            ValidateX402NetworkConfigInput(base_network=networks.base.sepolia.caip2, svm_network="solana:bogus")
-        )
+        validate_x402_network_config(ValidateX402NetworkConfigInput(base_network="eip155:9999"))
 
 
 def test_x402_supported_networks_constants():
     assert networks.base.mainnet.caip2 in X402_SUPPORTED_BASE_NETWORKS
     assert networks.base.sepolia.caip2 in X402_SUPPORTED_BASE_NETWORKS
-    assert networks.solana.mainnet.caip2 in X402_SUPPORTED_SVM_NETWORKS
-    assert networks.solana.devnet.caip2 in X402_SUPPORTED_SVM_NETWORKS
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -232,8 +216,7 @@ async def test_verify_x402_missing_header():
         VerifyX402RequestInput(
             headers={},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -246,8 +229,7 @@ async def test_verify_x402_bad_base64():
         VerifyX402RequestInput(
             headers={"X-Payment": "not-base64-json"},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -261,8 +243,7 @@ async def test_verify_x402_unsupported_network():
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -276,8 +257,7 @@ async def test_verify_x402_malformed_evm_pay_to():
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -291,8 +271,7 @@ async def test_verify_x402_pay_to_not_in_cache():
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_false,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -306,8 +285,7 @@ async def test_verify_x402_failures_carry_regenerate_next_steps():
         VerifyX402RequestInput(
             headers={},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestFailure)
@@ -324,32 +302,35 @@ async def test_verify_x402_success_evm():
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
     assert isinstance(res, VerifyX402RequestSuccess)
     assert res.signed_pay_to == pay_to
     assert res.signed_network == networks.base.sepolia.caip2
-    assert res.is_solana is False
 
 
 @pytest.mark.asyncio
-async def test_verify_x402_success_solana():
-    # Real-shape Solana base58 (System Program address)
-    pay_to = "11111111111111111111111111111111"
-    payload = {"accepted": {"network": networks.solana.devnet.caip2, "payTo": pay_to}}
+async def test_verify_x402_rejects_solana_credential():
+    """Solana credentials over x402 are not supported (Solana goes through MPP).
+
+    The error message + next_steps point the client at MPP `solana/charge` so an
+    agent on a stale x402 SVM client can recover with a single re-sign.
+    """
+    payload = {"accepted": {"network": networks.solana.mainnet.caip2, "payTo": "11111111111111111111111111111111"}}
     res = await verify_x402_request(
         VerifyX402RequestInput(
             headers={"x-payment": _x_payment(payload)},
             is_cached_address=_always_true,
-            accepted_base_network=networks.base.sepolia.caip2,
-            accepted_svm_network=networks.solana.devnet.caip2,
+            accepted_network=networks.base.sepolia.caip2,
         )
     )
-    assert isinstance(res, VerifyX402RequestSuccess)
-    assert res.signed_pay_to == pay_to
-    assert res.is_solana is True
+    assert isinstance(res, VerifyX402RequestFailure)
+    msg = res.body["error"]["message"]
+    assert "Solana" in msg
+    assert "`solana/charge`" in msg
+    # Recovery guidance points at the rail in the 402 challenge, not at any CLI by name.
+    assert "solana/charge" in res.body["next_steps"]["user_message"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -360,21 +341,29 @@ async def test_verify_x402_success_solana():
 class _FakeServer:
     def __init__(
         self,
-        requirements: list,
-        verify_result: dict,
+        requirements: list | Exception,
+        verify_result: dict | Exception,
         settle_result: object | Exception | None = None,
+        enrich_result: object | Exception = "passthrough",
     ) -> None:
         self.requirements = requirements
         self.verify_result = verify_result
         self.settle_result = settle_result
+        self.enrich_result = enrich_result
 
     async def build_payment_requirements(self, _cfg: object) -> list:
+        if isinstance(self.requirements, Exception):
+            raise self.requirements
         return self.requirements
 
     def enrich_extensions(self, ext: object, _ctx: object) -> object:
-        return ext
+        if isinstance(self.enrich_result, Exception):
+            raise self.enrich_result
+        return ext if self.enrich_result == "passthrough" else self.enrich_result
 
     async def process_payment_request(self, _payload: object, _cfg: object, _meta: object, _ext: object) -> dict:
+        if isinstance(self.verify_result, Exception):
+            raise self.verify_result
         return self.verify_result
 
     async def settle_payment(self, _payload: object, _req: object) -> object:
@@ -458,6 +447,161 @@ async def test_process_x402_settle_success_returns_payment_response_header():
     assert res.payment_response_header is not None
     decoded = json.loads(base64.b64decode(res.payment_response_header).decode())
     assert decoded["tx_hash"] == "0xabc"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# process_x402_settle: facilitator_error wrap
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_wraps_build_requirements_throws_as_facilitator_error():
+    server = _FakeServer(
+        requirements=RuntimeError("facilitator: network not supported"),
+        verify_result={"success": True},
+    )
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=server,
+            payload={},
+            resource_config={},
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleFailure)
+    assert res.phase == "facilitator_error"
+    assert res.step == "build_requirements"
+    assert isinstance(res.error, RuntimeError)
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_wraps_enrich_extensions_throws_as_facilitator_error():
+    server = _FakeServer(
+        requirements=[{"id": "req1"}],
+        verify_result={"success": True},
+        enrich_result=RuntimeError("extension barfed"),
+    )
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=server,
+            payload={},
+            resource_config={},
+            resource_meta=_RESOURCE_META,
+            extension={"name": "bazaar"},
+        )
+    )
+    assert isinstance(res, ProcessX402SettleFailure)
+    assert res.phase == "facilitator_error"
+    assert res.step == "enrich_extensions"
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_wraps_process_payment_request_throws_as_facilitator_error():
+    server = _FakeServer(
+        requirements=[{"id": "req1"}],
+        verify_result=RuntimeError("CDP facilitator: solana:devnet not supported"),
+    )
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=server,
+            payload={},
+            resource_config={},
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleFailure)
+    assert res.phase == "facilitator_error"
+    assert res.step == "process_payment_request"
+    assert isinstance(res.error, RuntimeError)
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_does_not_swallow_settle_failed_as_facilitator_error():
+    server = _FakeServer(
+        requirements=[{"id": "req1"}],
+        verify_result={"success": True},
+        settle_result=RuntimeError("on-chain rejection"),
+    )
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=server,
+            payload={},
+            resource_config={},
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleFailure)
+    assert res.phase == "settle_failed"
+    assert res.step is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# classify_x402_settle_result
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_classify_returns_none_on_success():
+    res = ProcessX402SettleSuccess(
+        matched_requirement={"id": "req1"},
+        settle_result={"tx": "0xabc"},
+        payment_response_header="abc",
+        verify_result={"success": True},
+    )
+    assert classify_x402_settle_result(res) is None
+
+
+def test_classify_no_requirements_to_500_payment_internal_error():
+    classified = classify_x402_settle_result(ProcessX402SettleFailure(phase="no_requirements", reason="empty"))
+    assert classified is not None
+    assert classified.status == 500
+    assert classified.code == "payment_internal_error"
+    assert classified.next_steps["action"] == "contact_support"
+
+
+def test_classify_verify_failed_to_400_payment_proof_invalid():
+    classified = classify_x402_settle_result(
+        ProcessX402SettleFailure(phase="verify_failed", verify_result={"success": False, "reason": "expired"})
+    )
+    assert classified is not None
+    assert classified.status == 400
+    assert classified.code == "payment_proof_invalid"
+    assert classified.next_steps["action"] == "regenerate_payment_credential"
+
+
+def test_classify_facilitator_error_to_503_payment_provider_unavailable():
+    classified = classify_x402_settle_result(
+        ProcessX402SettleFailure(
+            phase="facilitator_error", step="process_payment_request", error=RuntimeError("CDP rejects solana:devnet")
+        )
+    )
+    assert classified is not None
+    assert classified.status == 503
+    assert classified.code == "payment_provider_unavailable"
+    assert classified.next_steps["action"] == "try_different_rail"
+
+
+def test_classify_settle_failed_to_503_with_retry_after():
+    classified = classify_x402_settle_result(
+        ProcessX402SettleFailure(
+            phase="settle_failed", error=RuntimeError("on-chain rejection"), matched_requirement={}
+        )
+    )
+    assert classified is not None
+    assert classified.status == 503
+    assert classified.code == "payment_provider_unavailable"
+    assert classified.next_steps["action"] == "retry_or_swap_method"
+    assert classified.next_steps["retry_after_seconds"] == 10
+
+
+def test_classify_does_not_leak_raw_error_detail():
+    sensitive = RuntimeError("CDP-INTERNAL-TRACE-ID-12345 secret-key-in-stack")
+    classified = classify_x402_settle_result(
+        ProcessX402SettleFailure(phase="facilitator_error", step="process_payment_request", error=sensitive)
+    )
+    assert classified is not None
+    assert "CDP-INTERNAL-TRACE-ID-12345" not in classified.message
+    assert "secret-key-in-stack" not in classified.message
+    assert "CDP-INTERNAL-TRACE-ID-12345" not in classified.next_steps["user_message"]
 
 
 # Required for asyncio fixtures

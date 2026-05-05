@@ -7,6 +7,7 @@ from agentscore_commerce.challenge import (
     IdentityMetadataInput,
     PricingBlock,
     SignerMatchResult,
+    SolanaMppConfig,
     StripeConfig,
     StripeRailConfig,
     TempoConfig,
@@ -14,7 +15,6 @@ from agentscore_commerce.challenge import (
     X402BaseConfig,
     X402BaseRailConfig,
     X402PaymentRequired,
-    X402SolanaConfig,
     build_402_body,
     build_accepted_methods,
     build_agent_instructions,
@@ -41,7 +41,7 @@ def test_build_accepted_methods_full_set():
         BuildAcceptedMethodsInput(
             tempo=TempoConfig(recipient="0xT"),
             x402_base=X402BaseConfig(recipient="0xB"),
-            x402_solana=X402SolanaConfig(recipient="solanaaddr"),
+            solana_mpp=SolanaMppConfig(recipient="solanaaddr"),
             stripe=StripeConfig(profile_id="acct_x"),
         )
     )
@@ -129,6 +129,31 @@ def test_build_agent_instructions_warnings_match_rails():
     stripe_only = build_agent_instructions(BuildAgentInstructionsInput(how_to_pay={"stripe": {}}))
     assert stripe_only["warnings"] == []
     assert stripe_only["recommended_tools"] == []
+
+
+def test_build_agent_instructions_appends_extra_warnings():
+    """extra_warnings is appended to the rail-derived defaults."""
+    out = build_agent_instructions(
+        BuildAgentInstructionsInput(
+            how_to_pay={"tempo": {}, "x402_base": {}},
+            extra_warnings=["Solana unavailable for this order; use base or tempo."],
+        )
+    )
+    assert len(out["warnings"]) == 3
+    assert "tempo wallet transfer" in out["warnings"][0]
+    assert "Solana unavailable" in out["warnings"][2]
+
+
+def test_build_agent_instructions_extra_warnings_ignored_when_warnings_set():
+    """Explicit warnings override defaults AND extra_warnings."""
+    out = build_agent_instructions(
+        BuildAgentInstructionsInput(
+            how_to_pay={"tempo": {}},
+            warnings=["custom only"],
+            extra_warnings=["ignored"],
+        )
+    )
+    assert out["warnings"] == ["custom only"]
 
 
 def test_build_402_body_assembles_full_response():

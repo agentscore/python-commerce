@@ -1,18 +1,16 @@
 """Payment-signer extraction.
 
-Pure-x402 extractor for Python. Two payload shapes are handled directly:
+Pure-x402 extractor for Python. Handles **x402 EIP-3009** (EVM, e.g. Base/Sepolia):
+``payload.authorization.from`` recovered from the base64-encoded JSON body. No external
+deps.
 
-- **x402 EIP-3009** (EVM, e.g. Base/Sepolia) — `payload.authorization.from` recovered
-  from the base64-encoded JSON body. No external deps.
-- **x402 SVM** (Solana) — payload carries a base64-encoded Solana transaction; the
-  signer is the SPL Token TransferChecked source-account owner. Decoding that
-  transaction requires a Solana SDK (`solana-py` / `solders`) which isn't a hard
-  dep of this package — merchants who need Solana signer recovery should extract
-  the payer themselves and pass it to ``verify_wallet_signer_match`` via the
-  ``signer=`` argument. We return ``None`` here so the caller knows we couldn't
-  recover it.
+Solana payments in the AgentScore stack go through MPP `solana/charge`
+(``Authorization: Payment``), not x402, so they don't arrive at this helper. If a
+non-AgentScore merchant does receive a legacy x402 SVM payload, this function returns
+``None``; the caller should pass the recovered signer to ``verify_wallet_signer_match``
+via the ``signer=`` argument instead.
 
-Tempo MPP signer extraction is also caller-supplied — there's no pip-installable
+Tempo MPP signer extraction is also caller-supplied; there's no pip-installable
 equivalent of the node ``mppx`` library today.
 """
 

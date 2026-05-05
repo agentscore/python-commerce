@@ -48,12 +48,12 @@ def test_unique_challenge_ids_per_rail():
         _input(
             [
                 PaymentHeadersRail(rail="tempo-mainnet", amount_usd=1, recipient="0xa"),
-                PaymentHeadersRail(rail="x402-solana-mainnet", amount_usd=1, recipient="0xb"),
+                PaymentHeadersRail(rail="mpp-solana-mainnet", amount_usd=1, recipient="0xb"),
             ],
         ),
     )
     assert 'id="ord_1-tempo-mainnet"' in result["www_authenticate"]
-    assert 'id="ord_1-x402-solana-mainnet"' in result["www_authenticate"]
+    assert 'id="ord_1-mpp-solana-mainnet"' in result["www_authenticate"]
 
 
 def test_emits_payment_required_header_when_x402_provided():

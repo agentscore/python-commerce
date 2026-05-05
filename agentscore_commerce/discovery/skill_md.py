@@ -99,7 +99,7 @@ class BuildSkillMdInput:
     """Merchant homepage (or domain root). Emitted as ``metadata.homepage`` per spec
     (top-level non-spec fields go under metadata)."""
     merchant_name: str
-    """Human display name (e.g. 'Martin Estate Winery')."""
+    """Human display name (e.g. 'Example Merchant')."""
     accepted_rails: list[RailKey]
     """Rails the merchant accepts. Drives the Payment + Compatible Clients sections.
     Order is preserved in render."""
@@ -158,7 +158,7 @@ class BuildSkillMdInput:
 _RAIL_LABELS: dict[str, str] = {
     "tempo_mpp": "MPP on Tempo",
     "x402_base": "x402 on Base",
-    "x402_solana": "x402 on Solana",
+    "solana_mpp": "MPP on Solana",
     "stripe": "Stripe Shared Payment Token",
 }
 
@@ -168,7 +168,7 @@ _RAIL_NOTES: dict[str, str] = {
         "MPP credential goes in `Authorization: Payment`."
     ),
     "x402_base": "USDC (EIP-3009). Use `agentscore-pay`; X-Payment header carries the signed credential.",
-    "x402_solana": "USDC (SPL). Use `agentscore-pay`; X-Payment header carries the signed credential.",
+    "solana_mpp": "USDC (SPL). Use `agentscore-pay`; X-Payment header carries the signed credential.",
     "stripe": (
         "Card via Link wallet. Use `@stripe/link-cli` — `agentscore-pay` emits the "
         "handoff hint when this rail is picked."

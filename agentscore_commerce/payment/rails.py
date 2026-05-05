@@ -70,15 +70,15 @@ rails: dict[str, RailDefinition] = {
         decimals=USDC.base.sepolia.decimals,
         asset=USDC.base.sepolia.address,
     ),
-    "x402-solana-mainnet": RailDefinition(
-        method="x402",
+    "mpp-solana-mainnet": RailDefinition(
+        method="solana",
         network=networks.solana.mainnet.caip2,
         currency=USDC.solana.mainnet.mint,
         decimals=USDC.solana.mainnet.decimals,
         asset=USDC.solana.mainnet.mint,
     ),
-    "x402-solana-devnet": RailDefinition(
-        method="x402",
+    "mpp-solana-devnet": RailDefinition(
+        method="solana",
         network=networks.solana.devnet.caip2,
         currency=USDC.solana.devnet.mint,
         decimals=USDC.solana.devnet.decimals,

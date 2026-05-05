@@ -24,6 +24,7 @@ DEFAULT_DISCOVERY_PATHS: frozenset[str] = frozenset(
         "/skill.md",
         "/SKILL.md",
         "/.well-known/mpp.json",
+        "/.well-known/x402",
         "/.well-known/agent-card.json",
         "/.well-known/ucp",
         "/favicon.png",

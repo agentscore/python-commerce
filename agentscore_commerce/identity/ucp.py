@@ -177,14 +177,14 @@ def build_ucp_profile(
         async def ucp_profile():
             result = await client.acheck(identity)
             return build_ucp_profile(
-                name="Martin Estate",
-                services=[UCPService(type="rest", url="https://agents.martinestate.com")],
+                name="Example Merchant",
+                services=[UCPService(type="rest", url="https://agents.example.com")],
                 payment_handlers=[
                     UCPPaymentHandler(name="tempo", config={"recipient": TEMPO_ADDR}),
                     UCPPaymentHandler(name="stripe", config={"profile_id": STRIPE_PROFILE_ID}),
                 ],
                 signing_keys=[
-                    UCPSigningKey(kid="me-2026-04", kty="EC", alg="ES256", crv="P-256",
+                    UCPSigningKey(kid="merchant-2026-04", kty="EC", alg="ES256", crv="P-256",
                                   extras={"x": "...", "y": "..."}),
                 ],
                 data=result,

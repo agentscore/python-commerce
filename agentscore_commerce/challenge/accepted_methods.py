@@ -25,7 +25,7 @@ class X402BaseConfig:
 
 
 @dataclass
-class X402SolanaConfig:
+class SolanaMppConfig:
     recipient: str
     network: str = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
     token: str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -43,7 +43,7 @@ class StripeConfig:
 class BuildAcceptedMethodsInput:
     tempo: TempoConfig | None = None
     x402_base: X402BaseConfig | None = None
-    x402_solana: X402SolanaConfig | None = None
+    solana_mpp: SolanaMppConfig | None = None
     stripe: StripeConfig | None = None
 
 
@@ -74,15 +74,15 @@ def build_accepted_methods(input: BuildAcceptedMethodsInput) -> list[dict[str, A
                 "pay_to": input.x402_base.recipient,
             }
         )
-    if input.x402_solana:
+    if input.solana_mpp:
         out.append(
             {
                 "method": "x402/exact",
-                "network": input.x402_solana.network,
-                "token": input.x402_solana.token,
-                "symbol": input.x402_solana.symbol,
-                "decimals": input.x402_solana.decimals,
-                "pay_to": input.x402_solana.recipient,
+                "network": input.solana_mpp.network,
+                "token": input.solana_mpp.token,
+                "symbol": input.solana_mpp.symbol,
+                "decimals": input.solana_mpp.decimals,
+                "pay_to": input.solana_mpp.recipient,
             }
         )
     if input.stripe:

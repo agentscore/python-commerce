@@ -4,8 +4,8 @@ Stripe-multichain merchants need three lookups during a request lifecycle:
 
 1. **Is this on-chain ``pay_to`` address one we minted?** — when an MPP credential
    arrives with a ``recipient``, verify it matches a recently-minted Stripe deposit
-   address. Prevents agents from sending payment to an attacker-controlled address
-   and replaying the credential against the merchant's endpoint.
+   address. Validates the credential's deposit address against the addresses the
+   merchant has actually minted.
 
 2. **Which PaymentIntent owns this deposit address?** — when settling, the
    ``simulate_crypto_deposit`` test_helpers call needs the PaymentIntent id for the

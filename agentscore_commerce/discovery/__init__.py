@@ -12,10 +12,17 @@ from agentscore_commerce.discovery.llms_txt import (
 )
 from agentscore_commerce.discovery.openapi import (
     BuildAgentScoreOpenApiSnippetsInput,
+    XPaymentInfoDynamicPrice,
+    XPaymentInfoFixedPrice,
+    XPaymentInfoInput,
+    XPaymentInfoMpp,
     agentscore_denial_schemas,
     agentscore_openapi_snippets,
     agentscore_payment_required_schema,
     agentscore_security_schemes,
+    siwx_security_scheme,
+    x_guidance_extension,
+    x_payment_info_extension,
 )
 from agentscore_commerce.discovery.probe import (
     DiscoveryProbeOptions,
@@ -48,6 +55,11 @@ from agentscore_commerce.discovery.well_known_mpp import (
     WellKnownMppInput,
     build_well_known_mpp,
 )
+from agentscore_commerce.discovery.well_known_x402 import (
+    BuildWellKnownX402Input,
+    WellKnownX402Resource,
+    build_well_known_x402,
+)
 
 __all__ = [
     "DEFAULT_DISCOVERY_PATHS",
@@ -56,6 +68,7 @@ __all__ = [
     "BuildAgentScoreOpenApiSnippetsInput",
     "BuildLlmsTxtInput",
     "BuildSkillMdInput",
+    "BuildWellKnownX402Input",
     "DiscoveryProbeOptions",
     "DiscoveryProbeResponse",
     "DjangoNoindexMiddleware",
@@ -70,7 +83,12 @@ __all__ = [
     "SkillMdLink",
     "SkillMdShippingPolicy",
     "WellKnownMppInput",
+    "WellKnownX402Resource",
     "X402SampleProbe",
+    "XPaymentInfoDynamicPrice",
+    "XPaymentInfoFixedPrice",
+    "XPaymentInfoInput",
+    "XPaymentInfoMpp",
     "agentscore_denial_schemas",
     "agentscore_openapi_snippets",
     "agentscore_payment_required_schema",
@@ -80,6 +98,7 @@ __all__ = [
     "build_llms_txt",
     "build_skill_md",
     "build_well_known_mpp",
+    "build_well_known_x402",
     "compatible_clients_by_rails",
     "install_flask_noindex",
     "is_discovery_path",
@@ -87,4 +106,7 @@ __all__ = [
     "llms_txt_identity_section",
     "llms_txt_payment_section",
     "sample_x402_accept_for_network",
+    "siwx_security_scheme",
+    "x_guidance_extension",
+    "x_payment_info_extension",
 ]

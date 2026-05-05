@@ -1,15 +1,17 @@
-"""Example: full agent-commerce merchant (Martin-Estate-style stripped down).
+"""Example: full regulated-commerce merchant.
 
 Scenario: you sell a regulated good. Identity gate (KYC + age + jurisdiction + sanctions),
 plus 402 payment challenge advertising multiple rails so agents can pay with whatever they
-have — Tempo USDC (MPP), x402 USDC on Base + Solana, Stripe SPT.
+have: Tempo USDC (MPP `tempo/charge`), x402 USDC on Base, Solana USDC (MPP `solana/charge`),
+Stripe SPT.
 
 The flow on each /purchase POST:
     1. Identity gate (AgentScoreGate): KYC + age + jurisdiction + sanctions
-    2. If ``X-Payment`` header present (x402 client paying) → ``verify_x402_request`` →
+    2. If ``X-Payment`` header present (x402 client paying base) → ``verify_x402_request`` →
        ``process_x402_settle`` → return 200 with ``payment-response`` header
     3. Else mint a Stripe multichain PI (deposit addresses for tempo/base/solana)
        and run pympp's compose() to validate any ``Authorization: Payment`` header
+       (covers tempo/charge AND solana/charge directives)
     4. If pympp returns 402 → ``respond_402`` (preserves pympp's WWW-Auth + adds x402's
        PAYMENT-REQUIRED) with the rich body
     5. If pympp returns 200 → also fire ``simulate_deposit_if_test_mode`` for testnet
@@ -25,7 +27,7 @@ Env vars:
     STRIPE_PROFILE_ID     — your Stripe Connect profile id (for SPT)
     TEMPO_USDC_ADDRESS    — USDC token address on Tempo (mainnet or testnet)
     X402_BASE_NETWORK     — CAIP-2
-    X402_SVM_NETWORK      — CAIP-2
+    SOLANA_NETWORK_CAIP2      — CAIP-2
     REDIS_URL             — optional; in-memory PI cache otherwise
 
 Run: uvicorn examples.multi_rail_merchant:app --port 3000
@@ -44,14 +46,14 @@ from agentscore_commerce.challenge import (
     BuildValidationErrorInput,
     HowToPayRails,
     Respond402Input,
+    SolanaMppConfig,
+    SolanaMppRailConfig,
     StripeConfig,
     StripeRailConfig,
     TempoConfig,
     TempoRailConfig,
     X402BaseConfig,
     X402BaseRailConfig,
-    X402SolanaConfig,
-    X402SolanaRailConfig,
     build_accepted_methods,
     build_agent_instructions,
     build_how_to_pay,
@@ -81,13 +83,11 @@ from agentscore_commerce.stripe_multichain import (
 
 APP_URL = os.environ["APP_URL"]
 X402_BASE_NETWORK = os.environ.get("X402_BASE_NETWORK", networks.base.mainnet.caip2)
-X402_SVM_NETWORK = os.environ.get("X402_SVM_NETWORK", networks.solana.mainnet.caip2)
+SOLANA_NETWORK_CAIP2 = os.environ.get("SOLANA_NETWORK_CAIP2", networks.solana.mainnet.caip2)
 
 # Boot-time guard: validate the configured x402 networks are in the supported set.
 # Raises on misconfigured deploys before the first request.
-validate_x402_network_config(
-    ValidateX402NetworkConfigInput(base_network=X402_BASE_NETWORK, svm_network=X402_SVM_NETWORK)
-)
+validate_x402_network_config(ValidateX402NetworkConfigInput(base_network=X402_BASE_NETWORK))
 
 # Singleton Stripe PI / deposit-address cache. Backed by Redis when REDIS_URL is set
 # (multi-instance deployments need this so a deposit lands on whichever instance
@@ -151,8 +151,7 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
             VerifyX402RequestInput(
                 headers=dict(request.headers),
                 is_cached_address=pi_cache.has_address,
-                accepted_base_network=X402_BASE_NETWORK,
-                accepted_svm_network=X402_SVM_NETWORK,
+                accepted_network=X402_BASE_NETWORK,
             )
         )
         if not verified.ok:
@@ -189,12 +188,13 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
                 status_code=400,
             )
 
-        # Fire Stripe testnet sim — no-ops on live keys.
+        # Fire Stripe testnet sim; no-ops on live keys. x402 settle only ever
+        # lands on base in 1.4+ (Solana moved to MPP `solana/charge`).
         await simulate_deposit_if_test_mode(
             SimulateDepositIfTestModeInput(
                 get_payment_intent_id=pi_cache.get_payment_intent_id,
                 deposit_address=verified.signed_pay_to,
-                network="solana" if verified.is_solana else "base",
+                network="base",
                 stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
             )
         )
@@ -217,7 +217,7 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
         BuildAcceptedMethodsInput(
             tempo=TempoConfig(recipient=deposit_addresses["tempo"]),
             x402_base=X402BaseConfig(recipient=deposit_addresses["base"]),
-            x402_solana=X402SolanaConfig(recipient=deposit_addresses["solana"]),
+            solana_mpp=SolanaMppConfig(recipient=deposit_addresses["solana"]),
             stripe=StripeConfig(profile_id=os.environ["STRIPE_PROFILE_ID"]),
         )
     )
@@ -229,7 +229,7 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
             rails=HowToPayRails(
                 tempo=TempoRailConfig(recipient=deposit_addresses["tempo"]),
                 x402_base=X402BaseRailConfig(recipient=deposit_addresses["base"]),
-                x402_solana=X402SolanaRailConfig(recipient=deposit_addresses["solana"]),
+                solana_mpp=SolanaMppRailConfig(recipient=deposit_addresses["solana"]),
                 stripe=StripeRailConfig(profile_id=os.environ["STRIPE_PROFILE_ID"]),
             ),
         )
@@ -270,11 +270,11 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
                     },
                     {
                         "scheme": "exact",
-                        "network": X402_SVM_NETWORK,
+                        "network": SOLANA_NETWORK_CAIP2,
                         "amount": str(round(float(total_usd) * 1_000_000)),
                         "asset": (
                             USDC.solana.devnet.mint
-                            if networks.solana.devnet.caip2 == X402_SVM_NETWORK
+                            if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2
                             else USDC.solana.mainnet.mint
                         ),
                         "payTo": deposit_addresses["solana"],

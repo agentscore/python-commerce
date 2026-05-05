@@ -9,7 +9,7 @@ Every helper is extracted from a real consumer, not speculated.
 | Submodule | What it is |
 |---|---|
 | `agentscore_commerce.identity.{fastapi,flask,django,aiohttp,sanic,middleware}` | Trust gate middleware (KYC, age, sanctions, jurisdiction) |
-| `agentscore_commerce.payment` | Networks/USDC/rails registries, paymentauth.org directive builders, `create_x402_server` (wraps official `x402[evm,svm]>=2.8` peer dep with v1+v2 dual-register + bazaar extension), `create_mppx_server` (wraps `pympp[server,tempo,stripe]>=0.6` peer dep with Tempo charge/session + Stripe SPT helpers), dispatch-by-network, signer extraction, WWW-Authenticate header, Settlement-Overrides header |
+| `agentscore_commerce.payment` | Networks/USDC/rails registries, paymentauth.org directive builders, `create_x402_server` (wraps official `x402[evm]>=2.8` peer dep with v1+v2 dual-register + bazaar extension), `create_mppx_server` (wraps `pympp[server,tempo,stripe]>=0.6` peer dep with Tempo charge/session + Stripe SPT helpers), dispatch-by-network, signer extraction, WWW-Authenticate header, Settlement-Overrides header |
 | `agentscore_commerce.discovery` | Discovery probe, Bazaar wrapper, `/.well-known/mpp.json`, `llms.txt` builder, `skill.md` builder (Claude-Skill-compatible agent-discovery manifest), OpenAPI snippets, `NoindexNonDiscoveryMiddleware` ASGI middleware |
 | `agentscore_commerce.challenge` | 402-body builders: accepted_methods, identity_metadata, how_to_pay, agent_instructions, build_402_body, `build_validation_error` (4xx body builder) |
 | `agentscore_commerce.stripe_multichain` | Multichain PaymentIntent helper, deposit-address lookup, testnet simulator, mppx Stripe wrapper |
@@ -30,7 +30,7 @@ Single Python package, hatchling-built, published to PyPI as `agentscore-commerc
 | `examples/` | Runnable single-file FastAPI apps for each common scenario |
 | `tests/` | pytest, one file per surface |
 
-Peer-dep pattern: payment/x402/mppx/stripe modules import lazily at runtime — vendors install only what they use via extras (`pip install agentscore-commerce[fastapi,stripe]` etc.). Underlying packages: `x402[evm,svm]`, `pympp[server,tempo,stripe]`, `stripe`. Missing peer dep raises a guiding `ImportError` with the install command.
+Peer-dep pattern: payment/x402/mppx/stripe modules import lazily at runtime — vendors install only what they use via extras (`pip install agentscore-commerce[fastapi,stripe]` etc.). Underlying packages: `x402[evm]`, `pympp[server,tempo,stripe]`, `stripe`. Missing peer dep raises a guiding `ImportError` with the install command.
 
 ## Examples
 
@@ -38,7 +38,7 @@ Peer-dep pattern: payment/x402/mppx/stripe modules import lazily at runtime — 
 
 | Example | Scenario |
 |---|---|
-| `api_provider.py` | Per-call API billing on multiple rails: Tempo MPP + x402 (Base + Solana); no compliance gate |
+| `api_provider.py` | Per-call API billing on multiple rails: Tempo MPP + x402 Base + Solana MPP; no compliance gate |
 | `identity_only.py` | Compliance gate without payment (vendor handles their own) |
 | `multi_rail_merchant.py` | Full agent-commerce: identity + Tempo MPP + x402 + Stripe SPT |
 | `stripe_multichain_merchant.py` | Stripe-anchored multichain (PaymentIntent → tempo/base/solana deposit addresses) |

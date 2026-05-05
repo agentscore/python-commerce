@@ -20,7 +20,7 @@ class X402BaseRailConfig:
 
 
 @dataclass
-class X402SolanaRailConfig:
+class SolanaMppRailConfig:
     recipient: str
     network: str = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 
@@ -35,7 +35,7 @@ class StripeRailConfig:
 class HowToPayRails:
     tempo: TempoRailConfig | None = None
     x402_base: X402BaseRailConfig | None = None
-    x402_solana: X402SolanaRailConfig | None = None
+    solana_mpp: SolanaMppRailConfig | None = None
     stripe: StripeRailConfig | None = None
 
 
@@ -125,9 +125,9 @@ def build_how_to_pay(input: BuildHowToPayInput) -> dict[str, Any]:
             ),
         }
 
-    if input.rails.x402_solana:
-        s = input.rails.x402_solana
-        block["x402_solana"] = {
+    if input.rails.solana_mpp:
+        s = input.rails.solana_mpp
+        block["solana_mpp"] = {
             "setup": PAY_SETUP_SOLANA,
             "prerequisite": (
                 f"Run `agentscore-pay balance --chain solana` and confirm USDC balance on Solana ({s.network}) "

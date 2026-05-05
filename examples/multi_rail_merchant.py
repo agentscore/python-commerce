@@ -265,8 +265,17 @@ async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
                         "payTo": deposit_addresses["base"],
                         "maxTimeoutSeconds": 300,
                         # EIP-712 domain — required by every x402 EVM client to
-                        # sign EIP-3009 TransferWithAuthorization.
-                        "extra": {"name": "USDC", "version": "2"},
+                        # sign EIP-3009 TransferWithAuthorization. ``name`` MUST
+                        # match the on-chain USDC contract's ``name()``: base mainnet
+                        # USDC returns "USD Coin", base sepolia returns "USDC".
+                        # Wrong value → every signature fails facilitator verify
+                        # (EIP-712 domain hash includes this string). The cleaner
+                        # pattern is ``build_x402_accepts_for_402(server, ...)`` which
+                        # derives ``extra`` from the registered scheme metadata.
+                        "extra": {
+                            "name": "USD Coin" if networks.base.mainnet.caip2 == X402_BASE_NETWORK else "USDC",
+                            "version": "2",
+                        },
                     },
                     {
                         "scheme": "exact",

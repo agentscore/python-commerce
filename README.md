@@ -247,6 +247,22 @@ await simulate_deposit_if_test_mode(SimulateDepositIfTestModeInput(
 ))
 ```
 
+## Build the x402 accepts entry for the 402 challenge
+
+```python
+from agentscore_commerce.payment import build_x402_accepts_for_402
+
+x402_accepts = build_x402_accepts_for_402(
+    x402_server,
+    network=X402_BASE,
+    price=f"${total_usd}",
+    pay_to=os.environ["TREASURY_BASE_RECIPIENT"],
+    max_timeout_seconds=300,
+)
+```
+
+Returns a list of plain dicts ready for the 402 body's `accepts[]`. `extra.name` is derived from the registered scheme metadata so the EIP-712 domain matches the on-chain USDC contract.
+
 ## Drop-in 402 + settle (x402)
 
 ```python

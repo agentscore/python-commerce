@@ -91,6 +91,56 @@ async def test_create_x402_server_coinbase_without_creds_raises(monkeypatch: pyt
         await create_x402_server(facilitator="coinbase", rails=["x402-base-mainnet"], initialize=False)
 
 
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+def test_build_x402_accepts_for_402_returns_dicts_from_typed_requirements() -> None:
+    """``build_x402_accepts_for_402`` wraps ``server.build_payment_requirements`` and
+    returns the requirements as wire-shape dicts (via ``model_dump(by_alias=True, mode="json")``)
+    so merchants can drop them straight into the 402 response body without importing
+    Pydantic types or remembering to serialize.
+    """
+    from x402.schemas import PaymentRequirements
+
+    from agentscore_commerce.payment import build_x402_accepts_for_402
+
+    captured: dict = {}
+
+    class _CapturingServer:
+        def build_payment_requirements(self, config, _ext=None):
+            captured["config"] = config
+            return [
+                PaymentRequirements(
+                    scheme="exact",
+                    network="eip155:8453",
+                    amount="100000",
+                    asset="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    pay_to="0x000000000000000000000000000000000000dEaD",
+                    max_timeout_seconds=300,
+                    extra={"name": "USD Coin", "version": "2"},
+                )
+            ]
+
+    accepts = build_x402_accepts_for_402(
+        _CapturingServer(),
+        network="eip155:8453",
+        price="$0.10",
+        pay_to="0x000000000000000000000000000000000000dEaD",
+    )
+    # Caller-side: a typed ResourceConfig is passed to build_payment_requirements.
+    cfg = captured["config"]
+    assert cfg.network == "eip155:8453"
+    assert cfg.pay_to == "0x000000000000000000000000000000000000dEaD"
+    assert cfg.max_timeout_seconds == 300
+    # Returned shape: wire-form dicts, not Pydantic models.
+    assert isinstance(accepts, list)
+    assert len(accepts) == 1
+    assert isinstance(accepts[0], dict)
+    assert accepts[0]["network"] == "eip155:8453"
+    # Camel-case keys (by_alias=True) — facilitator + clients expect this shape.
+    assert accepts[0]["payTo"] == "0x000000000000000000000000000000000000dEaD"
+    assert accepts[0]["maxTimeoutSeconds"] == 300
+    assert accepts[0]["extra"] == {"name": "USD Coin", "version": "2"}
+
+
 @pytest.mark.skipif(not _MPPX_INSTALLED or not _TEMPO_INSTALLED, reason="pympp[tempo] not installed")
 @pytest.mark.asyncio
 async def test_create_mppx_server_tempo_returns_mpp_instance() -> None:

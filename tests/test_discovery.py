@@ -176,7 +176,9 @@ def test_sample_accept_base_mainnet() -> None:
     assert e is not None
     assert e["network"] == "eip155:8453"
     assert e["scheme"] == "exact"
-    assert e["extra"] == {"name": "USDC", "version": "2"}
+    # Base mainnet USDC's contract returns ``name() == "USD Coin"``. ``extra.name``
+    # mirrors that for EIP-712 domain-hash parity with what the facilitator validates.
+    assert e["extra"] == {"name": "USD Coin", "version": "2"}
 
 
 def test_sample_accept_base_sepolia() -> None:
@@ -185,6 +187,8 @@ def test_sample_accept_base_sepolia() -> None:
     e = sample_x402_accept_for_network("eip155:84532")
     assert e is not None
     assert e["network"] == "eip155:84532"
+    # Base sepolia USDC contract returns ``name() == "USDC"`` (differs from mainnet).
+    assert e["extra"] == {"name": "USDC", "version": "2"}
 
 
 def test_sample_accept_solana_mainnet() -> None:

@@ -189,7 +189,7 @@ def classify_x402_settle_result(result: ProcessX402SettleResult) -> ClassifiedX4
     return None
 
 
-def _coerce_resource_config(config: Any) -> Any:
+def coerce_resource_config(config: Any) -> Any:
     """Best-effort dict → x402 ``ResourceConfig`` coercion.
 
     Consumers ported from the JS / Hono stack often pass a plain dict with the JS-style
@@ -220,7 +220,7 @@ def _coerce_resource_config(config: Any) -> Any:
         return config
 
 
-def _coerce_payment_payload(payload: Any) -> Any:
+def coerce_payment_payload(payload: Any) -> Any:
     """Best-effort dict → x402 ``PaymentPayload`` (v1 or v2) coercion.
 
     ``verify_x402_request`` returns ``payload`` as a plain dict (the result of
@@ -252,8 +252,8 @@ def _coerce_payment_payload(payload: Any) -> Any:
 async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402SettleResult:
     """Run the x402 verify→settle flow and return a tagged outcome."""
     server = input.x402_server
-    resource_config = _coerce_resource_config(input.resource_config)
-    payload = _coerce_payment_payload(input.payload)
+    resource_config = coerce_resource_config(input.resource_config)
+    payload = coerce_payment_payload(input.payload)
 
     try:
         built_requirements = server.build_payment_requirements(resource_config)
@@ -321,7 +321,7 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
         settle_result = await server.settle_payment(payload, matched_requirement)
         payment_response_header: str | None = None
         if settle_result is not None:
-            payment_response_header = base64.b64encode(_settle_result_to_json_bytes(settle_result)).decode()
+            payment_response_header = base64.b64encode(settle_result_to_json_bytes(settle_result)).decode()
         return ProcessX402SettleSuccess(
             matched_requirement=matched_requirement,
             settle_result=settle_result,
@@ -332,7 +332,7 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
         return ProcessX402SettleFailure(phase="settle_failed", error=err, matched_requirement=matched_requirement)
 
 
-def _settle_result_to_json_bytes(settle_result: Any) -> bytes:
+def settle_result_to_json_bytes(settle_result: Any) -> bytes:
     """Serialize the settle result to a base64-friendly JSON byte string.
 
     x402 2.9's ``settle_payment`` returns a Pydantic ``SettleResponse`` model that

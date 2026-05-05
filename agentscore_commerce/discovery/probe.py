@@ -39,7 +39,11 @@ def sample_x402_accept_for_network(caip2: str, amount_atomic: str = "1000000") -
             "asset": USDC.base.mainnet.address,
             "payTo": _ZERO_EVM_PAYTO,
             "maxTimeoutSeconds": 300,
-            "extra": {"name": "USDC", "version": "2"},
+            # ``extra.name`` mirrors the on-chain USDC contract's ``name()`` return value
+            # because EIP-712 domain hashes include this string. Wrong name → every
+            # signed payload fails facilitator verify with ``invalid_exact_evm_payload_signature``.
+            # Base mainnet USDC returns "USD Coin"; base sepolia USDC returns "USDC".
+            "extra": {"name": "USD Coin", "version": "2"},
         }
     if caip2 == networks.base.sepolia.caip2:
         return {

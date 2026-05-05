@@ -15,12 +15,14 @@ Replaces ~15 lines of boilerplate with a single config call::
 
 `x402` is an OPTIONAL peer dependency — install only the schemes you use::
 
-    pip install 'x402[evm,fastapi]>=2.8,<3'   # plus 'coinbase-x402' for the Coinbase facilitator
+    pip install 'x402[evm,fastapi]>=2.9,<3'   # for non-Coinbase facilitators
+    pip install 'agentscore-commerce[x402,coinbase]'   # for the Coinbase facilitator (adds cdp-sdk)
 """
 
 from __future__ import annotations
 
 import importlib
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -28,6 +30,8 @@ from agentscore_commerce.payment.networks import networks
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+COINBASE_FACILITATOR_URL = "https://api.cdp.coinbase.com/platform/v2/x402"
 
 X402SymbolicRail = Literal[
     "x402-base-mainnet",
@@ -52,8 +56,10 @@ class CreateX402ServerOptions:
     """Configuration for :func:`create_x402_server`."""
 
     facilitator: X402FacilitatorChoice | Any = "http"
-    """Facilitator selection — ``"coinbase"`` (requires ``coinbase-x402``), ``"http"``
-    (public testnet facilitator), or any pre-built facilitator instance."""
+    """Facilitator selection — ``"coinbase"`` (requires ``cdp-sdk`` peer dep + the
+    ``CDP_API_KEY_ID`` / ``CDP_API_KEY_SECRET`` env vars or explicit ``cdp_api_key_id``
+    / ``cdp_api_key_secret`` args), ``"http"`` (public testnet facilitator at
+    ``x402.org``), or any pre-built facilitator instance."""
 
     rails: list[X402SymbolicRail] = field(default_factory=list)
     """Symbolic rail names to register schemes for. Each gets v1+v2 dual-register
@@ -68,6 +74,14 @@ class CreateX402ServerOptions:
     initialize: bool = True
     """Initialize the server immediately (calls facilitator). Default ``True``."""
 
+    cdp_api_key_id: str | None = None
+    """CDP API key id for the Coinbase facilitator. Falls back to
+    ``CDP_API_KEY_ID`` env var. Only consulted when ``facilitator="coinbase"``."""
+
+    cdp_api_key_secret: str | None = None
+    """CDP API key secret for the Coinbase facilitator. Falls back to
+    ``CDP_API_KEY_SECRET`` env var. Only consulted when ``facilitator="coinbase"``."""
+
 
 def _import_optional(module_name: str) -> Any | None:
     """Try to import a module; return ``None`` if not installed."""
@@ -77,12 +91,84 @@ def _import_optional(module_name: str) -> Any | None:
         return None
 
 
+def _build_coinbase_facilitator(
+    x402_top: Any,
+    api_key_id: str | None,
+    api_key_secret: str | None,
+) -> Any:
+    """Build a ``HTTPFacilitatorClient`` pointed at the Coinbase facilitator with CDP JWT auth.
+
+    Uses ``cdp-sdk``'s ``generate_jwt`` to mint a per-endpoint Bearer token (CDP rotates
+    JWTs every 120s by default). Mirrors the TS ``@coinbase/x402`` package's
+    ``createCdpAuthHeaders`` shape exactly so the verify / settle / supported routes
+    each get a JWT scoped to their HTTP method + path.
+    """
+    api_key_id = api_key_id or os.environ.get("CDP_API_KEY_ID")
+    api_key_secret = api_key_secret or os.environ.get("CDP_API_KEY_SECRET")
+    if not api_key_id or not api_key_secret:
+        msg = (
+            "facilitator='coinbase' requires CDP_API_KEY_ID and CDP_API_KEY_SECRET — "
+            "set them as env vars or pass cdp_api_key_id / cdp_api_key_secret to "
+            "create_x402_server."
+        )
+        raise ValueError(msg)
+
+    cdp_jwt_module = _import_optional("cdp.auth.utils.jwt")
+    if cdp_jwt_module is None:
+        msg = (
+            "cdp-sdk not installed — run `pip install 'agentscore-commerce[coinbase]'` "
+            "(or `pip install cdp-sdk`) to use facilitator='coinbase'."
+        )
+        raise ImportError(msg)
+
+    http_module = _import_optional("x402.http")
+    facilitator_config_cls = getattr(http_module, "FacilitatorConfig", None) if http_module else None
+    facilitator_client_cls = getattr(http_module, "HTTPFacilitatorClient", None) if http_module else None
+    if facilitator_config_cls is None or facilitator_client_cls is None:
+        msg = "x402.http missing FacilitatorConfig / HTTPFacilitatorClient — upgrade x402>=2.9."
+        raise ImportError(msg)
+
+    facilitator_url = COINBASE_FACILITATOR_URL
+    request_host = facilitator_url.split("://", 1)[1].split("/", 1)[0]
+    request_path = "/" + facilitator_url.split("://", 1)[1].split("/", 1)[1]
+    jwt_options_cls = cdp_jwt_module.JwtOptions
+    generate_jwt = cdp_jwt_module.generate_jwt
+
+    def _mint_bearer(method: str, path: str) -> str:
+        token = generate_jwt(
+            jwt_options_cls(
+                api_key_id=api_key_id,
+                api_key_secret=api_key_secret,
+                request_method=method,
+                request_host=request_host,
+                request_path=path,
+            )
+        )
+        return f"Bearer {token}"
+
+    def _create_headers() -> dict[str, dict[str, str]]:
+        return {
+            "verify": {"Authorization": _mint_bearer("POST", f"{request_path}/verify")},
+            "settle": {"Authorization": _mint_bearer("POST", f"{request_path}/settle")},
+            "supported": {"Authorization": _mint_bearer("GET", f"{request_path}/supported")},
+        }
+
+    create_headers_provider_cls = getattr(http_module, "CreateHeadersAuthProvider", None)
+    config = facilitator_config_cls(
+        url=facilitator_url,
+        auth_provider=create_headers_provider_cls(_create_headers) if create_headers_provider_cls else None,
+    )
+    return facilitator_client_cls(config)
+
+
 async def create_x402_server(
     facilitator: X402FacilitatorChoice | Any = "http",
     rails: Iterable[X402SymbolicRail] | None = None,
     schemes: Iterable[CustomScheme] | None = None,
     bazaar: bool = False,
     initialize: bool = True,
+    cdp_api_key_id: str | None = None,
+    cdp_api_key_secret: str | None = None,
 ) -> Any:
     """One-call x402 server setup.
 
@@ -107,13 +193,20 @@ async def create_x402_server(
 
     facilitator_instance: Any
     if facilitator == "coinbase":
-        # x402 2.9's x402Facilitator() takes no constructor args. Coinbase
-        # facilitator selection happens via FacilitatorConfig at construction
-        # time — for the Coinbase preset, use facilitator="http" with hooks
-        # or pass a pre-built instance via facilitator=<your_facilitator>.
-        facilitator_instance = x402_top.x402Facilitator()
+        # Coinbase's x402 facilitator at api.cdp.coinbase.com requires a JWT
+        # bearer per endpoint signed with the CDP API key. A bare x402Facilitator()
+        # does NOT auto-pick up CDP creds — the public docs implying otherwise
+        # are wrong. Build an HTTPFacilitatorClient with a CreateHeadersAuthProvider
+        # that mints per-endpoint JWTs via cdp-sdk.
+        facilitator_instance = _build_coinbase_facilitator(x402_top, cdp_api_key_id, cdp_api_key_secret)
     elif facilitator == "http":
-        facilitator_instance = x402_top.x402Facilitator()
+        # Public x402.org testnet facilitator. HTTPFacilitatorClient with no auth.
+        http_module = _import_optional("x402.http")
+        facilitator_client_cls = getattr(http_module, "HTTPFacilitatorClient", None) if http_module else None
+        if facilitator_client_cls is None:
+            msg = "x402.http missing HTTPFacilitatorClient — upgrade x402>=2.9."
+            raise ImportError(msg)
+        facilitator_instance = facilitator_client_cls()
     else:
         # Pre-built facilitator instance passed directly.
         facilitator_instance = facilitator

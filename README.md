@@ -11,6 +11,15 @@ The full merchant-side SDK for [AgentScore](https://agentscore.sh) in Python —
 pip install agentscore-commerce[fastapi]   # or [flask], [django], [aiohttp], [sanic], [stripe]
 ```
 
+For x402 + Coinbase facilitator support (mints per-endpoint CDP JWTs via `cdp-sdk`):
+
+```bash
+pip install 'agentscore-commerce[fastapi,x402,coinbase]'
+# Set CDP_API_KEY_ID and CDP_API_KEY_SECRET in the environment.
+```
+
+`[mppx]` adds Tempo MPP + Stripe SPT helpers via `pympp[server,tempo,stripe]`.
+
 ## What's in the package
 
 | Submodule | What it provides |

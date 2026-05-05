@@ -50,6 +50,47 @@ async def test_create_x402_server_registers_base_sepolia_scheme() -> None:
     assert "exact" in server._schemes["eip155:84532"]
 
 
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_coinbase_facilitator_wires_cdp_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``facilitator="coinbase"`` builds an HTTPFacilitatorClient pointed at the
+    CDP URL with a per-endpoint JWT auth provider — not a bare in-process facilitator.
+
+    This is the regression that 1.3.2 fixes: 1.3.0 + 1.3.1 both passed an empty
+    ``x402Facilitator()`` instance and silently failed downstream when
+    ``build_payment_requirements`` looked up the supported map.
+    """
+    cdp_sdk_installed = importlib.util.find_spec("cdp.auth.utils.jwt") is not None
+    if not cdp_sdk_installed:
+        pytest.skip("cdp-sdk not installed (install via the `coinbase` extra)")
+
+    monkeypatch.setenv("CDP_API_KEY_ID", "test-key-id")
+    monkeypatch.setenv("CDP_API_KEY_SECRET", "test-key-secret")
+
+    server = await create_x402_server(
+        facilitator="coinbase",
+        rails=["x402-base-mainnet"],
+        initialize=False,
+    )
+    facilitator_clients = server._facilitator_clients
+    assert len(facilitator_clients) == 1
+    facilitator = facilitator_clients[0]
+    assert type(facilitator).__name__ == "HTTPFacilitatorClient"
+    assert facilitator.url == "https://api.cdp.coinbase.com/platform/v2/x402"
+    assert facilitator._auth_provider is not None
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_coinbase_without_creds_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``facilitator="coinbase"`` with no CDP creds raises a clear ValueError."""
+    monkeypatch.delenv("CDP_API_KEY_ID", raising=False)
+    monkeypatch.delenv("CDP_API_KEY_SECRET", raising=False)
+
+    with pytest.raises(ValueError, match="CDP_API_KEY_ID and CDP_API_KEY_SECRET"):
+        await create_x402_server(facilitator="coinbase", rails=["x402-base-mainnet"], initialize=False)
+
+
 @pytest.mark.skipif(not _MPPX_INSTALLED or not _TEMPO_INSTALLED, reason="pympp[tempo] not installed")
 @pytest.mark.asyncio
 async def test_create_mppx_server_tempo_returns_mpp_instance() -> None:

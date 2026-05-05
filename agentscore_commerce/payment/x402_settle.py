@@ -220,10 +220,40 @@ def _coerce_resource_config(config: Any) -> Any:
         return config
 
 
+def _coerce_payment_payload(payload: Any) -> Any:
+    """Best-effort dict → x402 ``PaymentPayload`` (v1 or v2) coercion.
+
+    ``verify_x402_request`` returns ``payload`` as a plain dict (the result of
+    ``json.loads(base64.b64decode(X-Payment))``), but x402 2.9's
+    ``server.verify_payment`` / ``server.settle_payment`` call ``payload.get_scheme()``
+    and other typed-model methods on it. Without coercion, the dict raises
+    ``AttributeError("'dict' object has no attribute 'get_scheme'")`` on the verify leg.
+
+    Routes by the ``x402Version`` field: ``1`` → ``PaymentPayloadV1`` (flat shape with
+    top-level ``scheme`` / ``network``); anything else → ``PaymentPayload`` (v2 shape
+    nested under ``accepted``). Falls back to the original dict on any failure so callers
+    that already pass typed instances or unusual shapes still flow through unchanged.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from x402.schemas import PaymentPayload
+        from x402.schemas.v1 import PaymentPayloadV1
+    except ImportError:
+        return payload
+    version = payload.get("x402Version")
+    model = PaymentPayloadV1 if version == 1 else PaymentPayload
+    try:
+        return model.model_validate(payload)
+    except Exception:
+        return payload
+
+
 async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402SettleResult:
     """Run the x402 verify→settle flow and return a tagged outcome."""
     server = input.x402_server
     resource_config = _coerce_resource_config(input.resource_config)
+    payload = _coerce_payment_payload(input.payload)
 
     try:
         built_requirements = server.build_payment_requirements(resource_config)
@@ -267,7 +297,7 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
     # — not ``process_payment_request`` (a fictional method that earlier versions of this
     # helper called and only ever worked against test stubs).
     try:
-        verify_result = await server.verify_payment(input.payload, matched_requirement)
+        verify_result = await server.verify_payment(payload, matched_requirement)
     except Exception as err:
         return ProcessX402SettleFailure(phase="facilitator_error", step="verify_payment", error=err)
 
@@ -288,11 +318,10 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
         return ProcessX402SettleFailure(phase="verify_failed", verify_result=verify_result)
 
     try:
-        settle_result = await server.settle_payment(input.payload, matched_requirement)
+        settle_result = await server.settle_payment(payload, matched_requirement)
         payment_response_header: str | None = None
         if settle_result is not None:
-            payload_bytes = json.dumps(settle_result, separators=(",", ":")).encode()
-            payment_response_header = base64.b64encode(payload_bytes).decode()
+            payment_response_header = base64.b64encode(_settle_result_to_json_bytes(settle_result)).decode()
         return ProcessX402SettleSuccess(
             matched_requirement=matched_requirement,
             settle_result=settle_result,
@@ -301,3 +330,19 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
         )
     except Exception as err:
         return ProcessX402SettleFailure(phase="settle_failed", error=err, matched_requirement=matched_requirement)
+
+
+def _settle_result_to_json_bytes(settle_result: Any) -> bytes:
+    """Serialize the settle result to a base64-friendly JSON byte string.
+
+    x402 2.9's ``settle_payment`` returns a Pydantic ``SettleResponse`` model that
+    ``json.dumps`` rejects with ``TypeError: Object of type SettleResponse is not
+    JSON serializable``. Use ``model_dump_json(by_alias=True)`` for Pydantic models
+    (so emitted keys match the wire shape — ``errorReason`` / ``errorMessage`` rather
+    than the snake_case attrs) and fall through to ``json.dumps`` for plain dicts
+    (used by older x402 / test stubs).
+    """
+    model_dump_json = getattr(settle_result, "model_dump_json", None)
+    if callable(model_dump_json):
+        return model_dump_json(by_alias=True).encode()
+    return json.dumps(settle_result, separators=(",", ":")).encode()

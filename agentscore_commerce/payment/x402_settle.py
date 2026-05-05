@@ -1,14 +1,19 @@
 """``process_x402_settle``: single-call x402 verify+settle for merchants.
 
-Wraps the four x402-server steps every x402-accepting merchant repeats:
+Wraps the four x402-server steps every x402-accepting merchant repeats against
+``x402.x402ResourceServer`` (sync ``build_payment_requirements`` + sync
+``enrich_extensions`` + async ``verify_payment`` + async ``settle_payment``):
 
 1. ``build_payment_requirements(resource_config)``: builds the requirement entries the
    facilitator validates against
-2. ``enrich_extensions(extension, transport_context)``: folds in Bazaar (or other)
-   extensions for the verify step
-3. ``process_payment_request(payload, resource_config, resource_meta, extensions)``:
-   runs verify against the facilitator
+2. ``enrich_extensions(declared, transport_context)``: folds in Bazaar (or other)
+   extensions for the verify step (only when ``input.extension`` is supplied)
+3. ``verify_payment(payload, matched_requirement)``: runs verify against the facilitator
 4. ``settle_payment(payload, matched_requirement)``: settles on-chain
+
+Accepts ``resource_config`` as either a ``dict`` (JS-style with ``payTo`` /
+``maxTimeoutSeconds`` camelCase keys) or an ``x402.schemas.config.ResourceConfig``;
+dicts are coerced before the build step so callers don't have to import the x402 type.
 
 Returns a tagged result so the caller can map errors to merchant-shaped responses
 without owning the orchestration boilerplate. Use :func:`classify_x402_settle_result`
@@ -72,10 +77,10 @@ class ProcessX402SettleFailure:
       ``error`` server-side; map to a controlled 503 with
       ``payment_provider_unavailable``.
     - ``facilitator_error``: facilitator raised during one of the verify-stage calls
-      (build requirements, extension enrich, or process_payment_request). Most common
-      cause: facilitator client rejects the configured network. Log raw ``error``
-      server-side; map to a controlled 503 so the agent can pick a different rail.
-      ``step`` indicates which verify-stage call raised.
+      (build requirements, extension enrich, or verify_payment). Most common cause:
+      facilitator client rejects the configured network. Log raw ``error`` server-side;
+      map to a controlled 503 so the agent can pick a different rail. ``step`` indicates
+      which verify-stage call raised.
     """
 
     phase: Literal["no_requirements", "verify_failed", "settle_failed", "facilitator_error"]
@@ -85,8 +90,8 @@ class ProcessX402SettleFailure:
     error: Any = None
     matched_requirement: Any = None
     #: Populated only when ``phase == "facilitator_error"``. Indicates which verify-stage
-    #: call raised: ``"build_requirements"`` / ``"enrich_extensions"`` / ``"process_payment_request"``.
-    step: Literal["build_requirements", "enrich_extensions", "process_payment_request"] | None = None
+    #: call raised: ``"build_requirements"`` / ``"enrich_extensions"`` / ``"verify_payment"``.
+    step: Literal["build_requirements", "enrich_extensions", "verify_payment"] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -184,12 +189,44 @@ def classify_x402_settle_result(result: ProcessX402SettleResult) -> ClassifiedX4
     return None
 
 
+def _coerce_resource_config(config: Any) -> Any:
+    """Best-effort dict → x402 ``ResourceConfig`` coercion.
+
+    Consumers ported from the JS / Hono stack often pass a plain dict with the JS-style
+    ``payTo`` / ``maxTimeoutSeconds`` camelCase keys (the shape that ``processX402Settle``
+    in node-commerce accepts). x402's Python ``ResourceConfig`` is a Pydantic model with
+    ``pay_to`` / ``max_timeout_seconds`` snake_case fields, and ``build_payment_requirements``
+    does ``config.network`` attribute access — so a raw dict raises
+    ``AttributeError("'dict' object has no attribute 'network'")``. Coerce here so callers
+    can pass either shape.
+
+    Falls back to the original input on any failure (missing peer dep, validation error)
+    so caller-side typed instances still pass through unchanged.
+    """
+    if not isinstance(config, dict):
+        return config
+    try:
+        from x402.schemas.config import ResourceConfig
+    except ImportError:
+        return config
+    coerced = dict(config)
+    if "payTo" in coerced and "pay_to" not in coerced:
+        coerced["pay_to"] = coerced.pop("payTo")
+    if "maxTimeoutSeconds" in coerced and "max_timeout_seconds" not in coerced:
+        coerced["max_timeout_seconds"] = coerced.pop("maxTimeoutSeconds")
+    try:
+        return ResourceConfig(**coerced)
+    except Exception:
+        return config
+
+
 async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402SettleResult:
     """Run the x402 verify→settle flow and return a tagged outcome."""
     server = input.x402_server
+    resource_config = _coerce_resource_config(input.resource_config)
 
     try:
-        built_requirements = await server.build_payment_requirements(input.resource_config)
+        built_requirements = server.build_payment_requirements(resource_config)
     except Exception as err:
         return ProcessX402SettleFailure(phase="facilitator_error", step="build_requirements", error=err)
     if not built_requirements:
@@ -199,32 +236,55 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
         )
     matched_requirement = built_requirements[0]
 
-    transport_context = input.transport_context
-    if transport_context is None:
-        path = urlparse(input.resource_meta["url"]).path
-        transport_context = {
-            "method": "POST",
-            "adapter": {"getPath": lambda: path},
-            "routePattern": path,
-        }
+    # Per-request extension enrichment runs only when a caller explicitly attaches one
+    # (e.g. the Bazaar discovery extension). x402 2.9 takes the enriched dict as the
+    # second argument to ``build_payment_requirements`` rather than as a verify-step
+    # input, but the fold happens at build time — so we replay the build with the
+    # enriched extensions and use those requirements going forward.
+    if input.extension is not None:
+        transport_context = input.transport_context
+        if transport_context is None:
+            path = urlparse(input.resource_meta["url"]).path
+            transport_context = {
+                "method": "POST",
+                "adapter": {"getPath": lambda: path},
+                "routePattern": path,
+            }
+        try:
+            enriched_ext = server.enrich_extensions(input.extension, transport_context)
+        except Exception as err:
+            return ProcessX402SettleFailure(phase="facilitator_error", step="enrich_extensions", error=err)
+        try:
+            built_requirements = server.build_payment_requirements(
+                resource_config, list(enriched_ext.keys()) if isinstance(enriched_ext, dict) else None
+            )
+            if built_requirements:
+                matched_requirement = built_requirements[0]
+        except Exception as err:
+            return ProcessX402SettleFailure(phase="facilitator_error", step="build_requirements", error=err)
 
+    # x402 2.9's ``x402ResourceServer`` exposes ``verify_payment(payload, requirements)``
+    # — not ``process_payment_request`` (a fictional method that earlier versions of this
+    # helper called and only ever worked against test stubs).
     try:
-        enriched_ext = (
-            server.enrich_extensions(input.extension, transport_context) if input.extension is not None else None
-        )
+        verify_result = await server.verify_payment(input.payload, matched_requirement)
     except Exception as err:
-        return ProcessX402SettleFailure(phase="facilitator_error", step="enrich_extensions", error=err)
+        return ProcessX402SettleFailure(phase="facilitator_error", step="verify_payment", error=err)
 
-    try:
-        verify_result = await server.process_payment_request(
-            input.payload, input.resource_config, input.resource_meta, enriched_ext
+    # x402's VerifyResponse exposes ``is_valid``; some stubs / older facilitators expose
+    # ``success``. Accept either.
+    is_valid = (
+        getattr(verify_result, "is_valid", None)
+        if hasattr(verify_result, "is_valid")
+        else (verify_result.get("is_valid") if isinstance(verify_result, dict) else None)
+    )
+    if is_valid is None:
+        is_valid = (
+            getattr(verify_result, "success", None)
+            if hasattr(verify_result, "success")
+            else (verify_result.get("success") if isinstance(verify_result, dict) else False)
         )
-    except Exception as err:
-        return ProcessX402SettleFailure(phase="facilitator_error", step="process_payment_request", error=err)
-
-    if not getattr(
-        verify_result, "success", verify_result.get("success") if isinstance(verify_result, dict) else False
-    ):
+    if not is_valid:
         return ProcessX402SettleFailure(phase="verify_failed", verify_result=verify_result)
 
     try:

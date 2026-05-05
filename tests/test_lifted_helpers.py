@@ -339,6 +339,12 @@ async def test_verify_x402_rejects_solana_credential():
 
 
 class _FakeServer:
+    """Stubbed x402 server matching the x402 2.9 ``x402ResourceServer`` surface:
+    sync ``build_payment_requirements(config, extensions=None)`` + sync
+    ``enrich_extensions(declared, transport_context)`` + async ``verify_payment(payload,
+    requirements)`` + async ``settle_payment(payload, requirements)``.
+    """
+
     def __init__(
         self,
         requirements: list | Exception,
@@ -351,7 +357,7 @@ class _FakeServer:
         self.settle_result = settle_result
         self.enrich_result = enrich_result
 
-    async def build_payment_requirements(self, _cfg: object) -> list:
+    def build_payment_requirements(self, _cfg: object, _extensions: object = None) -> list:
         if isinstance(self.requirements, Exception):
             raise self.requirements
         return self.requirements
@@ -361,7 +367,7 @@ class _FakeServer:
             raise self.enrich_result
         return ext if self.enrich_result == "passthrough" else self.enrich_result
 
-    async def process_payment_request(self, _payload: object, _cfg: object, _meta: object, _ext: object) -> dict:
+    async def verify_payment(self, _payload: object, _req: object) -> dict:
         if isinstance(self.verify_result, Exception):
             raise self.verify_result
         return self.verify_result
@@ -449,6 +455,85 @@ async def test_process_x402_settle_success_returns_payment_response_header():
     assert decoded["tx_hash"] == "0xabc"
 
 
+@pytest.mark.asyncio
+async def test_process_x402_settle_coerces_dict_resource_config_with_camelcase_keys():
+    """Consumers ported from the JS / Hono stack pass dicts with camelCase keys
+    (``payTo``, ``maxTimeoutSeconds``). Coerce them into x402's ResourceConfig so
+    ``build_payment_requirements(config.network)`` doesn't ``AttributeError`` on a dict.
+    """
+    captured: dict = {}
+
+    class _CapturingServer:
+        def build_payment_requirements(self, cfg: object, _ext: object = None) -> list:
+            captured["cfg"] = cfg
+            return [{"id": "req1"}]
+
+        async def verify_payment(self, _payload: object, _req: object) -> dict:
+            return {"is_valid": True}
+
+        async def settle_payment(self, _payload: object, _req: object) -> dict:
+            return {"tx_hash": "0xabc"}
+
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=_CapturingServer(),
+            payload={},
+            resource_config={
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "price": "$0.10",
+                "payTo": "0xa43d4e316ef5f430426cd1b454167e5f85e3f4f1",
+                "maxTimeoutSeconds": 300,
+            },
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleSuccess)
+    # Coerced into x402's ResourceConfig (Pydantic model with snake_case attrs).
+    cfg = captured["cfg"]
+    assert hasattr(cfg, "network")
+    assert cfg.network == "eip155:8453"
+    assert cfg.pay_to == "0xa43d4e316ef5f430426cd1b454167e5f85e3f4f1"
+    assert cfg.max_timeout_seconds == 300
+
+
+@pytest.mark.asyncio
+async def test_process_x402_settle_passes_typed_resource_config_unchanged():
+    """If the caller already provides a typed ResourceConfig, pass it through unchanged."""
+    from x402.schemas.config import ResourceConfig
+
+    typed = ResourceConfig(
+        scheme="exact",
+        network="eip155:8453",
+        price="$0.10",
+        pay_to="0xa43d4e316ef5f430426cd1b454167e5f85e3f4f1",
+        max_timeout_seconds=300,
+    )
+    captured: dict = {}
+
+    class _CapturingServer:
+        def build_payment_requirements(self, cfg: object, _ext: object = None) -> list:
+            captured["cfg"] = cfg
+            return [{"id": "req1"}]
+
+        async def verify_payment(self, _payload: object, _req: object) -> dict:
+            return {"is_valid": True}
+
+        async def settle_payment(self, _payload: object, _req: object) -> dict:
+            return {"tx_hash": "0xabc"}
+
+    res = await process_x402_settle(
+        ProcessX402SettleInput(
+            x402_server=_CapturingServer(),
+            payload={},
+            resource_config=typed,
+            resource_meta=_RESOURCE_META,
+        )
+    )
+    assert isinstance(res, ProcessX402SettleSuccess)
+    assert captured["cfg"] is typed
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # process_x402_settle: facilitator_error wrap
 # ─────────────────────────────────────────────────────────────────────────────
@@ -496,7 +581,7 @@ async def test_process_x402_settle_wraps_enrich_extensions_throws_as_facilitator
 
 
 @pytest.mark.asyncio
-async def test_process_x402_settle_wraps_process_payment_request_throws_as_facilitator_error():
+async def test_process_x402_settle_wraps_verify_payment_throws_as_facilitator_error():
     server = _FakeServer(
         requirements=[{"id": "req1"}],
         verify_result=RuntimeError("CDP facilitator: solana:devnet not supported"),
@@ -511,7 +596,7 @@ async def test_process_x402_settle_wraps_process_payment_request_throws_as_facil
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "facilitator_error"
-    assert res.step == "process_payment_request"
+    assert res.step == "verify_payment"
     assert isinstance(res.error, RuntimeError)
 
 

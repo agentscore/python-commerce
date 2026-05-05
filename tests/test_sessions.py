@@ -72,7 +72,7 @@ class TestSyncHelper:
             CreateSessionOnMissing(
                 api_key="ask_test",
                 context="purchase_flow",
-                product_name="Martin Estate",
+                product_name="Example Merchant",
             ),
             user_agent="agentscore-commerce/1.0",
         )
@@ -80,7 +80,7 @@ class TestSyncHelper:
 
         body = json.loads(route.calls[0].request.content)
         assert body["context"] == "purchase_flow"
-        assert body["product_name"] == "Martin Estate"
+        assert body["product_name"] == "Example Merchant"
 
     @respx.mock
     def test_omits_context_and_product_name_when_not_provided(self):

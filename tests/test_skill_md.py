@@ -16,16 +16,16 @@ from agentscore_commerce.discovery import (
 
 def _base() -> BuildSkillMdInput:
     return BuildSkillMdInput(
-        name="martin-estate-wine-commerce",
-        description="Buy wine from Martin Estate via an AI agent",
-        homepage="https://martin-estate.com",
-        merchant_name="Martin Estate",
+        name="example-merchant-commerce",
+        description="Buy from Example Merchant via an AI agent",
+        homepage="https://example.com",
+        merchant_name="Example Merchant",
         accepted_rails=["tempo_mpp", "x402_base", "solana_mpp", "stripe"],
         endpoints=[
             SkillMdEndpoint(method="GET", path="/api/v1/wines", auth_required=False, description="Wine catalog"),
             SkillMdEndpoint(method="POST", path="/api/v1/orders", auth_required=True, description="Place order"),
         ],
-        triggers=["User wants to buy wine from Martin Estate"],
+        triggers=["User wants to buy from Example Merchant"],
     )
 
 
@@ -33,11 +33,11 @@ class TestFrontmatter:
     def test_emits_yaml_block_with_required_fields(self) -> None:
         out = build_skill_md(_base())
         assert out.startswith("---\n")
-        assert "name: martin-estate-wine-commerce" in out
-        assert 'description: "Buy wine from Martin Estate via an AI agent"' in out
+        assert "name: example-merchant-commerce" in out
+        assert 'description: "Buy from Example Merchant via an AI agent"' in out
         assert "metadata:" in out
         assert '  version: "1"' in out
-        assert '  homepage: "https://martin-estate.com"' in out
+        assert '  homepage: "https://example.com"' in out
 
     def test_version_emitted_as_quoted_string(self) -> None:
         cfg = _base()
@@ -96,7 +96,7 @@ class TestFrontmatter:
         assert '  author: "agentscore"' in out
         assert '  vendor_id: "me-001"' in out
         assert '  version: "1"' in out
-        assert '  homepage: "https://martin-estate.com"' in out
+        assert '  homepage: "https://example.com"' in out
         assert "IGNORED" not in out
 
 
@@ -159,49 +159,49 @@ class TestValidation:
 class TestTitleBlock:
     def test_renders_merchant_name_as_h1(self) -> None:
         out = build_skill_md(_base())
-        assert "\n# Martin Estate\n" in out
+        assert "\n# Example Merchant\n" in out
 
     def test_renders_title_tagline_intro_with_blank_lines(self) -> None:
         cfg = _base()
         cfg.tagline = "A classic is forever"
         cfg.intro = "Napa Valley winery, family-run."
         out = build_skill_md(cfg)
-        assert "# Martin Estate\n\n_A classic is forever_\n\nNapa Valley winery, family-run." in out
+        assert "# Example Merchant\n\n_A classic is forever_\n\nNapa Valley winery, family-run." in out
 
     def test_renders_tagline_only(self) -> None:
         cfg = _base()
         cfg.tagline = "A classic is forever"
         out = build_skill_md(cfg)
-        assert "# Martin Estate\n\n_A classic is forever_" in out
+        assert "# Example Merchant\n\n_A classic is forever_" in out
 
     def test_renders_intro_only(self) -> None:
         cfg = _base()
         cfg.intro = "Napa Valley winery."
         out = build_skill_md(cfg)
-        assert "# Martin Estate\n\nNapa Valley winery." in out
+        assert "# Example Merchant\n\nNapa Valley winery." in out
 
 
 class TestImportantFiles:
     def test_emits_self_reference(self) -> None:
         out = build_skill_md(_base())
         assert "## Important Files" in out
-        assert "| **SKILL.md** (this file) | `https://martin-estate.com/skill.md` |" in out
+        assert "| **SKILL.md** (this file) | `https://example.com/skill.md` |" in out
 
     def test_appends_caller_files(self) -> None:
         cfg = _base()
         cfg.files = [
-            SkillMdLink(label="llms.txt", url="https://martin-estate.com/llms.txt"),
-            SkillMdLink(label="OpenAPI", url="https://martin-estate.com/openapi.json"),
+            SkillMdLink(label="llms.txt", url="https://example.com/llms.txt"),
+            SkillMdLink(label="OpenAPI", url="https://example.com/openapi.json"),
         ]
         out = build_skill_md(cfg)
-        assert "| llms.txt | `https://martin-estate.com/llms.txt` |" in out
-        assert "| OpenAPI | `https://martin-estate.com/openapi.json` |" in out
+        assert "| llms.txt | `https://example.com/llms.txt` |" in out
+        assert "| OpenAPI | `https://example.com/openapi.json` |" in out
 
     def test_strips_trailing_slash_from_homepage(self) -> None:
         cfg = _base()
-        cfg.homepage = "https://martin-estate.com/"
+        cfg.homepage = "https://example.com/"
         out = build_skill_md(cfg)
-        assert "`https://martin-estate.com/skill.md`" in out
+        assert "`https://example.com/skill.md`" in out
         assert "//skill.md" not in out
 
     def test_escapes_pipes_in_files(self) -> None:
@@ -364,10 +364,10 @@ class TestEndpointsSection:
 class TestTriggersSection:
     def test_emits_each_trigger(self) -> None:
         cfg = _base()
-        cfg.triggers = ["Buy wine from Martin Estate", "Check order status"]
+        cfg.triggers = ["Buy from Example Merchant", "Check order status"]
         out = build_skill_md(cfg)
         assert "## Triggers" in out
-        assert "- Buy wine from Martin Estate" in out
+        assert "- Buy from Example Merchant" in out
         assert "- Check order status" in out
 
     def test_omits_when_empty(self) -> None:
@@ -390,12 +390,12 @@ class TestOnboardingAndSupport:
     def test_emits_support_links(self) -> None:
         cfg = _base()
         cfg.support_links = [
-            SkillMdLink(label="Homepage", url="https://martin-estate.com"),
+            SkillMdLink(label="Homepage", url="https://example.com"),
             SkillMdLink(label="Pay CLI", url="https://github.com/agentscore/pay"),
         ]
         out = build_skill_md(cfg)
         assert "## Support" in out
-        assert "- **Homepage**: https://martin-estate.com" in out
+        assert "- **Homepage**: https://example.com" in out
         assert "- **Pay CLI**: https://github.com/agentscore/pay" in out
 
 

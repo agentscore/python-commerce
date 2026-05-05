@@ -83,7 +83,7 @@ def test_preserves_caller_capabilities_and_appends_agentscore():
 def test_passes_through_name_payment_handlers_extras():
     profile = build_ucp_profile(
         **_base_kwargs(),
-        name="Martin Estate",
+        name="Example Merchant",
         payment_handlers=[
             UCPPaymentHandler(name="tempo", config={"recipient": "0xtempo"}),
             UCPPaymentHandler(name="stripe", config={"profile_id": "prof_x"}),
@@ -91,7 +91,7 @@ def test_passes_through_name_payment_handlers_extras():
         extras={"custom_field": "custom_value"},
     )
     d = profile.to_dict()
-    assert d["name"] == "Martin Estate"
+    assert d["name"] == "Example Merchant"
     assert len(d["payment_handlers"]) == 2
     assert d["custom_field"] == "custom_value"
 

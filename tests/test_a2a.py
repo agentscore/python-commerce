@@ -26,14 +26,14 @@ def _full_result() -> AssessResult:
 
 def test_card_with_identity_when_data_provided():
     card = build_a2a_agent_card(
-        name="Martin Estate",
-        url="https://agents.martinestate.com",
+        name="Example Merchant",
+        url="https://agents.example.com",
         data=_full_result(),
     )
     assert card.protocol_version == "1.0"
     assert card.card_version == 1
-    assert card.name == "Martin Estate"
-    assert card.url == "https://agents.martinestate.com"
+    assert card.name == "Example Merchant"
+    assert card.url == "https://agents.example.com"
     assert card.identity is not None
     assert card.identity.operator_id == "op_abc"
     assert card.identity.kyc_level == "enhanced"

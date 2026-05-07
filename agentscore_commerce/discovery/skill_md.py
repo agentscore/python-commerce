@@ -164,11 +164,15 @@ _RAIL_LABELS: dict[str, str] = {
 
 _RAIL_NOTES: dict[str, str] = {
     "tempo_mpp": (
-        "USDC. Use `agentscore-pay --chain tempo` (or `tempo request`); "
+        "USDC. Use `agentscore-pay pay --chain tempo` (or `tempo request`); "
         "MPP credential goes in `Authorization: Payment`."
     ),
-    "x402_base": "USDC (EIP-3009). Use `agentscore-pay`; X-Payment header carries the signed credential.",
-    "solana_mpp": "USDC (SPL). Use `agentscore-pay`; X-Payment header carries the signed credential.",
+    "x402_base": (
+        "USDC (EIP-3009). Use `agentscore-pay pay --chain base`; X-Payment header carries the signed credential."
+    ),
+    "solana_mpp": (
+        "USDC (SPL). Use `agentscore-pay pay --chain solana`; MPP credential goes in `Authorization: Payment`."
+    ),
     "stripe": (
         "Card via Link wallet. Use `@stripe/link-cli` — `agentscore-pay` emits the "
         "handoff hint when this rail is picked."

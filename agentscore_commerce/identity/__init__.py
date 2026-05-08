@@ -54,6 +54,13 @@ from agentscore_commerce.identity.ucp import (
     UCPSigningKey,
     build_ucp_profile,
 )
+from agentscore_commerce.identity.ucp_jwks import (
+    GeneratedUCPKey,
+    build_jwks_response,
+    generate_ucp_signing_key,
+    sign_ucp_profile,
+    verify_ucp_profile,
+)
 
 
 # ASGI middleware is the default import (re-exported as CreateSessionOnMissing too).
@@ -94,6 +101,7 @@ __all__ = [
     "EnforcementMode",
     "GateClient",
     "GateResult",
+    "GeneratedUCPKey",
     "Grade",
     "Identity",
     "IdentityStatus",
@@ -111,14 +119,18 @@ __all__ = [
     "build_agent_memory_hint",
     "build_contact_support_next_steps",
     "build_gate_from_policy",
+    "build_jwks_response",
     "build_signer_mismatch_body",
     "build_ucp_profile",
     "denial_reason_status",
     "denial_reason_to_body",
     "extract_x402_signer",
+    "generate_ucp_signing_key",
     "is_fixable_denial",
     "run_gate_with_enforcement",
     "shipping_country_allowed",
     "shipping_state_allowed",
+    "sign_ucp_profile",
     "verification_agent_instructions",
+    "verify_ucp_profile",
 ]

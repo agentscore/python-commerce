@@ -80,3 +80,10 @@ include = ["agentscore_commerce"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--cov=agentscore_commerce --cov-report=term-missing --cov-fail-under=95"
+# joserfc emits SecurityWarning for EdDSA on every sign/verify (see RFC 9864).
+# UCP §6 explicitly accepts EdDSA so we suppress; the SDK helpers wrap their
+# own joserfc calls with a context-manager filter, but tests that hand-construct
+# joserfc calls directly need the suppression too.
+filterwarnings = [
+    "ignore:.*EdDSA.*:Warning",
+]

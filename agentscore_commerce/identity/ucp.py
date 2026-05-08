@@ -181,7 +181,25 @@ class UCPProfile:
         }
         if self.name is not None:
             out["name"] = self.name
-        out.update(self.extras)
+        # Filter `extras` so a caller passing
+        # ``extras={"signing_keys": [...]}`` can't silently destroy the
+        # explicit field. Reserved-field collisions are rejected at
+        # build-time-equivalent surface.
+        reserved = {
+            "version",
+            "spec",
+            "services",
+            "capabilities",
+            "payment_handlers",
+            "signing_keys",
+            "name",
+            "signature",
+        }
+        for k, v in self.extras.items():
+            if k in reserved:
+                msg = f"UCPProfile.extras key {k!r} collides with a reserved profile field; rejected."
+                raise ValueError(msg)
+            out[k] = v
         return out
 
 

@@ -24,9 +24,14 @@ signed by Node verify in Python and vice versa.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import warnings
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _JOSE_INSTALL_HINT = (
     "Install the optional dependency: `pip install agentscore-commerce[ucp]` (or `uv pip install joserfc`)."
@@ -34,6 +39,21 @@ _JOSE_INSTALL_HINT = (
 
 _ALLOWED_ALGS = ("EdDSA", "ES256")
 _UCP_TYP = "ucp-profile+jws"
+
+
+@contextlib.contextmanager
+def _suppress_joserfc_eddsa_warning() -> Iterator[None]:
+    """Silence joserfc's per-call SecurityWarning for EdDSA.
+
+    joserfc treats EdDSA as "deprecated via RFC 9864" and emits a
+    SecurityWarning every time we sign or verify. UCP §6 explicitly mandates
+    EdDSA support so we suppress the warning at the call site rather than
+    forcing every consumer to set warnings.filterwarnings globally. CI runs
+    with -W error would otherwise fail noisily on every signing test.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=r".*EdDSA.*", category=Warning)
+        yield
 
 
 class UCPVerificationError(ValueError):
@@ -113,7 +133,8 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
     if alg == "EdDSA":
         from joserfc.jwk import OKPKey  # type: ignore[import-not-found]
 
-        priv = OKPKey.generate_key(crv="Ed25519", parameters={"kid": kid, "alg": alg, "use": "sig"})
+        with _suppress_joserfc_eddsa_warning():
+            priv = OKPKey.generate_key(crv="Ed25519", parameters={"kid": kid, "alg": alg, "use": "sig"})
     elif alg == "ES256":
         from joserfc.jwk import ECKey  # type: ignore[import-not-found]
 
@@ -203,6 +224,10 @@ def sign_ucp_profile(
     from joserfc import jws  # type: ignore[import-not-found]
     from joserfc.jws import JWSRegistry  # type: ignore[import-not-found]
 
+    if not isinstance(kid, str) or not kid:
+        msg = "sign_ucp_profile: `kid` must be a non-empty string."
+        raise ValueError(msg)
+
     # Sign-time kid sanity check: the profile's `signing_keys[]` MUST contain
     # a JWK with the matching kid; otherwise verifiers can't resolve the
     # public key and the profile is dead-on-arrival.
@@ -221,7 +246,8 @@ def sign_ucp_profile(
     # joserfc treats EdDSA as "not recommended" by default; UCP §6 explicitly accepts
     # both EdDSA and ES256, so allow both.
     registry = JWSRegistry(algorithms=list(_ALLOWED_ALGS))
-    signature = jws.serialize_compact(header, canonical_body, signing_key, registry=registry)
+    with _suppress_joserfc_eddsa_warning():
+        signature = jws.serialize_compact(header, canonical_body, signing_key, registry=registry)
 
     return {**profile, "signature": signature}
 
@@ -238,9 +264,15 @@ def _peek_jws_header(jws_compact: str) -> dict[str, Any]:
         header_b64 = jws_compact.split(".")[0]
         padding = "=" * (-len(header_b64) % 4)
         header_bytes = base64.urlsafe_b64decode(header_b64 + padding)
-        return json.loads(header_bytes)
+        decoded = json.loads(header_bytes)
     except (ValueError, IndexError, json.JSONDecodeError) as exc:
         raise UCPVerificationError("malformed_jws", f"Could not decode JWS protected header: {exc}") from exc
+    if not isinstance(decoded, dict):
+        raise UCPVerificationError(
+            "malformed_jws",
+            f"JWS protected header must decode to a JSON object; got {type(decoded).__name__}.",
+        )
+    return decoded
 
 
 def verify_ucp_profile(
@@ -334,7 +366,8 @@ def verify_ucp_profile(
     key_set = KeySet.import_key_set(cast("Any", {"keys": matches}))
     registry = JWSRegistry(algorithms=list(_ALLOWED_ALGS))
     try:
-        obj = jws.deserialize_compact(sig, key_set, registry=registry)
+        with _suppress_joserfc_eddsa_warning():
+            obj = jws.deserialize_compact(sig, key_set, registry=registry)
     except Exception as exc:
         # joserfc raises various subclasses. Wrap in our own type so callers
         # don't need to import joserfc internals.

@@ -206,16 +206,35 @@ UCP §6 trust-mode requires profiles to carry a JWS signature backed by a JWKS a
 
 ```python
 from agentscore_commerce.identity import (
+    UCPSigningKey,
+    UCPVerificationError,
     build_jwks_response,
+    build_ucp_profile,
     generate_ucp_signing_key,
     sign_ucp_profile,
     verify_ucp_profile,
 )
 
 key = generate_ucp_signing_key(kid="merchant-2026-05")
+profile = build_ucp_profile(
+    name="My Service",
+    services=[...],
+    payment_handlers=[...],
+    signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
+)
 signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=key.public_jwk["kid"], alg="EdDSA")
 jwks = build_jwks_response([key.public_jwk])
 ```
+
+`verify_ucp_profile` enforces the JWS protected header `typ='ucp-profile+jws'`, restricts `alg` to `EdDSA`/`ES256`, requires a `kid`, rejects duplicate kids in the JWKS, and compares the canonical body bytes against the JWS payload to catch swap-after-sign tampering. Failures raise `UCPVerificationError` (a `ValueError` subclass) with a discriminated `code` attribute (`no_signature`/`missing_kid`/`kid_not_found`/`duplicate_kid`/`unsupported_alg`/`wrong_typ`/`signature_invalid`/`body_mismatch`/`malformed_jws`).
+
+`sign_ucp_profile` rejects profiles containing `float` values: cross-language float canonicalization is not stable, so use decimal strings (e.g. `"9.99"`) for any monetary or fractional fields you put in `extras`.
+
+**HSM / KMS-backed signing.** `signing_key` accepts any joserfc `Key` subclass — including remote signers wrapped via `joserfc.jwk.OKPKey`/`ECKey`. The signing key never has to leave the HSM.
+
+**Key rotation.** Mint a new key with a new `kid`, add the public JWK to your JWKS endpoint alongside the old one, then sign new profiles with the new key. Drop the old JWK after your verifier-side cache TTL has elapsed.
+
+**Inline JWK in the profile vs separate JWKS endpoint.** UCP §6 mandates the separate `/.well-known/jwks.json` endpoint as the canonical trust source. The profile's `signing_keys[]` is informational; verifiers MUST resolve the kid against the JWKS to prevent a swap-after-sign attack.
 
 ACP (Stripe + OpenAI Agentic Commerce Protocol) is a transactional checkout protocol with no identity-publishing surface — ACP merchants integrate via the existing `build_402_body` + `build_payment_headers` + Stripe SPT rail.
 

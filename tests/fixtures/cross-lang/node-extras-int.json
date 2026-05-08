@@ -1,0 +1,49 @@
+{
+  "profile": {
+    "version": "2026-04-17",
+    "spec": "https://ucp.dev/",
+    "services": [
+      {
+        "type": "rest",
+        "url": "https://e.example.com"
+      }
+    ],
+    "capabilities": [],
+    "payment_handlers": [
+      {
+        "name": "stripe",
+        "config": {
+          "profile_id": "abc",
+          "count": 7
+        }
+      }
+    ],
+    "signing_keys": [
+      {
+        "kid": "node-extras-int-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "QdPh4oYqDA7zIBaNkfW_HJLEGiMS_mgZU98a-_8vLpM"
+      }
+    ],
+    "name": "Extras Merchant",
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZXh0cmFzLWludC1FZERTQSIsInR5cCI6InVjcC1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRXh0cmFzIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNvdW50Ijo3LCJwcm9maWxlX2lkIjoiYWJjIn0sIm5hbWUiOiJzdHJpcGUifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vZS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLWV4dHJhcy1pbnQtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiUWRQaDRvWXFEQTd6SUJhTmtmV19ISkxFR2lNU19tZ1pVOThhLV84dkxwTSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.JglqGMtdQKucptR-w8YtNQ3hG6QLB5McUIGlnTHYsa9vl3SfQ3UaoLqKsVH2DHLmf8lRl4qKzB8EHS9mJ9Z0Bw"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "kid": "node-extras-int-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "QdPh4oYqDA7zIBaNkfW_HJLEGiMS_mgZU98a-_8vLpM"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "node-extras-int-EdDSA",
+  "generator": "node"
+}

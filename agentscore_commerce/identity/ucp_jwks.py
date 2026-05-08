@@ -32,6 +32,36 @@ _JOSE_INSTALL_HINT = (
     "Install the optional dependency: `pip install agentscore-commerce[ucp]` (or `uv pip install joserfc`)."
 )
 
+_ALLOWED_ALGS = ("EdDSA", "ES256")
+_UCP_TYP = "ucp-profile+jws"
+
+
+class UCPVerificationError(ValueError):
+    """Discriminated error for UCP signature verification failures.
+
+    Subclasses ``ValueError`` so existing ``except ValueError`` blocks keep working.
+    Inspect ``code`` to branch on failure mode without parsing the message string
+    or importing joserfc internals.
+    """
+
+    def __init__(
+        self,
+        code: Literal[
+            "no_signature",
+            "missing_kid",
+            "kid_not_found",
+            "duplicate_kid",
+            "unsupported_alg",
+            "wrong_typ",
+            "signature_invalid",
+            "body_mismatch",
+            "malformed_jws",
+        ],
+        message: str,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+
 
 def _load_joserfc() -> Any:
     """Lazy-import joserfc so the optional dep isn't required for non-signing flows."""
@@ -95,10 +125,35 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
     public_jwk.setdefault("alg", alg)
     public_jwk.setdefault("use", "sig")
 
-    # Quiet unused-import warning when only one branch executes.
-    _ = joserfc
+    del joserfc
 
     return GeneratedUCPKey(private_key=priv, public_jwk=public_jwk)
+
+
+def _reject_floats(value: Any) -> None:
+    """Walk ``value`` and raise if any non-integer ``float`` is encountered.
+
+    Cross-language float canonicalization (RFC 8785 §3.2.2.3) diverges between
+    Python's ``json.dumps`` and Node's ``JSON.stringify`` (e.g. ``1.0`` vs ``1``,
+    ``1e-7`` vs ``1e-07``). Catching the drift at sign-time prevents
+    silent verifier-side failures in production. Use decimal strings (``"9.99"``)
+    for monetary or fractional fields.
+    """
+    if isinstance(value, bool):
+        return  # bool subclasses int; allow.
+    if isinstance(value, float):
+        msg = (
+            f"UCP profile canonicalization rejects float value {value!r}. "
+            "Use a decimal string (e.g. '9.99') for monetary or fractional fields "
+            "to preserve cross-language byte-parity."
+        )
+        raise ValueError(msg)
+    if isinstance(value, dict):
+        for v in value.values():
+            _reject_floats(v)
+    elif isinstance(value, list | tuple):
+        for v in value:
+            _reject_floats(v)
 
 
 def _canonicalize_profile(profile: dict[str, Any]) -> bytes:
@@ -108,10 +163,13 @@ def _canonicalize_profile(profile: dict[str, Any]) -> bytes:
     nesting level, returns UTF-8 JSON bytes. Cross-language byte-identical with the
     Node ``stableStringify`` output.
 
+    Throws ``ValueError`` on float input — see :func:`_reject_floats`.
+
     UCP §6.2: "the JSON-serialized profile body, with ``signature`` removed and keys
     ordered lexicographically at every nesting level."
     """
     stripped = {k: v for k, v in profile.items() if k != "signature"}
+    _reject_floats(stripped)
     # ``ensure_ascii=False`` so non-ASCII characters travel as UTF-8 (matches Node's
     # JSON.stringify default). ``sort_keys=True`` sorts keys at every level. Compact
     # separators avoid whitespace drift.
@@ -145,15 +203,32 @@ def sign_ucp_profile(
     from joserfc.jws import JWSRegistry  # type: ignore[import-not-found]
 
     canonical_body = _canonicalize_profile(profile)
-    header = {"alg": alg, "kid": kid, "typ": "ucp-profile+jws"}
+    header = {"alg": alg, "kid": kid, "typ": _UCP_TYP}
     # joserfc treats EdDSA as "not recommended" by default; UCP §6 explicitly accepts
     # both EdDSA and ES256, so allow both.
-    registry = JWSRegistry(algorithms=["EdDSA", "ES256"])
+    registry = JWSRegistry(algorithms=list(_ALLOWED_ALGS))
     signature = jws.serialize_compact(header, canonical_body, signing_key, registry=registry)
 
-    _ = joserfc
+    del joserfc
 
     return {**profile, "signature": signature}
+
+
+def _peek_jws_header(jws_compact: str) -> dict[str, Any]:
+    """Decode the JWS protected header (first segment) without verifying.
+
+    Used to enforce kid/typ/alg requirements before handing the JWS to joserfc's
+    deserialize_compact (which would skip these checks for kid-less JWSs).
+    """
+    import base64
+
+    try:
+        header_b64 = jws_compact.split(".")[0]
+        padding = "=" * (-len(header_b64) % 4)
+        header_bytes = base64.urlsafe_b64decode(header_b64 + padding)
+        return json.loads(header_bytes)
+    except (ValueError, IndexError, json.JSONDecodeError) as exc:
+        raise UCPVerificationError("malformed_jws", f"Could not decode JWS protected header: {exc}") from exc
 
 
 def verify_ucp_profile(
@@ -162,9 +237,15 @@ def verify_ucp_profile(
 ) -> bool:
     """Verify a signed UCP profile against a JWKS.
 
-    Returns ``True`` when the JWS validates against a matching key in ``jwks`` AND the
-    signed payload matches the canonical body of the profile-as-presented. Raises on
-    signature mismatch, missing key, or canonicalization drift.
+    Returns ``True`` when:
+      * the JWS protected header carries ``kid`` + ``typ='ucp-profile+jws'`` + a
+        registered ``alg`` (EdDSA or ES256),
+      * the JWKS contains exactly one key with the matching ``kid``,
+      * the JWS signature validates against that key,
+      * the signed payload byte-equals the canonical body of the presented profile.
+
+    Raises :class:`UCPVerificationError` (a ``ValueError`` subclass) with a
+    discriminated ``code`` attribute on every failure mode.
 
     Example::
 
@@ -177,27 +258,72 @@ def verify_ucp_profile(
 
     sig = signed_profile.get("signature")
     if not sig:
-        msg = "UCP profile has no `signature` field; expected JWS Compact Serialization."
-        raise ValueError(msg)
+        raise UCPVerificationError(
+            "no_signature",
+            "UCP profile has no `signature` field; expected JWS Compact Serialization.",
+        )
+    if not isinstance(sig, str):
+        raise UCPVerificationError(
+            "no_signature",
+            f"UCP `signature` must be a string; got {type(sig).__name__}.",
+        )
+
+    # Pre-deserialize header checks — joserfc's deserialize_compact accepts kid-less
+    # JWSs (it iterates the KeySet) so we enforce kid/typ/alg ourselves.
+    header = _peek_jws_header(sig)
+    if header.get("typ") != _UCP_TYP:
+        raise UCPVerificationError(
+            "wrong_typ",
+            f"UCP signature typ must be {_UCP_TYP!r}; got {header.get('typ')!r}.",
+        )
+    if header.get("alg") not in _ALLOWED_ALGS:
+        raise UCPVerificationError(
+            "unsupported_alg",
+            f"UCP signing alg must be one of {_ALLOWED_ALGS}; got {header.get('alg')!r}.",
+        )
+    kid = header.get("kid")
+    if not kid or not isinstance(kid, str):
+        raise UCPVerificationError("missing_kid", "UCP signature header missing `kid`.")
+
+    keys_list = jwks.get("keys", []) if isinstance(jwks, dict) else []
+    matches = [k for k in keys_list if isinstance(k, dict) and k.get("kid") == kid]
+    if not matches:
+        raise UCPVerificationError("kid_not_found", f"No JWK in JWKS matching kid={kid!r}.")
+    if len(matches) > 1:
+        raise UCPVerificationError(
+            "duplicate_kid",
+            f"JWKS contains {len(matches)} keys with kid={kid!r}; expected exactly one.",
+        )
 
     stripped = {k: v for k, v in signed_profile.items() if k != "signature"}
     expected_payload = _canonicalize_profile(stripped)
 
-    # joserfc's KeySetSerialization type is a precise TypedDict; in practice the helper
-    # accepts a plain dict-of-keys at runtime, so cast at the boundary.
-    key_set = KeySet.import_key_set(cast("Any", jwks))
-    registry = JWSRegistry(algorithms=["EdDSA", "ES256"])
-    obj = jws.deserialize_compact(sig, key_set, registry=registry)
+    key_set = KeySet.import_key_set(cast("Any", {"keys": matches}))
+    registry = JWSRegistry(algorithms=list(_ALLOWED_ALGS))
+    try:
+        obj = jws.deserialize_compact(sig, key_set, registry=registry)
+    except Exception as exc:
+        # joserfc raises various subclasses (BadSignatureError, DecodeError, ...).
+        # Wrap in our own type so callers don't need to import joserfc internals.
+        from joserfc.errors import BadSignatureError, DecodeError  # type: ignore[import-not-found]
+
+        if isinstance(exc, BadSignatureError):
+            raise UCPVerificationError("signature_invalid", f"UCP signature verification failed: {exc}") from exc
+        if isinstance(exc, DecodeError):
+            raise UCPVerificationError("malformed_jws", f"Malformed JWS: {exc}") from exc
+        raise
 
     # Compare the bytes that were actually signed against the canonical body of the
     # profile we received. ``deserialize_compact`` validates the JWS against the bytes
     # embedded in the JWS payload segment — but the profile body could have been
     # swapped after signing while the JWS stayed unchanged.
     if obj.payload != expected_payload:
-        msg = "UCP profile body does not match the signed payload (tampered or non-canonical)."
-        raise ValueError(msg)
+        raise UCPVerificationError(
+            "body_mismatch",
+            "UCP profile body does not match the signed payload (tampered or non-canonical).",
+        )
 
-    _ = joserfc
+    del joserfc
     return True
 
 
@@ -217,6 +343,7 @@ def build_jwks_response(keys: list[dict[str, Any]]) -> dict[str, Any]:
 
 __all__ = [
     "GeneratedUCPKey",
+    "UCPVerificationError",
     "build_jwks_response",
     "generate_ucp_signing_key",
     "sign_ucp_profile",

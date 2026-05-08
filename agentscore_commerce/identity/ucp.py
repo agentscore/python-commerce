@@ -61,6 +61,24 @@ class UCPSigningKey:
         out.update(self.extras)
         return out
 
+    @classmethod
+    def from_jwk(cls, jwk: dict[str, Any]) -> UCPSigningKey:
+        """Construct a UCPSigningKey from a public JWK dict.
+
+        Routes the JWK's known fields (kid/kty/alg/use/crv) onto the dataclass and
+        captures any other fields (x/y/n/e/etc.) into ``extras``. Use this when
+        publishing the output of :func:`generate_ucp_signing_key` directly.
+        """
+        known = {"kid", "kty", "alg", "use", "crv"}
+        return cls(
+            kid=jwk["kid"],
+            kty=jwk["kty"],
+            alg=jwk.get("alg"),
+            use=jwk.get("use"),
+            crv=jwk.get("crv"),
+            extras={k: v for k, v in jwk.items() if k not in known},
+        )
+
 
 @dataclass
 class UCPService:

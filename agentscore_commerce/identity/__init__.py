@@ -56,6 +56,7 @@ from agentscore_commerce.identity.ucp import (
 )
 from agentscore_commerce.identity.ucp_jwks import (
     GeneratedUCPKey,
+    UCPVerificationError,
     build_jwks_response,
     generate_ucp_signing_key,
     sign_ucp_profile,
@@ -113,6 +114,7 @@ __all__ = [
     "UCPProfile",
     "UCPService",
     "UCPSigningKey",
+    "UCPVerificationError",
     "VerifyWalletSignerMatchOptions",
     "VerifyWalletSignerResult",
     "build_a2a_agent_card",

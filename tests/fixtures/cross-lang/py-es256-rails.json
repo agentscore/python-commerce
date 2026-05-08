@@ -1,0 +1,63 @@
+{
+  "profile": {
+    "version": "2026-04-17",
+    "spec": "https://ucp.dev/",
+    "services": [
+      {
+        "type": "rest",
+        "url": "https://a.example.com"
+      },
+      {
+        "type": "a2a",
+        "url": "https://a.example.com/agent-card.json"
+      }
+    ],
+    "capabilities": [],
+    "payment_handlers": [
+      {
+        "name": "tempo",
+        "config": {
+          "rail": "tempo-mainnet",
+          "chain_id": 4217
+        }
+      },
+      {
+        "name": "x402",
+        "config": {
+          "networks": [
+            "base-8453"
+          ]
+        }
+      }
+    ],
+    "signing_keys": [
+      {
+        "kid": "py-es256-rails-ES256",
+        "kty": "EC",
+        "alg": "ES256",
+        "use": "sig",
+        "crv": "P-256",
+        "x": "l45yeK-s3eujIDwIU-rEeiv1l6KQq-1GUm4-0P8gpVk",
+        "y": "3o_N_dWi26UxSRzIIjvuQCKCgkxN6pO_5xYSrZrHYaQ"
+      }
+    ],
+    "name": "ES256 Merchant",
+    "signature": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB5LWVzMjU2LXJhaWxzLUVTMjU2IiwidHlwIjoidWNwLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRVMyNTYgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsiY2hhaW5faWQiOjQyMTcsInJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9LHsiY29uZmlnIjp7Im5ldHdvcmtzIjpbImJhc2UtODQ1MyJdfSwibmFtZSI6Ing0MDIifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbSJ9LHsidHlwZSI6ImEyYSIsInVybCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbS9hZ2VudC1jYXJkLmpzb24ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRVMyNTYiLCJjcnYiOiJQLTI1NiIsImtpZCI6InB5LWVzMjU2LXJhaWxzLUVTMjU2Iiwia3R5IjoiRUMiLCJ1c2UiOiJzaWciLCJ4IjoibDQ1eWVLLXMzZXVqSUR3SVUtckVlaXYxbDZLUXEtMUdVbTQtMFA4Z3BWayIsInkiOiIzb19OX2RXaTI2VXhTUnpJSWp2dVFDS0Nna3hONnBPXzV4WVNyWnJIWWFRIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.Qh5KIH-aP8KVqIFDUnUOwnVC0L8Tii03u6NM6Bt-lePUlgnzLwOogNvMRK7hl5YqwYgzhrkWM2KbHRakv-x_cw"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "P-256",
+        "x": "l45yeK-s3eujIDwIU-rEeiv1l6KQq-1GUm4-0P8gpVk",
+        "y": "3o_N_dWi26UxSRzIIjvuQCKCgkxN6pO_5xYSrZrHYaQ",
+        "kid": "py-es256-rails-ES256",
+        "alg": "ES256",
+        "use": "sig",
+        "kty": "EC"
+      }
+    ]
+  },
+  "alg": "ES256",
+  "kid": "py-es256-rails-ES256",
+  "generator": "python"
+}

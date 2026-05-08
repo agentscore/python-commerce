@@ -81,9 +81,10 @@ include = ["agentscore_commerce"]
 asyncio_mode = "auto"
 addopts = "--cov=agentscore_commerce --cov-report=term-missing --cov-fail-under=95"
 # joserfc emits SecurityWarning for EdDSA on every sign/verify (see RFC 9864).
-# UCP §6 explicitly accepts EdDSA so we suppress; the SDK helpers wrap their
-# own joserfc calls with a context-manager filter, but tests that hand-construct
-# joserfc calls directly need the suppression too.
+# UCP §6 explicitly accepts EdDSA so we suppress. SDK helpers wrap their own
+# joserfc calls with a context-manager filter, but tests that hand-construct
+# joserfc calls directly need the suppression too. Scope matches the exact
+# message + class so a future unrelated EdDSA warning still surfaces.
 filterwarnings = [
-    "ignore:.*EdDSA.*:Warning",
+    "ignore:^EdDSA is deprecated via RFC 9864$:joserfc.errors.SecurityWarning",
 ]

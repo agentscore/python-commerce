@@ -43,16 +43,21 @@ _UCP_TYP = "ucp-profile+jws"
 
 @contextlib.contextmanager
 def _suppress_joserfc_eddsa_warning() -> Iterator[None]:
-    """Silence joserfc's per-call SecurityWarning for EdDSA.
+    """Silence joserfc's exact RFC 9864 EdDSA SecurityWarning.
 
-    joserfc treats EdDSA as "deprecated via RFC 9864" and emits a
-    SecurityWarning every time we sign or verify. UCP §6 explicitly mandates
-    EdDSA support so we suppress the warning at the call site rather than
-    forcing every consumer to set warnings.filterwarnings globally. CI runs
-    with -W error would otherwise fail noisily on every signing test.
+    UCP §6 requires EdDSA support and joserfc emits a per-call deprecation
+    warning. The filter is pinned to the exact message + class
+    (``joserfc.errors.SecurityWarning``: ``"EdDSA is deprecated via RFC 9864"``)
+    so a future, unrelated EdDSA warning still surfaces normally.
     """
+    from joserfc.errors import SecurityWarning  # type: ignore[import-not-found]
+
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message=r".*EdDSA.*", category=Warning)
+        warnings.filterwarnings(
+            "ignore",
+            message=r"^EdDSA is deprecated via RFC 9864$",
+            category=SecurityWarning,
+        )
         yield
 
 

@@ -226,7 +226,7 @@ signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=ke
 jwks = build_jwks_response([key.public_jwk])
 ```
 
-`verify_ucp_profile` enforces the JWS protected header `typ='ucp-profile+jws'`, restricts `alg` to `EdDSA`/`ES256`, requires a `kid`, rejects duplicate kids in the JWKS, and compares the canonical body bytes against the JWS payload to catch swap-after-sign tampering. Failures raise `UCPVerificationError` (a `ValueError` subclass) with a discriminated `code` attribute (`no_signature`/`missing_kid`/`kid_not_found`/`duplicate_kid`/`unsupported_alg`/`wrong_typ`/`signature_invalid`/`body_mismatch`/`malformed_jws`).
+`verify_ucp_profile` enforces the JWS protected header `typ='ucp-profile+jws'`, restricts `alg` to `EdDSA`/`ES256`, requires a `kid`, rejects duplicate kids in the JWKS, and compares the canonical body bytes against the JWS payload to catch swap-after-sign tampering. Failures raise `UCPVerificationError` (a `ValueError` subclass) with a discriminated `code` attribute (`no_signature`/`missing_kid`/`kid_not_found`/`duplicate_kid`/`unsupported_alg`/`wrong_typ`/`signature_invalid`/`body_mismatch`/`malformed_jws`/`malformed_jwks`/`unusable_key`/`unrecognized_critical_header`).
 
 `sign_ucp_profile` rejects profiles containing `float` values: cross-language float canonicalization is not stable, so use decimal strings (e.g. `"9.99"`) for any monetary or fractional fields you put in `extras`.
 

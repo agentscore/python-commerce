@@ -289,6 +289,24 @@ class TestFloatRejection:
         with pytest.raises(ValueError, match="rejects float"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
+    def test_rejects_nan(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"value": float("nan")}}
+        with pytest.raises(ValueError, match="rejects float"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_positive_infinity(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"value": float("inf")}}
+        with pytest.raises(ValueError, match="rejects float"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_negative_infinity(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"value": float("-inf")}}
+        with pytest.raises(ValueError, match="rejects float"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
     def test_accepts_int_and_string(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"count": 7, "label": "wine"}}
@@ -361,6 +379,47 @@ class TestAdditionalHardening:
         with pytest.raises(UCPVerificationError) as exc:
             verify_ucp_profile("not a profile", {"keys": []})  # type: ignore[arg-type]
         assert exc.value.code == "no_signature"
+
+    def test_verify_rejects_unusable_key_use_enc(self) -> None:
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="k")
+        enc_jwk = {**key.public_jwk, "use": "enc"}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([enc_jwk]))
+        assert exc.value.code == "unusable_key"
+
+    @pytest.mark.parametrize("bad_sig", [42, None, [], {}])
+    def test_verify_rejects_non_string_signature(self, bad_sig: object) -> None:
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        tampered = {**profile, "signature": bad_sig}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(tampered, build_jwks_response([key.public_jwk]))
+        assert exc.value.code == "no_signature"
+
+    @pytest.mark.parametrize("bad_entry", [None, "string"])
+    def test_verify_rejects_non_dict_jwks_entry(self, bad_entry: object) -> None:
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="k")
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, {"keys": [bad_entry]})
+        assert exc.value.code == "kid_not_found"
+
+    def test_verify_rejects_protected_header_decoding_to_json_array(self) -> None:
+        import base64
+
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        header_array_b64 = (
+            base64.urlsafe_b64encode(__import__("json").dumps(["EdDSA", "kid"]).encode()).rstrip(b"=").decode()
+        )
+        bogus_jws = f"{header_array_b64}.payload.sig"
+        signed = {**profile, "signature": bogus_jws}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
+        assert exc.value.code == "malformed_jws"
 
     def test_verify_wraps_unrecognized_critical_header(self) -> None:
         import base64

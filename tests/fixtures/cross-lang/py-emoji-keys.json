@@ -1,0 +1,51 @@
+{
+  "profile": {
+    "version": "2026-04-17",
+    "spec": "https://ucp.dev/",
+    "name": "Emoji Keys Merchant",
+    "services": [
+      {
+        "type": "rest",
+        "url": "https://emoji.example.com"
+      }
+    ],
+    "capabilities": [],
+    "payment_handlers": [
+      {
+        "name": "tempo",
+        "config": {}
+      }
+    ],
+    "signing_keys": [
+      {
+        "crv": "Ed25519",
+        "x": "CX-4oqEqpxhUtsTrsaF2df7KBeIR0Wpe4bgwnlsMk8A",
+        "kid": "py-emoji-keys-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ],
+    "extras": {
+      "豈": 1,
+      "🍷": 2,
+      "a": 3
+    },
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJ1Y3AtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsiYSI6Mywi6LGIIjoxLCLwn423IjoyfSwibmFtZSI6IkVtb2ppIEtleXMgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnt9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vZW1vamkuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZW1vamkta2V5cy1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJDWC00b3FFcXB4aFV0c1Ryc2FGMmRmN0tCZUlSMFdwZTRiZ3dubHNNazhBIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.aXPJHy4hcLxAF1zd9zLSZbbSMBP56BTeZVXY3V_Ywv4sqabLWgJGRmmp2iyJNamCFgYJ8jPIfd9nF1UU2R9WBg"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "Ed25519",
+        "x": "CX-4oqEqpxhUtsTrsaF2df7KBeIR0Wpe4bgwnlsMk8A",
+        "kid": "py-emoji-keys-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "py-emoji-keys-EdDSA",
+  "generator": "python"
+}

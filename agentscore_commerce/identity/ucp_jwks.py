@@ -43,12 +43,14 @@ _UCP_TYP = "ucp-profile+jws"
 
 @contextlib.contextmanager
 def _suppress_joserfc_eddsa_warning() -> Iterator[None]:
-    """Silence joserfc's exact RFC 9864 EdDSA SecurityWarning.
+    """Suppress joserfc's RFC-9864-deprecation SecurityWarning around JWS sign/verify.
 
-    UCP §6 requires EdDSA support and joserfc emits a per-call deprecation
-    warning. The filter is pinned to the exact message + class
+    joserfc emits this on every JWS operation that uses EdDSA, despite EdDSA
+    being the actively-recommended-by-IETF algorithm for new deployments. The
+    filter is pinned to the exact message + class
     (``joserfc.errors.SecurityWarning``: ``"EdDSA is deprecated via RFC 9864"``)
-    so a future, unrelated EdDSA warning still surfaces normally.
+    so any other SecurityWarning still surfaces normally. Key generation does
+    not emit this warning, so suppression has no effect there.
     """
     from joserfc.errors import SecurityWarning  # type: ignore[import-not-found]
 
@@ -138,8 +140,7 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
     if alg == "EdDSA":
         from joserfc.jwk import OKPKey  # type: ignore[import-not-found]
 
-        with _suppress_joserfc_eddsa_warning():
-            priv = OKPKey.generate_key(crv="Ed25519", parameters={"kid": kid, "alg": alg, "use": "sig"})
+        priv = OKPKey.generate_key(crv="Ed25519", parameters={"kid": kid, "alg": alg, "use": "sig"})
     elif alg == "ES256":
         from joserfc.jwk import ECKey  # type: ignore[import-not-found]
 
@@ -357,12 +358,21 @@ def verify_ucp_profile(
             "duplicate_kid",
             f"JWKS contains {len(matches)} keys with kid={kid!r}; expected exactly one.",
         )
+    matched = matches[0]
     # RFC 7517 §4.2: reject keys not intended for signature verification.
-    matched_use = matches[0].get("use")
+    matched_use = matched.get("use")
     if matched_use is not None and matched_use != "sig":
         raise UCPVerificationError(
             "unusable_key",
             f"JWK with kid={kid!r} has use={matched_use!r}; expected 'sig'.",
+        )
+    # RFC 7517 §4.4: a JWK with declared `alg` constrains its use to that algorithm.
+    header_alg = header.get("alg")
+    matched_alg = matched.get("alg")
+    if matched_alg is not None and matched_alg != header_alg:
+        raise UCPVerificationError(
+            "unusable_key",
+            f"JWK alg {matched_alg!r} does not match JWS header alg {header_alg!r}.",
         )
 
     stripped = {k: v for k, v in signed_profile.items() if k != "signature"}

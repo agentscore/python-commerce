@@ -389,6 +389,19 @@ class TestAdditionalHardening:
             verify_ucp_profile(signed, build_jwks_response([enc_jwk]))
         assert exc.value.code == "unusable_key"
 
+    def test_verify_rejects_unusable_key_alg_mismatch(self) -> None:
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="k")
+        # JWKS advertises the same kid but with a wrong `alg` (RFC 7517 §4.4 violation):
+        # JWS header carries alg=EdDSA, JWK declares alg=ES256.
+        wrong_alg_jwk = {**key.public_jwk, "alg": "ES256"}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([wrong_alg_jwk]))
+        assert exc.value.code == "unusable_key"
+        assert "ES256" in str(exc.value)
+        assert "EdDSA" in str(exc.value)
+
     @pytest.mark.parametrize("bad_sig", [42, None, [], {}])
     def test_verify_rejects_non_string_signature(self, bad_sig: object) -> None:
         key = generate_ucp_signing_key(kid="k")

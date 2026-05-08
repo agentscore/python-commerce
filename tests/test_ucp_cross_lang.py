@@ -30,8 +30,13 @@ def test_corpus_covers_canonical_scenarios() -> None:
     generators = {json.loads(p.read_text())["generator"] for p in FIXTURES}
     assert "node" in generators
     assert "python" in generators
-    # Each language ships 6 scenarios so cross-lang verify exercises all of them.
+    # Each language ships 6 base scenarios so cross-lang verify exercises all of them.
     for lang in ("node", "py"):
         for scenario in ("minimal", "es256-rails", "extras-int", "capability", "unicode", "multikey"):
             assert f"{lang}-{scenario}.json" in names, f"missing fixture {lang}-{scenario}.json"
-    assert len(FIXTURES) == 12
+    # `py-emoji-keys.json` locks codepoint-aware key sort: Python sorts by Unicode
+    # codepoint by default, JS default sort orders by UTF-16 code units which
+    # diverges for supplementary-plane chars. The signed body covers BMP CJK
+    # Compatibility (U+8C48), non-BMP wine glass (U+1F377), and ASCII so both
+    # languages must explicitly sort by codepoint to maintain byte parity.
+    assert "py-emoji-keys.json" in names

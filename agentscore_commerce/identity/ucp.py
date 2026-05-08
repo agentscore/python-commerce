@@ -68,7 +68,28 @@ class UCPSigningKey:
         Routes the JWK's known fields (kid/kty/alg/use/crv) onto the dataclass and
         captures any other fields (x/y/n/e/etc.) into ``extras``. Use this when
         publishing the output of :func:`generate_ucp_signing_key` directly.
+
+        Rejects symmetric (``oct``) keys and JWKs missing required fields with a
+        typed ``ValueError`` rather than a bare ``KeyError``.
         """
+        if not isinstance(jwk, dict):
+            msg = f"UCPSigningKey.from_jwk expected a dict; got {type(jwk).__name__}."
+            raise ValueError(msg)
+        if "kid" not in jwk:
+            msg = "UCPSigningKey.from_jwk: JWK missing required field `kid`."
+            raise ValueError(msg)
+        if "kty" not in jwk:
+            msg = "UCPSigningKey.from_jwk: JWK missing required field `kty`."
+            raise ValueError(msg)
+        if jwk["kty"] not in {"OKP", "EC", "RSA"}:
+            msg = (
+                f"UCPSigningKey.from_jwk: kty={jwk['kty']!r} is not a supported "
+                "asymmetric key type (expected OKP, EC, or RSA). Symmetric `oct` "
+                "keys are rejected because they cannot publicly verify a JWS in "
+                "the trust-mode UCP flow."
+            )
+            raise ValueError(msg)
+
         known = {"kid", "kty", "alg", "use", "crv"}
         return cls(
             kid=jwk["kid"],

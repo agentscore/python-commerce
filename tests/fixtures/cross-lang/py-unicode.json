@@ -1,0 +1,48 @@
+{
+  "profile": {
+    "version": "2026-04-17",
+    "spec": "https://ucp.dev/",
+    "services": [
+      {
+        "type": "rest",
+        "url": "https://日本.example.com"
+      }
+    ],
+    "capabilities": [],
+    "payment_handlers": [
+      {
+        "name": "tempo",
+        "config": {
+          "note": "メモ"
+        }
+      }
+    ],
+    "signing_keys": [
+      {
+        "kid": "py-unicode-EdDSA",
+        "kty": "OKP",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "x": "Sfrt68PbX5aBkynHGPHclnr0eKFfynzCIC0urH8-o9s"
+      }
+    ],
+    "name": "Café 日本 🍷 Merchant",
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LXVuaWNvZGUtRWREU0EiLCJ0eXAiOiJ1Y3AtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiQ2Fmw6kg5pel5pysIPCfjbcgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsibm90ZSI6IuODoeODoiJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8v5pel5pysLmV4YW1wbGUuY29tIn1dLCJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LXVuaWNvZGUtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiU2ZydDY4UGJYNWFCa3luSEdQSGNsbnIwZUtGZnluekNJQzB1ckg4LW85cyJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.GO42vYTPp0B8y1MjgN3iqMzby1vJmCzkOEWnV2O0C5ckUePV-QtTyRchmyAEttjr66HOSVEMyU8CgtfVirhCBg"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "Ed25519",
+        "x": "Sfrt68PbX5aBkynHGPHclnr0eKFfynzCIC0urH8-o9s",
+        "kid": "py-unicode-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "py-unicode-EdDSA",
+  "generator": "python"
+}

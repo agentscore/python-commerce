@@ -56,6 +56,9 @@ class UCPVerificationError(ValueError):
             "signature_invalid",
             "body_mismatch",
             "malformed_jws",
+            "malformed_jwks",
+            "unrecognized_critical_header",
+            "unusable_key",
         ],
         message: str,
     ) -> None:
@@ -105,7 +108,7 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
         # key.private_key — persist securely
         # key.public_jwk  — publish at /.well-known/jwks.json
     """
-    joserfc = _load_joserfc()
+    _load_joserfc()
 
     if alg == "EdDSA":
         from joserfc.jwk import OKPKey  # type: ignore[import-not-found]
@@ -124,8 +127,6 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
     public_jwk.setdefault("kid", kid)
     public_jwk.setdefault("alg", alg)
     public_jwk.setdefault("use", "sig")
-
-    del joserfc
 
     return GeneratedUCPKey(private_key=priv, public_jwk=public_jwk)
 
@@ -198,9 +199,22 @@ def sign_ucp_profile(
         profile = build_ucp_profile(..., signing_keys=[UCPSigningKey(**key.public_jwk)])
         signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid='merchant-2026-05')
     """
-    joserfc = _load_joserfc()
+    _load_joserfc()
     from joserfc import jws  # type: ignore[import-not-found]
     from joserfc.jws import JWSRegistry  # type: ignore[import-not-found]
+
+    # Sign-time kid sanity check: the profile's `signing_keys[]` MUST contain
+    # a JWK with the matching kid; otherwise verifiers can't resolve the
+    # public key and the profile is dead-on-arrival.
+    declared_kids = [
+        k.get("kid") if isinstance(k, dict) else getattr(k, "kid", None) for k in profile.get("signing_keys", [])
+    ]
+    if kid not in declared_kids:
+        msg = (
+            f"sign_ucp_profile: kid {kid!r} is not present in profile.signing_keys[] "
+            f"(declared kids: {declared_kids!r}). Verifiers will not find the key."
+        )
+        raise ValueError(msg)
 
     canonical_body = _canonicalize_profile(profile)
     header = {"alg": alg, "kid": kid, "typ": _UCP_TYP}
@@ -208,8 +222,6 @@ def sign_ucp_profile(
     # both EdDSA and ES256, so allow both.
     registry = JWSRegistry(algorithms=list(_ALLOWED_ALGS))
     signature = jws.serialize_compact(header, canonical_body, signing_key, registry=registry)
-
-    del joserfc
 
     return {**profile, "signature": signature}
 
@@ -251,10 +263,24 @@ def verify_ucp_profile(
 
         ok = verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
     """
-    joserfc = _load_joserfc()
+    _load_joserfc()
     from joserfc import jws  # type: ignore[import-not-found]
     from joserfc.jwk import KeySet  # type: ignore[import-not-found]
     from joserfc.jws import JWSRegistry  # type: ignore[import-not-found]
+
+    # JWKS shape guard so a malformed argument emits a typed UCPVerificationError
+    # rather than a confusing kid_not_found / AttributeError.
+    if not isinstance(jwks, dict) or not isinstance(jwks.get("keys"), list):
+        raise UCPVerificationError(
+            "malformed_jwks",
+            f"UCP verifier expected JWKS shape {{'keys': [...]}}; got {type(jwks).__name__}.",
+        )
+
+    if not isinstance(signed_profile, dict):
+        raise UCPVerificationError(
+            "no_signature",
+            f"UCP verifier expected a profile dict; got {type(signed_profile).__name__}.",
+        )
 
     sig = signed_profile.get("signature")
     if not sig:
@@ -294,6 +320,13 @@ def verify_ucp_profile(
             "duplicate_kid",
             f"JWKS contains {len(matches)} keys with kid={kid!r}; expected exactly one.",
         )
+    # RFC 7517 §4.2: reject keys not intended for signature verification.
+    matched_use = matches[0].get("use")
+    if matched_use is not None and matched_use != "sig":
+        raise UCPVerificationError(
+            "unusable_key",
+            f"JWK with kid={kid!r} has use={matched_use!r}; expected 'sig'.",
+        )
 
     stripped = {k: v for k, v in signed_profile.items() if k != "signature"}
     expected_payload = _canonicalize_profile(stripped)
@@ -303,14 +336,26 @@ def verify_ucp_profile(
     try:
         obj = jws.deserialize_compact(sig, key_set, registry=registry)
     except Exception as exc:
-        # joserfc raises various subclasses (BadSignatureError, DecodeError, ...).
-        # Wrap in our own type so callers don't need to import joserfc internals.
-        from joserfc.errors import BadSignatureError, DecodeError  # type: ignore[import-not-found]
+        # joserfc raises various subclasses. Wrap in our own type so callers
+        # don't need to import joserfc internals.
+        from joserfc.errors import (  # type: ignore[import-not-found]
+            BadSignatureError,
+            DecodeError,
+            UnsupportedHeaderError,
+        )
 
         if isinstance(exc, BadSignatureError):
             raise UCPVerificationError("signature_invalid", f"UCP signature verification failed: {exc}") from exc
         if isinstance(exc, DecodeError):
             raise UCPVerificationError("malformed_jws", f"Malformed JWS: {exc}") from exc
+        # RFC 7515 §4.1.11 / RFC 8725 §3.10: a verifier MUST reject any JWS
+        # whose `crit` header carries an extension the implementation doesn't
+        # understand.
+        if isinstance(exc, UnsupportedHeaderError):
+            raise UCPVerificationError(
+                "unrecognized_critical_header",
+                f"UCP signing rejected unrecognized critical header: {exc}",
+            ) from exc
         raise
 
     # Compare the bytes that were actually signed against the canonical body of the
@@ -323,7 +368,6 @@ def verify_ucp_profile(
             "UCP profile body does not match the signed payload (tampered or non-canonical).",
         )
 
-    del joserfc
     return True
 
 

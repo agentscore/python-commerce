@@ -1,0 +1,64 @@
+{
+  "profile": {
+    "version": "2026-04-17",
+    "spec": "https://ucp.dev/",
+    "services": [
+      {
+        "type": "rest",
+        "url": "https://mk.example.com"
+      }
+    ],
+    "capabilities": [],
+    "payment_handlers": [
+      {
+        "name": "tempo",
+        "config": {
+          "rail": "tempo-mainnet"
+        }
+      }
+    ],
+    "signing_keys": [
+      {
+        "kid": "node-multikey-old",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "qSF9p7IJIFIKxoFl6Od1G8qj65Prx35EnN44zMxJs6U"
+      },
+      {
+        "kid": "node-multikey-new",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "9Al1EZLHjgl02MWGtIGaStOPnR9cBc0WXNYuGbU5r-g"
+      }
+    ],
+    "name": "Multi-Key Merchant",
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbXVsdGlrZXktbmV3IiwidHlwIjoidWNwLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTXVsdGktS2V5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9tay5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJxU0Y5cDdJSklGSUt4b0ZsNk9kMUc4cWo2NVByeDM1RW5ONDR6TXhKczZVIn0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLW11bHRpa2V5LW5ldyIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI5QWwxRVpMSGpnbDAyTVdHdElHYVN0T1BuUjljQmMwV1hOWXVHYlU1ci1nIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.jXm8ZRUWa9_BUYfSv_PCJNqIWbAYf39DUwOdqvExMPTLWDoDzNAwoIleWfyiAGXMOyK0J-0DPeeCFTzmOPMnBQ"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "kid": "node-multikey-old",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "qSF9p7IJIFIKxoFl6Od1G8qj65Prx35EnN44zMxJs6U"
+      },
+      {
+        "kid": "node-multikey-new",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "9Al1EZLHjgl02MWGtIGaStOPnR9cBc0WXNYuGbU5r-g"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "node-multikey-new",
+  "generator": "node"
+}

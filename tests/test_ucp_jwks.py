@@ -117,14 +117,15 @@ class TestSignAndVerifyRoundTrip:
 
 class TestCanonicalization:
     def test_key_order_in_json_does_not_affect_verification(self) -> None:
-        import json
-
         key = generate_ucp_signing_key(kid="k")
         profile = _base_profile([key.public_jwk])
         signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="k")
 
-        # Round-trip through JSON (loses original key order)
-        reordered = json.loads(json.dumps(signed))
+        # Hand-construct the same profile with keys in REVERSE insertion order
+        # so canonicalization actually has work to do. ``json.loads(json.dumps(...))``
+        # preserves the source order on Python 3.7+, which is a vacuous round-trip.
+        reordered = {k: signed[k] for k in sorted(signed.keys(), reverse=True)}
+        assert next(iter(reordered)) != next(iter(sorted(signed)))  # sanity
         ok = verify_ucp_profile(reordered, build_jwks_response([key.public_jwk]))
         assert ok is True
 
@@ -305,7 +306,6 @@ class TestUCPSigningKeyFromJWK:
         assert sk.use == "sig"
         assert sk.crv == "Ed25519"
         assert "x" in sk.extras
-        # Re-emit and confirm the JWK round-trips.
         as_dict = sk.to_dict()
         assert as_dict["kid"] == "merchant-2026-05"
         assert as_dict["x"] == gen.public_jwk["x"]
@@ -316,3 +316,79 @@ class TestUCPSigningKeyFromJWK:
         assert sk.kty == "EC"
         assert sk.crv == "P-256"
         assert "x" in sk.extras and "y" in sk.extras
+
+    def test_rejects_oct_symmetric_key(self) -> None:
+        with pytest.raises(ValueError, match=r"oct.*rejected|not a supported asymmetric key type"):
+            UCPSigningKey.from_jwk({"kid": "k", "kty": "oct", "k": "AAAA"})
+
+    def test_rejects_jwk_missing_kid(self) -> None:
+        with pytest.raises(ValueError, match="missing required field `kid`"):
+            UCPSigningKey.from_jwk({"kty": "OKP"})
+
+    def test_rejects_jwk_missing_kty(self) -> None:
+        with pytest.raises(ValueError, match="missing required field `kty`"):
+            UCPSigningKey.from_jwk({"kid": "k"})
+
+    def test_rejects_non_dict_input(self) -> None:
+        with pytest.raises(ValueError, match="expected a dict"):
+            UCPSigningKey.from_jwk("not a jwk")  # type: ignore[arg-type]
+
+
+class TestAdditionalHardening:
+    def test_sign_ucp_profile_rejects_kid_not_in_signing_keys(self) -> None:
+        key = generate_ucp_signing_key(kid="real")
+        profile = _base_profile([key.public_jwk])
+        with pytest.raises(ValueError, match=r"not present in profile.signing_keys"):
+            sign_ucp_profile(profile, signing_key=key.private_key, kid="wrong")
+
+    def test_verify_rejects_malformed_jwks_missing_keys(self) -> None:
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="k")
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, {})
+        assert exc.value.code == "malformed_jwks"
+
+    def test_verify_rejects_non_dict_jwks(self) -> None:
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="k")
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, [key.public_jwk])  # type: ignore[arg-type]
+        assert exc.value.code == "malformed_jwks"
+
+    def test_verify_rejects_non_dict_profile(self) -> None:
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile("not a profile", {"keys": []})  # type: ignore[arg-type]
+        assert exc.value.code == "no_signature"
+
+    def test_verify_wraps_unrecognized_critical_header(self) -> None:
+        import base64
+
+        from joserfc import jws
+        from joserfc.jws import JWSRegistry  # type: ignore[import-not-found]
+
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        # Hand-craft a JWS with crit (use the raw underlying key to bypass joserfc's sign-time check).
+        canonical = (
+            __import__("json").dumps(profile, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        )
+        header = {"alg": "EdDSA", "kid": "k", "typ": "ucp-profile+jws", "crit": ["fakething"], "fakething": "x"}
+        header_b64 = (
+            base64.urlsafe_b64encode(__import__("json").dumps(header, separators=(",", ":")).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+        payload_b64 = base64.urlsafe_b64encode(canonical).rstrip(b"=").decode()
+        signing_input = f"{header_b64}.{payload_b64}".encode()
+        sig = key.private_key.private_key.sign(signing_input)
+        sig_b64 = base64.urlsafe_b64encode(sig).rstrip(b"=").decode()
+        jws_compact = f"{header_b64}.{payload_b64}.{sig_b64}"
+
+        signed = {**profile, "signature": jws_compact}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
+        assert exc.value.code == "unrecognized_critical_header"
+        # Silence unused-import warnings — registry is referenced for the joserfc namespace.
+        _ = jws, JWSRegistry

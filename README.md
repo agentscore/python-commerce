@@ -230,7 +230,7 @@ jwks = build_jwks_response([key.public_jwk])
 
 `sign_ucp_profile` rejects profiles containing `float` values: cross-language float canonicalization is not stable, so use decimal strings (e.g. `"9.99"`) for any monetary or fractional fields you put in `extras`.
 
-**HSM / KMS-backed signing.** `signing_key` accepts any joserfc `Key` subclass — including remote signers wrapped via `joserfc.jwk.OKPKey`/`ECKey`. The signing key never has to leave the HSM.
+**Persisting the private JWK.** Mint once via `generate_ucp_signing_key()`, serialize via `key.private_key.as_dict(private=True)`, store in your secret manager. On each container start, read the secret, `OKPKey.import_key(jwk_dict)` (or `ECKey.import_key` for ES256) to re-hydrate. Remote-signer flows (KMS-backed asymmetric keys) require subclassing the joserfc Key to delegate the sign hook; `OKPKey`/`ECKey` themselves only carry local key material.
 
 **Key rotation.** Mint a new key with a new `kid`, add the public JWK to your JWKS endpoint alongside the old one, then sign new profiles with the new key. Drop the old JWK after your verifier-side cache TTL has elapsed.
 

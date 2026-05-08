@@ -25,8 +25,13 @@ def test_verifies_cross_lang_fixture(fixture_path: Path) -> None:
     assert verify_ucp_profile(data["profile"], data["jwks"]) is True
 
 
-def test_corpus_contains_both_generators() -> None:
+def test_corpus_covers_canonical_scenarios() -> None:
+    names = {p.name for p in FIXTURES}
     generators = {json.loads(p.read_text())["generator"] for p in FIXTURES}
     assert "node" in generators
     assert "python" in generators
-    assert len(FIXTURES) >= 6
+    # Each language ships 6 scenarios so cross-lang verify exercises all of them.
+    for lang in ("node", "py"):
+        for scenario in ("minimal", "es256-rails", "extras-int", "capability", "unicode", "multikey"):
+            assert f"{lang}-{scenario}.json" in names, f"missing fixture {lang}-{scenario}.json"
+    assert len(FIXTURES) == 12

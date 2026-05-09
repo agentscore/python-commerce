@@ -272,28 +272,33 @@ def build_ucp_profile(
     base_capabilities = list(capabilities or [])
 
     if data is not None and data.resolved_operator:
-        raw = data.raw or {}
-        operator_verification = raw.get("operator_verification") if isinstance(raw, dict) else None
+        # Match node-commerce read order: prefer the typed AssessResult fields,
+        # fall back to ``data.raw`` only when the typed field is missing. The
+        # Node sibling reads ``input.data.operator_verification`` /
+        # ``input.data.account_verification`` directly without consulting
+        # ``raw``; if a caller hand-constructs an AssessResult with mismatched
+        # typed and raw verification blocks, both languages must pick the same
+        # source so a profile signed in one verifies in the other.
+        typed_op = getattr(data, "operator_verification", None)
+        if typed_op is not None and not isinstance(typed_op, dict):
+            # Convert OperatorVerification dataclass to a plain dict.
+            operator_verification = {
+                "level": getattr(typed_op, "level", None),
+                "operator_type": getattr(typed_op, "operator_type", None),
+                "verified_at": getattr(typed_op, "verified_at", None),
+            }
+        else:
+            operator_verification = typed_op
         if not operator_verification:
-            # Fallback to the typed AssessResult.operator_verification field when
-            # `raw` doesn't carry it. Mirrors the node sibling's typed-field read
-            # path so a hand-constructed AssessResult (no `raw`) still surfaces
-            # the operator verification block in the UCP capability claims.
-            typed_op = getattr(data, "operator_verification", None)
-            if typed_op is not None and not isinstance(typed_op, dict):
-                # Convert OperatorVerification dataclass to a plain dict.
-                operator_verification = {
-                    "level": getattr(typed_op, "level", None),
-                    "operator_type": getattr(typed_op, "operator_type", None),
-                    "verified_at": getattr(typed_op, "verified_at", None),
-                }
-            else:
-                operator_verification = typed_op
-        account_verification = raw.get("account_verification") if isinstance(raw, dict) else None
-        if not account_verification:
-            account_verification = getattr(data, "account_verification", None)
+            raw = data.raw or {}
+            operator_verification = raw.get("operator_verification") if isinstance(raw, dict) else None
         if not isinstance(operator_verification, dict):
             operator_verification = {}
+
+        account_verification = getattr(data, "account_verification", None)
+        if not account_verification:
+            raw = data.raw or {}
+            account_verification = raw.get("account_verification") if isinstance(raw, dict) else None
         if not isinstance(account_verification, dict):
             account_verification = {}
         # `dict.get(k) or DEFAULT` (not `dict.get(k, DEFAULT)`) coerces both a

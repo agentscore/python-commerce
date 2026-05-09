@@ -344,6 +344,31 @@ class TestUnsafeNumberRejection:
         with pytest.raises(ValueError, match="set values are not allowed"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
+    def test_rejects_bytes_values_outright(self) -> None:
+        # `bytes` is not representable in JSON; the canonicalizer rejects it with a
+        # typed message before `json.dumps` can raise its raw
+        # `TypeError: Object of type bytes is not JSON serializable`. Mirrors
+        # node's `stableStringify: typed arrays are not allowed`.
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"blob": b"hello"}}
+        with pytest.raises(ValueError, match="bytes values are not allowed"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_bytearray_values_outright(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"blob": bytearray(b"hello")}}
+        with pytest.raises(ValueError, match="bytearray values are not allowed"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_empty_bytes_with_typed_message(self) -> None:
+        # Empty bytes would fall through `_reject_unsafe_numbers` cleanly and
+        # surface a raw `TypeError` from `json.dumps` later. The typed reject
+        # ensures callers get a guiding ValueError instead.
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"blob": b""}}
+        with pytest.raises(ValueError, match="bytes values are not allowed"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
     def test_accepts_max_safe_int_boundary(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"big": 2**53 - 1}}

@@ -222,6 +222,17 @@ def _reject_unsafe_numbers(value: Any) -> None:
             "Convert to a sorted list before passing."
         )
         raise ValueError(msg)
+    # Reject bytes / bytearray with a typed message (mirrors the node sibling's
+    # "typed arrays are not allowed" rejection in stableStringify). Without this,
+    # raw bytes fall through cleanly and surface a confusing
+    # `TypeError: Object of type bytes is not JSON serializable` from
+    # `json.dumps` later. Convert to a base64url string before passing.
+    if isinstance(value, bytes | bytearray):
+        msg = (
+            f"{type(value).__name__} values are not allowed in canonicalized JSON. "
+            "Convert to a base64url string before passing."
+        )
+        raise ValueError(msg)
     if isinstance(value, dict):
         for k, v in value.items():
             _reject_unsafe_numbers(k)

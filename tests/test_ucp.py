@@ -235,24 +235,49 @@ def test_typed_account_verification_fallback_via_setattr() -> None:
     assert claims["sanctions_clear"] is True
 
 
-def test_raw_takes_precedence_over_typed_fallback() -> None:
-    # When raw carries `operator_verification`, the typed-field fallback is NOT
-    # consulted. Production callers populate raw and the typed fields stay
-    # in sync; this test pins the precedence so a typed mismatch can't silently
-    # override the raw payload.
+def test_typed_takes_precedence_over_raw() -> None:
+    # When the typed `operator_verification` / `account_verification` fields
+    # disagree with `data.raw`, the typed values win. Mirrors the node sibling
+    # which reads `input.data.operator_verification` directly without
+    # consulting `raw`. Production callers populate raw and the typed fields
+    # stay in sync; pinning typed-precedence keeps a hand-constructed
+    # AssessResult from emitting a profile that one language verifies and the
+    # other rejects.
     result = AssessResult(
         allow=True,
         resolved_operator="op_xyz",
-        operator_verification=OperatorVerification(level="enhanced"),
+        operator_verification=OperatorVerification(level="verified"),
         raw={
-            "operator_verification": {"level": "verified"},
-            "account_verification": {"kyc_level": "verified"},
+            "operator_verification": {"level": "none"},
+            "account_verification": {"kyc_level": "none"},
+        },
+    )
+    result.account_verification = {"kyc_level": "verified"}  # type: ignore[attr-defined]
+    profile = build_ucp_profile(**_base_kwargs(), data=result)
+    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
+    # Typed `account_verification.kyc_level == 'verified'` wins over the
+    # `none` value carried in `data.raw`.
+    assert cap.extras["claims"]["kyc_level"] == "verified"
+
+
+def test_raw_fallback_used_when_typed_missing() -> None:
+    # When typed `operator_verification` / `account_verification` are absent,
+    # the builder falls back to `data.raw`. This is the production path:
+    # `AgentScoreClient` populates both, but legacy or ad-hoc callers may
+    # only set raw.
+    result = AssessResult(
+        allow=True,
+        resolved_operator="op_raw",
+        operator_verification=None,
+        raw={
+            "operator_verification": {"level": "enhanced"},
+            "account_verification": {"kyc_level": "enhanced"},
         },
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)
     cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
-    # `kyc_level` reads from raw account_verification.kyc_level first.
-    assert cap.extras["claims"]["kyc_level"] == "verified"
+    # `kyc_level` falls back to raw `account_verification.kyc_level`.
+    assert cap.extras["claims"]["kyc_level"] == "enhanced"
 
 
 # Per-element to_dict reserved-key collision guard. Mirrors the parent

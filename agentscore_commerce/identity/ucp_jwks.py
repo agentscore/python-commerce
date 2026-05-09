@@ -430,6 +430,10 @@ def verify_ucp_profile(
         )
     matched = matches[0]
     # RFC 7517 §4.2: reject keys not intended for signature verification.
+    # ``use`` and ``alg`` are optional per RFC 7517; an explicit JSON null is
+    # out-of-spec but treat it as absent (skip-on-null) so a JWK with
+    # ``"use": null`` matches the Node sibling's ``!= null`` semantics in
+    # ucp-jwks.ts and the two languages stay symmetric.
     matched_use = matched.get("use")
     if matched_use is not None and matched_use != "sig":
         raise UCPVerificationError(
@@ -444,6 +448,11 @@ def verify_ucp_profile(
             "unusable_key",
             f"JWK alg {matched_alg!r} does not match JWS header alg {header_alg!r}.",
         )
+    # joserfc's KeySet.import_key_set runs a stricter dict-key validation that
+    # rejects ``use: None`` / ``alg: None`` outright. Strip explicit nulls for
+    # those two fields before handing the JWK off so skip-on-null actually
+    # propagates to the import step.
+    matches = [{k: v for k, v in matched.items() if not (k in ("use", "alg") and v is None)}]
 
     stripped = {k: v for k, v in signed_profile.items() if k != "signature"}
     try:

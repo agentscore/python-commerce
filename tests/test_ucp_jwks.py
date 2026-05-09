@@ -756,6 +756,39 @@ class TestLineParagraphSeparatorRejection:
         assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
 
 
+class TestJWKUseAlgNullTreatedAsAbsent:
+    """RFC 7517 lists ``use`` and ``alg`` as optional. Explicit JSON null is
+    out-of-spec but harmless; treat null as absent (skip-on-null) so a JWK
+    carrying ``"use": null`` or ``"alg": null`` matches the Node sibling's
+    ``!= null`` semantics in ucp-jwks.ts and the two languages stay
+    symmetric.
+    """
+
+    def test_verify_succeeds_when_matched_jwk_has_null_use(self) -> None:
+        key = generate_ucp_signing_key(kid="null-use")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="null-use")
+        jwks_with_null_use = build_jwks_response([{**key.public_jwk, "use": None}])
+        assert verify_ucp_profile(signed, jwks_with_null_use) is True
+
+    def test_verify_succeeds_when_matched_jwk_has_null_alg(self) -> None:
+        key = generate_ucp_signing_key(kid="null-alg", alg="EdDSA")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="null-alg")
+        jwks_with_null_alg = build_jwks_response([{**key.public_jwk, "alg": None}])
+        assert verify_ucp_profile(signed, jwks_with_null_alg) is True
+
+    def test_verify_still_rejects_use_enc_with_unusable_key(self) -> None:
+        # Sanity: non-null wrong values continue to fail with unusable_key.
+        key = generate_ucp_signing_key(kid="enc-sanity")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="enc-sanity")
+        enc_jwk = {**key.public_jwk, "use": "enc"}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([enc_jwk]))
+        assert exc.value.code == "unusable_key"
+
+
 class TestVerifierErrorPrecedence:
     def test_null_profile_with_malformed_jwks_returns_no_signature(self) -> None:
         with pytest.raises(UCPVerificationError) as exc:

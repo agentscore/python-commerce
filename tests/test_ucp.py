@@ -5,6 +5,7 @@ import pytest
 from agentscore_commerce.identity import (
     AGENTSCORE_UCP_CAPABILITY,
     AssessResult,
+    OperatorVerification,
     UCPCapability,
     UCPPaymentHandler,
     UCPService,
@@ -179,3 +180,133 @@ def test_coerces_null_verified_at_to_none() -> None:
 
 def test_coerces_empty_string_verified_at_to_none() -> None:
     assert _claims_of({"verified_at": ""})["verified_at"] is None
+
+
+# Typed-field fallback: production callers populate `data.raw`, but a
+# hand-constructed AssessResult (no raw) should still surface the operator
+# verification block via the typed `AssessResult.operator_verification` field
+# and the (optional) `account_verification` attribute. Mirrors the node sibling's
+# typed-field read path.
+
+
+def test_typed_operator_verification_fallback_when_raw_is_none() -> None:
+    result = AssessResult(
+        allow=True,
+        resolved_operator="op_typed",
+        operator_verification=OperatorVerification(
+            level="enhanced",
+            operator_type="api",
+            verified_at="2026-04-01T00:00:00Z",
+        ),
+        raw=None,
+    )
+    profile = build_ucp_profile(**_base_kwargs(), data=result)
+    d = profile.to_dict()
+    cap = next(c for c in d["capabilities"] if c["name"] == AGENTSCORE_UCP_CAPABILITY)
+    claims = cap["claims"]
+    assert claims["operator_id"] == "op_typed"
+    assert claims["kyc_level"] == "enhanced"
+    assert claims["verified_at"] == "2026-04-01T00:00:00Z"
+
+
+def test_typed_account_verification_fallback_via_setattr() -> None:
+    # `AssessResult` doesn't declare `account_verification` as a typed field, but
+    # a caller can still attach one ad-hoc. The fallback reads it via getattr so
+    # parity with the node sibling holds whichever way the caller populates it.
+    result = AssessResult(
+        allow=True,
+        resolved_operator="op_typed",
+        operator_verification=OperatorVerification(level="verified"),
+        raw=None,
+    )
+    result.account_verification = {  # type: ignore[attr-defined]
+        "kyc_level": "verified",
+        "age_bracket": "21+",
+        "jurisdiction": "US",
+        "sanctions_clear": True,
+    }
+    profile = build_ucp_profile(**_base_kwargs(), data=result)
+    d = profile.to_dict()
+    cap = next(c for c in d["capabilities"] if c["name"] == AGENTSCORE_UCP_CAPABILITY)
+    claims = cap["claims"]
+    assert claims["kyc_level"] == "verified"
+    assert claims["age_bracket"] == "21+"
+    assert claims["jurisdiction"] == "US"
+    assert claims["sanctions_clear"] is True
+
+
+def test_raw_takes_precedence_over_typed_fallback() -> None:
+    # When raw carries `operator_verification`, the typed-field fallback is NOT
+    # consulted. Production callers populate raw and the typed fields stay
+    # in sync; this test pins the precedence so a typed mismatch can't silently
+    # override the raw payload.
+    result = AssessResult(
+        allow=True,
+        resolved_operator="op_xyz",
+        operator_verification=OperatorVerification(level="enhanced"),
+        raw={
+            "operator_verification": {"level": "verified"},
+            "account_verification": {"kyc_level": "verified"},
+        },
+    )
+    profile = build_ucp_profile(**_base_kwargs(), data=result)
+    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
+    # `kyc_level` reads from raw account_verification.kyc_level first.
+    assert cap.extras["claims"]["kyc_level"] == "verified"
+
+
+# Per-element to_dict reserved-key collision guard. Mirrors the parent
+# UCPProfile.to_dict guard so vendor extras can't silently overwrite a canonical
+# field on UCPService / UCPCapability / UCPSigningKey via `out.update(extras)`.
+
+
+def test_ucp_service_extras_collision_with_type_rejected() -> None:
+    svc = UCPService(type="rest", extras={"type": "different"})
+    with pytest.raises(ValueError, match=r"UCPService\.extras key 'type' collides"):
+        svc.to_dict()
+
+
+def test_ucp_service_extras_collision_with_url_rejected() -> None:
+    svc = UCPService(type="rest", url="https://x.example", extras={"url": "https://attacker.example"})
+    with pytest.raises(ValueError, match=r"UCPService\.extras key 'url' collides"):
+        svc.to_dict()
+
+
+def test_ucp_service_extras_non_reserved_pass_through() -> None:
+    svc = UCPService(type="rest", url="https://x.example", extras={"region": "us-west-1"})
+    assert svc.to_dict() == {"type": "rest", "url": "https://x.example", "region": "us-west-1"}
+
+
+def test_ucp_capability_extras_collision_with_name_rejected() -> None:
+    cap = UCPCapability(name="checkout", extras={"name": "different"})
+    with pytest.raises(ValueError, match=r"UCPCapability\.extras key 'name' collides"):
+        cap.to_dict()
+
+
+def test_ucp_capability_extras_collision_with_schema_rejected() -> None:
+    cap = UCPCapability(name="checkout", schema="https://x/y", extras={"schema": "https://attacker"})
+    with pytest.raises(ValueError, match=r"UCPCapability\.extras key 'schema' collides"):
+        cap.to_dict()
+
+
+def test_ucp_capability_extras_non_reserved_pass_through() -> None:
+    cap = UCPCapability(name="checkout", extras={"claims": {"k": "v"}})
+    assert cap.to_dict() == {"name": "checkout", "claims": {"k": "v"}}
+
+
+def test_ucp_signing_key_extras_collision_with_kid_rejected() -> None:
+    sk = UCPSigningKey(kid="me", kty="EC", extras={"kid": "attacker"})
+    with pytest.raises(ValueError, match=r"UCPSigningKey\.extras key 'kid' collides"):
+        sk.to_dict()
+
+
+def test_ucp_signing_key_extras_collision_with_kty_rejected() -> None:
+    sk = UCPSigningKey(kid="me", kty="EC", extras={"kty": "RSA"})
+    with pytest.raises(ValueError, match=r"UCPSigningKey\.extras key 'kty' collides"):
+        sk.to_dict()
+
+
+def test_ucp_signing_key_extras_non_reserved_pass_through() -> None:
+    sk = UCPSigningKey(kid="me", kty="EC", alg="ES256", crv="P-256", extras={"x": "abc", "y": "def"})
+    out = sk.to_dict()
+    assert out == {"kid": "me", "kty": "EC", "alg": "ES256", "crv": "P-256", "x": "abc", "y": "def"}

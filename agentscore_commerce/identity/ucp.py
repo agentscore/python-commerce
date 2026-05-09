@@ -50,6 +50,8 @@ class UCPSigningKey:
     extras: dict[str, Any] = field(default_factory=dict)
     """Additional JWK fields (x, y, n, e, etc.) merged into the serialized output."""
 
+    _RESERVED = frozenset({"kid", "kty", "alg", "use", "crv"})
+
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"kid": self.kid, "kty": self.kty}
         if self.alg is not None:
@@ -58,7 +60,11 @@ class UCPSigningKey:
             out["use"] = self.use
         if self.crv is not None:
             out["crv"] = self.crv
-        out.update(self.extras)
+        for k, v in self.extras.items():
+            if k in self._RESERVED:
+                msg = f"UCPSigningKey.extras key {k!r} collides with a reserved field; rejected."
+                raise ValueError(msg)
+            out[k] = v
         return out
 
     @classmethod
@@ -110,13 +116,19 @@ class UCPService:
     version: str | None = None
     extras: dict[str, Any] = field(default_factory=dict)
 
+    _RESERVED = frozenset({"type", "url", "version"})
+
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"type": self.type}
         if self.url is not None:
             out["url"] = self.url
         if self.version is not None:
             out["version"] = self.version
-        out.update(self.extras)
+        for k, v in self.extras.items():
+            if k in self._RESERVED:
+                msg = f"UCPService.extras key {k!r} collides with a reserved field; rejected."
+                raise ValueError(msg)
+            out[k] = v
         return out
 
 
@@ -129,13 +141,19 @@ class UCPCapability:
     version: str | None = None
     extras: dict[str, Any] = field(default_factory=dict)
 
+    _RESERVED = frozenset({"name", "schema", "version"})
+
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"name": self.name}
         if self.schema is not None:
             out["schema"] = self.schema
         if self.version is not None:
             out["version"] = self.version
-        out.update(self.extras)
+        for k, v in self.extras.items():
+            if k in self._RESERVED:
+                msg = f"UCPCapability.extras key {k!r} collides with a reserved field; rejected."
+                raise ValueError(msg)
+            out[k] = v
         return out
 
 
@@ -256,7 +274,24 @@ def build_ucp_profile(
     if data is not None and data.resolved_operator:
         raw = data.raw or {}
         operator_verification = raw.get("operator_verification") if isinstance(raw, dict) else None
+        if not operator_verification:
+            # Fallback to the typed AssessResult.operator_verification field when
+            # `raw` doesn't carry it. Mirrors the node sibling's typed-field read
+            # path so a hand-constructed AssessResult (no `raw`) still surfaces
+            # the operator verification block in the UCP capability claims.
+            typed_op = getattr(data, "operator_verification", None)
+            if typed_op is not None and not isinstance(typed_op, dict):
+                # Convert OperatorVerification dataclass to a plain dict.
+                operator_verification = {
+                    "level": getattr(typed_op, "level", None),
+                    "operator_type": getattr(typed_op, "operator_type", None),
+                    "verified_at": getattr(typed_op, "verified_at", None),
+                }
+            else:
+                operator_verification = typed_op
         account_verification = raw.get("account_verification") if isinstance(raw, dict) else None
+        if not account_verification:
+            account_verification = getattr(data, "account_verification", None)
         if not isinstance(operator_verification, dict):
             operator_verification = {}
         if not isinstance(account_verification, dict):

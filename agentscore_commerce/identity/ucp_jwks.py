@@ -211,11 +211,22 @@ def _reject_unsafe_numbers(value: Any) -> None:
             )
             raise ValueError(msg)
         return
+    # Reject set / frozenset with a typed message (mirrors the node sibling's
+    # "Set values are not allowed" rejection in stableStringify). Without this,
+    # an empty set or a set-of-valid-strings falls through `_reject_unsafe_numbers`
+    # cleanly and surfaces a raw `TypeError` from `json.dumps` later. Sets aren't
+    # representable in JSON; convert to a sorted list before passing.
+    if isinstance(value, set | frozenset):
+        msg = (
+            f"{type(value).__name__} values are not allowed in canonicalized JSON. "
+            "Convert to a sorted list before passing."
+        )
+        raise ValueError(msg)
     if isinstance(value, dict):
         for k, v in value.items():
             _reject_unsafe_numbers(k)
             _reject_unsafe_numbers(v)
-    elif isinstance(value, list | tuple | set | frozenset):
+    elif isinstance(value, list | tuple):
         for v in value:
             _reject_unsafe_numbers(v)
 

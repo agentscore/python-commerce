@@ -314,16 +314,34 @@ class TestUnsafeNumberRejection:
         signed = sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
         assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
 
-    def test_rejects_float_in_set(self) -> None:
+    def test_rejects_set_values_outright(self) -> None:
+        # `set` is not representable in JSON; the canonicalizer rejects it with a
+        # typed message before any element-level checks run. Mirrors node's
+        # `stableStringify: Set values are not allowed`.
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"vals": {0.5}}}
-        with pytest.raises(ValueError, match="rejects float"):
+        with pytest.raises(ValueError, match="set values are not allowed"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
-    def test_rejects_float_in_frozenset(self) -> None:
+    def test_rejects_frozenset_values_outright(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"vals": frozenset({0.25})}}
-        with pytest.raises(ValueError, match="rejects float"):
+        with pytest.raises(ValueError, match="frozenset values are not allowed"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_empty_set_with_typed_message(self) -> None:
+        # Empty set + set-of-valid-strings would fall through `_reject_unsafe_numbers`
+        # cleanly and surface a raw `TypeError` from `json.dumps` later. The typed
+        # reject ensures callers get a guiding ValueError instead.
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"vals": set()}}
+        with pytest.raises(ValueError, match="set values are not allowed"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_set_of_valid_strings_with_typed_message(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"vals": {"valid", "strings"}}}
+        with pytest.raises(ValueError, match="set values are not allowed"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
     def test_accepts_max_safe_int_boundary(self) -> None:

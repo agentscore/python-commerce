@@ -145,11 +145,14 @@ def test_extras_reserved_collision_rejected(key: str) -> None:
 # shape so a profile signed in one language verifies in the other.
 
 
-def _claims_of(account_verification: dict) -> dict:
+def _claims_of(account_verification: dict, operator_verification: dict | None = None) -> dict:
+    raw: dict = {"account_verification": account_verification}
+    if operator_verification is not None:
+        raw["operator_verification"] = operator_verification
     result = AssessResult(
         allow=True,
         resolved_operator="op_abc",
-        raw={"account_verification": account_verification},
+        raw=raw,
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)
     d = profile.to_dict()
@@ -183,6 +186,21 @@ def test_coerces_null_verified_at_to_none() -> None:
 
 def test_coerces_empty_string_verified_at_to_none() -> None:
     assert _claims_of({"verified_at": ""})["verified_at"] is None
+
+
+def test_both_empty_string_verified_at_normalizes_to_none() -> None:
+    """Both account_verification + operator_verification with verified_at=''
+    must normalize to None for cross-language byte parity with Node SDK.
+    Without the trailing ``or None``, Python's chained ``or`` returns the last
+    falsy value (``""``); Node's ``a || b || null`` returns ``null``.
+    """
+    assert (
+        _claims_of(
+            {"verified_at": ""},
+            operator_verification={"verified_at": ""},
+        )["verified_at"]
+        is None
+    )
 
 
 # Typed-field fallback: production callers populate `data.raw`, but a

@@ -39,6 +39,17 @@ to find verified-buyer claims attached to the profile."""
 _AGENTSCORE_CAPABILITY_VERSION = "1"
 
 
+# UCP per-element shape note (applies to UCPSigningKey, UCPService, UCPCapability):
+# The Node sibling models these as TypeScript interfaces that accept canonical
+# fields plus arbitrary vendor extras flat via `[k: string]: unknown`, with no
+# runtime collision guard; required-field types prevent collisions at typed
+# call sites at compile time, and JSON-deserialized inputs simply overwrite.
+# Python models them as dataclasses with an explicit `extras: dict` slot, and
+# each `to_dict()` rejects extras keys that collide with reserved canonical
+# names at runtime. Net contract is the same; cross-language fixtures don't
+# exercise the divergent corner.
+
+
 @dataclass
 class UCPSigningKey:
     """JWK entry for the profile's ``signing_keys`` array.
@@ -330,7 +341,7 @@ def build_ucp_profile(
             "sanctions_clear": account_verification.get("sanctions_clear") is True,
             "age_bracket": account_verification.get("age_bracket") or "unknown",
             "jurisdiction": account_verification.get("jurisdiction") or "",
-            "verified_at": account_verification.get("verified_at") or operator_verification.get("verified_at"),
+            "verified_at": account_verification.get("verified_at") or operator_verification.get("verified_at") or None,
             "verify_url": data.verify_url,
             "issuer": "https://agentscore.sh",
         }

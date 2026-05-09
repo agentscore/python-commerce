@@ -519,6 +519,44 @@ class TestAdditionalHardening:
         # Silence unused-import warnings — registry is referenced for the joserfc namespace.
         _ = jws, JWSRegistry
 
+    def test_verify_crit_with_missing_kid_emits_unrecognized_critical_header(self) -> None:
+        """JWS with both crit violation AND missing kid emits unrecognized_critical_header,
+        matching node-commerce's typ -> alg -> kid -> crit precedence (regression guard for
+        the round-17 cross-SDK parity gap)."""
+        import base64
+
+        key = generate_ucp_signing_key(kid="real")
+        profile = _base_profile([key.public_jwk])
+        # Hand-craft a JWS with header carrying both crit AND a kid that the JWKS does NOT contain.
+        canonical = (
+            __import__("json").dumps(profile, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        )
+        header = {
+            "alg": "EdDSA",
+            "kid": "nonexistent",
+            "typ": "ucp-profile+jws",
+            "crit": ["fakething"],
+            "fakething": "x",
+        }
+        header_b64 = (
+            base64.urlsafe_b64encode(__import__("json").dumps(header, separators=(",", ":")).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+        payload_b64 = base64.urlsafe_b64encode(canonical).rstrip(b"=").decode()
+        signing_input = f"{header_b64}.{payload_b64}".encode()
+        sig = key.private_key.private_key.sign(signing_input)
+        sig_b64 = base64.urlsafe_b64encode(sig).rstrip(b"=").decode()
+        jws_compact = f"{header_b64}.{payload_b64}.{sig_b64}"
+
+        signed = {**profile, "signature": jws_compact}
+        # JWKS contains 'real' but the JWS advertises kid='nonexistent'. Without the
+        # crit-before-kid-lookup check the verifier would emit kid_not_found, diverging
+        # from node-commerce.
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
+        assert exc.value.code == "unrecognized_critical_header"
+
 
 class TestVerifierCanonicalizationTypedErrors:
     """Verifier-side canonicalize must NEVER leak raw ValueError; always UCPVerificationError(body_mismatch)."""

@@ -369,6 +369,25 @@ def verify_ucp_profile(
     if not kid or not isinstance(kid, str):
         raise UCPVerificationError("missing_kid", "UCP signature header missing `kid`.")
 
+    # UCP doesn't define any critical headers; any crit advertised is by definition
+    # unrecognized. Reject before the JWKS kid lookup so a crit-violating JWS with a
+    # missing/duplicate/unusable kid surfaces crit (not kid_not_found / duplicate_kid /
+    # unusable_key), matching node-commerce's manual peek order:
+    # typ -> alg -> kid -> crit -> kid_lookup. Cross-language ordering parity is
+    # non-obvious because joserfc's deserialize_compact only enforces crit AFTER
+    # the kid lookup, so we must check it here ourselves.
+    crit = header.get("crit")
+    if crit is not None:
+        if not isinstance(crit, list) or len(crit) == 0:
+            raise UCPVerificationError(
+                "malformed_jws",
+                f"JWS protected header crit must be a non-empty array; got {crit!r}.",
+            )
+        raise UCPVerificationError(
+            "unrecognized_critical_header",
+            f"JWS protected header advertises unrecognized crit headers: {crit!r}.",
+        )
+
     keys_list = jwks.get("keys", []) if isinstance(jwks, dict) else []
     matches = [k for k in keys_list if isinstance(k, dict) and k.get("kid") == kid]
     if not matches:

@@ -218,6 +218,9 @@ class GateClient:
             else None
         )
 
+        av_data = data.get("account_verification")
+        account_verification = av_data if isinstance(av_data, dict) else None
+
         # SDK populates `quota` on the AssessResponse from X-Quota-* headers. Surface up
         # to adapters so merchants can monitor approach-to-cap proactively.
         quota_raw = data.get("quota")
@@ -237,6 +240,7 @@ class GateClient:
             reasons=reasons,
             identity_method=data.get("identity_method"),
             operator_verification=operator_verification,
+            account_verification=account_verification,
             resolved_operator=data.get("resolved_operator"),
             verify_url=data.get("verify_url"),
             policy_result=data.get("policy_result"),

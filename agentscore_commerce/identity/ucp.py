@@ -21,7 +21,7 @@ can read them; consumers who don't care just see a normal UCP profile.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from agentscore_commerce.identity.types import AssessResult
@@ -279,28 +279,29 @@ def build_ucp_profile(
         # ``raw``; if a caller hand-constructs an AssessResult with mismatched
         # typed and raw verification blocks, both languages must pick the same
         # source so a profile signed in one verifies in the other.
-        typed_op = getattr(data, "operator_verification", None)
-        if typed_op is not None and not isinstance(typed_op, dict):
+        typed_op = data.operator_verification
+        operator_verification: dict[str, Any] = {}
+        if isinstance(typed_op, dict):
+            operator_verification = cast("dict[str, Any]", typed_op)
+        elif typed_op is not None:
             # Convert OperatorVerification dataclass to a plain dict.
             operator_verification = {
                 "level": getattr(typed_op, "level", None),
                 "operator_type": getattr(typed_op, "operator_type", None),
                 "verified_at": getattr(typed_op, "verified_at", None),
             }
-        else:
-            operator_verification = typed_op
         if not operator_verification:
             raw = data.raw or {}
-            operator_verification = raw.get("operator_verification") if isinstance(raw, dict) else None
-        if not isinstance(operator_verification, dict):
-            operator_verification = {}
+            raw_op = raw.get("operator_verification") if isinstance(raw, dict) else None
+            if isinstance(raw_op, dict):
+                operator_verification = raw_op
 
-        account_verification = getattr(data, "account_verification", None)
+        account_verification: dict[str, Any] = data.account_verification or {}
         if not account_verification:
             raw = data.raw or {}
-            account_verification = raw.get("account_verification") if isinstance(raw, dict) else None
-        if not isinstance(account_verification, dict):
-            account_verification = {}
+            raw_av = raw.get("account_verification") if isinstance(raw, dict) else None
+            if isinstance(raw_av, dict):
+                account_verification = raw_av
         # `dict.get(k) or DEFAULT` (not `dict.get(k, DEFAULT)`) coerces both a
         # missing key AND a present-but-falsy (None / "") value to the default,
         # matching the node sibling's `||` semantics. The API can return

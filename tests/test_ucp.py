@@ -183,9 +183,9 @@ def test_coerces_empty_string_verified_at_to_none() -> None:
 
 
 # Typed-field fallback: production callers populate `data.raw`, but a
-# hand-constructed AssessResult (no raw) should still surface the operator
-# verification block via the typed `AssessResult.operator_verification` field
-# and the (optional) `account_verification` attribute. Mirrors the node sibling's
+# hand-constructed AssessResult (no raw) should still surface the verification
+# block via the typed `AssessResult.operator_verification` /
+# `AssessResult.account_verification` fields. Mirrors the node sibling's
 # typed-field read path.
 
 
@@ -209,22 +209,22 @@ def test_typed_operator_verification_fallback_when_raw_is_none() -> None:
     assert claims["verified_at"] == "2026-04-01T00:00:00Z"
 
 
-def test_typed_account_verification_fallback_via_setattr() -> None:
-    # `AssessResult` doesn't declare `account_verification` as a typed field, but
-    # a caller can still attach one ad-hoc. The fallback reads it via getattr so
-    # parity with the node sibling holds whichever way the caller populates it.
+def test_typed_account_verification_fallback_when_raw_is_none() -> None:
+    # `AssessResult.account_verification` is a typed optional field; a
+    # hand-constructed result populates it directly via the constructor and the
+    # builder reads it without consulting `raw`.
     result = AssessResult(
         allow=True,
         resolved_operator="op_typed",
         operator_verification=OperatorVerification(level="verified"),
+        account_verification={
+            "kyc_level": "verified",
+            "age_bracket": "21+",
+            "jurisdiction": "US",
+            "sanctions_clear": True,
+        },
         raw=None,
     )
-    result.account_verification = {  # type: ignore[attr-defined]
-        "kyc_level": "verified",
-        "age_bracket": "21+",
-        "jurisdiction": "US",
-        "sanctions_clear": True,
-    }
     profile = build_ucp_profile(**_base_kwargs(), data=result)
     d = profile.to_dict()
     cap = next(c for c in d["capabilities"] if c["name"] == AGENTSCORE_UCP_CAPABILITY)
@@ -247,12 +247,12 @@ def test_typed_takes_precedence_over_raw() -> None:
         allow=True,
         resolved_operator="op_xyz",
         operator_verification=OperatorVerification(level="verified"),
+        account_verification={"kyc_level": "verified"},
         raw={
             "operator_verification": {"level": "none"},
             "account_verification": {"kyc_level": "none"},
         },
     )
-    result.account_verification = {"kyc_level": "verified"}  # type: ignore[attr-defined]
     profile = build_ucp_profile(**_base_kwargs(), data=result)
     cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
     # Typed `account_verification.kyc_level == 'verified'` wins over the

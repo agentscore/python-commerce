@@ -133,3 +133,49 @@ def test_extras_reserved_collision_rejected(key: str) -> None:
     profile = build_ucp_profile(**_base_kwargs(), extras={key: "attacker"})
     with pytest.raises(ValueError, match="collides with a reserved profile field"):
         profile.to_dict()
+
+
+# Empty-string and null normalization: the API can emit
+# ``account_verification`` with either null or ``""`` for un-set fields, and the
+# node + python siblings must produce the SAME canonical claims block for either
+# shape so a profile signed in one language verifies in the other.
+
+
+def _claims_of(account_verification: dict) -> dict:
+    result = AssessResult(
+        allow=True,
+        resolved_operator="op_abc",
+        raw={"account_verification": account_verification},
+    )
+    profile = build_ucp_profile(**_base_kwargs(), data=result)
+    d = profile.to_dict()
+    cap = next(c for c in d["capabilities"] if c["name"] == AGENTSCORE_UCP_CAPABILITY)
+    return cap["claims"]
+
+
+def test_coerces_empty_string_kyc_level_to_none() -> None:
+    assert _claims_of({"kyc_level": ""})["kyc_level"] == "none"
+
+
+def test_coerces_null_age_bracket_to_unknown() -> None:
+    assert _claims_of({"age_bracket": None})["age_bracket"] == "unknown"
+
+
+def test_coerces_empty_string_age_bracket_to_unknown() -> None:
+    assert _claims_of({"age_bracket": ""})["age_bracket"] == "unknown"
+
+
+def test_coerces_null_jurisdiction_to_empty_string() -> None:
+    assert _claims_of({"jurisdiction": None})["jurisdiction"] == ""
+
+
+def test_coerces_empty_string_jurisdiction_to_empty_string() -> None:
+    assert _claims_of({"jurisdiction": ""})["jurisdiction"] == ""
+
+
+def test_coerces_null_verified_at_to_none() -> None:
+    assert _claims_of({"verified_at": None})["verified_at"] is None
+
+
+def test_coerces_empty_string_verified_at_to_none() -> None:
+    assert _claims_of({"verified_at": ""})["verified_at"] is None

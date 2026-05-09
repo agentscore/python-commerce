@@ -46,5 +46,10 @@ def test_corpus_covers_canonical_scenarios() -> None:
             "multikey",
             "emoji-keys",
             "int-boundary",
+            # `data-driven-claims` is the only fixture in the corpus that
+            # exercises ``build_ucp_profile`` / ``buildUCPProfile``'s data path
+            # (vs. hand-crafted capabilities). Catches drift in
+            # ``account_verification`` coalescing.
+            "data-driven-claims",
         ):
             assert f"{lang}-{scenario}.json" in names, f"missing fixture {lang}-{scenario}.json"

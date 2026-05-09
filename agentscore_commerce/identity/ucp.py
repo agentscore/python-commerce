@@ -261,12 +261,18 @@ def build_ucp_profile(
             operator_verification = {}
         if not isinstance(account_verification, dict):
             account_verification = {}
+        # `dict.get(k) or DEFAULT` (not `dict.get(k, DEFAULT)`) coerces both a
+        # missing key AND a present-but-falsy (None / "") value to the default,
+        # matching the node sibling's `||` semantics. The API can return
+        # `account_verification` with either null or `""` for un-set fields
+        # depending on the row state, and a profile signed in one language must
+        # verify in the other across both shapes.
         claims = {
             "operator_id": data.resolved_operator,
             "kyc_level": account_verification.get("kyc_level") or operator_verification.get("level") or "none",
             "sanctions_clear": account_verification.get("sanctions_clear") is True,
-            "age_bracket": account_verification.get("age_bracket", "unknown"),
-            "jurisdiction": account_verification.get("jurisdiction", ""),
+            "age_bracket": account_verification.get("age_bracket") or "unknown",
+            "jurisdiction": account_verification.get("jurisdiction") or "",
             "verified_at": account_verification.get("verified_at") or operator_verification.get("verified_at"),
             "verify_url": data.verify_url,
             "issuer": "https://agentscore.sh",

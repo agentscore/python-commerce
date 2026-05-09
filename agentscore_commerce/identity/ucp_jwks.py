@@ -162,9 +162,9 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
 
 
 def _reject_unsafe_numbers(value: Any) -> None:
-    """Walk ``value`` and raise on any number that won't survive cross-language parity.
+    """Walk ``value`` and raise on anything that won't survive cross-language parity.
 
-    Two failure modes are rejected:
+    Three failure modes are rejected:
 
     * Non-integer ``float`` values. Cross-language float canonicalization (RFC 8785
       §3.2.2.3) diverges between Python's ``json.dumps`` and Node's ``JSON.stringify``
@@ -174,6 +174,12 @@ def _reject_unsafe_numbers(value: Any) -> None:
       Python ints are arbitrary-width, but JS verifiers parse the canonical body via
       ``JSON.parse`` which silently loses precision past 2^53. Use a decimal string
       for any integer that may exceed the safe range.
+    * Strings containing U+2028 (LINE SEPARATOR) or U+2029 (PARAGRAPH SEPARATOR).
+      Pre-ES2019 V8 (and any environment whose ``JSON.stringify`` still escapes
+      these codepoints) emits the escaped sequences while
+      ``json.dumps(ensure_ascii=False)`` emits them raw, so the canonical bytes
+      would diverge across the Node and Python siblings. Mirror of the rejection
+      in ``core/api/src/lib/canonicalize.ts``.
 
     Catching the drift at sign-time prevents silent verifier-side failures in
     production.
@@ -194,6 +200,17 @@ def _reject_unsafe_numbers(value: Any) -> None:
             "parse this; use a decimal string to preserve cross-language byte-parity."
         )
         raise ValueError(msg)
+    if isinstance(value, str):
+        if "\u2028" in value or "\u2029" in value:
+            msg = (
+                "UCP profile strings containing U+2028 (LINE SEPARATOR) or "
+                "U+2029 (PARAGRAPH SEPARATOR) are not allowed; cross-language "
+                "byte parity requires neither be present (Node JSON.stringify "
+                "on older V8 escapes them; Python json.dumps with "
+                "ensure_ascii=False does not)."
+            )
+            raise ValueError(msg)
+        return
     if isinstance(value, dict):
         for k, v in value.items():
             _reject_unsafe_numbers(k)

@@ -671,6 +671,73 @@ class TestRejectUnsafeNumbersDictKeys:
         assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
 
 
+# U+2028 / U+2029 named via escape so the RUF001 ambiguous-character lint
+# doesn't fire on the test inputs (the codepoints are intentional, not typos).
+_U2028 = "\u2028"
+_U2029 = "\u2029"
+
+
+class TestLineParagraphSeparatorRejection:
+    """U+2028 / U+2029 are escaped by pre-ES2019 V8 (``JSON.stringify`` emits
+    the escaped sequences) but emitted raw by ``json.dumps(ensure_ascii=False)``.
+
+    Modern V8 emits them raw too, so the divergence is theoretical on today's
+    Node, but the rejection mirrors core/api/src/lib/canonicalize.ts so the
+    contract stays symmetric for any pre-ES2019 verifier path (older V8,
+    browser-side verifier code).
+    """
+
+    def test_rejects_u2028_at_top_level(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"note": f"before{_U2028}after"}}
+        with pytest.raises(ValueError, match="U\\+2028"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_u2029_at_top_level(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"note": f"before{_U2029}after"}}
+        with pytest.raises(ValueError, match="U\\+2029"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_u2028_nested_in_list(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"items": ["ok", f"bad{_U2028}tail"]}}
+        with pytest.raises(ValueError, match="U\\+2028"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_u2029_nested_in_list(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"items": ["ok", f"bad{_U2029}tail"]}}
+        with pytest.raises(ValueError, match="U\\+2029"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_u2028_nested_in_dict_value(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"deep": {"inner": f"before{_U2028}after"}}}
+        with pytest.raises(ValueError, match="U\\+2028"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_u2029_nested_in_dict_value(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"deep": {"inner": f"before{_U2029}after"}}}
+        with pytest.raises(ValueError, match="U\\+2029"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_u2028_in_dict_key(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {f"bad{_U2028}key": "value"}}
+        with pytest.raises(ValueError, match="U\\+2028"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_accepts_u2027_sanity_case(self) -> None:
+        # U+2027 (HYPHENATION POINT) is a different codepoint, not a target of
+        # the rejection. Confirms we're matching exactly U+2028 / U+2029.
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"note": "before\u2027after"}}
+        signed = sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+        assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
+
+
 class TestVerifierErrorPrecedence:
     def test_null_profile_with_malformed_jwks_returns_no_signature(self) -> None:
         with pytest.raises(UCPVerificationError) as exc:

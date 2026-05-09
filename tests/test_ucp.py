@@ -60,7 +60,8 @@ def test_appends_agentscore_capability_when_data_provided():
     assert len(matching) == 1
     cap = matching[0]
     assert cap["version"] == "1"
-    assert "agentscore-identity.v1.json" in cap["schema"]
+    assert cap["name"] == "sh.agentscore.identity"
+    assert "sh-agentscore-identity-v1.json" in cap["schema"]
     claims = cap["claims"]
     assert claims["operator_id"] == "op_abc"
     assert claims["kyc_level"] == "enhanced"

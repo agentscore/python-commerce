@@ -2,7 +2,6 @@
   "profile": {
     "version": "2026-04-17",
     "spec": "https://ucp.dev/",
-    "name": "Emoji Keys Merchant",
     "services": [
       {
         "type": "rest",
@@ -18,27 +17,28 @@
     ],
     "signing_keys": [
       {
-        "crv": "Ed25519",
-        "x": "xrTm5ZIZUbFC1_S2Yw5KZkf-9m8--CmwP6-bkttx-ik",
         "kid": "py-emoji-keys-EdDSA",
+        "kty": "OKP",
         "alg": "EdDSA",
         "use": "sig",
-        "kty": "OKP"
+        "crv": "Ed25519",
+        "x": "bwPt5nJziggvuu2goCiscN4VdBz7TtYWPomXZEfPGNQ"
       }
     ],
+    "name": "Emoji Keys Merchant",
     "extras": {
       "a": 1,
       "豈": 2,
       "": 3,
       "🍷": 4
     },
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJ1Y3AtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsiYSI6MSwi6LGIIjoyLCLugIAiOjMsIvCfjbciOjR9LCJuYW1lIjoiRW1vamkgS2V5cyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOlt7ImNvbmZpZyI6e30sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9lbW9qaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1lbW9qaS1rZXlzLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6InhyVG01WklaVWJGQzFfUzJZdzVLWmtmLTltOC0tQ213UDYtYmt0dHgtaWsifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.O2ENDO4OJreRSvRZqbyMzbQlaG3SKy_zsfMFqqV6HUkwvIzmpH2bot_XtJzyz23RTsBdwvZtLxQJOSnBFkIfBQ"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsiYSI6MSwi6LGIIjoyLCLugIAiOjMsIvCfjbciOjR9LCJuYW1lIjoiRW1vamkgS2V5cyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOlt7ImNvbmZpZyI6e30sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9lbW9qaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1lbW9qaS1rZXlzLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6ImJ3UHQ1bkp6aWdndnV1MmdvQ2lzY040VmRCejdUdFlXUG9tWFpFZlBHTlEifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.l-nAn3fjDxhLuJabAk9RiKWh2PY6U0qfNSPdkO0gDpFr3nFO9QWxfkdhwBi-Z56eWz_O2Z0AeYigGnfymjq3DA"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "xrTm5ZIZUbFC1_S2Yw5KZkf-9m8--CmwP6-bkttx-ik",
+        "x": "bwPt5nJziggvuu2goCiscN4VdBz7TtYWPomXZEfPGNQ",
         "kid": "py-emoji-keys-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

@@ -17,11 +17,11 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "QCSceDALov_XB5V0ACkZlnjhhIxBqpoYpaO5HlAf0aw"
+        "x": "sDSRPsve9rtfqQCJu0TySrPz7cUZR2rGaqN-HY2Rn5c"
       }
     ],
     "name": "Minimal Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsInR5cCI6InVjcC1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTWluaW1hbCBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL20uZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS1taW5pbWFsLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IlFDU2NlREFMb3ZfWEI1VjBBQ2tabG5qaGhJeEJxcG9ZcGFPNUhsQWYwYXcifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.amoy1Vf2vIzfR_asZp0dxc0ywNo0nc4dvoX1BjnJimE_ClfvtcTuGDfglyBYLvk4aRtaqru1DCpYgCSEnI2NBA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTWluaW1hbCBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL20uZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS1taW5pbWFsLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6InNEU1JQc3ZlOXJ0ZnFRQ0p1MFR5U3JQejdjVVpSMnJHYXFOLUhZMlJuNWMifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.S6ZWBp4P6xpbIDbDnoZk3F2yAF2cxDM5QDQ0SnWaASNSKq6henttDoe1XS5Kgr8o8CF51fXwNEUcBKyg91F8CA"
   },
   "jwks": {
     "keys": [
@@ -31,7 +31,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "QCSceDALov_XB5V0ACkZlnjhhIxBqpoYpaO5HlAf0aw"
+        "x": "sDSRPsve9rtfqQCJu0TySrPz7cUZR2rGaqN-HY2Rn5c"
       }
     ]
   },

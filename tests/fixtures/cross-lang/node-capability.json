@@ -10,7 +10,7 @@
     ],
     "capabilities": [
       {
-        "name": "agentscore-identity",
+        "name": "sh.agentscore.identity",
         "schema": "https://agentscore.sh/schema/identity/1",
         "version": "1",
         "kyc_required": true
@@ -32,11 +32,11 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "8zz-L1N_SZ0EUmciU1IzuxBuGd67MSg-OemKm6ofmgg"
+        "x": "kFgwv82ZN7H3jk9gHbUDTi6EZZeaUUBsLBgnfm8Mtog"
       }
     ],
     "name": "Capability Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtY2FwYWJpbGl0eS1FZERTQSIsInR5cCI6InVjcC1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6ImFnZW50c2NvcmUtaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hL2lkZW50aXR5LzEiLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkNhcGFiaWxpdHkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsiY2hhaW5faWQiOjQyMTcsInJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9jLmV4YW1wbGUuY29tIn1dLCJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtY2FwYWJpbGl0eS1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI4enotTDFOX1NaMEVVbWNpVTFJenV4QnVHZDY3TVNnLU9lbUttNm9mbWdnIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.YmiTy87alEbVfAEXYzXYkBrsbO_kHqgTSlv3gKuzy6Oere-pJl0PmZ8zGW2uTyjaGC9OFbjLUIzowY3jnJmGAg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtY2FwYWJpbGl0eS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hL2lkZW50aXR5LzEiLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkNhcGFiaWxpdHkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsiY2hhaW5faWQiOjQyMTcsInJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9jLmV4YW1wbGUuY29tIn1dLCJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtY2FwYWJpbGl0eS1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJrRmd3djgyWk43SDNqazlnSGJVRFRpNkVaWmVhVVVCc0xCZ25mbThNdG9nIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.PIG6fQt84ZM1r08g7_vsl1Hhi6B385BFnPCKo7WkbsyjcpKFpvidTmwBjZ6auUzEOyag6IF0OmEz_8gotuEZAw"
   },
   "jwks": {
     "keys": [
@@ -46,7 +46,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "8zz-L1N_SZ0EUmciU1IzuxBuGd67MSg-OemKm6ofmgg"
+        "x": "kFgwv82ZN7H3jk9gHbUDTi6EZZeaUUBsLBgnfm8Mtog"
       }
     ]
   },

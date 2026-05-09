@@ -17,17 +17,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "DvrugQWOA-k_RSYLM4IbjA_IoO_DiFeDfDXAy6PvQM8"
+        "x": "8ACvl-Jzck2_55z9rb4CeETjDUUKJpmRulL0yi0LeVg"
       }
     ],
     "name": "Minimal Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJ0eXAiOiJ1Y3AtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTWluaW1hbCBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL20uZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktbWluaW1hbC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJEdnJ1Z1FXT0Eta19SU1lMTTRJYmpBX0lvT19EaUZlRGZEWEF5NlB2UU04In1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.Uk1fCmzYJvfxp_6CbmgTzdpuZzziodaroFTEjfKZ_qK_FU2i2HfG-SkYdz8icZLQxWVhMtTaoTtqeV6BvjNHBA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTWluaW1hbCBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL20uZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktbWluaW1hbC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI4QUN2bC1KemNrMl81NXo5cmI0Q2VFVGpEVVVLSnBtUnVsTDB5aTBMZVZnIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.CdDIBYUH8v1TWdICnPXKTA0MJF-ImzrZ7CpV6YaR1Ka1B-nPfjQKyq6_lDVIuit4xbSRI3p69bwhYP_aJ_6JDw"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "DvrugQWOA-k_RSYLM4IbjA_IoO_DiFeDfDXAy6PvQM8",
+        "x": "8ACvl-Jzck2_55z9rb4CeETjDUUKJpmRulL0yi0LeVg",
         "kid": "py-minimal-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

@@ -28,7 +28,11 @@ if TYPE_CHECKING:
 
 _DEFAULT_VERSION = "2026-04-17"
 _SPEC_URL = "https://ucp.dev/"
-AGENTSCORE_UCP_CAPABILITY = "agentscore-identity"
+# Reverse-DNS namespacing per UCP convention (``^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9_]*)+$``).
+# The bare ``agentscore-identity`` form fails the spec regex; vendor-namespacing under the
+# ``sh.agentscore`` authority is honest about the capability being our extension, not a
+# UCP-canonical slot.
+AGENTSCORE_UCP_CAPABILITY = "sh.agentscore.identity"
 """Capability name AgentScore registers in the UCP profile. Consumers filter on this
 to find verified-buyer claims attached to the profile."""
 
@@ -241,7 +245,7 @@ def build_ucp_profile(
     """Compose a UCP profile body for ``/.well-known/ucp`` publication.
 
     Merges AgentScore identity claims into ``capabilities`` as an
-    ``agentscore-identity`` capability when ``data`` carries a resolved operator.
+    ``sh.agentscore.identity`` capability when ``data`` carries a resolved operator.
     Consumers reading the profile can opt into the AgentScore claims by filtering
     on the capability name.
 
@@ -325,7 +329,7 @@ def build_ucp_profile(
             UCPCapability(
                 name=AGENTSCORE_UCP_CAPABILITY,
                 version=_AGENTSCORE_CAPABILITY_VERSION,
-                schema=agentscore_schema_url or "https://agentscore.sh/schemas/ucp/agentscore-identity.v1.json",
+                schema=agentscore_schema_url or "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
                 extras={"claims": claims},
             ),
         )

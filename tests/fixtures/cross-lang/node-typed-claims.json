@@ -10,9 +10,9 @@
     ],
     "capabilities": [
       {
-        "name": "agentscore-identity",
+        "name": "sh.agentscore.identity",
         "version": "1",
-        "schema": "https://agentscore.sh/schemas/ucp/agentscore-identity.v1.json",
+        "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
         "claims": {
           "operator_id": "op_typed_claims",
           "kyc_level": "enhanced",
@@ -33,11 +33,11 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "hkhmYJSOPyC7tC2baujBsjvTdDs0M2gnmiTGEm_H9y0"
+        "x": "GgQANYQYeQgylzTJo4WpjfVjUh_OqKwdRWX_n2H8YoU"
       }
     ],
     "name": "Typed Claims Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtdHlwZWQtY2xhaW1zLUVkRFNBIiwidHlwIjoidWNwLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6IjIxKyIsImlzc3VlciI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaCIsImp1cmlzZGljdGlvbiI6IlVTIiwia3ljX2xldmVsIjoiZW5oYW5jZWQiLCJvcGVyYXRvcl9pZCI6Im9wX3R5cGVkX2NsYWltcyIsInNhbmN0aW9uc19jbGVhciI6dHJ1ZSwidmVyaWZpZWRfYXQiOiIyMDI2LTA0LTAxVDAwOjAwOjAwWiIsInZlcmlmeV91cmwiOiJodHRwczovL2FnZW50c2NvcmUuc2gvdmVyaWZ5L29wX3R5cGVkX2NsYWltcyJ9LCJuYW1lIjoiYWdlbnRzY29yZS1pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9hZ2VudHNjb3JlLWlkZW50aXR5LnYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IlR5cGVkIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL3QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS10eXBlZC1jbGFpbXMtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiaGtobVlKU09QeUM3dEMyYmF1akJzanZUZERzME0yZ25taVRHRW1fSDl5MCJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.GJZcFBMvdIPmELSrUGzu--PmKwjItbpV74peSvcJcXRk6DRHgivYZOaTOPjFgZgOqnvhAEeG-gvy4O6jP5NrCA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtdHlwZWQtY2xhaW1zLUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6IjIxKyIsImlzc3VlciI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaCIsImp1cmlzZGljdGlvbiI6IlVTIiwia3ljX2xldmVsIjoiZW5oYW5jZWQiLCJvcGVyYXRvcl9pZCI6Im9wX3R5cGVkX2NsYWltcyIsInNhbmN0aW9uc19jbGVhciI6dHJ1ZSwidmVyaWZpZWRfYXQiOiIyMDI2LTA0LTAxVDAwOjAwOjAwWiIsInZlcmlmeV91cmwiOiJodHRwczovL2FnZW50c2NvcmUuc2gvdmVyaWZ5L29wX3R5cGVkX2NsYWltcyJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IlR5cGVkIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL3QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS10eXBlZC1jbGFpbXMtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiR2dRQU5ZUVllUWd5bHpUSm80V3BqZlZqVWhfT3FLd2RSV1hfbjJIOFlvVSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.-LXXBRXXwPs7UmnW3hatAhOBxDBnQrvKCvLuiy8pitNB4b0rtrRx1oI6ATdWKguYSM1Cks9-xMbsrx_PFHAXCw"
   },
   "jwks": {
     "keys": [
@@ -47,7 +47,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "hkhmYJSOPyC7tC2baujBsjvTdDs0M2gnmiTGEm_H9y0"
+        "x": "GgQANYQYeQgylzTJo4WpjfVjUh_OqKwdRWX_n2H8YoU"
       }
     ]
   },

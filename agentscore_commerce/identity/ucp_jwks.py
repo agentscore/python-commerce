@@ -39,7 +39,10 @@ _JOSE_INSTALL_HINT = (
 )
 
 _ALLOWED_ALGS = ("EdDSA", "ES256")
-_UCP_TYP = "ucp-profile+jws"
+# JWS protected header ``typ`` value. Vendor-namespaced because UCP §6 does not define
+# a profile-as-JWS typ; the value advertises that this signed envelope follows the
+# AgentScore extension semantics rather than a UCP-canonical signing convention.
+_PROFILE_TYP = "agentscore-profile+jws"
 
 _MAX_SAFE_INT = 2**53 - 1
 
@@ -307,7 +310,7 @@ def sign_ucp_profile(
         raise ValueError(msg)
 
     canonical_body = _canonicalize_profile(profile)
-    header = {"alg": alg, "kid": kid, "typ": _UCP_TYP}
+    header = {"alg": alg, "kid": kid, "typ": _PROFILE_TYP}
     # joserfc treats EdDSA as "not recommended" by default; UCP §6 explicitly accepts
     # both EdDSA and ES256, so allow both.
     registry = JWSRegistry(algorithms=list(_ALLOWED_ALGS))
@@ -347,7 +350,7 @@ def verify_ucp_profile(
     """Verify a signed UCP profile against a JWKS.
 
     Returns ``True`` when:
-      * the JWS protected header carries ``kid`` + ``typ='ucp-profile+jws'`` + a
+      * the JWS protected header carries ``kid`` + ``typ='agentscore-profile+jws'`` + a
         registered ``alg`` (EdDSA or ES256),
       * the JWKS contains exactly one key with the matching ``kid``,
       * the JWS signature validates against that key,
@@ -394,10 +397,10 @@ def verify_ucp_profile(
     # Pre-deserialize header checks — joserfc's deserialize_compact accepts kid-less
     # JWSs (it iterates the KeySet) so we enforce kid/typ/alg ourselves.
     header = _peek_jws_header(sig)
-    if header.get("typ") != _UCP_TYP:
+    if header.get("typ") != _PROFILE_TYP:
         raise UCPVerificationError(
             "wrong_typ",
-            f"UCP signature typ must be {_UCP_TYP!r}; got {header.get('typ')!r}.",
+            f"UCP signature typ must be {_PROFILE_TYP!r}; got {header.get('typ')!r}.",
         )
     if header.get("alg") not in _ALLOWED_ALGS:
         raise UCPVerificationError(

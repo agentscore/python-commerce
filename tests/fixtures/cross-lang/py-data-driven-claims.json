@@ -10,8 +10,8 @@
     ],
     "capabilities": [
       {
-        "name": "agentscore-identity",
-        "schema": "https://agentscore.sh/schemas/ucp/agentscore-identity.v1.json",
+        "name": "sh.agentscore.identity",
+        "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
         "version": "1",
         "claims": {
           "operator_id": "op_data_driven",
@@ -33,17 +33,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "e0tM2PG2SrWLVh2twzUQqc4wVi5isQJTWZLWe9Jceqg"
+        "x": "awUvcjZ9GvvUA8U9-YIcNYi874ritVW28g5OEqnCxvU"
       }
     ],
     "name": "Data Driven Claims Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWRhdGEtZHJpdmVuLWNsYWltcy1FZERTQSIsInR5cCI6InVjcC1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6InVua25vd24iLCJpc3N1ZXIiOiJodHRwczovL2FnZW50c2NvcmUuc2giLCJqdXJpc2RpY3Rpb24iOiIiLCJreWNfbGV2ZWwiOiJub25lIiwib3BlcmF0b3JfaWQiOiJvcF9kYXRhX2RyaXZlbiIsInNhbmN0aW9uc19jbGVhciI6ZmFsc2UsInZlcmlmaWVkX2F0IjpudWxsLCJ2ZXJpZnlfdXJsIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3ZlcmlmeS9vcF9kYXRhX2RyaXZlbiJ9LCJuYW1lIjoiYWdlbnRzY29yZS1pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9hZ2VudHNjb3JlLWlkZW50aXR5LnYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkRhdGEgRHJpdmVuIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL2QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6ImUwdE0yUEcyU3JXTFZoMnR3elVRcWM0d1ZpNWlzUUpUV1pMV2U5SmNlcWcifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.IRSaAW3aI_uT0YBakBlQ_DalJNlvmiID89pmeK2avjS1rZ1FWTjTnYv4fHYbkolTYKYSW4PNC8rV4hTYtPOzDg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWRhdGEtZHJpdmVuLWNsYWltcy1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6InVua25vd24iLCJpc3N1ZXIiOiJodHRwczovL2FnZW50c2NvcmUuc2giLCJqdXJpc2RpY3Rpb24iOiIiLCJreWNfbGV2ZWwiOiJub25lIiwib3BlcmF0b3JfaWQiOiJvcF9kYXRhX2RyaXZlbiIsInNhbmN0aW9uc19jbGVhciI6ZmFsc2UsInZlcmlmaWVkX2F0IjpudWxsLCJ2ZXJpZnlfdXJsIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3ZlcmlmeS9vcF9kYXRhX2RyaXZlbiJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkRhdGEgRHJpdmVuIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL2QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6ImF3VXZjalo5R3Z2VUE4VTktWUljTllpODc0cml0VlcyOGc1T0VxbkN4dlUifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.OdQJnBqEivje-fJNKX6iZkJp0OvhwGiv2l6Idmbtfw1Wy_Y0WsKkvnAJ3aZpkNbSgtDP1ZMYtdAqVeMJXjZjDQ"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "e0tM2PG2SrWLVh2twzUQqc4wVi5isQJTWZLWe9Jceqg",
+        "x": "awUvcjZ9GvvUA8U9-YIcNYi874ritVW28g5OEqnCxvU",
         "kid": "py-data-driven-claims-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

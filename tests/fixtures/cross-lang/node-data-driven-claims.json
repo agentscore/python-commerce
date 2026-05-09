@@ -10,9 +10,9 @@
     ],
     "capabilities": [
       {
-        "name": "agentscore-identity",
+        "name": "sh.agentscore.identity",
         "version": "1",
-        "schema": "https://agentscore.sh/schemas/ucp/agentscore-identity.v1.json",
+        "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
         "claims": {
           "operator_id": "op_data_driven",
           "kyc_level": "none",
@@ -33,11 +33,11 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "1GQBzacuSLmz5l6LPHluSWLNI1xgcriiRdqs9sO22hY"
+        "x": "iABhA50IBuZJsPzheBf_qf7suVsmKUQCL7Dw8Uk6CHU"
       }
     ],
     "name": "Data Driven Claims Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwidHlwIjoidWNwLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6InVua25vd24iLCJpc3N1ZXIiOiJodHRwczovL2FnZW50c2NvcmUuc2giLCJqdXJpc2RpY3Rpb24iOiIiLCJreWNfbGV2ZWwiOiJub25lIiwib3BlcmF0b3JfaWQiOiJvcF9kYXRhX2RyaXZlbiIsInNhbmN0aW9uc19jbGVhciI6ZmFsc2UsInZlcmlmaWVkX2F0IjpudWxsLCJ2ZXJpZnlfdXJsIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3ZlcmlmeS9vcF9kYXRhX2RyaXZlbiJ9LCJuYW1lIjoiYWdlbnRzY29yZS1pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9hZ2VudHNjb3JlLWlkZW50aXR5LnYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkRhdGEgRHJpdmVuIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL2QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS1kYXRhLWRyaXZlbi1jbGFpbXMtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiMUdRQnphY3VTTG16NWw2TFBIbHVTV0xOSTF4Z2NyaWlSZHFzOXNPMjJoWSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.yBVx0_My6D8OAF-g6866FiM24IChFrfQqE5IPhhoxHiNO8qjgBRlE0MCGhUdW0i-3mF8TroUsnsaVv0NV_vbDw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6InVua25vd24iLCJpc3N1ZXIiOiJodHRwczovL2FnZW50c2NvcmUuc2giLCJqdXJpc2RpY3Rpb24iOiIiLCJreWNfbGV2ZWwiOiJub25lIiwib3BlcmF0b3JfaWQiOiJvcF9kYXRhX2RyaXZlbiIsInNhbmN0aW9uc19jbGVhciI6ZmFsc2UsInZlcmlmaWVkX2F0IjpudWxsLCJ2ZXJpZnlfdXJsIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3ZlcmlmeS9vcF9kYXRhX2RyaXZlbiJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkRhdGEgRHJpdmVuIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL2QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS1kYXRhLWRyaXZlbi1jbGFpbXMtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiaUFCaEE1MElCdVpKc1B6aGVCZl9xZjdzdVZzbUtVUUNMN0R3OFVrNkNIVSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.0RqtC9uJRddT-U28IcM2BU8yeqxCAvuR7-nLNYQRlxhTeMiYpVRTFHDI54NRGKuzQL1c_X_EFMcsMxPhl073Dg"
   },
   "jwks": {
     "keys": [
@@ -47,7 +47,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "1GQBzacuSLmz5l6LPHluSWLNI1xgcriiRdqs9sO22hY"
+        "x": "iABhA50IBuZJsPzheBf_qf7suVsmKUQCL7Dw8Uk6CHU"
       }
     ]
   },

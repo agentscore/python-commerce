@@ -166,7 +166,7 @@ class TestSecurity:
         )
         registry = JWSRegistry(algorithms=["EdDSA", "ES256"])
         kid_less_sig = jws.serialize_compact(
-            {"alg": "EdDSA", "typ": "ucp-profile+jws"},
+            {"alg": "EdDSA", "typ": "agentscore-profile+jws"},
             canonical,
             signer.private_key,
             registry=registry,
@@ -211,7 +211,7 @@ class TestSecurity:
         oct_key = OctKey.generate_key(parameters={"kid": "real", "alg": "HS256", "use": "sig"})
         registry = JWSRegistry(algorithms=["HS256"])
         evil_sig = jws.serialize_compact(
-            {"alg": "HS256", "kid": "real", "typ": "ucp-profile+jws"},
+            {"alg": "HS256", "kid": "real", "typ": "agentscore-profile+jws"},
             canonical,
             oct_key,
             registry=registry,
@@ -544,7 +544,7 @@ class TestAdditionalHardening:
         canonical = (
             __import__("json").dumps(profile, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         )
-        header = {"alg": "EdDSA", "kid": "k", "typ": "ucp-profile+jws", "crit": ["fakething"], "fakething": "x"}
+        header = {"alg": "EdDSA", "kid": "k", "typ": "agentscore-profile+jws", "crit": ["fakething"], "fakething": "x"}
         header_b64 = (
             base64.urlsafe_b64encode(__import__("json").dumps(header, separators=(",", ":")).encode())
             .rstrip(b"=")
@@ -578,7 +578,7 @@ class TestAdditionalHardening:
         header = {
             "alg": "EdDSA",
             "kid": "nonexistent",
-            "typ": "ucp-profile+jws",
+            "typ": "agentscore-profile+jws",
             "crit": ["fakething"],
             "fakething": "x",
         }
@@ -610,7 +610,7 @@ class TestAdditionalHardening:
         canonical = (
             __import__("json").dumps(profile, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         )
-        header = {"alg": "EdDSA", "kid": "real", "typ": "ucp-profile+jws", "crit": crit_value}
+        header = {"alg": "EdDSA", "kid": "real", "typ": "agentscore-profile+jws", "crit": crit_value}
         header_b64 = (
             base64.urlsafe_b64encode(__import__("json").dumps(header, separators=(",", ":")).encode())
             .rstrip(b"=")

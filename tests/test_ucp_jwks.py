@@ -518,3 +518,67 @@ class TestAdditionalHardening:
         assert exc.value.code == "unrecognized_critical_header"
         # Silence unused-import warnings — registry is referenced for the joserfc namespace.
         _ = jws, JWSRegistry
+
+
+class TestVerifierCanonicalizationTypedErrors:
+    """Verifier-side canonicalize must NEVER leak raw ValueError; always UCPVerificationError(body_mismatch)."""
+
+    def _make_signed(self) -> tuple[dict, dict]:
+        key = generate_ucp_signing_key(kid="k")
+        profile = _base_profile([key.public_jwk])
+        signed = sign_ucp_profile(profile, signing_key=key.private_key, kid="k")
+        return signed, build_jwks_response([key.public_jwk])
+
+    def test_received_profile_with_float_raises_typed_body_mismatch(self) -> None:
+        signed, jwks = self._make_signed()
+        tampered = {**signed, "extras": {"n": 1.5}}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(tampered, jwks)
+        assert exc.value.code == "body_mismatch"
+
+    def test_received_profile_with_oversized_int_raises_typed_body_mismatch(self) -> None:
+        signed, jwks = self._make_signed()
+        tampered = {**signed, "extras": {"n": 2**60}}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(tampered, jwks)
+        assert exc.value.code == "body_mismatch"
+
+    def test_received_profile_with_nan_raises_typed_body_mismatch(self) -> None:
+        signed, jwks = self._make_signed()
+        tampered = {**signed, "extras": {"n": float("nan")}}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(tampered, jwks)
+        assert exc.value.code == "body_mismatch"
+
+
+class TestRejectUnsafeNumbersDictKeys:
+    def test_sign_rejects_oversized_int_dict_key(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {2**60: "a"}}
+        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_sign_rejects_float_dict_key(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {1.5: "a"}}
+        with pytest.raises(ValueError, match="rejects float"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_sign_accepts_string_dict_keys_that_look_like_numbers(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"1.5": "a", "1152921504606846976": "b"}}
+        signed = sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+        assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
+
+    def test_sign_accepts_bool_dict_keys(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {True: "x"}}
+        signed = sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+        assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
+
+
+class TestVerifierErrorPrecedence:
+    def test_null_profile_with_malformed_jwks_returns_no_signature(self) -> None:
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(None, "not a jwks")  # type: ignore[arg-type]
+        assert exc.value.code == "no_signature"

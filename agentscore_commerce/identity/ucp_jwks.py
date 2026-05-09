@@ -195,7 +195,8 @@ def _reject_unsafe_numbers(value: Any) -> None:
         )
         raise ValueError(msg)
     if isinstance(value, dict):
-        for v in value.values():
+        for k, v in value.items():
+            _reject_unsafe_numbers(k)
             _reject_unsafe_numbers(v)
     elif isinstance(value, list | tuple | set | frozenset):
         for v in value:
@@ -325,18 +326,18 @@ def verify_ucp_profile(
     from joserfc.jwk import KeySet  # type: ignore[import-not-found]
     from joserfc.jws import JWSRegistry  # type: ignore[import-not-found]
 
+    if not isinstance(signed_profile, dict):
+        raise UCPVerificationError(
+            "no_signature",
+            f"UCP verifier expected a profile dict; got {type(signed_profile).__name__}.",
+        )
+
     # JWKS shape guard so a malformed argument emits a typed UCPVerificationError
     # rather than a confusing kid_not_found / AttributeError.
     if not isinstance(jwks, dict) or not isinstance(jwks.get("keys"), list):
         raise UCPVerificationError(
             "malformed_jwks",
             f"UCP verifier expected JWKS shape {{'keys': [...]}}; got {type(jwks).__name__}.",
-        )
-
-    if not isinstance(signed_profile, dict):
-        raise UCPVerificationError(
-            "no_signature",
-            f"UCP verifier expected a profile dict; got {type(signed_profile).__name__}.",
         )
 
     sig = signed_profile.get("signature")
@@ -395,7 +396,13 @@ def verify_ucp_profile(
         )
 
     stripped = {k: v for k, v in signed_profile.items() if k != "signature"}
-    expected_payload = _canonicalize_profile(stripped)
+    try:
+        expected_payload = _canonicalize_profile(stripped)
+    except (ValueError, TypeError) as exc:
+        raise UCPVerificationError(
+            "body_mismatch",
+            f"Failed to canonicalize received profile for verification: {exc}",
+        ) from exc
 
     key_set = KeySet.import_key_set(cast("Any", {"keys": matches}))
     registry = JWSRegistry(algorithms=list(_ALLOWED_ALGS))

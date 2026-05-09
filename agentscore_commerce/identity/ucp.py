@@ -183,10 +183,9 @@ class UCPProfile:
             out["name"] = self.name
         # Filter `extras` so a caller passing
         # ``extras={"signing_keys": [...]}`` can't silently destroy the
-        # explicit field. Reserved-field collisions are rejected at
-        # build-time-equivalent surface. ``__class__`` / ``__dict__`` /
-        # ``__init__`` mirror node-commerce's prototype-pollution defense
-        # against bidirectional vendor data passing through both SDKs.
+        # explicit field. ``__proto__`` / ``constructor`` / ``prototype``
+        # match the node-commerce reserved set so a Node-signed profile
+        # carrying those keys is rejected identically by both SDKs.
         reserved = {
             "version",
             "spec",
@@ -196,9 +195,9 @@ class UCPProfile:
             "signing_keys",
             "name",
             "signature",
-            "__class__",
-            "__dict__",
-            "__init__",
+            "__proto__",
+            "constructor",
+            "prototype",
         }
         for k, v in self.extras.items():
             if k in reserved:

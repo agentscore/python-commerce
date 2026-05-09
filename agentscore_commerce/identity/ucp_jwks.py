@@ -25,6 +25,7 @@ signed by Node verify in Python and vice versa.
 from __future__ import annotations
 
 import contextlib
+import hmac
 import json
 import warnings
 from dataclasses import dataclass
@@ -410,7 +411,7 @@ def verify_ucp_profile(
     # profile we received. ``deserialize_compact`` validates the JWS against the bytes
     # embedded in the JWS payload segment — but the profile body could have been
     # swapped after signing while the JWS stayed unchanged.
-    if obj.payload != expected_payload:
+    if not hmac.compare_digest(obj.payload, expected_payload):
         raise UCPVerificationError(
             "body_mismatch",
             "UCP profile body does not match the signed payload (tampered or non-canonical).",

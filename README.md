@@ -236,7 +236,7 @@ jwks = build_jwks_response([key.public_jwk])
 
 **Persisting the private JWK.** Mint once via `generate_ucp_signing_key()`, serialize via `key.private_key.as_dict(private=True)`, store in your secret manager. On each container start, read the secret, `OKPKey.import_key(jwk_dict)` (or `ECKey.import_key` for ES256) to re-hydrate. Remote-signer flows (KMS-backed asymmetric keys) require subclassing the joserfc Key to delegate the sign hook; `OKPKey`/`ECKey` themselves only carry local key material.
 
-**Key rotation.** Mint a new key with a new `kid`, add the public JWK to your JWKS endpoint alongside the old one, then sign new profiles with the new key. Drop the old JWK after your verifier-side cache TTL has elapsed.
+**Key rotation.** Mint a new key with a new `kid`, add the public JWK to your JWKS endpoint alongside the old one, then sign new profiles with the new key. Set `Cache-Control: public, max-age=300` on `/.well-known/jwks.json` and wait at least that long after publishing the new key before removing the old JWK.
 
 **Inline JWK in the profile vs separate JWKS endpoint.** UCP §6 mandates the separate `/.well-known/jwks.json` endpoint as the canonical trust source. The profile's `signing_keys[]` is informational; verifiers MUST resolve the kid against the JWKS to prevent a swap-after-sign attack.
 

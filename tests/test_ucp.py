@@ -124,9 +124,9 @@ def test_respects_agentscore_schema_url_override():
         "signing_keys",
         "name",
         "signature",
-        "__class__",
-        "__dict__",
-        "__init__",
+        "__proto__",
+        "constructor",
+        "prototype",
     ],
 )
 def test_extras_reserved_collision_rejected(key: str) -> None:

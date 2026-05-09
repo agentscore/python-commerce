@@ -45,5 +45,6 @@ def test_corpus_covers_canonical_scenarios() -> None:
             "unicode",
             "multikey",
             "emoji-keys",
+            "int-boundary",
         ):
             assert f"{lang}-{scenario}.json" in names, f"missing fixture {lang}-{scenario}.json"

@@ -1,0 +1,48 @@
+{
+  "profile": {
+    "version": "2026-04-17",
+    "spec": "https://ucp.dev/",
+    "name": "Int Boundary Merchant",
+    "services": [
+      {
+        "type": "rest",
+        "url": "https://i.example.com"
+      }
+    ],
+    "capabilities": [],
+    "payment_handlers": [],
+    "signing_keys": [
+      {
+        "crv": "Ed25519",
+        "x": "orncEOVmokkWyFRnJFYk1TeRC9nrMQG1Ip9kloaOd98",
+        "kid": "py-int-boundary-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ],
+    "extras": {
+      "max_safe_int": 9007199254740991,
+      "min_safe_int": -9007199254740991,
+      "small_int": 42,
+      "neg_small_int": -42,
+      "zero": 0
+    },
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6InVjcC1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsibWF4X3NhZmVfaW50Ijo5MDA3MTk5MjU0NzQwOTkxLCJtaW5fc2FmZV9pbnQiOi05MDA3MTk5MjU0NzQwOTkxLCJuZWdfc21hbGxfaW50IjotNDIsInNtYWxsX2ludCI6NDIsInplcm8iOjB9LCJuYW1lIjoiSW50IEJvdW5kYXJ5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W10sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4Ijoib3JuY0VPVm1va2tXeUZSbkpGWWsxVGVSQzluck1RRzFJcDlrbG9hT2Q5OCJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.p4tNJUnyRRHUtEBN3_y4DtuKk4CLBQnMfmGHz76wYYaxiAYa0oN251EC4PrkAHrZ6OlgKagTS027yisUf3qeDA"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "Ed25519",
+        "x": "orncEOVmokkWyFRnJFYk1TeRC9nrMQG1Ip9kloaOd98",
+        "kid": "py-int-boundary-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "py-int-boundary-EdDSA",
+  "generator": "python"
+}

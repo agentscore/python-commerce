@@ -282,7 +282,7 @@ class TestSecurity:
         assert verify_ucp_profile(b, build_jwks_response([signer.public_jwk])) is True
 
 
-class TestFloatRejection:
+class TestUnsafeNumberRejection:
     def test_rejects_float_in_profile(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"rate": 0.0125}}
@@ -324,6 +324,48 @@ class TestFloatRejection:
         profile = {**_base_profile([signer.public_jwk]), "extras": {"vals": frozenset({0.25})}}
         with pytest.raises(ValueError, match="rejects float"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_accepts_max_safe_int_boundary(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"big": 2**53 - 1}}
+        signed = sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+        assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
+
+    def test_accepts_min_safe_int_boundary(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"big": -(2**53 - 1)}}
+        signed = sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+        assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
+
+    def test_rejects_int_above_max_safe_boundary(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"big": 2**53}}
+        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_int_well_above_max_safe(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"big": 2**60}}
+        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_int_below_min_safe(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"neg": -(2**53)}}
+        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_oversized_int_in_nested_list(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"a": [{"b": 2**60}]}}
+        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_accepts_bool_values(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"flag": True, "other": False}}
+        signed = sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+        assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
 
 
 class TestUCPSigningKeyFromJWK:

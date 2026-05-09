@@ -41,6 +41,8 @@ _JOSE_INSTALL_HINT = (
 _ALLOWED_ALGS = ("EdDSA", "ES256")
 _UCP_TYP = "ucp-profile+jws"
 
+_MAX_SAFE_INT = 2**53 - 1
+
 
 @contextlib.contextmanager
 def _suppress_joserfc_eddsa_warning() -> Iterator[None]:
@@ -159,14 +161,22 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
     return GeneratedUCPKey(private_key=priv, public_jwk=public_jwk)
 
 
-def _reject_floats(value: Any) -> None:
-    """Walk ``value`` and raise if any non-integer ``float`` is encountered.
+def _reject_unsafe_numbers(value: Any) -> None:
+    """Walk ``value`` and raise on any number that won't survive cross-language parity.
 
-    Cross-language float canonicalization (RFC 8785 §3.2.2.3) diverges between
-    Python's ``json.dumps`` and Node's ``JSON.stringify`` (e.g. ``1.0`` vs ``1``,
-    ``1e-7`` vs ``1e-07``). Catching the drift at sign-time prevents
-    silent verifier-side failures in production. Use decimal strings (``"9.99"``)
-    for monetary or fractional fields.
+    Two failure modes are rejected:
+
+    * Non-integer ``float`` values. Cross-language float canonicalization (RFC 8785
+      §3.2.2.3) diverges between Python's ``json.dumps`` and Node's ``JSON.stringify``
+      (e.g. ``1.0`` vs ``1``, ``1e-7`` vs ``1e-07``). Use decimal strings (``"9.99"``)
+      for monetary or fractional fields.
+    * ``int`` values whose magnitude exceeds ``Number.MAX_SAFE_INTEGER`` (2^53 - 1).
+      Python ints are arbitrary-width, but JS verifiers parse the canonical body via
+      ``JSON.parse`` which silently loses precision past 2^53. Use a decimal string
+      for any integer that may exceed the safe range.
+
+    Catching the drift at sign-time prevents silent verifier-side failures in
+    production.
     """
     if isinstance(value, bool):
         return  # bool subclasses int; allow.
@@ -177,12 +187,19 @@ def _reject_floats(value: Any) -> None:
             "to preserve cross-language byte-parity."
         )
         raise ValueError(msg)
+    if isinstance(value, int) and abs(value) > _MAX_SAFE_INT:
+        msg = (
+            f"UCP profile canonicalization rejects integer {value} that exceeds "
+            "Number.MAX_SAFE_INTEGER (2^53 - 1). JS verifiers cannot losslessly "
+            "parse this; use a decimal string to preserve cross-language byte-parity."
+        )
+        raise ValueError(msg)
     if isinstance(value, dict):
         for v in value.values():
-            _reject_floats(v)
+            _reject_unsafe_numbers(v)
     elif isinstance(value, list | tuple | set | frozenset):
         for v in value:
-            _reject_floats(v)
+            _reject_unsafe_numbers(v)
 
 
 def _canonicalize_profile(profile: dict[str, Any]) -> bytes:
@@ -192,13 +209,14 @@ def _canonicalize_profile(profile: dict[str, Any]) -> bytes:
     nesting level, returns UTF-8 JSON bytes. Cross-language byte-identical with the
     Node ``stableStringify`` output.
 
-    Throws ``ValueError`` on float input — see :func:`_reject_floats`.
+    Throws ``ValueError`` on float input or oversized int (see
+    :func:`_reject_unsafe_numbers`).
 
     UCP §6.2: "the JSON-serialized profile body, with ``signature`` removed and keys
     ordered lexicographically at every nesting level."
     """
     stripped = {k: v for k, v in profile.items() if k != "signature"}
-    _reject_floats(stripped)
+    _reject_unsafe_numbers(stripped)
     # ``ensure_ascii=False`` so non-ASCII characters travel as UTF-8 (matches Node's
     # JSON.stringify default). ``sort_keys=True`` sorts keys at every level. Compact
     # separators avoid whitespace drift.

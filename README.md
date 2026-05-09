@@ -232,7 +232,7 @@ jwks = build_jwks_response([key.public_jwk])
 
 `verify_ucp_profile` enforces the JWS protected header `typ='ucp-profile+jws'`, restricts `alg` to `EdDSA`/`ES256`, requires a `kid`, rejects duplicate kids in the JWKS, and compares the canonical body bytes against the JWS payload to catch swap-after-sign tampering. Failures raise `UCPVerificationError` (a `ValueError` subclass) with a discriminated `code` attribute (`no_signature`/`missing_kid`/`kid_not_found`/`duplicate_kid`/`unsupported_alg`/`wrong_typ`/`signature_invalid`/`body_mismatch`/`malformed_jws`/`malformed_jwks`/`unusable_key`/`unrecognized_critical_header`).
 
-`sign_ucp_profile` rejects profiles containing `float` values: cross-language float canonicalization is not stable, so use decimal strings (e.g. `"9.99"`) for any monetary or fractional fields you put in `extras`.
+`sign_ucp_profile` rejects profiles containing `float` values and `int` values whose magnitude exceeds `Number.MAX_SAFE_INTEGER` (2^53 - 1): cross-language float canonicalization is not stable, and Python's arbitrary-width ints lose precision when JS verifiers reparse the canonical body. Use decimal strings (e.g. `"9.99"`) for monetary or fractional fields and for any integer that may exceed the safe range.
 
 **Persisting the private JWK.** Mint once via `generate_ucp_signing_key()`, serialize via `key.private_key.as_dict(private=True)`, store in your secret manager. On each container start, read the secret, `OKPKey.import_key(jwk_dict)` (or `ECKey.import_key` for ES256) to re-hydrate. Remote-signer flows (KMS-backed asymmetric keys) require subclassing the joserfc Key to delegate the sign hook; `OKPKey`/`ECKey` themselves only carry local key material.
 

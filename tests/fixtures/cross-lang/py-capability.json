@@ -11,7 +11,7 @@
     "capabilities": [
       {
         "name": "sh.agentscore.identity",
-        "schema": "https://agentscore.sh/schema/identity/1",
+        "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
         "version": "1",
         "kyc_required": true
       }
@@ -32,17 +32,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "BXRO6rmnby3lVMe-h0IKk1WuY_HlUgA1VzYsiB4nRdw"
+        "x": "79JoRX5sYr_-mkVrJr6_auhrF8Wmvnm9t5tT32yH7rk"
       }
     ],
     "name": "Capability Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWNhcGFiaWxpdHktRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hL2lkZW50aXR5LzEiLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkNhcGFiaWxpdHkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsiY2hhaW5faWQiOjQyMTcsInJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9jLmV4YW1wbGUuY29tIn1dLCJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LWNhcGFiaWxpdHktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiQlhSTzZybW5ieTNsVk1lLWgwSUtrMVd1WV9IbFVnQTFWellzaUI0blJkdyJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.m8yHS1g49kY0QdrL0hLiHnwZTOMP6Iu_Hee9dceWhgMSyjDR3qeupkam3P0sbcT0922OZ_tZ2O_bPa_7grHGDw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWNhcGFiaWxpdHktRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwidmVyc2lvbiI6IjEifV0sIm5hbWUiOiJDYXBhYmlsaXR5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNoYWluX2lkIjo0MjE3LCJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYy5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1jYXBhYmlsaXR5LUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6Ijc5Sm9SWDVzWXJfLW1rVnJKcjZfYXVockY4V212bm05dDV0VDMyeUg3cmsifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.ziJgpRk5f06Pp9W5gT8UEJuu8IoFIkotNL4czSLUPSc_D_YRsxy9x-l2YI0tEBs4v9KNR3C-tI6AN7sJF_qjBA"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "BXRO6rmnby3lVMe-h0IKk1WuY_HlUgA1VzYsiB4nRdw",
+        "x": "79JoRX5sYr_-mkVrJr6_auhrF8Wmvnm9t5tT32yH7rk",
         "kid": "py-capability-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

@@ -106,7 +106,7 @@ def main() -> None:
         capabilities=[
             UCPCapability(
                 name="sh.agentscore.identity",
-                schema="https://agentscore.sh/schema/identity/1",
+                schema="https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
                 version="1",
                 extras={"kyc_required": True},
             ),

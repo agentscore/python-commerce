@@ -25,17 +25,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "QvDeYnvr6i5EgiSwQ3EDgiPMv1obGL0nScKyBZ26Yi0"
+        "x": "oLnV-NyrlmlJnhDsqcYH6dRgh0A_W76k-dcTWKX8wpU"
       }
     ],
     "name": "Extras Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWV4dHJhcy1pbnQtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRXh0cmFzIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNvdW50Ijo3LCJwcm9maWxlX2lkIjoiYWJjIn0sIm5hbWUiOiJzdHJpcGUifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vZS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1leHRyYXMtaW50LUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IlF2RGVZbnZyNmk1RWdpU3dRM0VEZ2lQTXYxb2JHTDBuU2NLeUJaMjZZaTAifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.OXvd3vtjSd-gcfaF-od9V76PXZL0ebugDWzjmK8BbTlyIB9SnDFn2MHVk00XwFXX4ZM8TX2UQpAQ3HB6TXsvBg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWV4dHJhcy1pbnQtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRXh0cmFzIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNvdW50Ijo3LCJwcm9maWxlX2lkIjoiYWJjIn0sIm5hbWUiOiJzdHJpcGUifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vZS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1leHRyYXMtaW50LUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6Im9MblYtTnlybG1sSm5oRHNxY1lINmRSZ2gwQV9XNzZrLWRjVFdLWDh3cFUifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.EEqKepCa3CQnoqICbmOnQ6L132k9v0NEqA-8_-LwH01oW5cgcL7gX0LWR6jDLQlZAqMqXYmlSqfHJU4MfEQVCw"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "QvDeYnvr6i5EgiSwQ3EDgiPMv1obGL0nScKyBZ26Yi0",
+        "x": "oLnV-NyrlmlJnhDsqcYH6dRgh0A_W76k-dcTWKX8wpU",
         "kid": "py-extras-int-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

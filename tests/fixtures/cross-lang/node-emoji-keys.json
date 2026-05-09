@@ -22,7 +22,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "3GZayUqGDFe-3oMlX3-ztVFvprBcPJZBreNbGiNWtJA"
+        "x": "fiqJRqiAc0s1XVU4B8soGyQeu_a6x-Vlm2q93AjpKG0"
       }
     ],
     "name": "Emoji Keys Merchant",
@@ -30,7 +30,7 @@
     "豈": 2,
     "": 3,
     "🍷": 4,
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZW1vamkta2V5cy1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJhIjoxLCJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRW1vamkgS2V5cyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOlt7ImNvbmZpZyI6e30sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9lbW9qaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLWVtb2ppLWtleXMtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiM0daYXlVcUdERmUtM29NbFgzLXp0VkZ2cHJCY1BKWkJyZU5iR2lOV3RKQSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyIsIuixiCI6Miwi7oCAIjozLCLwn423Ijo0fQ.PB3GPO2nViPHCCEq7EZXIhYrLdf4STu0jgvE2SHMBlftC8yZzTxoDRU4yEpBIVDoUGXV0nNBXC6yNUlui4jOBw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZW1vamkta2V5cy1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJhIjoxLCJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRW1vamkgS2V5cyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOlt7ImNvbmZpZyI6e30sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9lbW9qaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLWVtb2ppLWtleXMtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiZmlxSlJxaUFjMHMxWFZVNEI4c29HeVFldV9hNngtVmxtMnE5M0FqcEtHMCJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyIsIuixiCI6Miwi7oCAIjozLCLwn423Ijo0fQ.qNiFf0E5z9tpQdRYHQBzcTJYE9E-CctXUV0ZisplcBNKPeM7a5rXi05Z-nfIwlg9L3kIhA5Pi0iqdmymwrwSBQ"
   },
   "jwks": {
     "keys": [
@@ -40,7 +40,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "3GZayUqGDFe-3oMlX3-ztVFvprBcPJZBreNbGiNWtJA"
+        "x": "fiqJRqiAc0s1XVU4B8soGyQeu_a6x-Vlm2q93AjpKG0"
       }
     ]
   },

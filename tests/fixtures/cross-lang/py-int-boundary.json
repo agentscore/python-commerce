@@ -17,7 +17,7 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "mDepmBzMdz9K5ujAdDAbE9Q-50SIRoa8CQu_386C6Os"
+        "x": "4SHOZmcJU7-moS3oCHJZ4Tg5EUUDVt6SJ5ipCez2HQY"
       }
     ],
     "name": "Int Boundary Merchant",
@@ -28,13 +28,13 @@
       "neg_small_int": -42,
       "zero": 0
     },
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsibWF4X3NhZmVfaW50Ijo5MDA3MTk5MjU0NzQwOTkxLCJtaW5fc2FmZV9pbnQiOi05MDA3MTk5MjU0NzQwOTkxLCJuZWdfc21hbGxfaW50IjotNDIsInNtYWxsX2ludCI6NDIsInplcm8iOjB9LCJuYW1lIjoiSW50IEJvdW5kYXJ5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W10sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoibURlcG1Cek1kejlLNXVqQWREQWJFOVEtNTBTSVJvYThDUXVfMzg2QzZPcyJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.s1msUhEmZIQ--XsMO4z7ODtWy7jVVn5zjJ3fmxIYmjMVxgz_oHcVfKNHsgETnyUf3P9PZLXQBetmCZoXA-8BCA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsibWF4X3NhZmVfaW50Ijo5MDA3MTk5MjU0NzQwOTkxLCJtaW5fc2FmZV9pbnQiOi05MDA3MTk5MjU0NzQwOTkxLCJuZWdfc21hbGxfaW50IjotNDIsInNtYWxsX2ludCI6NDIsInplcm8iOjB9LCJuYW1lIjoiSW50IEJvdW5kYXJ5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W10sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiNFNIT1ptY0pVNy1tb1Mzb0NISlo0VGc1RVVVRFZ0NlNKNWlwQ2V6MkhRWSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.IECpY2YYknqwNIR44iHDqcgW_ssf7s50NJySbSIjXU-Nx3vZYRw96oXAt5DGTnfUm5gxBykJrOOrb1hDycm4DA"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "mDepmBzMdz9K5ujAdDAbE9Q-50SIRoa8CQu_386C6Os",
+        "x": "4SHOZmcJU7-moS3oCHJZ4Tg5EUUDVt6SJ5ipCez2HQY",
         "kid": "py-int-boundary-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

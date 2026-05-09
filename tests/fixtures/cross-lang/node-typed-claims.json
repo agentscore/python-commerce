@@ -33,11 +33,11 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "GgQANYQYeQgylzTJo4WpjfVjUh_OqKwdRWX_n2H8YoU"
+        "x": "VPF2xK_U57i0mas-nh4xk0jwXc8uwTkw24UMfKm1raA"
       }
     ],
     "name": "Typed Claims Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtdHlwZWQtY2xhaW1zLUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6IjIxKyIsImlzc3VlciI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaCIsImp1cmlzZGljdGlvbiI6IlVTIiwia3ljX2xldmVsIjoiZW5oYW5jZWQiLCJvcGVyYXRvcl9pZCI6Im9wX3R5cGVkX2NsYWltcyIsInNhbmN0aW9uc19jbGVhciI6dHJ1ZSwidmVyaWZpZWRfYXQiOiIyMDI2LTA0LTAxVDAwOjAwOjAwWiIsInZlcmlmeV91cmwiOiJodHRwczovL2FnZW50c2NvcmUuc2gvdmVyaWZ5L29wX3R5cGVkX2NsYWltcyJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IlR5cGVkIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL3QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS10eXBlZC1jbGFpbXMtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiR2dRQU5ZUVllUWd5bHpUSm80V3BqZlZqVWhfT3FLd2RSV1hfbjJIOFlvVSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.-LXXBRXXwPs7UmnW3hatAhOBxDBnQrvKCvLuiy8pitNB4b0rtrRx1oI6ATdWKguYSM1Cks9-xMbsrx_PFHAXCw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtdHlwZWQtY2xhaW1zLUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6IjIxKyIsImlzc3VlciI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaCIsImp1cmlzZGljdGlvbiI6IlVTIiwia3ljX2xldmVsIjoiZW5oYW5jZWQiLCJvcGVyYXRvcl9pZCI6Im9wX3R5cGVkX2NsYWltcyIsInNhbmN0aW9uc19jbGVhciI6dHJ1ZSwidmVyaWZpZWRfYXQiOiIyMDI2LTA0LTAxVDAwOjAwOjAwWiIsInZlcmlmeV91cmwiOiJodHRwczovL2FnZW50c2NvcmUuc2gvdmVyaWZ5L29wX3R5cGVkX2NsYWltcyJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IlR5cGVkIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL3QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS10eXBlZC1jbGFpbXMtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiVlBGMnhLX1U1N2kwbWFzLW5oNHhrMGp3WGM4dXdUa3cyNFVNZkttMXJhQSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.BR_pASRexALLD4u45fGpkCSfkdyXCUbXp_cgbq8Yf3etzahb--JcEpKBEPvGT9NNH0nLqvX_tPD_SLD52eudBw"
   },
   "jwks": {
     "keys": [
@@ -47,7 +47,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "GgQANYQYeQgylzTJo4WpjfVjUh_OqKwdRWX_n2H8YoU"
+        "x": "VPF2xK_U57i0mas-nh4xk0jwXc8uwTkw24UMfKm1raA"
       }
     ]
   },

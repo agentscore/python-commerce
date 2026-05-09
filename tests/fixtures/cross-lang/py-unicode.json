@@ -24,17 +24,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "T0Zmk7XdS5Wc4VuEXNKmISZBCkSrYlreWHsHA5u8eKg"
+        "x": "rLZoFrjW3H24e5W996_q_0oLJ4vB1iP81hCN9uRW92U"
       }
     ],
     "name": "Café 日本 🍷 Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LXVuaWNvZGUtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiQ2Fmw6kg5pel5pysIPCfjbcgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsibm90ZSI6IuODoeODoiJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8v5pel5pysLmV4YW1wbGUuY29tIn1dLCJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LXVuaWNvZGUtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiVDBabWs3WGRTNVdjNFZ1RVhOS21JU1pCQ2tTcllscmVXSHNIQTV1OGVLZyJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.EHFh_jdwp22iavAYT1fohKdE6ZG6tszSNIF2dcliQQ7hFAeeWyLP1c3MjhJdEs7zakGYJ8hv_PTgJrXKfAlZDQ"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LXVuaWNvZGUtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiQ2Fmw6kg5pel5pysIPCfjbcgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsibm90ZSI6IuODoeODoiJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8v5pel5pysLmV4YW1wbGUuY29tIn1dLCJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LXVuaWNvZGUtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4Ijoickxab0ZyalczSDI0ZTVXOTk2X3FfMG9MSjR2QjFpUDgxaENOOXVSVzkyVSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.wNjLqaN9mHK-jLlHlVLPYB9SonwFurK0bE41_zRx-aJedCE4uUSrCoqkOOdqwq4h5yx4-tTQnqLjYkoyng3BAQ"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "T0Zmk7XdS5Wc4VuEXNKmISZBCkSrYlreWHsHA5u8eKg",
+        "x": "rLZoFrjW3H24e5W996_q_0oLJ4vB1iP81hCN9uRW92U",
         "kid": "py-unicode-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

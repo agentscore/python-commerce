@@ -17,24 +17,22 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "4SHOZmcJU7-moS3oCHJZ4Tg5EUUDVt6SJ5ipCez2HQY"
+        "x": "2hWtYbSpkVrFTzo_rccrGWAYf_jrreq8wB1D_z_IZOc"
       }
     ],
     "name": "Int Boundary Merchant",
-    "extras": {
-      "max_safe_int": 9007199254740991,
-      "min_safe_int": -9007199254740991,
-      "small_int": 42,
-      "neg_small_int": -42,
-      "zero": 0
-    },
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsibWF4X3NhZmVfaW50Ijo5MDA3MTk5MjU0NzQwOTkxLCJtaW5fc2FmZV9pbnQiOi05MDA3MTk5MjU0NzQwOTkxLCJuZWdfc21hbGxfaW50IjotNDIsInNtYWxsX2ludCI6NDIsInplcm8iOjB9LCJuYW1lIjoiSW50IEJvdW5kYXJ5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W10sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiNFNIT1ptY0pVNy1tb1Mzb0NISlo0VGc1RVVVRFZ0NlNKNWlwQ2V6MkhRWSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.IECpY2YYknqwNIR44iHDqcgW_ssf7s50NJySbSIjXU-Nx3vZYRw96oXAt5DGTnfUm5gxBykJrOOrb1hDycm4DA"
+    "max_safe_int": 9007199254740991,
+    "min_safe_int": -9007199254740991,
+    "small_int": 42,
+    "neg_small_int": -42,
+    "zero": 0,
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5hbWUiOiJJbnQgQm91bmRhcnkgTWVyY2hhbnQiLCJuZWdfc21hbGxfaW50IjotNDIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL2kuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktaW50LWJvdW5kYXJ5LUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IjJoV3RZYlNwa1ZyRlR6b19yY2NyR1dBWWZfanJyZXE4d0IxRF96X0laT2MifV0sInNtYWxsX2ludCI6NDIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTciLCJ6ZXJvIjowfQ.1qtHiT04A_A0asQx3jJWeeNEfY9lQ6haBf6JDMoaOz3NmWLg70Yvad0wStR8wQcaDDqPgi7-mmMZMnu8XxvyCQ"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "4SHOZmcJU7-moS3oCHJZ4Tg5EUUDVt6SJ5ipCez2HQY",
+        "x": "2hWtYbSpkVrFTzo_rccrGWAYf_jrreq8wB1D_z_IZOc",
         "kid": "py-int-boundary-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

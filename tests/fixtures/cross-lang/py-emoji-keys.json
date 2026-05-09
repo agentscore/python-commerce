@@ -22,23 +22,21 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "gqXBEPq7Ljqwi47V9a1hXAw_cF47ozlPWOAUyl7PJPw"
+        "x": "rI2JPvoFJRRLd3EbGgoiKut82R3us1TTAIpwhp97BSY"
       }
     ],
     "name": "Emoji Keys Merchant",
-    "extras": {
-      "a": 1,
-      "豈": 2,
-      "": 3,
-      "🍷": 4
-    },
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsiYSI6MSwi6LGIIjoyLCLugIAiOjMsIvCfjbciOjR9LCJuYW1lIjoiRW1vamkgS2V5cyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOlt7ImNvbmZpZyI6e30sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9lbW9qaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1lbW9qaS1rZXlzLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6ImdxWEJFUHE3TGpxd2k0N1Y5YTFoWEF3X2NGNDdvemxQV09BVXlsN1BKUHcifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ._9z8cnB3LBigLDCURFGWftfmCSx1TAjBMK8Jj6LiPDp5Bf9K64A91N7LPARyEA4XevTcGuZgfUkOPkyDHLLrBw"
+    "a": 1,
+    "豈": 2,
+    "": 3,
+    "🍷": 4,
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJhIjoxLCJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRW1vamkgS2V5cyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOlt7ImNvbmZpZyI6e30sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9lbW9qaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1lbW9qaS1rZXlzLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6InJJMkpQdm9GSlJSTGQzRWJHZ29pS3V0ODJSM3VzMVRUQUlwd2hwOTdCU1kifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTciLCLosYgiOjIsIu6AgCI6Mywi8J-NtyI6NH0.1zOHof4cekmU2iphy-mp5DQHS66klN45KOrJ87bKsQYnO6_o2cL6iCEH6GOuQ9qBFTBUfzOWapK1hCAIX3vOAQ"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "gqXBEPq7Ljqwi47V9a1hXAw_cF47ozlPWOAUyl7PJPw",
+        "x": "rI2JPvoFJRRLd3EbGgoiKut82R3us1TTAIpwhp97BSY",
         "kid": "py-emoji-keys-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

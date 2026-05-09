@@ -24,7 +24,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "wRNqLwTtRaQaHxrhcelM7SGsDYot5O9Wl-acDn3yy4M"
+        "x": "OegF87KiSAOfa6Wd3qJKCNPmoFKHBxPaf9YqgvlTQvY"
       },
       {
         "kid": "node-multikey-new",
@@ -32,11 +32,11 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "_yZm0qvM75hqnp5ShYwGAe1OWkpxriymzwhXmQAbwuw"
+        "x": "mrwPS0Dm8qiH2sFDtECXMgiRa5u3GS1h5UCG4NqxwxY"
       }
     ],
     "name": "Multi-Key Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbXVsdGlrZXktbmV3IiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTXVsdGktS2V5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9tay5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJ3Uk5xTHdUdFJhUWFIeHJoY2VsTTdTR3NEWW90NU85V2wtYWNEbjN5eTRNIn0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLW11bHRpa2V5LW5ldyIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJfeVptMHF2TTc1aHFucDVTaFl3R0FlMU9Xa3B4cml5bXp3aFhtUUFid3V3In1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.6AFnRp5fphJLvR0pCw5n-uPqA7ZcO5sGKJtsb0lepJeqdaonfp1FxrK1UeyW-WHRr5wNjk24W8DpKwvljyroCg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbXVsdGlrZXktbmV3IiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTXVsdGktS2V5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9tay5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJPZWdGODdLaVNBT2ZhNldkM3FKS0NOUG1vRktIQnhQYWY5WXFndmxUUXZZIn0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLW11bHRpa2V5LW5ldyIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJtcndQUzBEbThxaUgyc0ZEdEVDWE1naVJhNXUzR1MxaDVVQ0c0TnF4d3hZIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.oc_dpoITPPuL0oft-Lu0rEa7Hm10LNTe8RYqMpPbaA0xtJcQzRyJMiQgJ3sWOiXSRst6CzeuO_von36ansqWCA"
   },
   "jwks": {
     "keys": [
@@ -46,7 +46,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "wRNqLwTtRaQaHxrhcelM7SGsDYot5O9Wl-acDn3yy4M"
+        "x": "OegF87KiSAOfa6Wd3qJKCNPmoFKHBxPaf9YqgvlTQvY"
       },
       {
         "kid": "node-multikey-new",
@@ -54,7 +54,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "_yZm0qvM75hqnp5ShYwGAe1OWkpxriymzwhXmQAbwuw"
+        "x": "mrwPS0Dm8qiH2sFDtECXMgiRa5u3GS1h5UCG4NqxwxY"
       }
     ]
   },

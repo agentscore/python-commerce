@@ -32,11 +32,11 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "W2J3iYt-Q1U5AIkFuN205U90p-BZLwCI-dYhaAbZdUA"
+        "x": "AeclvTjS8f6B3AwW9kO4yjbZCEShPVIBiNFGFR4ZZp4"
       }
     ],
     "name": "Capability Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtY2FwYWJpbGl0eS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwidmVyc2lvbiI6IjEifV0sIm5hbWUiOiJDYXBhYmlsaXR5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNoYWluX2lkIjo0MjE3LCJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYy5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLWNhcGFiaWxpdHktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiVzJKM2lZdC1RMVU1QUlrRnVOMjA1VTkwcC1CWkx3Q0ktZFloYUFiWmRVQSJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.mwtNLE6M0xn5ghwoqUPVFpVgNTDcaXApIKRRZyzUG_WMwOFD1tekXQU5uEcNJ6kt9rRLAAxfMyz_PB0pUe2dBg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtY2FwYWJpbGl0eS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwidmVyc2lvbiI6IjEifV0sIm5hbWUiOiJDYXBhYmlsaXR5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNoYWluX2lkIjo0MjE3LCJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYy5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLWNhcGFiaWxpdHktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiQWVjbHZUalM4ZjZCM0F3VzlrTzR5amJaQ0VTaFBWSUJpTkZHRlI0WlpwNCJ9XSwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9.3ThDzMfTI4znrd0200TO0r-vTK2rS_w9BV6_PD0yyKcXvvu_dEqZVOs9R4kZRLJlPpnmoO8YpKg65qzcp5SwDA"
   },
   "jwks": {
     "keys": [
@@ -46,7 +46,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "W2J3iYt-Q1U5AIkFuN205U90p-BZLwCI-dYhaAbZdUA"
+        "x": "AeclvTjS8f6B3AwW9kO4yjbZCEShPVIBiNFGFR4ZZp4"
       }
     ]
   },

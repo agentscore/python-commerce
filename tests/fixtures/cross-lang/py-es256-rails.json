@@ -37,19 +37,19 @@
         "alg": "ES256",
         "use": "sig",
         "crv": "P-256",
-        "x": "ij53rGpVeEdMvXp9SPsQjDYrlXwHxHzr0ztBBWzh3nE",
-        "y": "4BC0ugFM_APcWohu5tGL3mQ6VNkoBMbPnvhXyN-b9-M"
+        "x": "_2HJ2FjbKQFI-uVpxIY8ZIS3htpNb-92IGfIY8kpQhk",
+        "y": "0KlKsjssFxnAPoozOr2CvYXbuoXih_IzMv-wHQCsBXA"
       }
     ],
     "name": "ES256 Merchant",
-    "signature": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB5LWVzMjU2LXJhaWxzLUVTMjU2IiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRVMyNTYgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsiY2hhaW5faWQiOjQyMTcsInJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9LHsiY29uZmlnIjp7Im5ldHdvcmtzIjpbImJhc2UtODQ1MyJdfSwibmFtZSI6Ing0MDIifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbSJ9LHsidHlwZSI6ImEyYSIsInVybCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbS9hZ2VudC1jYXJkLmpzb24ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRVMyNTYiLCJjcnYiOiJQLTI1NiIsImtpZCI6InB5LWVzMjU2LXJhaWxzLUVTMjU2Iiwia3R5IjoiRUMiLCJ1c2UiOiJzaWciLCJ4IjoiaWo1M3JHcFZlRWRNdlhwOVNQc1FqRFlybFh3SHhIenIwenRCQld6aDNuRSIsInkiOiI0QkMwdWdGTV9BUGNXb2h1NXRHTDNtUTZWTmtvQk1iUG52aFh5Ti1iOS1NIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0._MuId-pYaECzZjm3ZcbKqXAtH4INWqOnFwSsDlM7U9tmbwtsOTw0-4v4XXDJtU1KZt1dB7J-TOwdRd1OAv7mVg"
+    "signature": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB5LWVzMjU2LXJhaWxzLUVTMjU2IiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiRVMyNTYgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsiY2hhaW5faWQiOjQyMTcsInJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9LHsiY29uZmlnIjp7Im5ldHdvcmtzIjpbImJhc2UtODQ1MyJdfSwibmFtZSI6Ing0MDIifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbSJ9LHsidHlwZSI6ImEyYSIsInVybCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbS9hZ2VudC1jYXJkLmpzb24ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRVMyNTYiLCJjcnYiOiJQLTI1NiIsImtpZCI6InB5LWVzMjU2LXJhaWxzLUVTMjU2Iiwia3R5IjoiRUMiLCJ1c2UiOiJzaWciLCJ4IjoiXzJISjJGamJLUUZJLXVWcHhJWThaSVMzaHRwTmItOTJJR2ZJWThrcFFoayIsInkiOiIwS2xLc2pzc0Z4bkFQb296T3IyQ3ZZWGJ1b1hpaF9Jek12LXdIUUNzQlhBIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.MmqXHAzDEAPjH6wmOvwDq-yyq-0TCyMXVDwZlgryCN0O2E1sDS4jVeOb69F05uWdiPrLBP-HpJGTxruvHJre-g"
   },
   "jwks": {
     "keys": [
       {
         "crv": "P-256",
-        "x": "ij53rGpVeEdMvXp9SPsQjDYrlXwHxHzr0ztBBWzh3nE",
-        "y": "4BC0ugFM_APcWohu5tGL3mQ6VNkoBMbPnvhXyN-b9-M",
+        "x": "_2HJ2FjbKQFI-uVpxIY8ZIS3htpNb-92IGfIY8kpQhk",
+        "y": "0KlKsjssFxnAPoozOr2CvYXbuoXih_IzMv-wHQCsBXA",
         "kid": "py-es256-rails-ES256",
         "alg": "ES256",
         "use": "sig",

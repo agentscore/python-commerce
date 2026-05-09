@@ -24,7 +24,7 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "d2NIlHf-SNBZEDSPgHcQBW8NURtFe3ILy5sUObcCS1A"
+        "x": "Jk-XKLK-B6PQDrH5muAusj5s64a_jYGScTY7sR5zwTU"
       },
       {
         "kid": "py-multikey-new",
@@ -32,17 +32,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "xgZThpeX4H8TUX2UZazZpI0wsjgGKn8MTZcckeTBPWk"
+        "x": "0k8GV3ctomf1kxJIdg8cIpFDrFdWBE6fNW1kRp5j_ew"
       }
     ],
     "name": "Multi-Key Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW11bHRpa2V5LW5ldyIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTXVsdGktS2V5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9tay5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1tdWx0aWtleS1vbGQiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiZDJOSWxIZi1TTkJaRURTUGdIY1FCVzhOVVJ0RmUzSUx5NXNVT2JjQ1MxQSJ9LHsiYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktbXVsdGlrZXktbmV3Iiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6InhnWlRocGVYNEg4VFVYMlVaYXpacEkwd3NqZ0dLbjhNVFpjY2tlVEJQV2sifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.9hcCiYi0FNGHXSJ_Lywa0QBR8r7kTGFbH3DOm7TgbIcRj-YbsIQjpE65V5rqwQS6qwnfq5DJQg6c5R7SA7k4Dg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW11bHRpa2V5LW5ldyIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTXVsdGktS2V5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9tay5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1tdWx0aWtleS1vbGQiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiSmstWEtMSy1CNlBRRHJINW11QXVzajVzNjRhX2pZR1NjVFk3c1I1endUVSJ9LHsiYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktbXVsdGlrZXktbmV3Iiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IjBrOEdWM2N0b21mMWt4SklkZzhjSXBGRHJGZFdCRTZmTlcxa1JwNWpfZXcifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.5sp4yAhsPgmO6F4CvLSADiJ78rk5_KO83r1NkJYKg2bB3flvz1RdkwpodiH66wKOu8XOEDx2Xmr9_RWUb2W4DA"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "d2NIlHf-SNBZEDSPgHcQBW8NURtFe3ILy5sUObcCS1A",
+        "x": "Jk-XKLK-B6PQDrH5muAusj5s64a_jYGScTY7sR5zwTU",
         "kid": "py-multikey-old",
         "alg": "EdDSA",
         "use": "sig",
@@ -50,7 +50,7 @@
       },
       {
         "crv": "Ed25519",
-        "x": "xgZThpeX4H8TUX2UZazZpI0wsjgGKn8MTZcckeTBPWk",
+        "x": "0k8GV3ctomf1kxJIdg8cIpFDrFdWBE6fNW1kRp5j_ew",
         "kid": "py-multikey-new",
         "alg": "EdDSA",
         "use": "sig",

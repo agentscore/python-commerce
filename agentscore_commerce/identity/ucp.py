@@ -282,8 +282,12 @@ def build_ucp_profile(
         # ``data.raw["operator_verification"]`` / ``data.raw["account_verification"]``
         # only when the typed field is ``None``; this is a Python-only legacy
         # escape hatch for callers who hand-construct ``AssessResult(raw=..., typed=None)``.
-        # Node has no equivalent fallback, so profiles built via the raw-only path
-        # may not verify cross-language. Production callers should populate typed fields.
+        # Node has no raw fallback at all (it reads typed fields directly via
+        # optional chaining), so the typed-empty-wins-over-raw behavior is also
+        # Python-only: a Python caller who passes ``account_verification={}``
+        # explicitly suppresses the raw fallback (empty dict is None-distinguished
+        # via ``is None``). Production callers populate typed fields consistently,
+        # so this asymmetry is theoretical for typical usage.
         typed_op = data.operator_verification
         operator_verification: dict[str, Any]
         if typed_op is None:

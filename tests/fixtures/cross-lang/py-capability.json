@@ -32,17 +32,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "79JoRX5sYr_-mkVrJr6_auhrF8Wmvnm9t5tT32yH7rk"
+        "x": "TMBp_r4E06Pdu0h-53QW7ncMNSYwPXLem6kMjY-3We8"
       }
     ],
     "name": "Capability Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWNhcGFiaWxpdHktRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwidmVyc2lvbiI6IjEifV0sIm5hbWUiOiJDYXBhYmlsaXR5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNoYWluX2lkIjo0MjE3LCJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYy5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1jYXBhYmlsaXR5LUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6Ijc5Sm9SWDVzWXJfLW1rVnJKcjZfYXVockY4V212bm05dDV0VDMyeUg3cmsifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.ziJgpRk5f06Pp9W5gT8UEJuu8IoFIkotNL4czSLUPSc_D_YRsxy9x-l2YI0tEBs4v9KNR3C-tI6AN7sJF_qjBA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWNhcGFiaWxpdHktRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwidmVyc2lvbiI6IjEifV0sIm5hbWUiOiJDYXBhYmlsaXR5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNoYWluX2lkIjo0MjE3LCJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYy5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1jYXBhYmlsaXR5LUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IlRNQnBfcjRFMDZQZHUwaC01M1FXN25jTU5TWXdQWExlbTZrTWpZLTNXZTgifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.tFu690kDz0E2Iy45Y0MgpUS3G2ocaBgeWFUwwPQSjsXXroi1T4GFZROrA_6MntaKb07CfjLgWoMh9z8Cl3ecBA"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "79JoRX5sYr_-mkVrJr6_auhrF8Wmvnm9t5tT32yH7rk",
+        "x": "TMBp_r4E06Pdu0h-53QW7ncMNSYwPXLem6kMjY-3We8",
         "kid": "py-capability-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

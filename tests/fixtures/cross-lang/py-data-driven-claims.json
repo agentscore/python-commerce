@@ -33,17 +33,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "pyn3Z6hJWE6e2uO3yIdUBTjEryetm9zT5YC1gPVwuEg"
+        "x": "DAaVG_-gxUtcNYUOizP4YJNRwhHhnDWn-stsD7jPO4w"
       }
     ],
     "name": "Data Driven Claims Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWRhdGEtZHJpdmVuLWNsYWltcy1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6InVua25vd24iLCJpc3N1ZXIiOiJodHRwczovL2FnZW50c2NvcmUuc2giLCJqdXJpc2RpY3Rpb24iOiIiLCJreWNfbGV2ZWwiOiJub25lIiwib3BlcmF0b3JfaWQiOiJvcF9kYXRhX2RyaXZlbiIsInNhbmN0aW9uc19jbGVhciI6ZmFsc2UsInZlcmlmaWVkX2F0IjpudWxsLCJ2ZXJpZnlfdXJsIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3ZlcmlmeS9vcF9kYXRhX2RyaXZlbiJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkRhdGEgRHJpdmVuIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL2QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6InB5bjNaNmhKV0U2ZTJ1TzN5SWRVQlRqRXJ5ZXRtOXpUNVlDMWdQVnd1RWcifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.J8tLxhY6RzzZbN7_FNqdQb_jg2ZnWys_b9pgwcAF0lo_D8OYxkRVMXyy9f8HybeN100NftIe2MxLtdvgo-nJDw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWRhdGEtZHJpdmVuLWNsYWltcy1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6InVua25vd24iLCJpc3N1ZXIiOiJodHRwczovL2FnZW50c2NvcmUuc2giLCJqdXJpc2RpY3Rpb24iOiIiLCJreWNfbGV2ZWwiOiJub25lIiwib3BlcmF0b3JfaWQiOiJvcF9kYXRhX2RyaXZlbiIsInNhbmN0aW9uc19jbGVhciI6ZmFsc2UsInZlcmlmaWVkX2F0IjpudWxsLCJ2ZXJpZnlfdXJsIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3ZlcmlmeS9vcF9kYXRhX2RyaXZlbiJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IkRhdGEgRHJpdmVuIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL2QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IkRBYVZHXy1neFV0Y05ZVU9pelA0WUpOUndoSGhuRFduLXN0c0Q3alBPNHcifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.Bo9sH1eHbuXfl6XMp43smJDrGd6KFFoEMejcmgAYTScOiBzgRk9bs7s7YgNSjM4QXnZ-2YXtrI58d1n7tu-4BA"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "pyn3Z6hJWE6e2uO3yIdUBTjEryetm9zT5YC1gPVwuEg",
+        "x": "DAaVG_-gxUtcNYUOizP4YJNRwhHhnDWn-stsD7jPO4w",
         "kid": "py-data-driven-claims-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

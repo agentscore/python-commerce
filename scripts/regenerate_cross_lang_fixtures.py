@@ -165,12 +165,10 @@ def main() -> None:
         payment_handlers=[UCPPaymentHandler(name="tempo", config={})],
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
         extras={
-            "extras": {
-                "a": 1,
-                "豈": 2,
-                "": 3,
-                "🍷": 4,
-            },
+            "a": 1,
+            "豈": 2,
+            "": 3,
+            "🍷": 4,
         },
     )
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
@@ -185,13 +183,11 @@ def main() -> None:
         payment_handlers=[],
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
         extras={
-            "extras": {
-                "max_safe_int": 9007199254740991,
-                "min_safe_int": -9007199254740991,
-                "small_int": 42,
-                "neg_small_int": -42,
-                "zero": 0,
-            },
+            "max_safe_int": 9007199254740991,
+            "min_safe_int": -9007199254740991,
+            "small_int": 42,
+            "neg_small_int": -42,
+            "zero": 0,
         },
     )
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)

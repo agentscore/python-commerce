@@ -274,15 +274,12 @@ def build_ucp_profile(
     base_capabilities = list(capabilities or [])
 
     if data is not None and data.resolved_operator:
-        # Match node-commerce read order: prefer the typed AssessResult fields,
-        # fall back to ``data.raw`` only when the typed field is ``None`` (absent).
-        # An explicitly-empty typed dict means "API returned the block with no
-        # populated values" and wins over raw — same as the Node sibling, which
-        # reads ``input.data.operator_verification`` / ``input.data.account_verification``
-        # directly without consulting ``raw``. ``is None`` (not truthy) is the
-        # correct distinction so a caller hand-constructing
-        # ``AssessResult(account_verification={}, raw={"account_verification": {...}})``
-        # gets the same empty-block behavior in both languages.
+        # Read typed AssessResult fields first (the canonical path). Fall back to
+        # ``data.raw["operator_verification"]`` / ``data.raw["account_verification"]``
+        # only when the typed field is ``None``; this is a Python-only legacy
+        # escape hatch for callers who hand-construct ``AssessResult(raw=..., typed=None)``.
+        # Node has no equivalent fallback, so profiles built via the raw-only path
+        # may not verify cross-language. Production callers should populate typed fields.
         typed_op = data.operator_verification
         operator_verification: dict[str, Any]
         if typed_op is None:

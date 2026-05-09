@@ -260,7 +260,7 @@ def sign_ucp_profile(
 
     Example::
 
-        profile = build_ucp_profile(..., signing_keys=[UCPSigningKey(**key.public_jwk)])
+        profile = build_ucp_profile(..., signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)])
         signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid='merchant-2026-05')
     """
     _load_joserfc()

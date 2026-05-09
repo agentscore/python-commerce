@@ -1,5 +1,7 @@
 """Tests for build_ucp_profile."""
 
+from typing import Any, cast
+
 import pytest
 
 from agentscore_commerce.identity import (
@@ -335,3 +337,59 @@ def test_ucp_signing_key_extras_non_reserved_pass_through() -> None:
     sk = UCPSigningKey(kid="me", kty="EC", alg="ES256", crv="P-256", extras={"x": "abc", "y": "def"})
     out = sk.to_dict()
     assert out == {"kid": "me", "kty": "EC", "alg": "ES256", "crv": "P-256", "x": "abc", "y": "def"}
+
+
+# UCPPaymentHandler.to_dict always emits `config`. The Node sibling serializes
+# `{name: 'tempo', config: {}}` with `config` preserved (TypeScript optional
+# field initialized to a new object). Cross-language byte-parity requires the
+# Python emitter to do the same — even when the dataclass default
+# `field(default_factory=dict)` left config empty.
+
+
+def test_ucp_payment_handler_to_dict_preserves_empty_config() -> None:
+    assert UCPPaymentHandler(name="tempo").to_dict() == {"name": "tempo", "config": {}}
+
+
+def test_ucp_payment_handler_to_dict_preserves_explicit_empty_config() -> None:
+    assert UCPPaymentHandler(name="tempo", config={}).to_dict() == {"name": "tempo", "config": {}}
+
+
+def test_ucp_payment_handler_to_dict_preserves_populated_config() -> None:
+    assert UCPPaymentHandler(name="tempo", config={"recipient": "0xabc"}).to_dict() == {
+        "name": "tempo",
+        "config": {"recipient": "0xabc"},
+    }
+
+
+# Typed-vs-raw read order: `data.account_verification == {}` means "API
+# explicitly returned an empty block" and must win over `data.raw`. Only when
+# the typed field is `None` does the builder fall back to raw. Mirrors the Node
+# sibling, which reads the typed field directly without consulting raw.
+
+
+def test_typed_empty_account_verification_wins_over_raw() -> None:
+    result = AssessResult(
+        allow=True,
+        resolved_operator="op_xyz",
+        account_verification={},
+        raw={"account_verification": {"kyc_level": "verified"}},
+    )
+    profile = build_ucp_profile(**_base_kwargs(), data=result)
+    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
+    # Empty typed dict suppresses the raw fallback; kyc_level falls through to
+    # the schema default "none" instead of bleeding the raw "verified" value.
+    assert cap.extras["claims"]["kyc_level"] == "none"
+
+
+def test_typed_empty_operator_verification_wins_over_raw() -> None:
+    result = AssessResult(
+        allow=True,
+        resolved_operator="op_xyz",
+        # Empty dict is a valid typed value (means "operator block returned empty").
+        operator_verification=cast("Any", {}),
+        raw={"operator_verification": {"level": "enhanced", "verified_at": "2026-01-01T00:00:00Z"}},
+    )
+    profile = build_ucp_profile(**_base_kwargs(), data=result)
+    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
+    # Empty typed dict suppresses raw fallback; verified_at falls through to None.
+    assert cap.extras["claims"]["verified_at"] is None

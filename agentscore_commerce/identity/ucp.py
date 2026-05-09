@@ -165,10 +165,12 @@ class UCPPaymentHandler:
     config: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"name": self.name}
-        if self.config:
-            out["config"] = self.config
-        return out
+        # Always emit `config` (even when empty) so a Python-built handler matches
+        # the Node sibling byte-for-byte: TypeScript serializes
+        # `{name: 'tempo', config: {}}` with `config` preserved, and the dataclass
+        # default is `field(default_factory=dict)` so the field is always a dict.
+        # Cross-language verify drifts otherwise on explicit `config={}` callers.
+        return {"name": self.name, "config": self.config}
 
 
 @dataclass
@@ -273,35 +275,39 @@ def build_ucp_profile(
 
     if data is not None and data.resolved_operator:
         # Match node-commerce read order: prefer the typed AssessResult fields,
-        # fall back to ``data.raw`` only when the typed field is missing. The
-        # Node sibling reads ``input.data.operator_verification`` /
-        # ``input.data.account_verification`` directly without consulting
-        # ``raw``; if a caller hand-constructs an AssessResult with mismatched
-        # typed and raw verification blocks, both languages must pick the same
-        # source so a profile signed in one verifies in the other.
+        # fall back to ``data.raw`` only when the typed field is ``None`` (absent).
+        # An explicitly-empty typed dict means "API returned the block with no
+        # populated values" and wins over raw — same as the Node sibling, which
+        # reads ``input.data.operator_verification`` / ``input.data.account_verification``
+        # directly without consulting ``raw``. ``is None`` (not truthy) is the
+        # correct distinction so a caller hand-constructing
+        # ``AssessResult(account_verification={}, raw={"account_verification": {...}})``
+        # gets the same empty-block behavior in both languages.
         typed_op = data.operator_verification
-        operator_verification: dict[str, Any] = {}
-        if isinstance(typed_op, dict):
+        operator_verification: dict[str, Any]
+        if typed_op is None:
+            raw = data.raw or {}
+            raw_op = raw.get("operator_verification") if isinstance(raw, dict) else None
+            operator_verification = raw_op if isinstance(raw_op, dict) else {}
+        elif isinstance(typed_op, dict):
             operator_verification = cast("dict[str, Any]", typed_op)
-        elif typed_op is not None:
+        else:
             # Convert OperatorVerification dataclass to a plain dict.
             operator_verification = {
                 "level": getattr(typed_op, "level", None),
                 "operator_type": getattr(typed_op, "operator_type", None),
                 "verified_at": getattr(typed_op, "verified_at", None),
             }
-        if not operator_verification:
-            raw = data.raw or {}
-            raw_op = raw.get("operator_verification") if isinstance(raw, dict) else None
-            if isinstance(raw_op, dict):
-                operator_verification = raw_op
 
-        account_verification: dict[str, Any] = data.account_verification or {}
-        if not account_verification:
+        account_verification: dict[str, Any]
+        if data.account_verification is None:
             raw = data.raw or {}
             raw_av = raw.get("account_verification") if isinstance(raw, dict) else None
-            if isinstance(raw_av, dict):
-                account_verification = raw_av
+            account_verification = raw_av if isinstance(raw_av, dict) else {}
+        elif isinstance(data.account_verification, dict):
+            account_verification = data.account_verification
+        else:
+            account_verification = {}
         # `dict.get(k) or DEFAULT` (not `dict.get(k, DEFAULT)`) coerces both a
         # missing key AND a present-but-falsy (None / "") value to the default,
         # matching the node sibling's `||` semantics. The API can return

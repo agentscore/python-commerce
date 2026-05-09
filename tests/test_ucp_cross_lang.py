@@ -46,10 +46,15 @@ def test_corpus_covers_canonical_scenarios() -> None:
             "multikey",
             "emoji-keys",
             "int-boundary",
-            # `data-driven-claims` is the only fixture in the corpus that
-            # exercises ``build_ucp_profile`` / ``buildUCPProfile``'s data path
-            # (vs. hand-crafted capabilities). Catches drift in
-            # ``account_verification`` coalescing.
+            # `data-driven-claims` exercises the raw-dict fallback read path
+            # (`AssessResult(raw={"account_verification": {...}})`) that
+            # production callers populate. `typed-claims` exercises the typed
+            # field path (`AssessResult(account_verification={...}, raw=None)`)
+            # that hand-constructed callers use — Node's `buildUCPProfile`
+            # reads typed fields directly without consulting raw, so both
+            # paths must produce byte-identical canonical bytes across
+            # languages or cross-lang verify silently drifts.
             "data-driven-claims",
+            "typed-claims",
         ):
             assert f"{lang}-{scenario}.json" in names, f"missing fixture {lang}-{scenario}.json"

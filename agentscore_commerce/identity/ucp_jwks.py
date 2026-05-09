@@ -179,7 +179,7 @@ def _reject_floats(value: Any) -> None:
     if isinstance(value, dict):
         for v in value.values():
             _reject_floats(v)
-    elif isinstance(value, list | tuple):
+    elif isinstance(value, list | tuple | set | frozenset):
         for v in value:
             _reject_floats(v)
 

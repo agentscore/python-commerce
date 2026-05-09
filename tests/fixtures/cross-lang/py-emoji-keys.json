@@ -19,7 +19,7 @@
     "signing_keys": [
       {
         "crv": "Ed25519",
-        "x": "CX-4oqEqpxhUtsTrsaF2df7KBeIR0Wpe4bgwnlsMk8A",
+        "x": "xrTm5ZIZUbFC1_S2Yw5KZkf-9m8--CmwP6-bkttx-ik",
         "kid": "py-emoji-keys-EdDSA",
         "alg": "EdDSA",
         "use": "sig",
@@ -27,17 +27,18 @@
       }
     ],
     "extras": {
-      "豈": 1,
-      "🍷": 2,
-      "a": 3
+      "a": 1,
+      "豈": 2,
+      "": 3,
+      "🍷": 4
     },
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJ1Y3AtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsiYSI6Mywi6LGIIjoxLCLwn423IjoyfSwibmFtZSI6IkVtb2ppIEtleXMgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnt9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vZW1vamkuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZW1vamkta2V5cy1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJDWC00b3FFcXB4aFV0c1Ryc2FGMmRmN0tCZUlSMFdwZTRiZ3dubHNNazhBIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.aXPJHy4hcLxAF1zd9zLSZbbSMBP56BTeZVXY3V_Ywv4sqabLWgJGRmmp2iyJNamCFgYJ8jPIfd9nF1UU2R9WBg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJ1Y3AtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJleHRyYXMiOnsiYSI6MSwi6LGIIjoyLCLugIAiOjMsIvCfjbciOjR9LCJuYW1lIjoiRW1vamkgS2V5cyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOlt7ImNvbmZpZyI6e30sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9lbW9qaS5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1lbW9qaS1rZXlzLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6InhyVG01WklaVWJGQzFfUzJZdzVLWmtmLTltOC0tQ213UDYtYmt0dHgtaWsifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.O2ENDO4OJreRSvRZqbyMzbQlaG3SKy_zsfMFqqV6HUkwvIzmpH2bot_XtJzyz23RTsBdwvZtLxQJOSnBFkIfBQ"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "CX-4oqEqpxhUtsTrsaF2df7KBeIR0Wpe4bgwnlsMk8A",
+        "x": "xrTm5ZIZUbFC1_S2Yw5KZkf-9m8--CmwP6-bkttx-ik",
         "kid": "py-emoji-keys-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

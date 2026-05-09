@@ -202,7 +202,11 @@ profile = build_ucp_profile(
 )
 ```
 
-UCP §6 trust-mode requires profiles to carry a JWS signature backed by a JWKS at `/.well-known/jwks.json`. Sign + verify via the optional `joserfc` extra (`pip install agentscore-commerce[ucp]`):
+UCP §6 trust-mode requires profiles to carry a JWS signature backed by a JWKS at `/.well-known/jwks.json`. Sign + verify via the optional `joserfc` extra (tested against joserfc v1.x; pin `joserfc>=1.0.0,<2`):
+
+```bash
+pip install agentscore-commerce[ucp]
+```
 
 ```python
 from agentscore_commerce.identity import (

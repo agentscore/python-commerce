@@ -30,13 +30,20 @@ def test_corpus_covers_canonical_scenarios() -> None:
     generators = {json.loads(p.read_text())["generator"] for p in FIXTURES}
     assert "node" in generators
     assert "python" in generators
-    # Each language ships 6 base scenarios so cross-lang verify exercises all of them.
+    # `emoji-keys` exercises non-ASCII object keys with codepoints that genuinely
+    # distinguish UTF-16 first-unit sort from Unicode codepoint sort: BMP private use
+    # (U+E000) ranks BEFORE supplementary plane (U+1F377) by codepoint but AFTER it by
+    # UTF-16 first unit (because the high surrogate 55356 < 57344). Both repos ship the
+    # node and python emoji-keys fixtures so a regression in either language's key sort
+    # surfaces here.
     for lang in ("node", "py"):
-        for scenario in ("minimal", "es256-rails", "extras-int", "capability", "unicode", "multikey"):
+        for scenario in (
+            "minimal",
+            "es256-rails",
+            "extras-int",
+            "capability",
+            "unicode",
+            "multikey",
+            "emoji-keys",
+        ):
             assert f"{lang}-{scenario}.json" in names, f"missing fixture {lang}-{scenario}.json"
-    # `py-emoji-keys.json` locks codepoint-aware key sort: Python sorts by Unicode
-    # codepoint by default, JS default sort orders by UTF-16 code units which
-    # diverges for supplementary-plane chars. The signed body covers BMP CJK
-    # Compatibility (U+8C48), non-BMP wine glass (U+1F377), and ASCII so both
-    # languages must explicitly sort by codepoint to maintain byte parity.
-    assert "py-emoji-keys.json" in names

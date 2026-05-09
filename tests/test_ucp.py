@@ -1,5 +1,7 @@
 """Tests for build_ucp_profile."""
 
+import pytest
+
 from agentscore_commerce.identity import (
     AGENTSCORE_UCP_CAPABILITY,
     AssessResult,
@@ -109,3 +111,25 @@ def test_respects_agentscore_schema_url_override():
     )
     cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
     assert cap.schema == "https://custom.example/schema.json"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "version",
+        "spec",
+        "services",
+        "capabilities",
+        "payment_handlers",
+        "signing_keys",
+        "name",
+        "signature",
+        "__class__",
+        "__dict__",
+        "__init__",
+    ],
+)
+def test_extras_reserved_collision_rejected(key: str) -> None:
+    profile = build_ucp_profile(**_base_kwargs(), extras={key: "attacker"})
+    with pytest.raises(ValueError, match="collides with a reserved profile field"):
+        profile.to_dict()

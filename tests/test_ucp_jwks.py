@@ -313,6 +313,18 @@ class TestFloatRejection:
         signed = sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
         assert verify_ucp_profile(signed, build_jwks_response([signer.public_jwk])) is True
 
+    def test_rejects_float_in_set(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"vals": {0.5}}}
+        with pytest.raises(ValueError, match="rejects float"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
+    def test_rejects_float_in_frozenset(self) -> None:
+        signer = generate_ucp_signing_key(kid="k")
+        profile = {**_base_profile([signer.public_jwk]), "extras": {"vals": frozenset({0.25})}}
+        with pytest.raises(ValueError, match="rejects float"):
+            sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
+
 
 class TestUCPSigningKeyFromJWK:
     def test_round_trip_eddsa(self) -> None:

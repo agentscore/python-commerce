@@ -376,8 +376,11 @@ def verify_ucp_profile(
     # typ -> alg -> kid -> crit -> kid_lookup. Cross-language ordering parity is
     # non-obvious because joserfc's deserialize_compact only enforces crit AFTER
     # the kid lookup, so we must check it here ourselves.
-    crit = header.get("crit")
-    if crit is not None:
+    # Gate on key-presence (not `is not None`) so that JSON `null` falls through to
+    # the shape check and surfaces typed `malformed_jws`, not joserfc's raw TypeError
+    # when it tries to iterate `None`. RFC 7515 §4.1.11 requires a non-empty array.
+    if "crit" in header:
+        crit = header["crit"]
         if not isinstance(crit, list) or len(crit) == 0:
             raise UCPVerificationError(
                 "malformed_jws",

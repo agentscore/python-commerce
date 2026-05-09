@@ -6,6 +6,7 @@ import pytest
 
 from agentscore_commerce.identity.ucp import UCPSigningKey
 from agentscore_commerce.identity.ucp_jwks import (
+    GeneratedUCPKey,
     UCPVerificationError,
     build_jwks_response,
     generate_ucp_signing_key,
@@ -556,6 +557,61 @@ class TestAdditionalHardening:
         with pytest.raises(UCPVerificationError) as exc:
             verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
         assert exc.value.code == "unrecognized_critical_header"
+
+    def _hand_craft_jws_with_crit(self, key: GeneratedUCPKey, profile: dict, crit_value: object) -> str:
+        """Build a JWS whose protected header carries an arbitrary `crit` value
+        (including JSON null / non-list shapes) by signing the raw bytes directly.
+        joserfc's high-level sign API would reject these on the way in."""
+        import base64
+
+        canonical = (
+            __import__("json").dumps(profile, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        )
+        header = {"alg": "EdDSA", "kid": "real", "typ": "ucp-profile+jws", "crit": crit_value}
+        header_b64 = (
+            base64.urlsafe_b64encode(__import__("json").dumps(header, separators=(",", ":")).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+        payload_b64 = base64.urlsafe_b64encode(canonical).rstrip(b"=").decode()
+        signing_input = f"{header_b64}.{payload_b64}".encode()
+        sig = key.private_key.private_key.sign(signing_input)
+        sig_b64 = base64.urlsafe_b64encode(sig).rstrip(b"=").decode()
+        return f"{header_b64}.{payload_b64}.{sig_b64}"
+
+    def test_verify_crit_null_emits_malformed_jws(self) -> None:
+        """JWS protected header with crit=null is malformed (RFC 7515 §4.1.11
+        requires a non-empty array). Regression guard: the previous `is not None`
+        gate let JSON null fall through to joserfc's iterate-crit, which crashed
+        with a raw TypeError instead of the typed UCPVerificationError. Node
+        sibling already maps crit=null to malformed_jws."""
+        key = generate_ucp_signing_key(kid="real")
+        profile = _base_profile([key.public_jwk])
+        jws_compact = self._hand_craft_jws_with_crit(key, profile, None)
+        signed = {**profile, "signature": jws_compact}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
+        assert exc.value.code == "malformed_jws"
+
+    def test_verify_crit_empty_array_emits_malformed_jws(self) -> None:
+        """RFC 7515 §4.1.11 requires `crit` be a non-empty array."""
+        key = generate_ucp_signing_key(kid="real")
+        profile = _base_profile([key.public_jwk])
+        jws_compact = self._hand_craft_jws_with_crit(key, profile, [])
+        signed = {**profile, "signature": jws_compact}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
+        assert exc.value.code == "malformed_jws"
+
+    def test_verify_crit_string_emits_malformed_jws(self) -> None:
+        """`crit` must be an array per RFC 7515 §4.1.11; a string is malformed."""
+        key = generate_ucp_signing_key(kid="real")
+        profile = _base_profile([key.public_jwk])
+        jws_compact = self._hand_craft_jws_with_crit(key, profile, "fakething")
+        signed = {**profile, "signature": jws_compact}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
+        assert exc.value.code == "malformed_jws"
 
 
 class TestVerifierCanonicalizationTypedErrors:

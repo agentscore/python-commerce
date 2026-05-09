@@ -1,6 +1,6 @@
 """Tests for build_ucp_profile."""
 
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
@@ -386,7 +386,7 @@ def test_typed_empty_operator_verification_wins_over_raw() -> None:
         allow=True,
         resolved_operator="op_xyz",
         # Empty dict is a valid typed value (means "operator block returned empty").
-        operator_verification=cast("Any", {}),
+        operator_verification=cast("OperatorVerification", {}),
         raw={"operator_verification": {"level": "enhanced", "verified_at": "2026-01-01T00:00:00Z"}},
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)

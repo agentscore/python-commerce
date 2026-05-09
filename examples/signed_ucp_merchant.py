@@ -141,4 +141,8 @@ async def selftest() -> JSONResponse:
         verify_ucp_profile(profile, jwks)
         return JSONResponse({"ok": True, "kid": profile["signing_keys"][0]["kid"]})
     except UCPVerificationError as exc:
-        return JSONResponse({"ok": False, "code": exc.code, "message": str(exc)}, status_code=500)
+        logger.exception("UCP self-test verification failed")
+        return JSONResponse(
+            {"ok": False, "code": exc.code, "error": type(exc).__name__},
+            status_code=500,
+        )

@@ -33,17 +33,17 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "wNeB1hL1l7cml2x2miyjUChAxvveRYkuuMug1XJkq64"
+        "x": "NXGO-eKr-ctG46sGb2btycvvmFyjAaNRLGQT2a5hJ0E"
       }
     ],
     "name": "Typed Claims Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LXR5cGVkLWNsYWltcy1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6IjIxKyIsImlzc3VlciI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaCIsImp1cmlzZGljdGlvbiI6IlVTIiwia3ljX2xldmVsIjoiZW5oYW5jZWQiLCJvcGVyYXRvcl9pZCI6Im9wX3R5cGVkX2NsYWltcyIsInNhbmN0aW9uc19jbGVhciI6dHJ1ZSwidmVyaWZpZWRfYXQiOiIyMDI2LTA0LTAxVDAwOjAwOjAwWiIsInZlcmlmeV91cmwiOiJodHRwczovL2FnZW50c2NvcmUuc2gvdmVyaWZ5L29wX3R5cGVkX2NsYWltcyJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IlR5cGVkIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL3QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktdHlwZWQtY2xhaW1zLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IndOZUIxaEwxbDdjbWwyeDJtaXlqVUNoQXh2dmVSWWt1dU11ZzFYSmtxNjQifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.RJjoaDeclNkgVS18FQ4zS7vpoyXV3p0tO1J2YCnrqxe6qM6XQtuCyl90zJQXXFvdz41EEC9et7ZquSUviY2BDQ"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LXR5cGVkLWNsYWltcy1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6IjIxKyIsImlzc3VlciI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaCIsImp1cmlzZGljdGlvbiI6IlVTIiwia3ljX2xldmVsIjoiZW5oYW5jZWQiLCJvcGVyYXRvcl9pZCI6Im9wX3R5cGVkX2NsYWltcyIsInNhbmN0aW9uc19jbGVhciI6dHJ1ZSwidmVyaWZpZWRfYXQiOiIyMDI2LTA0LTAxVDAwOjAwOjAwWiIsInZlcmlmeV91cmwiOiJodHRwczovL2FnZW50c2NvcmUuc2gvdmVyaWZ5L29wX3R5cGVkX2NsYWltcyJ9LCJuYW1lIjoic2guYWdlbnRzY29yZS5pZGVudGl0eSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJ2ZXJzaW9uIjoiMSJ9XSwibmFtZSI6IlR5cGVkIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL3QuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktdHlwZWQtY2xhaW1zLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6Ik5YR08tZUtyLWN0RzQ2c0diMmJ0eWN2dm1GeWpBYU5STEdRVDJhNWhKMEUifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.UcpNbaK9FXLzCC-zHCeZjV9HWYoFymFBqApZeliLur3sSYeW3U6JoNJlzTEu-iaZT_TOC5NCbIiVQJ02V44TCg"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "wNeB1hL1l7cml2x2miyjUChAxvveRYkuuMug1XJkq64",
+        "x": "NXGO-eKr-ctG46sGb2btycvvmFyjAaNRLGQT2a5hJ0E",
         "kid": "py-typed-claims-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

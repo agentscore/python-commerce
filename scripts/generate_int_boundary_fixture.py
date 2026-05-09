@@ -12,6 +12,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from agentscore_commerce.identity import (
+    UCPService,
+    UCPSigningKey,
+    build_ucp_profile,
+)
 from agentscore_commerce.identity.ucp_jwks import (
     build_jwks_response,
     generate_ucp_signing_key,
@@ -26,24 +31,21 @@ KID = "py-int-boundary-EdDSA"
 def main() -> None:
     key = generate_ucp_signing_key(kid=KID)
 
-    profile = {
-        "version": "2026-04-17",
-        "spec": "https://ucp.dev/",
-        "name": "Int Boundary Merchant",
-        "services": [{"type": "rest", "url": "https://i.example.com"}],
-        "capabilities": [],
-        "payment_handlers": [],
-        "signing_keys": [key.public_jwk],
-        "extras": {
+    profile = build_ucp_profile(
+        name="Int Boundary Merchant",
+        services=[UCPService(type="rest", url="https://i.example.com")],
+        payment_handlers=[],
+        signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
+        extras={
             "max_safe_int": 9007199254740991,
             "min_safe_int": -9007199254740991,
             "small_int": 42,
             "neg_small_int": -42,
             "zero": 0,
         },
-    }
+    )
 
-    signed = sign_ucp_profile(profile, signing_key=key.private_key, kid=KID)
+    signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=KID)
 
     fixture = {
         "profile": signed,

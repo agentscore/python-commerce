@@ -340,19 +340,20 @@ def test_ucp_signing_key_extras_non_reserved_pass_through() -> None:
     assert out == {"kid": "me", "kty": "EC", "alg": "ES256", "crv": "P-256", "x": "abc", "y": "def"}
 
 
-# UCPPaymentHandler.to_dict always emits `config`. The Node sibling serializes
-# `{name: 'tempo', config: {}}` with `config` preserved (TypeScript optional
-# field initialized to a new object). Cross-language byte-parity requires the
-# Python emitter to do the same — even when the dataclass default
-# `field(default_factory=dict)` left config empty.
+# UCPPaymentHandler.to_dict omits `config` when empty. Node's
+# `UCPPaymentHandler.config` is optional (`Record<string, unknown>?`), so a Node
+# caller writing `{name: 'tempo'}` ships a wire profile WITHOUT the `config` key.
+# Python must do the same or the same logical input produces different canonical
+# bytes between SDKs. Explicit `config={}` is semantically identical to absent
+# and follows the same omit rule.
 
 
-def test_ucp_payment_handler_to_dict_preserves_empty_config() -> None:
-    assert UCPPaymentHandler(name="tempo").to_dict() == {"name": "tempo", "config": {}}
+def test_ucp_payment_handler_to_dict_omits_default_empty_config() -> None:
+    assert UCPPaymentHandler(name="tempo").to_dict() == {"name": "tempo"}
 
 
-def test_ucp_payment_handler_to_dict_preserves_explicit_empty_config() -> None:
-    assert UCPPaymentHandler(name="tempo", config={}).to_dict() == {"name": "tempo", "config": {}}
+def test_ucp_payment_handler_to_dict_omits_explicit_empty_config() -> None:
+    assert UCPPaymentHandler(name="tempo", config={}).to_dict() == {"name": "tempo"}
 
 
 def test_ucp_payment_handler_to_dict_preserves_populated_config() -> None:

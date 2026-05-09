@@ -169,12 +169,17 @@ class UCPPaymentHandler:
     config: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        # Always emit `config` (even when empty) so a Python-built handler matches
-        # the Node sibling byte-for-byte: TypeScript serializes
-        # `{name: 'tempo', config: {}}` with `config` preserved, and the dataclass
-        # default is `field(default_factory=dict)` so the field is always a dict.
-        # Cross-language verify drifts otherwise on explicit `config={}` callers.
-        return {"name": self.name, "config": self.config}
+        # Match Node SDK: omit `config` when empty (TypeScript optional-property
+        # convention). Node's `UCPPaymentHandler.config` is `Record<string, unknown>?`
+        # and `buildUCPProfile` passes the array verbatim, so a Node caller writing
+        # `{ name: 'tempo' }` ships a wire profile WITHOUT the `config` key. Python
+        # must do the same or the same logical input produces different canonical
+        # bytes between SDKs. Callers who explicitly pass `config={}` get the same
+        # treatment because an empty dict is semantically identical to "absent".
+        out: dict[str, Any] = {"name": self.name}
+        if self.config:
+            out["config"] = self.config
+        return out
 
 
 @dataclass

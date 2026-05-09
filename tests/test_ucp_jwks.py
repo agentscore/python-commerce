@@ -631,6 +631,28 @@ class TestAdditionalHardening:
             verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
         assert exc.value.code == "malformed_jws"
 
+    @pytest.mark.parametrize(
+        "bad_crit",
+        [
+            [42],
+            [None],
+            [{}],
+            [42, "valid"],
+            ["valid", 42],
+        ],
+    )
+    def test_verify_crit_with_non_string_element_emits_malformed_jws(self, bad_crit: object) -> None:
+        """RFC 7515 §4.1.11: crit array entries MUST be strings. Non-string elements
+        (including mixed arrays) are malformed. Cross-language parity with node-commerce,
+        which rejects [42] etc. with malformed_jws."""
+        key = generate_ucp_signing_key(kid="real")
+        profile = _base_profile([key.public_jwk])
+        jws_compact = self._hand_craft_jws_with_crit(key, profile, bad_crit)
+        signed = {**profile, "signature": jws_compact}
+        with pytest.raises(UCPVerificationError) as exc:
+            verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
+        assert exc.value.code == "malformed_jws"
+
 
 class TestVerifierCanonicalizationTypedErrors:
     """Verifier-side canonicalize must NEVER leak raw ValueError; always UCPVerificationError(body_mismatch)."""

@@ -409,10 +409,10 @@ def verify_ucp_profile(
     # when it tries to iterate `None`. RFC 7515 §4.1.11 requires a non-empty array.
     if "crit" in header:
         crit = header["crit"]
-        if not isinstance(crit, list) or len(crit) == 0:
+        if not isinstance(crit, list) or len(crit) == 0 or not all(isinstance(c, str) for c in crit):
             raise UCPVerificationError(
                 "malformed_jws",
-                f"JWS protected header crit must be a non-empty array; got {crit!r}.",
+                f"JWS protected header crit must be a non-empty array of strings; got {crit!r}.",
             )
         raise UCPVerificationError(
             "unrecognized_critical_header",

@@ -103,8 +103,8 @@ def _stripe_handler(config: dict[str, Any]) -> UCPPaymentHandlerBinding:
     return UCPPaymentHandlerBinding(
         id="stripe",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/stripe-spt",
-        schema="https://agentscore.sh/schemas/payment-handlers/stripe-spt.json",
+        spec="https://agentscore.sh/specification/payment-handlers/stripe_spt",
+        schema="https://agentscore.sh/schemas/payment-handlers/stripe_spt.json",
         config=config,
     )
 
@@ -148,7 +148,7 @@ def main() -> None:
         services={"dev.ucp.shopping": [_shop_service_mcp("https://e.example.com")]},
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
         payment_handlers={
-            "sh.agentscore.payment.stripe-spt": [_stripe_handler({"profile_id": "abc", "count": 7})],
+            "sh.agentscore.payment.stripe_spt": [_stripe_handler({"profile_id": "abc", "count": 7})],
         },
         name="Extras Merchant",
     )

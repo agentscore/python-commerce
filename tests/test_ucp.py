@@ -254,10 +254,49 @@ def test_ucp_service_binding_extras_collision_rejected() -> None:
         version="2026-04-08",
         spec="https://ucp.dev/spec",
         transport="rest",
+        endpoint="https://x.example",
         extras={"transport": "different"},
     )
     with pytest.raises(ValueError, match=r"UCPServiceBinding\.extras key 'transport' collides"):
         svc.to_dict()
+
+
+@pytest.mark.parametrize("transport", ["rest", "mcp", "a2a"])
+def test_ucp_service_binding_rejects_missing_endpoint_for_required_transports(transport: str) -> None:
+    """Per UCP spec service.json: rest/mcp/a2a transports MUST carry an endpoint URL."""
+    svc = UCPServiceBinding(
+        version="2026-04-08",
+        spec="https://ucp.dev/spec",
+        transport=transport,  # type: ignore[arg-type]
+    )
+    with pytest.raises(ValueError, match="requires `endpoint`"):
+        svc.to_dict()
+
+
+def test_ucp_service_binding_embedded_does_not_require_endpoint() -> None:
+    """Per spec service.json: embedded transport MAY omit endpoint."""
+    svc = UCPServiceBinding(
+        version="2026-04-08",
+        spec="https://ucp.dev/spec",
+        transport="embedded",
+        schema="https://ucp.dev/schemas/embedded.json",
+    )
+    out = svc.to_dict()
+    assert "endpoint" not in out
+
+
+def test_ucp_payment_handler_drops_empty_available_instruments() -> None:
+    """Per spec payment_handler.json: available_instruments has minItems:1.
+    Drop the field when empty so callers passing `[]` don't ship an invalid profile."""
+    h = UCPPaymentHandlerBinding(
+        id="tempo",
+        version="2026-04-08",
+        spec="https://x",
+        schema="https://x",
+        available_instruments=[],
+    )
+    out = h.to_dict()
+    assert "available_instruments" not in out
 
 
 def test_ucp_service_binding_extras_non_reserved_pass_through() -> None:

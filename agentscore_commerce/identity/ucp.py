@@ -160,6 +160,16 @@ class UCPServiceBinding:
     _RESERVED = frozenset({"version", "spec", "transport", "endpoint", "schema", "id", "config"})
 
     def to_dict(self) -> dict[str, Any]:
+        # Per UCP spec service.json: rest/mcp/a2a transports REQUIRE endpoint;
+        # embedded does not. Validate at serialization so a misconfigured profile
+        # fails locally instead of being rejected by spec-strict platforms.
+        if self.transport in ("rest", "mcp", "a2a") and self.endpoint is None:
+            msg = (
+                f"UCPServiceBinding(transport={self.transport!r}) requires `endpoint`. "
+                "Per UCP spec service.json business_schema, rest/mcp/a2a bindings MUST "
+                "carry an endpoint URL."
+            )
+            raise ValueError(msg)
         out: dict[str, Any] = {
             "version": self.version,
             "spec": self.spec,
@@ -239,7 +249,10 @@ class UCPPaymentHandlerBinding:
             "spec": self.spec,
             "schema": self.schema,
         }
-        if self.available_instruments is not None:
+        # Per UCP spec payment_handler.json: available_instruments has minItems:1.
+        # Drop the field when empty so a caller passing `[]` doesn't ship an
+        # invalid profile.
+        if self.available_instruments:
             out["available_instruments"] = self.available_instruments
         if self.config:
             out["config"] = self.config

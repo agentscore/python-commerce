@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentscore-commerce"
-version = "1.5.0"
+version = "1.5.1"
 description = "Agent commerce SDK for Python — identity middleware (FastAPI, Flask, Django, AIOHTTP, Sanic, ASGI) + payment helpers + 402 builders + discovery + Stripe multichain. The full merchant-side toolkit for AgentScore-powered agent commerce."
 readme = "README.md"
 license = "MIT"

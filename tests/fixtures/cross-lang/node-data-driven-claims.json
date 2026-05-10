@@ -1,7 +1,7 @@
 {
   "profile": {
     "ucp": {
-      "version": "2026-04-17",
+      "version": "2026-04-08",
       "services": {
         "dev.ucp.shopping": [
           {
@@ -46,10 +46,10 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "t9ul3BiA3r0fugZcbcEcyARb8SAH_-4dalE3sjaVMKc"
+        "x": "Ex__9-UJq57zdUnDjihuTriMCT66Mxp8AlhmPXhxnAw"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6InQ5dWwzQmlBM3IwZnVnWmNiY0VjeUFSYjhTQUhfLTRkYWxFM3NqYVZNS2MifV0sInVjcCI6eyJjYXBhYmlsaXRpZXMiOnsic2guYWdlbnRzY29yZS5pZGVudGl0eSI6W3siY2xhaW1zIjp7ImFnZV9icmFja2V0IjoidW5rbm93biIsImlzc3VlciI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaCIsImp1cmlzZGljdGlvbiI6IiIsImt5Y19sZXZlbCI6Im5vbmUiLCJvcGVyYXRvcl9pZCI6Im9wX2RhdGFfZHJpdmVuIiwic2FuY3Rpb25zX2NsZWFyIjpmYWxzZSwidmVyaWZpZWRfYXQiOm51bGwsInZlcmlmeV91cmwiOiJodHRwczovL2FnZW50c2NvcmUuc2gvdmVyaWZ5L29wX2RhdGFfZHJpdmVuIn0sImV4dGVuZHMiOlsiZGV2LnVjcC5zaG9wcGluZy5jaGVja291dCIsImRldi51Y3Auc2hvcHBpbmcuY2FydCJdLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwic3BlYyI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zcGVjaWZpY2F0aW9uL2lkZW50aXR5IiwidmVyc2lvbiI6IjEifV19LCJuYW1lIjoiRGF0YSBEcml2ZW4gQ2xhaW1zIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6e30sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9kLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9fQ.8MSGbttC6ITB1vEYr0Wq8kSRniYAV25gMT7jahMGKIJfcE-rBGTukPFpXzpBWUNkSWOW4ihkOvTA5Wxws4NjDA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtZGF0YS1kcml2ZW4tY2xhaW1zLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IkV4X185LVVKcTU3emRVbkRqaWh1VHJpTUNUNjZNeHA4QWxobVBYaHhuQXcifV0sInVjcCI6eyJjYXBhYmlsaXRpZXMiOnsic2guYWdlbnRzY29yZS5pZGVudGl0eSI6W3siY2xhaW1zIjp7ImFnZV9icmFja2V0IjoidW5rbm93biIsImlzc3VlciI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaCIsImp1cmlzZGljdGlvbiI6IiIsImt5Y19sZXZlbCI6Im5vbmUiLCJvcGVyYXRvcl9pZCI6Im9wX2RhdGFfZHJpdmVuIiwic2FuY3Rpb25zX2NsZWFyIjpmYWxzZSwidmVyaWZpZWRfYXQiOm51bGwsInZlcmlmeV91cmwiOiJodHRwczovL2FnZW50c2NvcmUuc2gvdmVyaWZ5L29wX2RhdGFfZHJpdmVuIn0sImV4dGVuZHMiOlsiZGV2LnVjcC5zaG9wcGluZy5jaGVja291dCIsImRldi51Y3Auc2hvcHBpbmcuY2FydCJdLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwic3BlYyI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zcGVjaWZpY2F0aW9uL2lkZW50aXR5IiwidmVyc2lvbiI6IjEifV19LCJuYW1lIjoiRGF0YSBEcml2ZW4gQ2xhaW1zIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6e30sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9kLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.9H0tKbXw99RsDCZXhBZ1ug0StgArOL07Ue-yc4IdJtKmXsoHBaO2bfo2ygVyGz3XK2TQtGvrA4N9wmSdky9MCQ"
   },
   "jwks": {
     "keys": [
@@ -59,7 +59,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "t9ul3BiA3r0fugZcbcEcyARb8SAH_-4dalE3sjaVMKc"
+        "x": "Ex__9-UJq57zdUnDjihuTriMCT66Mxp8AlhmPXhxnAw"
       }
     ]
   },

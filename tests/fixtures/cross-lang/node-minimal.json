@@ -1,7 +1,7 @@
 {
   "profile": {
     "ucp": {
-      "version": "2026-04-17",
+      "version": "2026-04-08",
       "services": {
         "dev.ucp.shopping": [
           {
@@ -24,10 +24,10 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "69RWgrarCEN0sSH5FfkJ2-miQQNRpXYh0wt9kviqzqk"
+        "x": "4k9JLt7VYeohDntkv9QWirs8S0rCcY9GRqlo6Q-Om_w"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI2OVJXZ3JhckNFTjBzU0g1RmZrSjItbWlRUU5ScFhZaDB3dDlrdmlxenFrIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6Ik1pbmltYWwgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL20uZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTE3In19.ei7hxM6v-gnxAkgG4NiWLwzhd9wOxg3lO9ZTFVEuSBaAho0n_GaQayO99ibjQgqa2yUa1J9PcGh3woMh7cQcAA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI0azlKTHQ3Vlllb2hEbnRrdjlRV2lyczhTMHJDY1k5R1JxbG82US1PbV93In1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6Ik1pbmltYWwgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL20uZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In19.oaltgn7J8k5mMmcJJDKgO3hFFcuwfmWMtQIjOdqqPLoASC23xEycv7Rxl0Kw8V4Uv-GdRWMZRkZFbEt1lR9XBw"
   },
   "jwks": {
     "keys": [
@@ -37,7 +37,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "69RWgrarCEN0sSH5FfkJ2-miQQNRpXYh0wt9kviqzqk"
+        "x": "4k9JLt7VYeohDntkv9QWirs8S0rCcY9GRqlo6Q-Om_w"
       }
     ]
   },

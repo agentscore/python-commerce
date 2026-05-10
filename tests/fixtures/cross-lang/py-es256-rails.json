@@ -1,7 +1,7 @@
 {
   "profile": {
     "ucp": {
-      "version": "2026-04-17",
+      "version": "2026-04-08",
       "services": {
         "dev.ucp.shopping": [
           {
@@ -56,18 +56,18 @@
         "alg": "ES256",
         "use": "sig",
         "crv": "P-256",
-        "x": "NFS5qrSPV5sDQ5hHVag2zFqOSpTO6NBL-Hqf9EjBOco",
-        "y": "wtbEwX6TxEFid1IJvIwxkVfNic3Q_xEOq7j54Kje7aY"
+        "x": "C3ZfMpkic5bJf8t1HREJMrW_46yq7oG4pTelrXa6BTs",
+        "y": "GpQcHSIQaLCNBpMl7CeGxEpGtu50zYKGiaZUSaKUbtQ"
       }
     ],
-    "signature": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB5LWVzMjU2LXJhaWxzLUVTMjU2IiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVTMjU2IiwiY3J2IjoiUC0yNTYiLCJraWQiOiJweS1lczI1Ni1yYWlscy1FUzI1NiIsImt0eSI6IkVDIiwidXNlIjoic2lnIiwieCI6Ik5GUzVxclNQVjVzRFE1aEhWYWcyekZxT1NwVE82TkJMLUhxZjlFakJPY28iLCJ5Ijoid3RiRXdYNlR4RUZpZDFJSnZJd3hrVmZOaWMzUV94RU9xN2o1NEtqZTdhWSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJFUzI1NiBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnsic2guYWdlbnRzY29yZS5wYXltZW50LnRlbXBvIjpbeyJjb25maWciOnsiY2hhaW5faWQiOjQyMTcsInJhaWwiOiJ0ZW1wby1tYWlubmV0In0sImlkIjoidGVtcG8iLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy90ZW1wbyIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dLCJzaC5hZ2VudHNjb3JlLnBheW1lbnQueDQwMiI6W3siY29uZmlnIjp7Im5ldHdvcmtzIjpbImJhc2UtODQ1MyJdfSwiaWQiOiJ4NDAyIiwic2NoZW1hIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NjaGVtYXMvcGF5bWVudC1oYW5kbGVycy94NDAyLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy94NDAyIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In0seyJlbmRwb2ludCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbS8ud2VsbC1rbm93bi9hZ2VudC1jYXJkLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6ImEyYSIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMTcifX0.Vo7XPWeW37oSI5Eub7oUVwb3ODY3g70PeNgYLODGQ9L2nrf-5K7yinG2QwHEh5GtIMq7fXp5fiQVk1KtFnL4Wg"
+    "signature": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB5LWVzMjU2LXJhaWxzLUVTMjU2IiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVTMjU2IiwiY3J2IjoiUC0yNTYiLCJraWQiOiJweS1lczI1Ni1yYWlscy1FUzI1NiIsImt0eSI6IkVDIiwidXNlIjoic2lnIiwieCI6IkMzWmZNcGtpYzViSmY4dDFIUkVKTXJXXzQ2eXE3b0c0cFRlbHJYYTZCVHMiLCJ5IjoiR3BRY0hTSVFhTENOQnBNbDdDZUd4RXBHdHU1MHpZS0dpYVpVU2FLVWJ0USJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJFUzI1NiBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnsic2guYWdlbnRzY29yZS5wYXltZW50LnRlbXBvIjpbeyJjb25maWciOnsiY2hhaW5faWQiOjQyMTcsInJhaWwiOiJ0ZW1wby1tYWlubmV0In0sImlkIjoidGVtcG8iLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy90ZW1wbyIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dLCJzaC5hZ2VudHNjb3JlLnBheW1lbnQueDQwMiI6W3siY29uZmlnIjp7Im5ldHdvcmtzIjpbImJhc2UtODQ1MyJdfSwiaWQiOiJ4NDAyIiwic2NoZW1hIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NjaGVtYXMvcGF5bWVudC1oYW5kbGVycy94NDAyLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy94NDAyIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In0seyJlbmRwb2ludCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbS8ud2VsbC1rbm93bi9hZ2VudC1jYXJkLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6ImEyYSIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMDgifX0.JIr_8NYAQNF9VETkmEsRjY_OFjj4h-oHJ3b0SIM2lhDPDB9Cr60xK9AoNtH2u8MNk7W9lx2uK1jcP9YB7PKtZg"
   },
   "jwks": {
     "keys": [
       {
         "crv": "P-256",
-        "x": "NFS5qrSPV5sDQ5hHVag2zFqOSpTO6NBL-Hqf9EjBOco",
-        "y": "wtbEwX6TxEFid1IJvIwxkVfNic3Q_xEOq7j54Kje7aY",
+        "x": "C3ZfMpkic5bJf8t1HREJMrW_46yq7oG4pTelrXa6BTs",
+        "y": "GpQcHSIQaLCNBpMl7CeGxEpGtu50zYKGiaZUSaKUbtQ",
         "kid": "py-es256-rails-ES256",
         "alg": "ES256",
         "use": "sig",

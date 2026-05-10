@@ -38,6 +38,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from agentscore_commerce.identity import (
+    AgentScoreGatePolicy,
     UCPPaymentHandlerBinding,
     UCPServiceBinding,
     UCPSigningKey,
@@ -132,6 +133,14 @@ async def well_known_ucp() -> JSONResponse:
             ],
         },
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
+        # Optional: declare merchant gate policy as an `sh.agentscore.identity` capability
+        # binding inside the public profile. Static policy declaration only — no per-operator
+        # claims. Per-operator identity attestation flows through the AP2 risk-signal endpoint.
+        agentscore_gate=AgentScoreGatePolicy(
+            require_kyc=True,
+            min_age=21,
+            allowed_jurisdictions=["US"],
+        ),
     )
     signed = sign_ucp_profile(
         profile.to_dict(),

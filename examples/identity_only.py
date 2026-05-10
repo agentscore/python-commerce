@@ -19,7 +19,7 @@ Run: uvicorn examples.identity_only:app --port 3000
 
 from fastapi import Depends, FastAPI
 
-from agentscore_commerce.identity.fastapi import AgentScoreGate, get_assess_data
+from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data
 
 app = FastAPI()
 
@@ -33,7 +33,7 @@ gate = AgentScoreGate(
 
 
 @app.post("/deliver", dependencies=[Depends(gate)])
-async def deliver(assess: dict = Depends(get_assess_data)):
+async def deliver(assess: dict = Depends(get_agentscore_data)):
     """Gated route — only reached when the agent passes the compliance policy.
 
     `assess` is the raw `/v1/assess` response. Use it for downstream business logic that

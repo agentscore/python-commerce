@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 from sanic import Sanic, response
 
-from agentscore_commerce.identity.sanic import agentscore_gate, capture_wallet, get_assess_data
+from agentscore_commerce.identity.sanic import agentscore_gate, capture_wallet, get_agentscore_data
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 from agentscore_commerce.identity.types import AssessResult, DenialReason
 
@@ -53,13 +53,13 @@ class TestIdentityExtraction:
         assert resp.status == 200
         assert resp.json["ok"] is True
 
-    def test_get_assess_data_returns_assess_after_pass(self):
-        app = Sanic.get_app("sanic_get_assess_data", force_create=True)
+    def test_get_agentscore_data_returns_assess_after_pass(self):
+        app = Sanic.get_app("sanic_get_agentscore_data", force_create=True)
         agentscore_gate(app, api_key="ask_test")
 
         @app.get("/")
         async def handler(request):
-            return response.json({"assess": get_assess_data(request)})
+            return response.json({"assess": get_agentscore_data(request)})
 
         with patch(
             "agentscore_commerce.identity.sanic.GateClient.acheck_identity",

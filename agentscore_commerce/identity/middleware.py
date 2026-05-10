@@ -73,7 +73,7 @@ __all__ = [
     "denial_reason_to_body",
     "extract_payment_signer",
     "extract_payment_signer_address",
-    "get_assess_data",
+    "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "is_fixable_denial",
@@ -83,7 +83,7 @@ __all__ = [
 ]
 
 
-def get_assess_data(request: Request) -> dict[str, Any] | None:
+def get_agentscore_data(request: Request) -> dict[str, Any] | None:
     """Return the `/v1/assess` response the middleware stashed on the request scope.
 
     Returns ``None`` when identity was missing or the gate short-circuited with a

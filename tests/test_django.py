@@ -23,7 +23,7 @@ from django.http import HttpRequest, JsonResponse
 from django.test import RequestFactory
 
 from agentscore_commerce.identity.client import PaymentRequiredError, QuotaExceededError
-from agentscore_commerce.identity.django import AgentScoreMiddleware, get_assess_data
+from agentscore_commerce.identity.django import AgentScoreMiddleware, get_agentscore_data
 from agentscore_commerce.identity.types import AssessResult
 
 # Minimal URL conf for Django test runner.
@@ -221,16 +221,16 @@ class TestDjangoMiddleware:
             assert hasattr(request, "agentscore")
             assert request.agentscore["score"] == 80  # type: ignore[attr-defined]
 
-    def test_get_assess_data_returns_assess_after_pass(self) -> None:
+    def test_get_agentscore_data_returns_assess_after_pass(self) -> None:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()):
             mw(request)
-            assert get_assess_data(request) == {"score": 80, "grade": "B"}
+            assert get_agentscore_data(request) == {"score": 80, "grade": "B"}
 
-    def test_get_assess_data_returns_none_for_ungated_request(self) -> None:
+    def test_get_agentscore_data_returns_none_for_ungated_request(self) -> None:
         request = self.factory.get("/")
-        assert get_assess_data(request) is None
+        assert get_agentscore_data(request) is None
 
     def test_compliance_params_passed_to_client(self) -> None:
         with patch("agentscore_commerce.identity.django.GateClient") as mock_cls:

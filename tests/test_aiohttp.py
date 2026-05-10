@@ -15,7 +15,7 @@ from agentscore_commerce.identity.aiohttp import (
     GATE_STATE_KEY,
     agentscore_gate_middleware,
     capture_wallet,
-    get_assess_data,
+    get_agentscore_data,
 )
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
@@ -67,11 +67,11 @@ class TestIdentityExtraction:
 
     @pytest.mark.asyncio
     @respx.mock
-    async def test_get_assess_data_returns_assess_after_pass(self):
+    async def test_get_agentscore_data_returns_assess_after_pass(self):
         _mock_assess("allow")
 
         async def handler(request: web.Request) -> web.Response:
-            return web.json_response({"assess": get_assess_data(request)})
+            return web.json_response({"assess": get_agentscore_data(request)})
 
         client = await _client(_make_app(handler=handler))
         async with client:

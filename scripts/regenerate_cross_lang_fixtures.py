@@ -22,8 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from agentscore_commerce.identity import (
-    AssessResult,
-    OperatorVerification,
+    AgentScoreGatePolicy,
     UCPCapabilityBinding,
     UCPPaymentHandlerBinding,
     UCPServiceBinding,
@@ -258,64 +257,40 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-int-boundary", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-data-driven-claims — exercises build_ucp_profile data path with API-shape
-    # "missing" sentinels (empty string + None). Both languages MUST emit identical
-    # canonical bytes for this input.
-    kid = "py-data-driven-claims-EdDSA"
+    # py-agentscore-gate-full — exercises build_ucp_profile with a fully-populated
+    # merchant gate policy declared via `agentscore_gate`. Both languages MUST emit
+    # identical canonical bytes so a profile signed in one verifies in the other.
+    kid = "py-agentscore-gate-full-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
-    result = AssessResult(
-        allow=True,
-        resolved_operator="op_data_driven",
-        verify_url="https://agentscore.sh/verify/op_data_driven",
-        raw={
-            "account_verification": {
-                "kyc_level": "",
-                "sanctions_clear": False,
-                "age_bracket": None,
-                "jurisdiction": None,
-                "verified_at": None,
-            },
-        },
-    )
     profile = build_ucp_profile(
         services={"dev.ucp.shopping": [_shop_service_mcp("https://d.example.com")]},
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
-        name="Data Driven Claims Merchant",
-        data=result,
+        name="AgentScore Gate Full-Policy Merchant",
+        agentscore_gate=AgentScoreGatePolicy(
+            require_kyc=True,
+            require_sanctions_clear=True,
+            min_age=21,
+            allowed_jurisdictions=["US"],
+        ),
     )
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
-    _write("py-data-driven-claims", _envelope(signed, key.public_jwk, "EdDSA", kid))
+    _write("py-agentscore-gate-full", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-typed-claims — exercises typed AssessResult fields (no raw fallback).
-    # Cross-lang parity check for the typed-field-only call site.
-    kid = "py-typed-claims-EdDSA"
+    # py-agentscore-gate-blocked — exercises blocked_jurisdictions
+    # (mutually exclusive with allowed_jurisdictions) for cross-lang parity.
+    kid = "py-agentscore-gate-blocked-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
-    result = AssessResult(
-        allow=True,
-        resolved_operator="op_typed_claims",
-        verify_url="https://agentscore.sh/verify/op_typed_claims",
-        operator_verification=OperatorVerification(
-            level="enhanced",
-            operator_type="api",
-            verified_at="2026-04-01T00:00:00Z",
-        ),
-        account_verification={
-            "kyc_level": "enhanced",
-            "sanctions_clear": True,
-            "age_bracket": "21+",
-            "jurisdiction": "US",
-            "verified_at": "2026-04-01T00:00:00Z",
-        },
-        raw=None,
-    )
     profile = build_ucp_profile(
         services={"dev.ucp.shopping": [_shop_service_mcp("https://t.example.com")]},
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
-        name="Typed Claims Merchant",
-        data=result,
+        name="AgentScore Gate Blocked-Jurisdictions Merchant",
+        agentscore_gate=AgentScoreGatePolicy(
+            require_kyc=True,
+            blocked_jurisdictions=["KP", "IR", "CU"],
+        ),
     )
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
-    _write("py-typed-claims", _envelope(signed, key.public_jwk, "EdDSA", kid))
+    _write("py-agentscore-gate-blocked", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
 
 if __name__ == "__main__":

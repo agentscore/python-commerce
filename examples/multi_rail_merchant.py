@@ -62,7 +62,7 @@ from agentscore_commerce.challenge import (
     first_encounter_agent_memory,
     respond_402,
 )
-from agentscore_commerce.identity.fastapi import AgentScoreGate, get_assess_data
+from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data
 from agentscore_commerce.payment import (
     USDC,
     PaymentRequiredHeaderInput,
@@ -128,7 +128,7 @@ x402_server: object = ...  # type: ignore[assignment]
 
 
 @app.post("/purchase", dependencies=[Depends(gate_on_settle)])
-async def purchase(request: Request, assess: dict = Depends(get_assess_data)):
+async def purchase(request: Request, assess: dict = Depends(get_agentscore_data)):
     body = await request.json()
 
     # Compute pricing (vendor-specific — wine tax by state, dynamic SKU pricing, etc.)

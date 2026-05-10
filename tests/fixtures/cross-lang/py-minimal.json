@@ -24,16 +24,16 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "metZlz1oZFmvRiVvfL3ajCVdWy_-RK2PerjKSsgviLg"
+        "x": "G09sBXZQ88eRIEpCVIUO8BmKTvSDKVMcMzGBSN5BXbA"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoibWV0Wmx6MW9aRm12UmlWdmZMM2FqQ1ZkV3lfLVJLMlBlcmpLU3NndmlMZyJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNaW5pbWFsIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6e30sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9tLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.z76YEZSH1zGeNTXVzbH8gP1Rzer8LpeFtDhrSCSn-wV8eWc135f9BrfEEYQGaEqiYzNlPIynfA1-iVQLqzOJDw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiRzA5c0JYWlE4OGVSSUVwQ1ZJVU84Qm1LVHZTREtWTWNNekdCU041QlhiQSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNaW5pbWFsIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6e30sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9tLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.8vyLBYu87MZcv25ZR6s8g89mgancJ8xAOBsILagKQyzs09EhCUU6Lm_XjwPuRWE-aO3_VIDHFl-guFsorfUfBA"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "metZlz1oZFmvRiVvfL3ajCVdWy_-RK2PerjKSsgviLg",
+        "x": "G09sBXZQ88eRIEpCVIUO8BmKTvSDKVMcMzGBSN5BXbA",
         "kid": "py-minimal-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

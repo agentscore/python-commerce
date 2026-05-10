@@ -81,11 +81,11 @@ class UCPSigningKey:
         if not isinstance(jwk, dict):
             msg = f"UCPSigningKey.from_jwk expected a dict; got {type(jwk).__name__}."
             raise ValueError(msg)
-        if "kid" not in jwk:
-            msg = "UCPSigningKey.from_jwk: JWK missing required field `kid`."
+        if not isinstance(jwk.get("kid"), str) or not jwk["kid"]:
+            msg = "UCPSigningKey.from_jwk: JWK missing required field `kid` (or non-string/empty)."
             raise ValueError(msg)
-        if "kty" not in jwk:
-            msg = "UCPSigningKey.from_jwk: JWK missing required field `kty`."
+        if not isinstance(jwk.get("kty"), str) or not jwk["kty"]:
+            msg = "UCPSigningKey.from_jwk: JWK missing required field `kty` (or non-string/empty)."
             raise ValueError(msg)
         if jwk["kty"] not in {"OKP", "EC", "RSA"}:
             msg = (

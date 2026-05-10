@@ -9,7 +9,7 @@
             "spec": "https://ucp.dev/2026-04-08/specification/overview",
             "transport": "mcp",
             "endpoint": "https://mk.example.com/api/ucp/mcp",
-            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+            "schema": "https://ucp.dev/services/shopping/mcp.openrpc.json"
           }
         ]
       },
@@ -36,7 +36,7 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "Wgr5rD-QkOdhXwjQEb38Evq1MD7-XDdyFseRYtZXmLA"
+        "x": "bmtxztAfkN74Ww0GbLWUvb8XWejGK4O2EK5zxKyMa9U"
       },
       {
         "kid": "py-multikey-new",
@@ -44,16 +44,16 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "MVBqJtER_CDjv4JpWA07LQLnxn8MvLmBYQ0debEIRwo"
+        "x": "6wXFCH8GTAnmlgr5TUd2W56-BxWQmJE_qYzoOQRsEWY"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW11bHRpa2V5LW5ldyIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJXZ3I1ckQtUWtPZGhYd2pRRWIzOEV2cTFNRDctWERkeUZzZVJZdFpYbUxBIn0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1tdWx0aWtleS1uZXciLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiTVZCcUp0RVJfQ0RqdjRKcFdBMDdMUUxueG44TXZMbUJZUTBkZWJFSVJ3byJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNdWx0aS1LZXkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sImlkIjoidGVtcG8iLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy90ZW1wbyIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL21rLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.hBZ0-Xqp16VdEfifz62jDpUdvxOZ0zrUxeBeT6V0QtwZxj0n22Uhdaw0kFQ31EF4gW660z7-XCvTZ0AxIuxzDA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW11bHRpa2V5LW5ldyIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJibXR4enRBZmtONzRXdzBHYkxXVXZiOFhXZWpHSzRPMkVLNXp4S3lNYTlVIn0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1tdWx0aWtleS1uZXciLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiNndYRkNIOEdUQW5tbGdyNVRVZDJXNTYtQnhXUW1KRV9xWXpvT1FSc0VXWSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNdWx0aS1LZXkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sImlkIjoidGVtcG8iLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy90ZW1wbyIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL21rLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL21jcC5vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMDgifX0.Au5GjUltaxdK2vhazvJ5VqpuM5wtxQgD7YtkPA3ij3_glwQ3jtqK-9qwP_I4fg35jJa2EH9SuQkCv2MVa4dJCg"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "Wgr5rD-QkOdhXwjQEb38Evq1MD7-XDdyFseRYtZXmLA",
+        "x": "bmtxztAfkN74Ww0GbLWUvb8XWejGK4O2EK5zxKyMa9U",
         "kid": "py-multikey-old",
         "alg": "EdDSA",
         "use": "sig",
@@ -61,7 +61,7 @@
       },
       {
         "crv": "Ed25519",
-        "x": "MVBqJtER_CDjv4JpWA07LQLnxn8MvLmBYQ0debEIRwo",
+        "x": "6wXFCH8GTAnmlgr5TUd2W56-BxWQmJE_qYzoOQRsEWY",
         "kid": "py-multikey-new",
         "alg": "EdDSA",
         "use": "sig",

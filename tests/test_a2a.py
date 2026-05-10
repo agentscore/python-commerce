@@ -6,6 +6,7 @@ from agentscore_commerce.identity import (
     UCP_A2A_EXTENSION_URI,
     A2AAgentCardCapabilities,
     A2AAgentCardExtension,
+    A2AAgentCardSignature,
     A2AAgentInterface,
     A2AAgentProvider,
     A2AAgentSkill,
@@ -14,16 +15,24 @@ from agentscore_commerce.identity import (
 )
 from agentscore_commerce.identity.a2a import A2AAgentCard
 
+_DEFAULT_SKILL = A2AAgentSkill(
+    id="purchase",
+    name="Purchase",
+    description="Buy products via agent payments.",
+    tags=["commerce", "payment"],
+)
+
 
 def test_minimum_required_fields_emitted():
     card = build_a2a_agent_card(
         name="Example Merchant",
         description="Buy regulated goods via agent payments.",
         url="https://agents.example.com",
+        skills=[_DEFAULT_SKILL],
     )
     d = card.to_dict()
     # Per spec §4.4.1: name, description, supported_interfaces, version,
-    # capabilities, default_input_modes, default_output_modes are REQUIRED.
+    # capabilities, default_input_modes, default_output_modes, skills are REQUIRED.
     assert d["name"] == "Example Merchant"
     assert d["description"] == "Buy regulated goods via agent payments."
     assert isinstance(d["supported_interfaces"], list)
@@ -35,12 +44,29 @@ def test_minimum_required_fields_emitted():
     assert d["capabilities"] == {}
     assert d["default_input_modes"] == ["application/json"]
     assert d["default_output_modes"] == ["application/json"]
+    assert len(d["skills"]) == 1
+
+
+def test_skills_required_non_empty():
+    """Per spec §4.4.1 (proto field 12 [field_behavior=REQUIRED]): skills MUST be non-empty."""
+    with pytest.raises(ValueError, match="MUST be a non-empty list"):
+        build_a2a_agent_card(
+            name="X",
+            description="y",
+            url="https://x.example",
+            skills=[],
+        )
 
 
 def test_does_not_emit_invented_fields():
     """Confirms we no longer emit `protocol_version` / `card_version` / `endpoints` /
     top-level `identity` / top-level `extensions` — none of these exist in the A2A proto."""
-    card = build_a2a_agent_card(name="X", description="y", url="https://x.example")
+    card = build_a2a_agent_card(
+        name="X",
+        description="y",
+        url="https://x.example",
+        skills=[_DEFAULT_SKILL],
+    )
     d = card.to_dict()
     assert "protocol_version" not in d
     assert "card_version" not in d
@@ -74,16 +100,12 @@ def test_skills_serialize_as_top_level_objects_not_strings():
     ]
 
 
-def test_skills_omitted_when_empty():
-    card = build_a2a_agent_card(name="X", description="y", url="https://x.example")
-    assert "skills" not in card.to_dict()
-
-
 def test_extensions_live_inside_capabilities_not_top_level():
     card = build_a2a_agent_card(
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         extensions=[ucp_a2a_extension()],
     )
     d = card.to_dict()
@@ -98,6 +120,7 @@ def test_extensions_omitted_when_empty():
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         extensions=[],
     )
     assert "extensions" not in card.to_dict()["capabilities"]
@@ -108,6 +131,7 @@ def test_capability_flags_emitted_when_set():
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         streaming=True,
         push_notifications=False,
         extended_agent_card=True,
@@ -119,7 +143,12 @@ def test_capability_flags_emitted_when_set():
 
 
 def test_capability_flags_omitted_when_unset():
-    card = build_a2a_agent_card(name="X", description="y", url="https://x.example")
+    card = build_a2a_agent_card(
+        name="X",
+        description="y",
+        url="https://x.example",
+        skills=[_DEFAULT_SKILL],
+    )
     caps = card.to_dict()["capabilities"]
     assert "streaming" not in caps
     assert "push_notifications" not in caps
@@ -131,6 +160,7 @@ def test_provider_emitted_when_set():
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         provider=A2AAgentProvider(url="https://acme.example", organization="Acme"),
     )
     assert card.to_dict()["provider"] == {"url": "https://acme.example", "organization": "Acme"}
@@ -141,9 +171,45 @@ def test_documentation_url_emitted_when_set():
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         documentation_url="https://docs.example",
     )
     assert card.to_dict()["documentation_url"] == "https://docs.example"
+
+
+def test_icon_url_emitted_when_set():
+    card = build_a2a_agent_card(
+        name="X",
+        description="y",
+        url="https://x.example",
+        skills=[_DEFAULT_SKILL],
+        icon_url="https://x.example/icon.png",
+    )
+    assert card.to_dict()["icon_url"] == "https://x.example/icon.png"
+
+
+def test_signatures_emitted_when_set():
+    sig = A2AAgentCardSignature(protected="eyJhbGciOiJFZERTQSJ9", signature="abc")
+    card = build_a2a_agent_card(
+        name="X",
+        description="y",
+        url="https://x.example",
+        skills=[_DEFAULT_SKILL],
+        signatures=[sig],
+    )
+    assert card.to_dict()["signatures"] == [
+        {"protected": "eyJhbGciOiJFZERTQSJ9", "signature": "abc"},
+    ]
+
+
+def test_signatures_omitted_when_empty():
+    card = build_a2a_agent_card(
+        name="X",
+        description="y",
+        url="https://x.example",
+        skills=[_DEFAULT_SKILL],
+    )
+    assert "signatures" not in card.to_dict()
 
 
 def test_default_input_output_modes_overridable():
@@ -151,6 +217,7 @@ def test_default_input_output_modes_overridable():
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         default_input_modes=["text/plain", "application/json"],
         default_output_modes=["text/plain"],
     )
@@ -164,6 +231,7 @@ def test_protocol_binding_overridable():
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         protocol_binding="GRPC",
         a2a_protocol_version="1.0",
     )
@@ -176,6 +244,7 @@ def test_extras_merge_at_top_level():
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         extras={"vendor_field": 42},
     )
     assert card.to_dict()["vendor_field"] == 42
@@ -186,6 +255,7 @@ def test_security_schemes_emitted_when_set():
         name="X",
         description="y",
         url="https://x.example",
+        skills=[_DEFAULT_SKILL],
         security_schemes={"bearer": {"type": "http", "scheme": "bearer"}},
     )
     assert card.to_dict()["security_schemes"] == {"bearer": {"type": "http", "scheme": "bearer"}}
@@ -312,6 +382,24 @@ def test_agent_skill_optional_fields_emitted_when_set():
     assert d["output_modes"] == ["text/plain"]
 
 
+# ---- AgentCardSignature ----
+
+
+def test_agent_card_signature_required_fields():
+    sig = A2AAgentCardSignature(protected="eyJ...", signature="abc")
+    d = sig.to_dict()
+    assert d == {"protected": "eyJ...", "signature": "abc"}
+
+
+def test_agent_card_signature_unprotected_header_emitted_when_set():
+    sig = A2AAgentCardSignature(
+        protected="eyJ...",
+        signature="abc",
+        header={"kid": "key-1"},
+    )
+    assert sig.to_dict()["header"] == {"kid": "key-1"}
+
+
 # ---- Direct AgentCard construction (multi-binding agents) ----
 
 
@@ -327,6 +415,7 @@ def test_direct_agent_card_construction_with_multiple_interfaces():
         capabilities=A2AAgentCardCapabilities(),
         default_input_modes=["application/json"],
         default_output_modes=["application/json"],
+        skills=[_DEFAULT_SKILL],
     )
     d = card.to_dict()
     assert len(d["supported_interfaces"]) == 2
@@ -336,14 +425,17 @@ def test_direct_agent_card_construction_with_multiple_interfaces():
 
 @pytest.mark.parametrize(
     "missing_kwarg",
-    ["name", "description", "url"],
+    ["name", "description", "url", "skills"],
 )
 def test_required_kwargs_enforced(missing_kwarg: str) -> None:
-    """Per spec §4.4.1: name, description, supported_interfaces (built from url) are REQUIRED.
-
-    Our build_a2a_agent_card uses keyword-only required args; missing one raises TypeError.
-    """
-    kwargs = {"name": "X", "description": "y", "url": "https://x.example"}
+    """Per spec §4.4.1: name, description, supported_interfaces (built from url), and
+    skills (≥1) are REQUIRED. Missing one raises TypeError or ValueError."""
+    kwargs: dict = {
+        "name": "X",
+        "description": "y",
+        "url": "https://x.example",
+        "skills": [_DEFAULT_SKILL],
+    }
     del kwargs[missing_kwarg]
-    with pytest.raises(TypeError):
-        build_a2a_agent_card(**kwargs)  # type: ignore[arg-type]
+    with pytest.raises((TypeError, ValueError)):
+        build_a2a_agent_card(**kwargs)

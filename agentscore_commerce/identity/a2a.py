@@ -176,13 +176,37 @@ class A2AAgentCardCapabilities:
 
 
 @dataclass
+class A2AAgentCardSignature:
+    """Per spec §4.4.7. JWS signature embedded in an Agent Card.
+
+    Multiple signatures MAY be attached to a single card. Verifiers reconstruct the
+    card body without ``signatures`` to verify each entry. Format follows RFC 7515
+    JSON Web Signature (JWS).
+    """
+
+    protected: str
+    """Base64url-encoded JSON of the protected JWS header. REQUIRED."""
+    signature: str
+    """Base64url-encoded computed signature. REQUIRED."""
+    header: dict[str, Any] = field(default_factory=dict)
+    """Optional unprotected JWS header values."""
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"protected": self.protected, "signature": self.signature}
+        if self.header:
+            out["header"] = self.header
+        return out
+
+
+@dataclass
 class A2AAgentCard:
     """Per spec §4.4.1. A2A v1.0 Agent Card body.
 
-    Use :meth:`to_dict` to serialize for signing + publishing. Identity claims live
-    in a separate ``AgentCardSignature`` (RFC 7515 JWS) wrapping the serialized card,
-    NOT in the card body itself. Per-vendor identity attestation can be expressed via
-    a vendor extension entry inside ``capabilities.extensions[]``.
+    Use :meth:`to_dict` to serialize for signing + publishing. Per spec §4.4.7,
+    JWS signatures may be embedded directly in the card via the ``signatures`` field;
+    verifiers reconstruct the card body without ``signatures`` and verify each entry.
+    Per-vendor identity attestation can also be expressed via a vendor extension
+    entry inside ``capabilities.extensions[]``.
     """
 
     name: str
@@ -194,9 +218,16 @@ class A2AAgentCard:
     capabilities: A2AAgentCardCapabilities
     default_input_modes: list[str]
     default_output_modes: list[str]
+    skills: list[A2AAgentSkill] = field(default_factory=list)
+    """Per spec §4.4.1 (proto field 12, REQUIRED): the agent must declare ≥1 skill.
+    The convenience builder :func:`build_a2a_agent_card` enforces non-empty."""
     provider: A2AAgentProvider | None = None
     documentation_url: str | None = None
-    skills: list[A2AAgentSkill] = field(default_factory=list)
+    icon_url: str | None = None
+    """Per spec §4.4.1 (proto field 14, optional): URL to an icon for the agent."""
+    signatures: list[A2AAgentCardSignature] = field(default_factory=list)
+    """Per spec §4.4.1 (proto field 13, optional) + §4.4.7: JWS signatures embedded
+    in the card. Compute over the canonical card body MINUS this field, then attach."""
     security_schemes: dict[str, Any] = field(default_factory=dict)
     security_requirements: list[Any] = field(default_factory=list)
     extras: dict[str, Any] = field(default_factory=dict)
@@ -215,8 +246,12 @@ class A2AAgentCard:
             out["provider"] = self.provider.to_dict()
         if self.documentation_url is not None:
             out["documentation_url"] = self.documentation_url
+        if self.icon_url is not None:
+            out["icon_url"] = self.icon_url
         if self.skills:
             out["skills"] = [s.to_dict() for s in self.skills]
+        if self.signatures:
+            out["signatures"] = [s.to_dict() for s in self.signatures]
         if self.security_schemes:
             out["security_schemes"] = self.security_schemes
         if self.security_requirements:
@@ -231,14 +266,16 @@ def build_a2a_agent_card(
     name: str,
     description: str,
     url: str,
+    skills: list[A2AAgentSkill],
     version: str = "1.0.0",
-    skills: list[A2AAgentSkill] | None = None,
     extensions: list[A2AAgentCardExtension] | None = None,
     streaming: bool | None = None,
     push_notifications: bool | None = None,
     extended_agent_card: bool | None = None,
     provider: A2AAgentProvider | None = None,
     documentation_url: str | None = None,
+    icon_url: str | None = None,
+    signatures: list[A2AAgentCardSignature] | None = None,
     default_input_modes: list[str] | None = None,
     default_output_modes: list[str] | None = None,
     protocol_binding: str = _DEFAULT_PROTOCOL_BINDING,
@@ -284,6 +321,13 @@ def build_a2a_agent_card(
         )
         signed = your_jws_sign(card.to_dict())
     """
+    if not skills:
+        msg = (
+            "build_a2a_agent_card: `skills` MUST be a non-empty list. Per spec §4.4.1 "
+            "(proto field 12 [field_behavior=REQUIRED]), every Agent Card must declare "
+            "at least one AgentSkill. Construct A2AAgentCard directly to bypass."
+        )
+        raise ValueError(msg)
     capabilities = A2AAgentCardCapabilities(
         streaming=streaming,
         push_notifications=push_notifications,
@@ -303,9 +347,11 @@ def build_a2a_agent_card(
         capabilities=capabilities,
         default_input_modes=default_input_modes or [_DEFAULT_INPUT_MODE],
         default_output_modes=default_output_modes or [_DEFAULT_OUTPUT_MODE],
+        skills=skills,
         provider=provider,
         documentation_url=documentation_url,
-        skills=skills or [],
+        icon_url=icon_url,
+        signatures=signatures or [],
         security_schemes=security_schemes or {},
         security_requirements=security_requirements or [],
         extras=extras or {},
@@ -317,6 +363,7 @@ __all__ = [
     "A2AAgentCard",
     "A2AAgentCardCapabilities",
     "A2AAgentCardExtension",
+    "A2AAgentCardSignature",
     "A2AAgentInterface",
     "A2AAgentProvider",
     "A2AAgentSkill",

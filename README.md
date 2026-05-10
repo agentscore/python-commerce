@@ -200,8 +200,7 @@ card = build_a2a_agent_card(name="My Service", url=base_url, capabilities=A2AAge
 # Output shape: {"ucp": {"version", "services", "capabilities",
 # "payment_handlers", "name?", "supported_versions?"}, "signing_keys": [...]}
 # — services / capabilities / payment_handlers are MAPS keyed by reverse-DNS
-# service / capability / handler name. Verified against the live Pura Vida
-# reference at puravidabracelets.com/.well-known/ucp.
+# service / capability / handler name (UCP spec §3 + §6).
 profile = build_ucp_profile(
     name="My Service",
     services={
@@ -231,7 +230,7 @@ profile = build_ucp_profile(
 )
 ```
 
-UCP §6 doesn't mandate profile-body JWS signing — Pura Vida and other Shopify-backed UCP merchants ship unsigned. AgentScore's `agentscore-profile+jws` is a vendor extension for trust-mode verifiers (Visa AP2 pilots, regulated-commerce verifiers) that opt into auditable profiles. Sign + verify via the optional `joserfc` extra (tested against joserfc v1.x; pin `joserfc>=1.0.0,<2`):
+UCP §6 doesn't mandate profile-body JWS signing; production UCP merchants commonly ship unsigned. AgentScore's `agentscore-profile+jws` is a vendor extension for trust-mode verifiers (regulated-commerce, AP2-aware) that opt into auditable profiles. Sign + verify via the optional `joserfc` extra (tested against joserfc v1.x; pin `joserfc>=1.0.0,<2`):
 
 ```bash
 pip install agentscore-commerce[ucp]

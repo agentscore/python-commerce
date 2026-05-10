@@ -1,7 +1,7 @@
 {
   "profile": {
     "ucp": {
-      "version": "2026-04-17",
+      "version": "2026-04-08",
       "services": {
         "dev.ucp.shopping": [
           {
@@ -24,7 +24,7 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "b5OlULxsP0xpS8IkLF4tRaiB1u6yODPxsQJJYv1iB6s"
+        "x": "0afNQAp3MfPjli1PWg6-iYAjoNnESv96e5bJ8irRcD0"
       }
     ],
     "max_safe_int": 9007199254740991,
@@ -32,13 +32,13 @@
     "small_int": 42,
     "neg_small_int": -42,
     "zero": 0,
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiYjVPbFVMeHNQMHhwUzhJa0xGNHRSYWlCMXU2eU9EUHhzUUpKWXYxaUI2cyJ9XSwic21hbGxfaW50Ijo0MiwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJJbnQgQm91bmRhcnkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2kuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTE3In0sInplcm8iOjB9.PsM9i8EXGN5eNPJI6_6Efk8P-aE-gQQvmXpNCr1vTFMtsjvUrwPO974mweqhbyogrdfm47UkAhJZ2tkGQ26YDQ"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiMGFmTlFBcDNNZlBqbGkxUFdnNi1pWUFqb05uRVN2OTZlNWJKOGlyUmNEMCJ9XSwic21hbGxfaW50Ijo0MiwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJJbnQgQm91bmRhcnkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2kuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In0sInplcm8iOjB9.SZ9CIjxAV6kQCp6eeYtzqu3KETakw_rEYTEr71xee5kaP5kLsO_5CEHcQ0AyNaGxSi9FjZMGhfWqmiVC0w3hBg"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "b5OlULxsP0xpS8IkLF4tRaiB1u6yODPxsQJJYv1iB6s",
+        "x": "0afNQAp3MfPjli1PWg6-iYAjoNnESv96e5bJ8irRcD0",
         "kid": "py-int-boundary-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

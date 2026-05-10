@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 if TYPE_CHECKING:
     from agentscore_commerce.identity.types import AssessResult
 
-_DEFAULT_VERSION = "2026-04-17"
+_DEFAULT_VERSION = "2026-04-08"
 
 # Reverse-DNS namespacing per UCP convention. The bare ``agentscore-identity`` form
 # fails the spec regex; vendor-namespacing under the ``sh.agentscore`` authority is

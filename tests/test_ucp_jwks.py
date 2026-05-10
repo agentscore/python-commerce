@@ -17,7 +17,7 @@ from agentscore_commerce.identity.ucp_jwks import (
 
 def _base_profile(signing_keys: list[dict]) -> dict:
     return {
-        "version": "2026-04-17",
+        "version": "2026-04-08",
         "spec": "https://ucp.dev/",
         "name": "Test Merchant",
         "services": [{"type": "rest", "url": "https://agents.example.com"}],

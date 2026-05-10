@@ -425,7 +425,7 @@ The [examples/](./examples) directory has 7 runnable single-file FastAPI apps co
 
 ## Stability
 
-`agentscore-commerce@1.4.0` ships with the full merchant SDK surface stable. Helpers are protocol translations + configurable opinions; most evolution is additive (new optional params, new helpers, new networks/rails). Major bumps are reserved for genuine protocol-mapping bugs.
+`agentscore-commerce` ships with the full merchant SDK surface stable. Helpers are protocol translations + configurable opinions; most evolution is additive (new optional params, new helpers, new networks/rails). Major bumps are reserved for genuine protocol-mapping bugs.
 
 ## Documentation
 

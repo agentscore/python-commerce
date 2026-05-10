@@ -15,10 +15,23 @@ Spec reference: https://a2a-protocol.org/latest/
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
 
 if TYPE_CHECKING:
     from agentscore_commerce.identity.types import AssessResult
+
+
+class A2AAgentCardEndpoint(TypedDict):
+    """One endpoint advertised in the A2A card's ``capabilities.endpoints[]``.
+
+    Mirrors node-commerce's ``{ name: string; path?: string; method?: string }`` shape.
+    Plain dict literals satisfy this type at the call site.
+    """
+
+    name: str
+    path: NotRequired[str]
+    method: NotRequired[str]
+
 
 _PROTOCOL_VERSION = "1.0"
 _CARD_VERSION = 1
@@ -69,7 +82,7 @@ def ucp_a2a_extension(
 class A2AAgentCardCapabilities:
     """Endpoints the agent exposes + skill tags."""
 
-    endpoints: list[dict[str, str]] = field(default_factory=list)
+    endpoints: list[A2AAgentCardEndpoint] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

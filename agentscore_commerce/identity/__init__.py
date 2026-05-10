@@ -12,10 +12,13 @@ from agentscore_commerce.identity._denial import (
 )
 from agentscore_commerce.identity._response import denial_reason_to_body
 from agentscore_commerce.identity.a2a import (
+    UCP_A2A_EXTENSION_URI,
     A2AAgentCard,
     A2AAgentCardCapabilities,
+    A2AAgentCardExtension,
     A2AAgentCardIdentity,
     build_a2a_agent_card,
+    ucp_a2a_extension,
 )
 from agentscore_commerce.identity.client import GateClient
 from agentscore_commerce.identity.policy import (
@@ -88,8 +91,10 @@ AgentScoreGate, CreateSessionOnMissing = _load_asgi_middleware()
 __all__ = [
     "AGENTSCORE_UCP_CAPABILITY",
     "FIXABLE_DENIAL_REASONS",
+    "UCP_A2A_EXTENSION_URI",
     "A2AAgentCard",
     "A2AAgentCardCapabilities",
+    "A2AAgentCardExtension",
     "A2AAgentCardIdentity",
     "Activity",
     "AgentIdentity",
@@ -135,6 +140,7 @@ __all__ = [
     "shipping_country_allowed",
     "shipping_state_allowed",
     "sign_ucp_profile",
+    "ucp_a2a_extension",
     "verification_agent_instructions",
     "verify_ucp_profile",
 ]

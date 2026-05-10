@@ -181,9 +181,9 @@ headers = build_payment_headers(BuildPaymentHeadersInput(
 
 ```python
 from agentscore_commerce.identity import (
-    UCPService,
+    UCPServiceBinding,
     UCPSigningKey,
-    UCPPaymentHandler,
+    UCPPaymentHandlerBinding,
     A2AAgentCardCapabilities,
     build_a2a_agent_card,
     build_ucp_profile,
@@ -193,16 +193,41 @@ from agentscore_commerce.identity import (
 card = build_a2a_agent_card(name="My Service", url=base_url, capabilities=A2AAgentCardCapabilities(...), data=assess_result)
 
 # Google Universal Commerce Protocol. Publish at /.well-known/ucp.
+# Output shape: {"ucp": {"version", "services", "capabilities",
+# "payment_handlers", "name?", "supported_versions?"}, "signing_keys": [...]}
+# — services / capabilities / payment_handlers are MAPS keyed by reverse-DNS
+# service / capability / handler name. Verified against the live Pura Vida
+# reference at puravidabracelets.com/.well-known/ucp.
 profile = build_ucp_profile(
     name="My Service",
-    services=[UCPService(type="rest", url=base_url)],
-    payment_handlers=[UCPPaymentHandler(name="tempo", config={"recipient": TEMPO_ADDR})],
+    services={
+        "dev.ucp.shopping": [
+            UCPServiceBinding(
+                version="2026-04-08",
+                spec="https://ucp.dev/2026-04-08/specification/overview",
+                transport="mcp",
+                endpoint=f"{base_url}/api/ucp/mcp",
+                schema="https://ucp.dev/services/shopping/openrpc.json",
+            ),
+        ],
+    },
+    payment_handlers={
+        "sh.agentscore.payment.tempo": [
+            UCPPaymentHandlerBinding(
+                id="tempo",
+                version="2026-04-08",
+                spec="https://agentscore.sh/specification/payment-handlers/tempo",
+                schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+                config={"recipient": TEMPO_ADDR},
+            ),
+        ],
+    },
     signing_keys=[UCPSigningKey(kid="me", kty="EC", alg="ES256")],
     data=assess_result,
 )
 ```
 
-UCP §6 trust-mode requires profiles to carry a JWS signature backed by a JWKS at `/.well-known/jwks.json`. Sign + verify via the optional `joserfc` extra (tested against joserfc v1.x; pin `joserfc>=1.0.0,<2`):
+UCP §6 doesn't mandate profile-body JWS signing — Pura Vida and other Shopify-backed UCP merchants ship unsigned. AgentScore's `agentscore-profile+jws` is a vendor extension for trust-mode verifiers (Visa AP2 pilots, regulated-commerce verifiers) that opt into auditable profiles. Sign + verify via the optional `joserfc` extra (tested against joserfc v1.x; pin `joserfc>=1.0.0,<2`):
 
 ```bash
 pip install agentscore-commerce[ucp]
@@ -222,8 +247,8 @@ from agentscore_commerce.identity import (
 key = generate_ucp_signing_key(kid="merchant-2026-05")
 profile = build_ucp_profile(
     name="My Service",
-    services=[...],
-    payment_handlers=[...],
+    services={...},
+    payment_handlers={...},
     signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
 )
 signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=key.public_jwk["kid"], alg="EdDSA")

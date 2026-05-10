@@ -34,8 +34,8 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from agentscore_commerce.identity import (
-    UCPPaymentHandler,
-    UCPService,
+    UCPPaymentHandlerBinding,
+    UCPServiceBinding,
     UCPSigningKey,
     UCPVerificationError,
     build_jwks_response,
@@ -105,8 +105,28 @@ async def well_known_ucp() -> JSONResponse:
     key = await load_signing_key()
     profile = build_ucp_profile(
         name="My Agent Service",
-        services=[UCPService(type="rest", url="https://agents.example.com")],
-        payment_handlers=[UCPPaymentHandler(name="tempo", config={"recipient": "0xfeedface"})],
+        services={
+            "dev.ucp.shopping": [
+                UCPServiceBinding(
+                    version="2026-04-08",
+                    spec="https://ucp.dev/2026-04-08/specification/overview",
+                    transport="mcp",
+                    endpoint="https://agents.example.com/api/ucp/mcp",
+                    schema="https://ucp.dev/services/shopping/openrpc.json",
+                ),
+            ],
+        },
+        payment_handlers={
+            "sh.agentscore.payment.tempo": [
+                UCPPaymentHandlerBinding(
+                    id="tempo",
+                    version="2026-04-08",
+                    spec="https://agentscore.sh/specification/payment-handlers/tempo",
+                    schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+                    config={"recipient": "0xfeedface"},
+                ),
+            ],
+        },
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
     )
     signed = sign_ucp_profile(

@@ -24,7 +24,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "tqMB9yg0wzxt7RAbYRh9G2zJttQYEl1StI-ZUH-TfT4"
+        "x": "2DRRsO6K1c5hAKoojapU5G1ejhGmr6JeqEM6DL-g2og"
       }
     ],
     "max_safe_int": 9007199254740991,
@@ -32,7 +32,7 @@
     "small_int": 42,
     "neg_small_int": -42,
     "zero": 0,
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtaW50LWJvdW5kYXJ5LUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLWludC1ib3VuZGFyeS1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJ0cU1COXlnMHd6eHQ3UkFiWVJoOUcyekp0dFFZRWwxU3RJLVpVSC1UZlQ0In1dLCJzbWFsbF9pbnQiOjQyLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkludCBCb3VuZGFyeSBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnt9LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vaS5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMDgifSwiemVybyI6MH0.WUAFP4QuWfMtg1oNb3umalpIk8TgA3gZRR61ZeY6i3lhH2QoiaiCoD_i-ZuUX0VacPKROmNPHB7M2P2YEhMMDA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtaW50LWJvdW5kYXJ5LUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLWludC1ib3VuZGFyeS1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiIyRFJSc082SzFjNWhBS29vamFwVTVHMWVqaEdtcjZKZXFFTTZETC1nMm9nIn1dLCJzbWFsbF9pbnQiOjQyLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkludCBCb3VuZGFyeSBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnt9LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vaS5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMDgifSwiemVybyI6MH0.AI3kBSWttE0WR2W02sR6MAcppy8F14v67S5Zev8UDID-lVfStUgEhnxh3NyNS09K6g8VYlsJQVS_fqWp4cV0Bw"
   },
   "jwks": {
     "keys": [
@@ -42,7 +42,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "tqMB9yg0wzxt7RAbYRh9G2zJttQYEl1StI-ZUH-TfT4"
+        "x": "2DRRsO6K1c5hAKoojapU5G1ejhGmr6JeqEM6DL-g2og"
       }
     ]
   },

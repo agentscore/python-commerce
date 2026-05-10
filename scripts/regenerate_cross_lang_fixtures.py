@@ -159,7 +159,7 @@ def main() -> None:
     kid = "py-capability-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
     custom_capability = UCPCapabilityBinding(
-        version="1",
+        version="2026-04-08",
         spec="https://agentscore.sh/specification/identity",
         schema="https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
         # `extras` flat on the binding — kyc_required is a vendor field on this binding.

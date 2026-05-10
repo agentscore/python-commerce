@@ -33,20 +33,20 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "45f0FzY5LfuWqeLXCuL9bJlm3BWZpxbnK_AzRqU0P_k"
+        "x": "04DF6m1erVCNx3_x7TBqg7Z1QwiGq9gLTFVSotHmWw4"
       }
     ],
     "a": 1,
     "豈": 2,
     "": 3,
     "🍷": 4,
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyIiOjMsImEiOjEsInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZW1vamkta2V5cy1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI0NWYwRnpZNUxmdVdxZUxYQ3VMOWJKbG0zQldacHhibktfQXpScVUwUF9rIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkVtb2ppIEtleXMgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siaWQiOiJ0ZW1wbyIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8uanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3RlbXBvIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vZW1vamkuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In0sIuixiCI6Miwi8J-NtyI6NH0.xhQzzH3zUp2LV94MR-Q1zhoxwhWV6cGMj2v_6fs-PNnA4enywA62wW2VS1pikP1ZhxpQyc_m6CxzlhBIU9k4Dg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyIiOjMsImEiOjEsInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZW1vamkta2V5cy1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiIwNERGNm0xZXJWQ054M194N1RCcWc3WjFRd2lHcTlnTFRGVlNvdEhtV3c0In1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkVtb2ppIEtleXMgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siaWQiOiJ0ZW1wbyIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8uanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3RlbXBvIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vZW1vamkuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In0sIuixiCI6Miwi8J-NtyI6NH0.1KIQqobUZuJgWt8GdPkoIT08ArO9FHkw2EGweKYTrzLGOiytTUwNLesn1LnyoaP5DEOC8LI7ZM4w9moyp20VAQ"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "45f0FzY5LfuWqeLXCuL9bJlm3BWZpxbnK_AzRqU0P_k",
+        "x": "04DF6m1erVCNx3_x7TBqg7Z1QwiGq9gLTFVSotHmWw4",
         "kid": "py-emoji-keys-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

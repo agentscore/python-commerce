@@ -36,7 +36,7 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "ZQLvTS2MTlOB6R0aAfrwsC67SycJDLCYG1a_3ADq8p4"
+        "x": "ohLVhsWqpUzlExGbimk528vEREVpkr0mAGmtsZS8FVw"
       },
       {
         "kid": "py-multikey-new",
@@ -44,16 +44,16 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "Vefs6OwGhvb8u_evfN6wNSb1eNb93BvB-i8wwS4Y9f4"
+        "x": "UH_SVpP_frKqLCUq2PfVDuwXdypeK8Oo3O_xtt6TRng"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW11bHRpa2V5LW5ldyIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJaUUx2VFMyTVRsT0I2UjBhQWZyd3NDNjdTeWNKRExDWUcxYV8zQURxOHA0In0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1tdWx0aWtleS1uZXciLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiVmVmczZPd0dodmI4dV9ldmZONndOU2IxZU5iOTNCdkItaTh3d1M0WTlmNCJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNdWx0aS1LZXkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sImlkIjoidGVtcG8iLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy90ZW1wbyIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL21rLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.lSLOuI9wK5zpL21W-62tb4BBy4uNZKRtziVdqYj326isQneCMi_r5cDVxNXzZzuxxBFrApgzLmeN_PnjXijsBw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW11bHRpa2V5LW5ldyIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJvaExWaHNXcXBVemxFeEdiaW1rNTI4dkVSRVZwa3IwbUFHbXRzWlM4RlZ3In0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1tdWx0aWtleS1uZXciLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiVUhfU1ZwUF9mcktxTENVcTJQZlZEdXdYZHlwZUs4T28zT194dHQ2VFJuZyJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNdWx0aS1LZXkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sImlkIjoidGVtcG8iLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy90ZW1wbyIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL21rLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.r8YuX6fwJf7DnUVH2GXjI4hvzaFzYKNWkSrP0wPvCiO92tvXM109YDx6wSVUAHyaY2NPbc6Lal-I5ZdY-CSNAg"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "ZQLvTS2MTlOB6R0aAfrwsC67SycJDLCYG1a_3ADq8p4",
+        "x": "ohLVhsWqpUzlExGbimk528vEREVpkr0mAGmtsZS8FVw",
         "kid": "py-multikey-old",
         "alg": "EdDSA",
         "use": "sig",
@@ -61,7 +61,7 @@
       },
       {
         "crv": "Ed25519",
-        "x": "Vefs6OwGhvb8u_evfN6wNSb1eNb93BvB-i8wwS4Y9f4",
+        "x": "UH_SVpP_frKqLCUq2PfVDuwXdypeK8Oo3O_xtt6TRng",
         "kid": "py-multikey-new",
         "alg": "EdDSA",
         "use": "sig",

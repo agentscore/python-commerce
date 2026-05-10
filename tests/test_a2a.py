@@ -144,3 +144,10 @@ def test_build_a2a_agent_card_emits_extensions_when_passed():
 def test_build_a2a_agent_card_omits_extensions_when_not_passed():
     card = build_a2a_agent_card(name="X")
     assert "extensions" not in card.to_dict()
+
+
+def test_build_a2a_agent_card_omits_extensions_when_passed_empty_list():
+    # Parity with node: both SDKs skip the extensions field when empty so
+    # cross-language profiles canonicalize to identical bytes when both omit.
+    card = build_a2a_agent_card(name="X", extensions=[])
+    assert "extensions" not in card.to_dict()

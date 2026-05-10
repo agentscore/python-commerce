@@ -187,10 +187,14 @@ from agentscore_commerce.identity import (
     A2AAgentCardCapabilities,
     build_a2a_agent_card,
     build_ucp_profile,
+    ucp_a2a_extension,
 )
 
 # Google A2A v1.0 Signed Agent Card. Publish at /.well-known/agent-card.json.
-card = build_a2a_agent_card(name="My Service", url=base_url, capabilities=A2AAgentCardCapabilities(...), data=assess_result)
+# Per UCP §A2A binding the card MUST declare the canonical UCP extension URI;
+# pass `ucp_a2a_extension()` with empty capabilities until you bind formal UCP
+# capabilities (dev.ucp.shopping.checkout, etc.).
+card = build_a2a_agent_card(name="My Service", url=base_url, capabilities=A2AAgentCardCapabilities(...), extensions=[ucp_a2a_extension()], data=assess_result)
 
 # Google Universal Commerce Protocol. Publish at /.well-known/ucp.
 # Output shape: {"ucp": {"version", "services", "capabilities",

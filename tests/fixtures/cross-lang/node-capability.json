@@ -1,0 +1,69 @@
+{
+  "profile": {
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://c.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {
+        "sh.agentscore.identity": [
+          {
+            "version": "1",
+            "spec": "https://agentscore.sh/specification/identity",
+            "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+            "kyc_required": true
+          }
+        ]
+      },
+      "payment_handlers": {
+        "sh.agentscore.payment.tempo": [
+          {
+            "id": "tempo",
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
+            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json",
+            "config": {
+              "rail": "tempo-mainnet",
+              "chain_id": 4217
+            }
+          }
+        ]
+      },
+      "name": "Capability Merchant"
+    },
+    "signing_keys": [
+      {
+        "kid": "node-capability-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "IuEDuQu_5--c_GVEaY4x0xjGbKro965U5VGyRY8TxpI"
+      }
+    ],
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtY2FwYWJpbGl0eS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtY2FwYWJpbGl0eS1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJJdUVEdVF1XzUtLWNfR1ZFYVk0eDB4akdiS3JvOTY1VTVWR3lSWThUeHBJIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwic2NoZW1hIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NjaGVtYXMvdWNwL3NoLWFnZW50c2NvcmUtaWRlbnRpdHktdjEuanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9pZGVudGl0eSIsInZlcnNpb24iOiIxIn1dfSwibmFtZSI6IkNhcGFiaWxpdHkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siY29uZmlnIjp7ImNoYWluX2lkIjo0MjE3LCJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJpZCI6InRlbXBvIiwic2NoZW1hIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NjaGVtYXMvcGF5bWVudC1oYW5kbGVycy90ZW1wby5qc29uIiwic3BlYyI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zcGVjaWZpY2F0aW9uL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9jLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9fQ.s36lpaOS-eGdTC0agCpLU_JxDLNO6nM5YjOTxJb6JoYVYzWBaflJCkWxwN6bDgdgDh-lPSY7_l7X0636TjpzCA"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "kid": "node-capability-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "IuEDuQu_5--c_GVEaY4x0xjGbKro965U5VGyRY8TxpI"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "node-capability-EdDSA",
+  "generator": "node"
+}

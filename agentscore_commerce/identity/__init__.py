@@ -12,10 +12,13 @@ from agentscore_commerce.identity._denial import (
 )
 from agentscore_commerce.identity._response import denial_reason_to_body
 from agentscore_commerce.identity.a2a import (
+    UCP_A2A_EXTENSION_URI,
     A2AAgentCard,
     A2AAgentCardCapabilities,
+    A2AAgentCardExtension,
     A2AAgentCardIdentity,
     build_a2a_agent_card,
+    ucp_a2a_extension,
 )
 from agentscore_commerce.identity.client import GateClient
 from agentscore_commerce.identity.policy import (
@@ -47,12 +50,21 @@ from agentscore_commerce.identity.types import (
 )
 from agentscore_commerce.identity.ucp import (
     AGENTSCORE_UCP_CAPABILITY,
-    UCPCapability,
-    UCPPaymentHandler,
+    UCPCapabilityBinding,
+    UCPPaymentHandlerBinding,
     UCPProfile,
-    UCPService,
+    UCPProfileBody,
+    UCPServiceBinding,
     UCPSigningKey,
     build_ucp_profile,
+)
+from agentscore_commerce.identity.ucp_jwks import (
+    GeneratedUCPKey,
+    UCPVerificationError,
+    build_jwks_response,
+    generate_ucp_signing_key,
+    sign_ucp_profile,
+    verify_ucp_profile,
 )
 
 
@@ -79,8 +91,10 @@ AgentScoreGate, CreateSessionOnMissing = _load_asgi_middleware()
 __all__ = [
     "AGENTSCORE_UCP_CAPABILITY",
     "FIXABLE_DENIAL_REASONS",
+    "UCP_A2A_EXTENSION_URI",
     "A2AAgentCard",
     "A2AAgentCardCapabilities",
+    "A2AAgentCardExtension",
     "A2AAgentCardIdentity",
     "Activity",
     "AgentIdentity",
@@ -94,31 +108,39 @@ __all__ = [
     "EnforcementMode",
     "GateClient",
     "GateResult",
+    "GeneratedUCPKey",
     "Grade",
     "Identity",
     "IdentityStatus",
     "OperatorVerification",
     "PolicyBlock",
     "ScoreDetail",
-    "UCPCapability",
-    "UCPPaymentHandler",
+    "UCPCapabilityBinding",
+    "UCPPaymentHandlerBinding",
     "UCPProfile",
-    "UCPService",
+    "UCPProfileBody",
+    "UCPServiceBinding",
     "UCPSigningKey",
+    "UCPVerificationError",
     "VerifyWalletSignerMatchOptions",
     "VerifyWalletSignerResult",
     "build_a2a_agent_card",
     "build_agent_memory_hint",
     "build_contact_support_next_steps",
     "build_gate_from_policy",
+    "build_jwks_response",
     "build_signer_mismatch_body",
     "build_ucp_profile",
     "denial_reason_status",
     "denial_reason_to_body",
     "extract_x402_signer",
+    "generate_ucp_signing_key",
     "is_fixable_denial",
     "run_gate_with_enforcement",
     "shipping_country_allowed",
     "shipping_state_allowed",
+    "sign_ucp_profile",
+    "ucp_a2a_extension",
     "verification_agent_instructions",
+    "verify_ucp_profile",
 ]

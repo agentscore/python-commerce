@@ -1,0 +1,69 @@
+{
+  "profile": {
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://d.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {
+        "sh.agentscore.identity": [
+          {
+            "version": "1",
+            "spec": "https://agentscore.sh/specification/identity",
+            "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+            "extends": [
+              "dev.ucp.shopping.checkout",
+              "dev.ucp.shopping.cart"
+            ],
+            "claims": {
+              "operator_id": "op_data_driven",
+              "kyc_level": "none",
+              "sanctions_clear": false,
+              "age_bracket": "unknown",
+              "jurisdiction": "",
+              "verified_at": null,
+              "verify_url": "https://agentscore.sh/verify/op_data_driven",
+              "issuer": "https://agentscore.sh"
+            }
+          }
+        ]
+      },
+      "payment_handlers": {},
+      "name": "Data Driven Claims Merchant"
+    },
+    "signing_keys": [
+      {
+        "kid": "py-data-driven-claims-EdDSA",
+        "kty": "OKP",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "x": "g_RzTBbrZ0krF4_f4Rtm__flo_1RH2sxiTF9dLltpC8"
+      }
+    ],
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWRhdGEtZHJpdmVuLWNsYWltcy1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LWRhdGEtZHJpdmVuLWNsYWltcy1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJnX1J6VEJiclowa3JGNF9mNFJ0bV9fZmxvXzFSSDJzeGlURjlkTGx0cEM4In1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiOlt7ImNsYWltcyI6eyJhZ2VfYnJhY2tldCI6InVua25vd24iLCJpc3N1ZXIiOiJodHRwczovL2FnZW50c2NvcmUuc2giLCJqdXJpc2RpY3Rpb24iOiIiLCJreWNfbGV2ZWwiOiJub25lIiwib3BlcmF0b3JfaWQiOiJvcF9kYXRhX2RyaXZlbiIsInNhbmN0aW9uc19jbGVhciI6ZmFsc2UsInZlcmlmaWVkX2F0IjpudWxsLCJ2ZXJpZnlfdXJsIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3ZlcmlmeS9vcF9kYXRhX2RyaXZlbiJ9LCJleHRlbmRzIjpbImRldi51Y3Auc2hvcHBpbmcuY2hlY2tvdXQiLCJkZXYudWNwLnNob3BwaW5nLmNhcnQiXSwic2NoZW1hIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NjaGVtYXMvdWNwL3NoLWFnZW50c2NvcmUtaWRlbnRpdHktdjEuanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9pZGVudGl0eSIsInZlcnNpb24iOiIxIn1dfSwibmFtZSI6IkRhdGEgRHJpdmVuIENsYWltcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnt9LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vZC5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMTcifX0.X7Xdu_60_sT2XpwD9SqF7Lpuf5OGlbG_t_sxaY1xf7rQID5fSR-4BEdB0Dppq04nuaedhcqGUeyTMZDfHe8YDQ"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "Ed25519",
+        "x": "g_RzTBbrZ0krF4_f4Rtm__flo_1RH2sxiTF9dLltpC8",
+        "kid": "py-data-driven-claims-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "py-data-driven-claims-EdDSA",
+  "generator": "python"
+}

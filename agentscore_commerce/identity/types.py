@@ -308,6 +308,11 @@ class AssessResult:
     reasons: list[str] = field(default_factory=list)
     identity_method: str | None = None
     operator_verification: OperatorVerification | None = None
+    # Account-level verification block (KYC level, age bracket, jurisdiction,
+    # sanctions verdict). Mirrors node-commerce's typed AgentScoreData.account_verification
+    # field so a hand-constructed AssessResult emits the same UCP claims in both
+    # languages without a raw-dict round trip.
+    account_verification: dict[str, Any] | None = None
     resolved_operator: str | None = None
     verify_url: str | None = None
     policy_result: PolicyResult | None = None

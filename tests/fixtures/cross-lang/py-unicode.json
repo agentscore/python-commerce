@@ -1,0 +1,59 @@
+{
+  "profile": {
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://日本.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {},
+      "payment_handlers": {
+        "sh.agentscore.payment.tempo": [
+          {
+            "id": "tempo",
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
+            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json",
+            "config": {
+              "note": "メモ"
+            }
+          }
+        ]
+      },
+      "name": "Café 日本 🍷 Merchant"
+    },
+    "signing_keys": [
+      {
+        "kid": "py-unicode-EdDSA",
+        "kty": "OKP",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "x": "Rk_x9yyAht9Xy_mKxxmdh0kyr12andlLUGHY2xh8-3w"
+      }
+    ],
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LXVuaWNvZGUtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LXVuaWNvZGUtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiUmtfeDl5eUFodDlYeV9tS3h4bWRoMGt5cjEyYW5kbExVR0hZMnhoOC0zdyJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJDYWbDqSDml6XmnKwg8J-NtyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnsic2guYWdlbnRzY29yZS5wYXltZW50LnRlbXBvIjpbeyJjb25maWciOnsibm90ZSI6IuODoeODoiJ9LCJpZCI6InRlbXBvIiwic2NoZW1hIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NjaGVtYXMvcGF5bWVudC1oYW5kbGVycy90ZW1wby5qc29uIiwic3BlYyI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zcGVjaWZpY2F0aW9uL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly_ml6XmnKwuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTE3In19.fraS8Y7ecHdldvmqwIdCzvSlBqi2GvYatX4UmSnR0jBnKDY8qxQnfYErAbJQ8ywXnP8Ztsp7PvbaRd90GIZ0CQ"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "Ed25519",
+        "x": "Rk_x9yyAht9Xy_mKxxmdh0kyr12andlLUGHY2xh8-3w",
+        "kid": "py-unicode-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "py-unicode-EdDSA",
+  "generator": "python"
+}

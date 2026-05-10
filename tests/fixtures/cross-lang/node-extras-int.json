@@ -1,0 +1,60 @@
+{
+  "profile": {
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://e.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {},
+      "payment_handlers": {
+        "sh.agentscore.payment.stripe-spt": [
+          {
+            "id": "stripe",
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/payment-handlers/stripe-spt",
+            "schema": "https://agentscore.sh/schemas/payment-handlers/stripe-spt.json",
+            "config": {
+              "profile_id": "abc",
+              "count": 7
+            }
+          }
+        ]
+      },
+      "name": "Extras Merchant"
+    },
+    "signing_keys": [
+      {
+        "kid": "node-extras-int-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "LwGeYhxjsedo9kllWo8uRdHZnf9teSPjEGLJrhF9o0M"
+      }
+    ],
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZXh0cmFzLWludC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtZXh0cmFzLWludC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJMd0dlWWh4anNlZG85a2xsV284dVJkSFpuZjl0ZVNQakVHTEpyaEY5bzBNIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkV4dHJhcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnsic2guYWdlbnRzY29yZS5wYXltZW50LnN0cmlwZS1zcHQiOlt7ImNvbmZpZyI6eyJjb3VudCI6NywicHJvZmlsZV9pZCI6ImFiYyJ9LCJpZCI6InN0cmlwZSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvc3RyaXBlLXNwdC5qc29uIiwic3BlYyI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zcGVjaWZpY2F0aW9uL3BheW1lbnQtaGFuZGxlcnMvc3RyaXBlLXNwdCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2UuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTE3In19.s6sBki-bBhRuZNZiv7s7NO3NpLDfhoXhZXKcK2uitVGiBh9nANv-pi8L-nAIBte8jN_DFoeqtWQJiAK188XqBg"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "kid": "node-extras-int-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "LwGeYhxjsedo9kllWo8uRdHZnf9teSPjEGLJrhF9o0M"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "node-extras-int-EdDSA",
+  "generator": "node"
+}

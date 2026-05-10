@@ -23,6 +23,47 @@ if TYPE_CHECKING:
 _PROTOCOL_VERSION = "1.0"
 _CARD_VERSION = 1
 
+UCP_A2A_EXTENSION_URI = "https://ucp.dev/2026-04-08/specification/reference"
+"""Canonical UCP A2A extension URI — verifiers look for this exact URI in
+``extensions[]`` to detect UCP support on the agent card."""
+
+
+@dataclass
+class A2AAgentCardExtension:
+    """Per A2A v1.0: an entry in the card's top-level ``extensions`` array.
+
+    UCP support is declared this way (UCP §A2A binding requires
+    ``https://ucp.dev/2026-04-08/specification/reference``).
+    """
+
+    uri: str
+    params: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"uri": self.uri}
+        if self.params:
+            out["params"] = self.params
+        return out
+
+
+def ucp_a2a_extension(
+    capabilities: dict[str, list[dict[str, str]]] | None = None,
+) -> A2AAgentCardExtension:
+    """Build the canonical UCP entry for an A2A agent card's ``extensions[]`` array.
+
+    Per UCP §A2A binding: "Businesses supporting UCP must advertise the extension
+    and any optional capabilities in their A2A Agent Card to allow platforms to
+    activate the extension." Pass the ``capabilities`` map keyed by reverse-DNS
+    service/capability name (e.g. ``dev.ucp.shopping.checkout``), each value a
+    list of ``{"version": "..."}`` records. Pass ``None`` (or an empty dict) when
+    you serve UCP at the discovery layer but have no formal capability bindings
+    yet.
+    """
+    return A2AAgentCardExtension(
+        uri=UCP_A2A_EXTENSION_URI,
+        params={"capabilities": capabilities or {}},
+    )
+
 
 @dataclass
 class A2AAgentCardCapabilities:
@@ -79,6 +120,7 @@ class A2AAgentCard:
     description: str | None = None
     url: str | None = None
     capabilities: A2AAgentCardCapabilities | None = None
+    extensions: list[A2AAgentCardExtension] = field(default_factory=list)
     extras: dict[str, Any] = field(default_factory=dict)
     protocol_version: str = _PROTOCOL_VERSION
     card_version: int = _CARD_VERSION
@@ -96,6 +138,8 @@ class A2AAgentCard:
             out["url"] = self.url
         if self.capabilities is not None:
             out["capabilities"] = self.capabilities.to_dict()
+        if self.extensions:
+            out["extensions"] = [e.to_dict() for e in self.extensions]
         if self.extras:
             out.update(self.extras)
         return out
@@ -106,6 +150,7 @@ def build_a2a_agent_card(
     description: str | None = None,
     url: str | None = None,
     capabilities: A2AAgentCardCapabilities | None = None,
+    extensions: list[A2AAgentCardExtension] | None = None,
     data: AssessResult | None = None,
     issuer: str = "https://agentscore.sh",
     verify_url: str | None = None,
@@ -166,13 +211,17 @@ def build_a2a_agent_card(
         description=description,
         url=url,
         capabilities=capabilities,
+        extensions=extensions or [],
         extras=extras or {},
     )
 
 
 __all__ = [
+    "UCP_A2A_EXTENSION_URI",
     "A2AAgentCard",
     "A2AAgentCardCapabilities",
+    "A2AAgentCardExtension",
     "A2AAgentCardIdentity",
     "build_a2a_agent_card",
+    "ucp_a2a_extension",
 ]

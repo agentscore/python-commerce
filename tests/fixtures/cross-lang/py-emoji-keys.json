@@ -1,0 +1,60 @@
+{
+  "profile": {
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://emoji.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {},
+      "payment_handlers": {
+        "sh.agentscore.payment.tempo": [
+          {
+            "id": "tempo",
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
+            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json"
+          }
+        ]
+      },
+      "name": "Emoji Keys Merchant"
+    },
+    "signing_keys": [
+      {
+        "kid": "py-emoji-keys-EdDSA",
+        "kty": "OKP",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "x": "t9o2BRiSJvI4c7a3KlzCqzKS1evXIyngTwB2GBxtZec"
+      }
+    ],
+    "a": 1,
+    "豈": 2,
+    "": 3,
+    "🍷": 4,
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWVtb2ppLWtleXMtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyIiOjMsImEiOjEsInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoicHktZW1vamkta2V5cy1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJ0OW8yQlJpU0p2STRjN2EzS2x6Q3F6S1MxZXZYSXluZ1R3QjJHQnh0WmVjIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkVtb2ppIEtleXMgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siaWQiOiJ0ZW1wbyIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8uanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3RlbXBvIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vZW1vamkuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTE3In0sIuixiCI6Miwi8J-NtyI6NH0.JFxAqyuCgvA0HNAl2giJeb4MbHDuW5h7jBjGcrQxcSDCiCgXjzhaUSWJXjiB7GeHcL7CDMg3kj79VQ4Rsr1-Bw"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "Ed25519",
+        "x": "t9o2BRiSJvI4c7a3KlzCqzKS1evXIyngTwB2GBxtZec",
+        "kid": "py-emoji-keys-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "py-emoji-keys-EdDSA",
+  "generator": "python"
+}

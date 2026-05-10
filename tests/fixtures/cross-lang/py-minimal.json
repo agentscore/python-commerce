@@ -1,0 +1,47 @@
+{
+  "profile": {
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://m.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {},
+      "payment_handlers": {},
+      "name": "Minimal Merchant"
+    },
+    "signing_keys": [
+      {
+        "kid": "py-minimal-EdDSA",
+        "kty": "OKP",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "x": "dZ6PLK4BfgrHTuRA0klbkcl6iHAXhyX3ACjRefxb8IA"
+      }
+    ],
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiZFo2UExLNEJmZ3JIVHVSQTBrbGJrY2w2aUhBWGh5WDNBQ2pSZWZ4YjhJQSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNaW5pbWFsIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6e30sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9tLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyJ9fQ.axue3k1ojtSWw0pZJbuDmx-HBt6DZTwtbD3DiHKwrrP3YSWjdlp_FBfBMT0jA-oQ6HqfdQ4fO9vuRAAIpBepCw"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "Ed25519",
+        "x": "dZ6PLK4BfgrHTuRA0klbkcl6iHAXhyX3ACjRefxb8IA",
+        "kid": "py-minimal-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "py-minimal-EdDSA",
+  "generator": "python"
+}

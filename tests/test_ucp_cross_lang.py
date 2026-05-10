@@ -1,0 +1,60 @@
+"""Cross-language UCP signing fixture corpus.
+
+Each fixture file is a ``{profile, jwks, alg, kid, generator}`` envelope. Both
+Node and Python check in identical fixtures so a future canonicalization change
+in either language fails CI loudly. Without this, cross-language byte parity
+drift would silently break verifier-side compatibility in production.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from agentscore_commerce.identity import verify_ucp_profile
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "cross-lang"
+FIXTURES = sorted(FIXTURE_DIR.glob("*.json"))
+
+
+@pytest.mark.parametrize("fixture_path", FIXTURES, ids=[p.name for p in FIXTURES])
+def test_verifies_cross_lang_fixture(fixture_path: Path) -> None:
+    data = json.loads(fixture_path.read_text())
+    assert verify_ucp_profile(data["profile"], data["jwks"]) is True
+
+
+def test_corpus_covers_canonical_scenarios() -> None:
+    names = {p.name for p in FIXTURES}
+    generators = {json.loads(p.read_text())["generator"] for p in FIXTURES}
+    assert "node" in generators
+    assert "python" in generators
+    # `emoji-keys` exercises non-ASCII object keys with codepoints that genuinely
+    # distinguish UTF-16 first-unit sort from Unicode codepoint sort: BMP private use
+    # (U+E000) ranks BEFORE supplementary plane (U+1F377) by codepoint but AFTER it by
+    # UTF-16 first unit (because the high surrogate 55356 < 57344). Both repos ship the
+    # node and python emoji-keys fixtures so a regression in either language's key sort
+    # surfaces here.
+    for lang in ("node", "py"):
+        for scenario in (
+            "minimal",
+            "es256-rails",
+            "extras-int",
+            "capability",
+            "unicode",
+            "multikey",
+            "emoji-keys",
+            "int-boundary",
+            # `data-driven-claims` exercises the raw-dict fallback read path
+            # (`AssessResult(raw={"account_verification": {...}})`) that
+            # production callers populate. `typed-claims` exercises the typed
+            # field path (`AssessResult(account_verification={...}, raw=None)`)
+            # that hand-constructed callers use — Node's `buildUCPProfile`
+            # reads typed fields directly without consulting raw, so both
+            # paths must produce byte-identical canonical bytes across
+            # languages or cross-lang verify silently drifts.
+            "data-driven-claims",
+            "typed-claims",
+        ):
+            assert f"{lang}-{scenario}.json" in names, f"missing fixture {lang}-{scenario}.json"

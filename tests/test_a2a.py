@@ -1,9 +1,11 @@
 """Tests for build_a2a_agent_card."""
 
 from agentscore_commerce.identity import (
+    UCP_A2A_EXTENSION_URI,
     A2AAgentCardCapabilities,
     AssessResult,
     build_a2a_agent_card,
+    ucp_a2a_extension,
 )
 
 
@@ -100,3 +102,52 @@ def test_respects_issuer_and_verify_url_overrides():
     assert card.identity is not None
     assert card.identity.issuer == "https://other.example"
     assert card.identity.verify_url == "https://other.example/v"
+
+
+def test_ucp_a2a_extension_uri_pinned_to_2026_04_08():
+    assert UCP_A2A_EXTENSION_URI == "https://ucp.dev/2026-04-08/specification/reference"
+
+
+def test_ucp_a2a_extension_no_args_produces_empty_capabilities_entry():
+    ext = ucp_a2a_extension()
+    assert ext.uri == UCP_A2A_EXTENSION_URI
+    assert ext.params == {"capabilities": {}}
+
+
+def test_ucp_a2a_extension_wraps_capabilities_map_under_params():
+    ext = ucp_a2a_extension(
+        {
+            "dev.ucp.shopping.checkout": [{"version": "2026-04-08"}],
+            "dev.ucp.shopping.cart": [{"version": "2026-04-08"}],
+        },
+    )
+    assert ext.params == {
+        "capabilities": {
+            "dev.ucp.shopping.checkout": [{"version": "2026-04-08"}],
+            "dev.ucp.shopping.cart": [{"version": "2026-04-08"}],
+        },
+    }
+
+
+def test_build_a2a_agent_card_emits_extensions_when_passed():
+    card = build_a2a_agent_card(
+        name="X",
+        extensions=[ucp_a2a_extension()],
+    )
+    d = card.to_dict()
+    assert "extensions" in d
+    assert len(d["extensions"]) == 1
+    assert d["extensions"][0]["uri"] == UCP_A2A_EXTENSION_URI
+    assert d["extensions"][0]["params"] == {"capabilities": {}}
+
+
+def test_build_a2a_agent_card_omits_extensions_when_not_passed():
+    card = build_a2a_agent_card(name="X")
+    assert "extensions" not in card.to_dict()
+
+
+def test_build_a2a_agent_card_omits_extensions_when_passed_empty_list():
+    # Parity with node: both SDKs skip the extensions field when empty so
+    # cross-language profiles canonicalize to identical bytes when both omit.
+    card = build_a2a_agent_card(name="X", extensions=[])
+    assert "extensions" not in card.to_dict()

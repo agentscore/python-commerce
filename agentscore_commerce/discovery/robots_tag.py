@@ -27,6 +27,7 @@ DEFAULT_DISCOVERY_PATHS: frozenset[str] = frozenset(
         "/.well-known/x402",
         "/.well-known/agent-card.json",
         "/.well-known/ucp",
+        "/.well-known/jwks.json",
         "/favicon.png",
         "/favicon.ico",
     }

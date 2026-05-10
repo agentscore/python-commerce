@@ -1,4 +1,4 @@
-"""Tests for build_ucp_profile."""
+"""Tests for build_ucp_profile (spec-compliant shape)."""
 
 from typing import cast
 
@@ -8,9 +8,10 @@ from agentscore_commerce.identity import (
     AGENTSCORE_UCP_CAPABILITY,
     AssessResult,
     OperatorVerification,
-    UCPCapability,
-    UCPPaymentHandler,
-    UCPService,
+    UCPCapabilityBinding,
+    UCPPaymentHandlerBinding,
+    UCPProfileBody,
+    UCPServiceBinding,
     UCPSigningKey,
     build_ucp_profile,
 )
@@ -33,35 +34,53 @@ def _full_result() -> AssessResult:
     )
 
 
+def _sample_service() -> UCPServiceBinding:
+    return UCPServiceBinding(
+        version="2026-04-08",
+        spec="https://ucp.dev/2026-04-08/specification/overview",
+        transport="mcp",
+        endpoint="https://agents.example/api/ucp/mcp",
+        schema="https://ucp.dev/services/shopping/openrpc.json",
+    )
+
+
 def _base_kwargs():
     return {
-        "services": [UCPService(type="rest", url="https://agents.example")],
+        "services": {"dev.ucp.shopping": [_sample_service()]},
         "signing_keys": [
             UCPSigningKey(kid="me", kty="EC", alg="ES256", crv="P-256", extras={"x": "x", "y": "y"}),
         ],
     }
 
 
-def test_base_profile_has_required_fields():
+def _agentscore_cap(d: dict) -> dict:
+    return d["ucp"]["capabilities"][AGENTSCORE_UCP_CAPABILITY][0]
+
+
+def test_emits_spec_envelope_with_ucp_body_and_outer_signing_keys():
     profile = build_ucp_profile(**_base_kwargs())
     d = profile.to_dict()
-    assert d["spec"] == "https://ucp.dev/"
-    assert "version" in d
-    assert d["services"][0]["url"] == "https://agents.example"
+    assert "ucp" in d
+    assert "signing_keys" in d
+    # No top-level `spec` field per UCP spec — spec lives per-binding.
+    assert "spec" not in d
+    assert "version" not in d  # version lives under `ucp`
+    assert d["ucp"]["version"]
+    assert d["ucp"]["services"]["dev.ucp.shopping"][0]["transport"] == "mcp"
+    assert d["ucp"]["capabilities"] == {}
+    assert d["ucp"]["payment_handlers"] == {}
     assert d["signing_keys"][0]["kid"] == "me"
-    assert d["capabilities"] == []
-    assert d["payment_handlers"] == []
 
 
 def test_appends_agentscore_capability_when_data_provided():
     profile = build_ucp_profile(**_base_kwargs(), data=_full_result())
     d = profile.to_dict()
-    matching = [c for c in d["capabilities"] if c["name"] == AGENTSCORE_UCP_CAPABILITY]
-    assert len(matching) == 1
-    cap = matching[0]
+    cap = _agentscore_cap(d)
     assert cap["version"] == "1"
-    assert cap["name"] == "sh.agentscore.identity"
     assert "sh-agentscore-identity-v1.json" in cap["schema"]
+    # Multi-parent extends — matches Shopify's dev.shopify.catalog.storefront pattern
+    # and UCP-canonical dev.ucp.shopping.discount (extends [checkout, cart]).
+    assert cap["extends"] == ["dev.ucp.shopping.checkout", "dev.ucp.shopping.cart"]
     claims = cap["claims"]
     assert claims["operator_id"] == "op_abc"
     assert claims["kyc_level"] == "enhanced"
@@ -72,39 +91,66 @@ def test_appends_agentscore_capability_when_data_provided():
 def test_skips_agentscore_capability_when_no_resolved_operator():
     profile = build_ucp_profile(**_base_kwargs(), data=AssessResult(allow=True, resolved_operator=None))
     d = profile.to_dict()
-    assert all(c["name"] != AGENTSCORE_UCP_CAPABILITY for c in d["capabilities"])
+    assert AGENTSCORE_UCP_CAPABILITY not in d["ucp"]["capabilities"]
 
 
 def test_preserves_caller_capabilities_and_appends_agentscore():
+    checkout_binding = UCPCapabilityBinding(
+        version="2026-04-08",
+        spec="https://ucp.dev/2026-04-08/specification/checkout",
+        schema="https://ucp.dev/2026-04-08/schemas/shopping/checkout.json",
+    )
     profile = build_ucp_profile(
         **_base_kwargs(),
-        capabilities=[UCPCapability(name="checkout", version="2")],
+        capabilities={"dev.ucp.shopping.checkout": [checkout_binding]},
         data=_full_result(),
     )
     d = profile.to_dict()
-    assert d["capabilities"][0]["name"] == "checkout"
-    assert d["capabilities"][1]["name"] == AGENTSCORE_UCP_CAPABILITY
+    assert d["ucp"]["capabilities"]["dev.ucp.shopping.checkout"][0]["version"] == "2026-04-08"
+    assert _agentscore_cap(d)["version"] == "1"
 
 
 def test_passes_through_name_payment_handlers_extras():
+    tempo_handler = UCPPaymentHandlerBinding(
+        id="tempo",
+        version="2026-04-08",
+        spec="https://agentscore.sh/specification/payment-handlers/tempo",
+        schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+        config={"recipient": "0xtempo"},
+    )
     profile = build_ucp_profile(
         **_base_kwargs(),
         name="Example Merchant",
-        payment_handlers=[
-            UCPPaymentHandler(name="tempo", config={"recipient": "0xtempo"}),
-            UCPPaymentHandler(name="stripe", config={"profile_id": "prof_x"}),
-        ],
-        extras={"custom_field": "custom_value"},
+        payment_handlers={"sh.agentscore.payment.tempo": [tempo_handler]},
+        extras={"custom_top_level": "top_value"},
+        ucp_extras={"custom_ucp_field": "ucp_value"},
     )
     d = profile.to_dict()
-    assert d["name"] == "Example Merchant"
-    assert len(d["payment_handlers"]) == 2
-    assert d["custom_field"] == "custom_value"
+    assert d["ucp"]["name"] == "Example Merchant"
+    assert d["ucp"]["payment_handlers"]["sh.agentscore.payment.tempo"][0]["id"] == "tempo"
+    assert d["custom_top_level"] == "top_value"
+    assert d["ucp"]["custom_ucp_field"] == "ucp_value"
+
+
+def test_payment_handler_omits_config_when_caller_does_not_set_it():
+    handler = UCPPaymentHandlerBinding(
+        id="tempo",
+        version="2026-04-08",
+        spec="https://agentscore.sh/specification/payment-handlers/tempo",
+        schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+    )
+    profile = build_ucp_profile(
+        **_base_kwargs(),
+        payment_handlers={"sh.agentscore.payment.tempo": [handler]},
+    )
+    d = profile.to_dict()
+    serialized = d["ucp"]["payment_handlers"]["sh.agentscore.payment.tempo"][0]
+    assert "config" not in serialized
 
 
 def test_respects_version_override():
     profile = build_ucp_profile(**_base_kwargs(), version="2026-12-31")
-    assert profile.version == "2026-12-31"
+    assert profile.ucp.version == "2026-12-31"
 
 
 def test_respects_agentscore_schema_url_override():
@@ -113,51 +159,76 @@ def test_respects_agentscore_schema_url_override():
         data=_full_result(),
         agentscore_schema_url="https://custom.example/schema.json",
     )
-    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
+    cap = profile.ucp.capabilities[AGENTSCORE_UCP_CAPABILITY][0]
     assert cap.schema == "https://custom.example/schema.json"
+
+
+def test_respects_agentscore_spec_url_override():
+    profile = build_ucp_profile(
+        **_base_kwargs(),
+        data=_full_result(),
+        agentscore_spec_url="https://custom.example/spec",
+    )
+    cap = profile.ucp.capabilities[AGENTSCORE_UCP_CAPABILITY][0]
+    assert cap.spec == "https://custom.example/spec"
+
+
+def test_emits_supported_versions_map_when_supplied():
+    profile = build_ucp_profile(
+        **_base_kwargs(),
+        supported_versions={
+            "2026-04-08": "https://merchant.example/.well-known/ucp/2026-04-08",
+            "2026-01-23": "https://merchant.example/.well-known/ucp/2026-01-23",
+        },
+    )
+    d = profile.to_dict()
+    assert d["ucp"]["supported_versions"]["2026-04-08"].endswith("/2026-04-08")
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["ucp", "signing_keys", "signature", "__proto__", "constructor", "prototype"],
+)
+def test_extras_top_level_reserved_collision_rejected(key: str) -> None:
+    profile = build_ucp_profile(**_base_kwargs(), extras={key: "attacker"})
+    with pytest.raises(ValueError, match="collides with a reserved profile field"):
+        profile.to_dict()
 
 
 @pytest.mark.parametrize(
     "key",
     [
         "version",
-        "spec",
+        "name",
         "services",
         "capabilities",
         "payment_handlers",
-        "signing_keys",
-        "name",
-        "signature",
+        "supported_versions",
         "__proto__",
         "constructor",
         "prototype",
     ],
 )
-def test_extras_reserved_collision_rejected(key: str) -> None:
-    profile = build_ucp_profile(**_base_kwargs(), extras={key: "attacker"})
-    with pytest.raises(ValueError, match="collides with a reserved profile field"):
+def test_ucp_extras_reserved_collision_rejected(key: str) -> None:
+    profile = build_ucp_profile(**_base_kwargs(), ucp_extras={key: "attacker"})
+    with pytest.raises(ValueError, match="collides with a reserved `ucp` field"):
         profile.to_dict()
 
 
-# Empty-string and null normalization: the API can emit
-# ``account_verification`` with either null or ``""`` for un-set fields, and the
-# node + python siblings must produce the SAME canonical claims block for either
-# shape so a profile signed in one language verifies in the other.
+# Empty-string and null normalization: the API can emit `account_verification` with
+# either null or "" for un-set fields, and the node + python siblings must produce
+# the SAME canonical claims block for either shape so a profile signed in one
+# language verifies in the other.
 
 
 def _claims_of(account_verification: dict, operator_verification: dict | None = None) -> dict:
     raw: dict = {"account_verification": account_verification}
     if operator_verification is not None:
         raw["operator_verification"] = operator_verification
-    result = AssessResult(
-        allow=True,
-        resolved_operator="op_abc",
-        raw=raw,
-    )
+    result = AssessResult(allow=True, resolved_operator="op_abc", raw=raw)
     profile = build_ucp_profile(**_base_kwargs(), data=result)
     d = profile.to_dict()
-    cap = next(c for c in d["capabilities"] if c["name"] == AGENTSCORE_UCP_CAPABILITY)
-    return cap["claims"]
+    return _agentscore_cap(d)["claims"]
 
 
 def test_coerces_empty_string_kyc_level_to_none() -> None:
@@ -189,10 +260,8 @@ def test_coerces_empty_string_verified_at_to_none() -> None:
 
 
 def test_both_empty_string_verified_at_normalizes_to_none() -> None:
-    """Both account_verification + operator_verification with verified_at=''
+    """Both account_verification + operator_verification with verified_at=""
     must normalize to None for cross-language byte parity with Node SDK.
-    Without the trailing ``or None``, Python's chained ``or`` returns the last
-    falsy value (``""``); Node's ``a || b || null`` returns ``null``.
     """
     assert (
         _claims_of(
@@ -223,17 +292,13 @@ def test_typed_operator_verification_fallback_when_raw_is_none() -> None:
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)
     d = profile.to_dict()
-    cap = next(c for c in d["capabilities"] if c["name"] == AGENTSCORE_UCP_CAPABILITY)
-    claims = cap["claims"]
+    claims = _agentscore_cap(d)["claims"]
     assert claims["operator_id"] == "op_typed"
     assert claims["kyc_level"] == "enhanced"
     assert claims["verified_at"] == "2026-04-01T00:00:00Z"
 
 
 def test_typed_account_verification_fallback_when_raw_is_none() -> None:
-    # `AssessResult.account_verification` is a typed optional field; a
-    # hand-constructed result populates it directly via the constructor and the
-    # builder reads it without consulting `raw`.
     result = AssessResult(
         allow=True,
         resolved_operator="op_typed",
@@ -248,8 +313,7 @@ def test_typed_account_verification_fallback_when_raw_is_none() -> None:
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)
     d = profile.to_dict()
-    cap = next(c for c in d["capabilities"] if c["name"] == AGENTSCORE_UCP_CAPABILITY)
-    claims = cap["claims"]
+    claims = _agentscore_cap(d)["claims"]
     assert claims["kyc_level"] == "verified"
     assert claims["age_bracket"] == "21+"
     assert claims["jurisdiction"] == "US"
@@ -257,13 +321,6 @@ def test_typed_account_verification_fallback_when_raw_is_none() -> None:
 
 
 def test_typed_takes_precedence_over_raw() -> None:
-    # When the typed `operator_verification` / `account_verification` fields
-    # disagree with `data.raw`, the typed values win. Mirrors the node sibling
-    # which reads `input.data.operator_verification` directly without
-    # consulting `raw`. Production callers populate raw and the typed fields
-    # stay in sync; pinning typed-precedence keeps a hand-constructed
-    # AssessResult from emitting a profile that one language verifies and the
-    # other rejects.
     result = AssessResult(
         allow=True,
         resolved_operator="op_xyz",
@@ -275,17 +332,11 @@ def test_typed_takes_precedence_over_raw() -> None:
         },
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)
-    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
-    # Typed `account_verification.kyc_level == 'verified'` wins over the
-    # `none` value carried in `data.raw`.
+    cap = profile.ucp.capabilities[AGENTSCORE_UCP_CAPABILITY][0]
     assert cap.extras["claims"]["kyc_level"] == "verified"
 
 
 def test_raw_fallback_used_when_typed_missing() -> None:
-    # When typed `operator_verification` / `account_verification` are absent,
-    # the builder falls back to `data.raw`. This is the production path:
-    # `AgentScoreClient` populates both, but legacy or ad-hoc callers may
-    # only set raw.
     result = AssessResult(
         allow=True,
         resolved_operator="op_raw",
@@ -296,48 +347,93 @@ def test_raw_fallback_used_when_typed_missing() -> None:
         },
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)
-    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
-    # `kyc_level` falls back to raw `account_verification.kyc_level`.
+    cap = profile.ucp.capabilities[AGENTSCORE_UCP_CAPABILITY][0]
     assert cap.extras["claims"]["kyc_level"] == "enhanced"
 
 
-# Per-element to_dict reserved-key collision guard. Mirrors the parent
-# UCPProfile.to_dict guard so vendor extras can't silently overwrite a canonical
-# field on UCPService / UCPCapability / UCPSigningKey via `out.update(extras)`.
+# Per-element to_dict reserved-key collision guard. Vendor extras can't silently
+# overwrite a canonical field on the new binding dataclasses.
 
 
-def test_ucp_service_extras_collision_with_type_rejected() -> None:
-    svc = UCPService(type="rest", extras={"type": "different"})
-    with pytest.raises(ValueError, match=r"UCPService\.extras key 'type' collides"):
+def test_ucp_service_binding_extras_collision_rejected() -> None:
+    svc = UCPServiceBinding(
+        version="2026-04-08",
+        spec="https://ucp.dev/spec",
+        transport="rest",
+        extras={"transport": "different"},
+    )
+    with pytest.raises(ValueError, match=r"UCPServiceBinding\.extras key 'transport' collides"):
         svc.to_dict()
 
 
-def test_ucp_service_extras_collision_with_url_rejected() -> None:
-    svc = UCPService(type="rest", url="https://x.example", extras={"url": "https://attacker.example"})
-    with pytest.raises(ValueError, match=r"UCPService\.extras key 'url' collides"):
-        svc.to_dict()
+def test_ucp_service_binding_extras_non_reserved_pass_through() -> None:
+    svc = UCPServiceBinding(
+        version="2026-04-08",
+        spec="https://ucp.dev/spec",
+        transport="rest",
+        endpoint="https://x.example",
+        extras={"region": "us-west-1"},
+    )
+    out = svc.to_dict()
+    assert out["region"] == "us-west-1"
+    assert out["endpoint"] == "https://x.example"
 
 
-def test_ucp_service_extras_non_reserved_pass_through() -> None:
-    svc = UCPService(type="rest", url="https://x.example", extras={"region": "us-west-1"})
-    assert svc.to_dict() == {"type": "rest", "url": "https://x.example", "region": "us-west-1"}
-
-
-def test_ucp_capability_extras_collision_with_name_rejected() -> None:
-    cap = UCPCapability(name="checkout", extras={"name": "different"})
-    with pytest.raises(ValueError, match=r"UCPCapability\.extras key 'name' collides"):
+def test_ucp_capability_binding_extras_collision_rejected() -> None:
+    cap = UCPCapabilityBinding(
+        version="1",
+        spec="https://x/spec",
+        schema="https://x/schema",
+        extras={"schema": "https://attacker"},
+    )
+    with pytest.raises(ValueError, match=r"UCPCapabilityBinding\.extras key 'schema' collides"):
         cap.to_dict()
 
 
-def test_ucp_capability_extras_collision_with_schema_rejected() -> None:
-    cap = UCPCapability(name="checkout", schema="https://x/y", extras={"schema": "https://attacker"})
-    with pytest.raises(ValueError, match=r"UCPCapability\.extras key 'schema' collides"):
-        cap.to_dict()
+def test_ucp_capability_binding_claims_extra_passes_through() -> None:
+    cap = UCPCapabilityBinding(
+        version="1",
+        spec="https://x/spec",
+        schema="https://x/schema",
+        extras={"claims": {"k": "v"}},
+    )
+    out = cap.to_dict()
+    assert out["claims"] == {"k": "v"}
 
 
-def test_ucp_capability_extras_non_reserved_pass_through() -> None:
-    cap = UCPCapability(name="checkout", extras={"claims": {"k": "v"}})
-    assert cap.to_dict() == {"name": "checkout", "claims": {"k": "v"}}
+def test_ucp_payment_handler_binding_omits_default_empty_config() -> None:
+    h = UCPPaymentHandlerBinding(
+        id="tempo",
+        version="1",
+        spec="https://x",
+        schema="https://x",
+    )
+    out = h.to_dict()
+    assert "config" not in out
+    assert out["id"] == "tempo"
+
+
+def test_ucp_payment_handler_binding_omits_explicit_empty_config() -> None:
+    h = UCPPaymentHandlerBinding(
+        id="tempo",
+        version="1",
+        spec="https://x",
+        schema="https://x",
+        config={},
+    )
+    assert "config" not in h.to_dict()
+
+
+def test_ucp_payment_handler_binding_preserves_populated_config() -> None:
+    h = UCPPaymentHandlerBinding(
+        id="tempo",
+        version="1",
+        spec="https://x",
+        schema="https://x",
+        config={"recipient": "0xabc"},
+    )
+    out = h.to_dict()
+    assert out["config"] == {"recipient": "0xabc"}
 
 
 def test_ucp_signing_key_extras_collision_with_kid_rejected() -> None:
@@ -346,45 +442,10 @@ def test_ucp_signing_key_extras_collision_with_kid_rejected() -> None:
         sk.to_dict()
 
 
-def test_ucp_signing_key_extras_collision_with_kty_rejected() -> None:
-    sk = UCPSigningKey(kid="me", kty="EC", extras={"kty": "RSA"})
-    with pytest.raises(ValueError, match=r"UCPSigningKey\.extras key 'kty' collides"):
-        sk.to_dict()
-
-
 def test_ucp_signing_key_extras_non_reserved_pass_through() -> None:
     sk = UCPSigningKey(kid="me", kty="EC", alg="ES256", crv="P-256", extras={"x": "abc", "y": "def"})
     out = sk.to_dict()
     assert out == {"kid": "me", "kty": "EC", "alg": "ES256", "crv": "P-256", "x": "abc", "y": "def"}
-
-
-# UCPPaymentHandler.to_dict omits `config` when empty. Node's
-# `UCPPaymentHandler.config` is optional (`Record<string, unknown>?`), so a Node
-# caller writing `{name: 'tempo'}` ships a wire profile WITHOUT the `config` key.
-# Python must do the same or the same logical input produces different canonical
-# bytes between SDKs. Explicit `config={}` is semantically identical to absent
-# and follows the same omit rule.
-
-
-def test_ucp_payment_handler_to_dict_omits_default_empty_config() -> None:
-    assert UCPPaymentHandler(name="tempo").to_dict() == {"name": "tempo"}
-
-
-def test_ucp_payment_handler_to_dict_omits_explicit_empty_config() -> None:
-    assert UCPPaymentHandler(name="tempo", config={}).to_dict() == {"name": "tempo"}
-
-
-def test_ucp_payment_handler_to_dict_preserves_populated_config() -> None:
-    assert UCPPaymentHandler(name="tempo", config={"recipient": "0xabc"}).to_dict() == {
-        "name": "tempo",
-        "config": {"recipient": "0xabc"},
-    }
-
-
-# Typed-vs-raw read order: `data.account_verification == {}` means "API
-# explicitly returned an empty block" and must win over `data.raw`. Only when
-# the typed field is `None` does the builder fall back to raw. Mirrors the Node
-# sibling, which reads the typed field directly without consulting raw.
 
 
 def test_typed_empty_account_verification_wins_over_raw() -> None:
@@ -395,9 +456,7 @@ def test_typed_empty_account_verification_wins_over_raw() -> None:
         raw={"account_verification": {"kyc_level": "verified"}},
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)
-    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
-    # Empty typed dict suppresses the raw fallback; kyc_level falls through to
-    # the schema default "none" instead of bleeding the raw "verified" value.
+    cap = profile.ucp.capabilities[AGENTSCORE_UCP_CAPABILITY][0]
     assert cap.extras["claims"]["kyc_level"] == "none"
 
 
@@ -405,11 +464,16 @@ def test_typed_empty_operator_verification_wins_over_raw() -> None:
     result = AssessResult(
         allow=True,
         resolved_operator="op_xyz",
-        # Empty dict is a valid typed value (means "operator block returned empty").
         operator_verification=cast("OperatorVerification", {}),
         raw={"operator_verification": {"level": "enhanced", "verified_at": "2026-01-01T00:00:00Z"}},
     )
     profile = build_ucp_profile(**_base_kwargs(), data=result)
-    cap = next(c for c in profile.capabilities if c.name == AGENTSCORE_UCP_CAPABILITY)
-    # Empty typed dict suppresses raw fallback; verified_at falls through to None.
+    cap = profile.ucp.capabilities[AGENTSCORE_UCP_CAPABILITY][0]
     assert cap.extras["claims"]["verified_at"] is None
+
+
+def test_ucp_profile_body_can_be_constructed_directly() -> None:
+    """UCPProfileBody is exported so callers can pre-build the body if they want."""
+    body = UCPProfileBody(version="2026-04-08")
+    assert body.to_dict()["version"] == "2026-04-08"
+    assert body.to_dict()["services"] == {}

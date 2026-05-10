@@ -1,30 +1,44 @@
 {
   "profile": {
-    "version": "2026-04-17",
-    "spec": "https://ucp.dev/",
-    "services": [
-      {
-        "type": "rest",
-        "url": "https://c.example.com"
-      }
-    ],
-    "capabilities": [
-      {
-        "name": "sh.agentscore.identity",
-        "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
-        "version": "1",
-        "kyc_required": true
-      }
-    ],
-    "payment_handlers": [
-      {
-        "name": "tempo",
-        "config": {
-          "rail": "tempo-mainnet",
-          "chain_id": 4217
-        }
-      }
-    ],
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://c.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {
+        "sh.agentscore.identity": [
+          {
+            "version": "1",
+            "spec": "https://agentscore.sh/specification/identity",
+            "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+            "kyc_required": true
+          }
+        ]
+      },
+      "payment_handlers": {
+        "sh.agentscore.payment.tempo": [
+          {
+            "id": "tempo",
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
+            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json",
+            "config": {
+              "rail": "tempo-mainnet",
+              "chain_id": 4217
+            }
+          }
+        ]
+      },
+      "name": "Capability Merchant"
+    },
     "signing_keys": [
       {
         "kid": "py-capability-EdDSA",
@@ -32,17 +46,16 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "mrV_IopnC9X6Y7B7sVWRa0hauxmLjiGMtmBpcoD9Nrg"
+        "x": "TikhC4jSghoLfPC6j9KBytlHrgyFvZVVm5OUjG7bYCM"
       }
     ],
-    "name": "Capability Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWNhcGFiaWxpdHktRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJjYXBhYmlsaXRpZXMiOlt7Imt5Y19yZXF1aXJlZCI6dHJ1ZSwibmFtZSI6InNoLmFnZW50c2NvcmUuaWRlbnRpdHkiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwidmVyc2lvbiI6IjEifV0sIm5hbWUiOiJDYXBhYmlsaXR5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7ImNoYWluX2lkIjo0MjE3LCJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8vYy5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1jYXBhYmlsaXR5LUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6Im1yVl9Jb3BuQzlYNlk3QjdzVldSYTBoYXV4bUxqaUdNdG1CcGNvRDlOcmcifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.P38VWqceyAly7lFhP7vYluyI8PK0_9GbPX9AccaODPtxanuloyOaajrV_O_efVyw8PUsFyyo5AkIDWrApTvIDg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWNhcGFiaWxpdHktRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LWNhcGFiaWxpdHktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiVGlraEM0alNnaG9MZlBDNmo5S0J5dGxIcmd5RnZaVlZtNU9Vakc3YllDTSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6eyJzaC5hZ2VudHNjb3JlLmlkZW50aXR5IjpbeyJreWNfcmVxdWlyZWQiOnRydWUsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vaWRlbnRpdHkiLCJ2ZXJzaW9uIjoiMSJ9XX0sIm5hbWUiOiJDYXBhYmlsaXR5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6eyJzaC5hZ2VudHNjb3JlLnBheW1lbnQudGVtcG8iOlt7ImNvbmZpZyI6eyJjaGFpbl9pZCI6NDIxNywicmFpbCI6InRlbXBvLW1haW5uZXQifSwiaWQiOiJ0ZW1wbyIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8uanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3RlbXBvIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vYy5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMTcifX0._31-NgZEBmN2c8qyxQvOaEBrhycJ6MULjhfN3sgVp5UqiUduGp66XHQC0HI4Ni6W7CzNx2-ktZWdLWD0clPdDg"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "mrV_IopnC9X6Y7B7sVWRa0hauxmLjiGMtmBpcoD9Nrg",
+        "x": "TikhC4jSghoLfPC6j9KBytlHrgyFvZVVm5OUjG7bYCM",
         "kid": "py-capability-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

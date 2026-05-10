@@ -1,15 +1,22 @@
 {
   "profile": {
-    "version": "2026-04-17",
-    "spec": "https://ucp.dev/",
-    "services": [
-      {
-        "type": "rest",
-        "url": "https://i.example.com"
-      }
-    ],
-    "capabilities": [],
-    "payment_handlers": [],
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://i.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {},
+      "payment_handlers": {},
+      "name": "Int Boundary Merchant"
+    },
     "signing_keys": [
       {
         "kid": "node-int-boundary-EdDSA",
@@ -17,16 +24,15 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "Szf46vxQ_9bY6fp12Tzs2jxUtDtRnPSLAI2FeaMkhk8"
+        "x": "vmNTcQKo5jUIpTVnWRSkLu-s7cUoNO_OfPJTctAOhR4"
       }
     ],
-    "name": "Int Boundary Merchant",
     "max_safe_int": 9007199254740991,
     "min_safe_int": -9007199254740991,
     "small_int": 42,
     "neg_small_int": -42,
     "zero": 0,
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtaW50LWJvdW5kYXJ5LUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5hbWUiOiJJbnQgQm91bmRhcnkgTWVyY2hhbnQiLCJuZWdfc21hbGxfaW50IjotNDIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL2kuZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiU3pmNDZ2eFFfOWJZNmZwMTJUenMyanhVdER0Um5QU0xBSTJGZWFNa2hrOCJ9XSwic21hbGxfaW50Ijo0Miwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0xNyIsInplcm8iOjB9.DvkIZ_rn0utUn4LQhLsIFeoA9iIhpEb3Gk3_Q93LOLaHg5kuw226m35IFODJV2WwkJtjmJ6-Ib829V_-7iF8Bg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtaW50LWJvdW5kYXJ5LUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLWludC1ib3VuZGFyeS1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJ2bU5UY1FLbzVqVUlwVFZuV1JTa0x1LXM3Y1VvTk9fT2ZQSlRjdEFPaFI0In1dLCJzbWFsbF9pbnQiOjQyLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkludCBCb3VuZGFyeSBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnt9LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vaS5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMTcifSwiemVybyI6MH0.iIsGfdlC2ZqMh3ouvz86u4QmGS0d-JR9KyTcUNoMTnqbt0P63PBJ7lXCoZ64DY4XtFJ83sPzSrOIzvdsbrOvBQ"
   },
   "jwks": {
     "keys": [
@@ -36,7 +42,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "Szf46vxQ_9bY6fp12Tzs2jxUtDtRnPSLAI2FeaMkhk8"
+        "x": "vmNTcQKo5jUIpTVnWRSkLu-s7cUoNO_OfPJTctAOhR4"
       }
     ]
   },

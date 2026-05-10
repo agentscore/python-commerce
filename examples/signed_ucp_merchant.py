@@ -1,9 +1,14 @@
 """Signed UCP profile example — ``/.well-known/ucp`` + ``/.well-known/jwks.json``.
 
-UCP §6 trust-mode verification (Google AI Mode, Gemini commerce) requires the
-profile to carry a JWS signature and the merchant to publish a JWKS endpoint
-verifiers can fetch the public key from. This example wires both routes against
-a persistent signing key (env-loaded for prod, ephemeral for dev).
+AgentScore's ``agentscore-profile+jws`` is a vendor extension layered on top of
+the UCP profile for trust-mode verifiers (Visa AP2 pilots, regulated-commerce
+verifiers) that opt into auditable cryptographic provenance. UCP §6 itself does
+NOT mandate profile-body signing — Pura Vida and other Shopify-backed UCP
+merchants ship unsigned in production today, and live UCP-aware agents (Google
+AI Mode, Gemini commerce, Microsoft Copilot, Perplexity) accept unsigned
+profiles. This example wires both routes against a persistent signing key
+(env-loaded for prod, ephemeral for dev) for verifiers that DO opt into the
+signed envelope.
 
 Run::
 

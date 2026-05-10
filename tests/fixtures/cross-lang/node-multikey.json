@@ -1,22 +1,34 @@
 {
   "profile": {
-    "version": "2026-04-17",
-    "spec": "https://ucp.dev/",
-    "services": [
-      {
-        "type": "rest",
-        "url": "https://mk.example.com"
-      }
-    ],
-    "capabilities": [],
-    "payment_handlers": [
-      {
-        "name": "tempo",
-        "config": {
-          "rail": "tempo-mainnet"
-        }
-      }
-    ],
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://mk.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {},
+      "payment_handlers": {
+        "sh.agentscore.payment.tempo": [
+          {
+            "id": "tempo",
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
+            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json",
+            "config": {
+              "rail": "tempo-mainnet"
+            }
+          }
+        ]
+      },
+      "name": "Multi-Key Merchant"
+    },
     "signing_keys": [
       {
         "kid": "node-multikey-old",
@@ -24,7 +36,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "OegF87KiSAOfa6Wd3qJKCNPmoFKHBxPaf9YqgvlTQvY"
+        "x": "dh_cI_8_Z79h3t5i72fKw89EwpeJiA2ELN1SnS_OgdQ"
       },
       {
         "kid": "node-multikey-new",
@@ -32,11 +44,10 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "mrwPS0Dm8qiH2sFDtECXMgiRa5u3GS1h5UCG4NqxwxY"
+        "x": "oxGfu9h6LckqvQ0eVkovSzUwCdGo8xLkPcq8siUoh7M"
       }
     ],
-    "name": "Multi-Key Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbXVsdGlrZXktbmV3IiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTXVsdGktS2V5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sIm5hbWUiOiJ0ZW1wbyJ9XSwic2VydmljZXMiOlt7InR5cGUiOiJyZXN0IiwidXJsIjoiaHR0cHM6Ly9tay5leGFtcGxlLmNvbSJ9XSwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJPZWdGODdLaVNBT2ZhNldkM3FKS0NOUG1vRktIQnhQYWY5WXFndmxUUXZZIn0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJub2RlLW11bHRpa2V5LW5ldyIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJtcndQUzBEbThxaUgyc0ZEdEVDWE1naVJhNXUzR1MxaDVVQ0c0TnF4d3hZIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.oc_dpoITPPuL0oft-Lu0rEa7Hm10LNTe8RYqMpPbaA0xtJcQzRyJMiQgJ3sWOiXSRst6CzeuO_von36ansqWCA"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbXVsdGlrZXktbmV3IiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtbXVsdGlrZXktb2xkIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6ImRoX2NJXzhfWjc5aDN0NWk3MmZLdzg5RXdwZUppQTJFTE4xU25TX09nZFEifSx7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtbXVsdGlrZXktbmV3Iiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6Im94R2Z1OWg2TGNrcXZRMGVWa292U3pVd0NkR284eExrUGNxOHNpVW9oN00ifV0sInVjcCI6eyJjYXBhYmlsaXRpZXMiOnt9LCJuYW1lIjoiTXVsdGktS2V5IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6eyJzaC5hZ2VudHNjb3JlLnBheW1lbnQudGVtcG8iOlt7ImNvbmZpZyI6eyJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJpZCI6InRlbXBvIiwic2NoZW1hIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NjaGVtYXMvcGF5bWVudC1oYW5kbGVycy90ZW1wby5qc29uIiwic3BlYyI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zcGVjaWZpY2F0aW9uL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8iLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9tay5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMTcifX0.fEq5VVrBtuwEYJGcpHuaTCVQWmS6LvcOdtS-reZGyLFosCrmok9eU86w9m79aO6k0u_CXOC_n90TvbFfuKINCA"
   },
   "jwks": {
     "keys": [
@@ -46,7 +57,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "OegF87KiSAOfa6Wd3qJKCNPmoFKHBxPaf9YqgvlTQvY"
+        "x": "dh_cI_8_Z79h3t5i72fKw89EwpeJiA2ELN1SnS_OgdQ"
       },
       {
         "kid": "node-multikey-new",
@@ -54,7 +65,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "mrwPS0Dm8qiH2sFDtECXMgiRa5u3GS1h5UCG4NqxwxY"
+        "x": "oxGfu9h6LckqvQ0eVkovSzUwCdGo8xLkPcq8siUoh7M"
       }
     ]
   },

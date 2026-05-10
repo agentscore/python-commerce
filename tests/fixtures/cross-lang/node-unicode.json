@@ -1,22 +1,34 @@
 {
   "profile": {
-    "version": "2026-04-17",
-    "spec": "https://ucp.dev/",
-    "services": [
-      {
-        "type": "rest",
-        "url": "https://日本.example.com"
-      }
-    ],
-    "capabilities": [],
-    "payment_handlers": [
-      {
-        "name": "tempo",
-        "config": {
-          "note": "メモ"
-        }
-      }
-    ],
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://日本.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {},
+      "payment_handlers": {
+        "sh.agentscore.payment.tempo": [
+          {
+            "id": "tempo",
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
+            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json",
+            "config": {
+              "note": "メモ"
+            }
+          }
+        ]
+      },
+      "name": "Café 日本 🍷 Merchant"
+    },
     "signing_keys": [
       {
         "kid": "node-unicode-EdDSA",
@@ -24,11 +36,10 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "4bSDSdklqdRpcUwMmerxArvPlqFwGDUH13wqNQVRfHc"
+        "x": "At1k1YXploco8YrjdagqC9HYxCnN7ommm4MWIRUp5AY"
       }
     ],
-    "name": "Café 日本 🍷 Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtdW5pY29kZS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiQ2Fmw6kg5pel5pysIPCfjbcgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjpbeyJjb25maWciOnsibm90ZSI6IuODoeODoiJ9LCJuYW1lIjoidGVtcG8ifV0sInNlcnZpY2VzIjpbeyJ0eXBlIjoicmVzdCIsInVybCI6Imh0dHBzOi8v5pel5pysLmV4YW1wbGUuY29tIn1dLCJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtdW5pY29kZS1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI0YlNEU2RrbHFkUnBjVXdNbWVyeEFydlBscUZ3R0RVSDEzd3FOUVZSZkhjIn1dLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LyIsInZlcnNpb24iOiIyMDI2LTA0LTE3In0.sopMGjSMti21_96dyk8cbrkv6tIDStW-lc74IbVhnakgovuGAunvSIMRzqvAXAweYksBrvvuuAVpoSjBXH8fCQ"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtdW5pY29kZS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtdW5pY29kZS1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJBdDFrMVlYcGxvY284WXJqZGFncUM5SFl4Q25ON29tbW00TVdJUlVwNUFZIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkNhZsOpIOaXpeacrCDwn423IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6eyJzaC5hZ2VudHNjb3JlLnBheW1lbnQudGVtcG8iOlt7ImNvbmZpZyI6eyJub3RlIjoi44Oh44OiIn0sImlkIjoidGVtcG8iLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy90ZW1wbyIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL-aXpeacrC5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMTcifX0.BKhv1J0LSZ-PQBySoMQXTAx-OalhQZSiiCXaWSHjA6HbeCvz4aw-os3p-FlAgfDoiChxRKeGfN-n-LcYIv4yAQ"
   },
   "jwks": {
     "keys": [
@@ -38,7 +49,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "4bSDSdklqdRpcUwMmerxArvPlqFwGDUH13wqNQVRfHc"
+        "x": "At1k1YXploco8YrjdagqC9HYxCnN7ommm4MWIRUp5AY"
       }
     ]
   },

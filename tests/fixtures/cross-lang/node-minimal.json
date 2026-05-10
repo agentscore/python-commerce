@@ -1,15 +1,22 @@
 {
   "profile": {
-    "version": "2026-04-17",
-    "spec": "https://ucp.dev/",
-    "services": [
-      {
-        "type": "rest",
-        "url": "https://m.example.com"
-      }
-    ],
-    "capabilities": [],
-    "payment_handlers": [],
+    "ucp": {
+      "version": "2026-04-17",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://m.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {},
+      "payment_handlers": {},
+      "name": "Minimal Merchant"
+    },
     "signing_keys": [
       {
         "kid": "node-minimal-EdDSA",
@@ -17,11 +24,10 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "2Jgxm4RvhN3zQ-tmfPw3e-kqm80FGByMyjmswNnjl0I"
+        "x": "69RWgrarCEN0sSH5FfkJ2-miQQNRpXYh0wt9kviqzqk"
       }
     ],
-    "name": "Minimal Merchant",
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJjYXBhYmlsaXRpZXMiOltdLCJuYW1lIjoiTWluaW1hbCBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOltdLCJzZXJ2aWNlcyI6W3sidHlwZSI6InJlc3QiLCJ1cmwiOiJodHRwczovL20uZXhhbXBsZS5jb20ifV0sInNpZ25pbmdfa2V5cyI6W3siYWxnIjoiRWREU0EiLCJjcnYiOiJFZDI1NTE5Iiwia2lkIjoibm9kZS1taW5pbWFsLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6IjJKZ3htNFJ2aE4zelEtdG1mUHczZS1rcW04MEZHQnlNeWptc3dObmpsMEkifV0sInNwZWMiOiJodHRwczovL3VjcC5kZXYvIiwidmVyc2lvbiI6IjIwMjYtMDQtMTcifQ.hcmlPgS0XaPdSe9kPFhaMbIvmNPzEaBJY9jW_ZYW7kDMftsaBt4wwF-SocM8z-dcpos4kNGsPAWKEzGHnYAaAg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI2OVJXZ3JhckNFTjBzU0g1RmZrSjItbWlRUU5ScFhZaDB3dDlrdmlxenFrIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6Ik1pbmltYWwgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL20uZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTE3In19.ei7hxM6v-gnxAkgG4NiWLwzhd9wOxg3lO9ZTFVEuSBaAho0n_GaQayO99ibjQgqa2yUa1J9PcGh3woMh7cQcAA"
   },
   "jwks": {
     "keys": [
@@ -31,7 +37,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "2Jgxm4RvhN3zQ-tmfPw3e-kqm80FGByMyjmswNnjl0I"
+        "x": "69RWgrarCEN0sSH5FfkJ2-miQQNRpXYh0wt9kviqzqk"
       }
     ]
   },

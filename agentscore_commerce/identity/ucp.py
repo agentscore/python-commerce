@@ -3,8 +3,7 @@
 Compose the JSON payload published at ``/.well-known/ucp`` per the UCP spec. Output
 shape matches the spec example: top-level ``{"ucp": {...}, "signing_keys": [...]}``
 envelope, with ``services`` / ``capabilities`` / ``payment_handlers`` as MAPS keyed by
-reverse-DNS name. Verified against the live production reference at
-``https://puravidabracelets.com/.well-known/ucp`` (Shopify's UCP integration).
+reverse-DNS name (UCP spec §3 + §6).
 
 AgentScore identity claims layer over UCP via the ``sh.agentscore.identity`` capability
 (vendor-namespaced; UCP doesn't define KYC/sanctions/age/jurisdiction natively).

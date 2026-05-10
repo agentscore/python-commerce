@@ -437,7 +437,7 @@ The `get_gate_degraded_state` helper is exported by every framework adapter (Fas
 
 ## Examples
 
-The [examples/](./examples) directory has 7 runnable single-file FastAPI apps covering common merchant scenarios. See [examples/README.md](./examples/README.md) for the full table.
+The [examples/](./examples) directory has 8 runnable single-file FastAPI apps covering common merchant scenarios. See [examples/README.md](./examples/README.md) for the full table.
 
 ## Stability
 

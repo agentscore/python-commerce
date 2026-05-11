@@ -10,7 +10,7 @@ resolution-markers = [
 
 [[package]]
 name = "agentscore-commerce"
-version = "1.7.0"
+version = "1.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "agentscore-py" },
@@ -80,7 +80,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentscore-py", specifier = ">=2.1.0" },
+    { name = "agentscore-py", editable = "../python-sdk" },
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
     { name = "cdp-sdk", marker = "extra == 'coinbase'", specifier = ">=1.0,<2" },
     { name = "django", marker = "extra == 'django'", specifier = ">=4.0" },
@@ -122,14 +122,31 @@ dev = [
 
 [[package]]
 name = "agentscore-py"
-version = "2.1.2"
-source = { registry = "https://pypi.org/simple" }
+version = "2.2.0"
+source = { editable = "../python-sdk" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/82/65c94878455fca417374c04f9f35c9bbdcee0fe98d43cb1cde5d072b20f6/agentscore_py-2.1.2.tar.gz", hash = "sha256:8830765d89aaea102c092084d24a542c1eb7f83b2b29370eae31417d41c22a41", size = 58027, upload-time = "2026-05-11T00:45:40.84Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/b3/e80ca6f484f198347ec48aa8a190511827b591679da309ee162d43e17856/agentscore_py-2.1.2-py3-none-any.whl", hash = "sha256:c7220cab0de7957e91632634c4502c562e2235548a37f367473548001ee3af38", size = 19087, upload-time = "2026-05-11T00:45:39.067Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.25.0,<1.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21" },
+    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
+]
+provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "lefthook", specifier = ">=2.1.6" },
+    { name = "pytest-asyncio", specifier = ">=1.2.0" },
+    { name = "pytest-cov", specifier = ">=6.0" },
+    { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "respx", specifier = ">=0.22.0" },
+    { name = "ruff", specifier = ">=0.11.0" },
+    { name = "ty", specifier = ">=0.0.32" },
+    { name = "vulture", specifier = ">=2.15" },
 ]
 
 [[package]]

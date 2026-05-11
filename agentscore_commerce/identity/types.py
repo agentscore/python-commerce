@@ -259,6 +259,6 @@ class AssessResult:
     # for this same claimed wallet. Each signer gets its own slot so two payments under the
     # same claimed identity but from different signer wallets don't serve stale verdicts to
     # each other. Verdicts come from the API's ``signer_match`` response field (populated
-    # when the assess request carried ``resolve_signer``), so reading a hit skips the round
+    # when the assess request carried ``signer``), so reading a hit skips the round
     # trip altogether.
     signer_match_by_signer: dict[str, dict[str, Any]] = field(default_factory=dict)

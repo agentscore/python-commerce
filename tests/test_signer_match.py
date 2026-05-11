@@ -940,7 +940,7 @@ def test_verify_wallet_signer_match_legacy_fallback_when_signer_match_absent() -
 
 
 def test_verify_wallet_signer_match_assess_failure_returns_api_error() -> None:
-    """SDK raising AgentScoreError on the resolve_signer-aware assess → api_error."""
+    """SDK raising AgentScoreError on the signer-aware assess → api_error."""
     from agentscore import AgentScoreError as SdkErr
 
     client = GateClient(api_key=API_KEY)
@@ -1039,7 +1039,7 @@ def test_verify_wallet_signer_match_solana_signer_normalizes_correctly() -> None
         )
     assert result.kind == "pass"
     # Solana detection: base58 (no 0x prefix) → network='solana' on the request body.
-    rs = captured_body.get("resolve_signer", {})
+    rs = captured_body.get("signer", {})
     if isinstance(rs, dict):
         assert rs.get("network") == "solana"
 

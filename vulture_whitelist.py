@@ -16,4 +16,4 @@ OperatorVerification  # noqa: F821
 
 # TYPE_CHECKING imports referenced inside string-literal cast() calls
 DecisionPolicy  # noqa: F821
-ResolveSigner  # noqa: F821
+Signer  # noqa: F821

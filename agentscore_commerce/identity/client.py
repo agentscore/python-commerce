@@ -45,7 +45,7 @@ from agentscore_commerce.identity.types import (
 )
 
 if TYPE_CHECKING:
-    from agentscore.types import DecisionPolicy, ResolveSigner
+    from agentscore.types import DecisionPolicy, Signer
 
     from agentscore_commerce.identity.types import DenialReason
 
@@ -513,7 +513,7 @@ class GateClient:
     def verify_wallet_signer_match(self, options: VerifyWalletSignerMatchOptions) -> VerifyWalletSignerResult:
         """Verify payment signer resolves to the same operator as the claimed wallet.
 
-        Single-call path: makes one ``/v1/assess`` request with ``resolve_signer`` set;
+        Single-call path: makes one ``/v1/assess`` request with ``signer`` set;
         the response carries a ``signer_match`` verdict the gate projects directly. Falls
         back to a two-resolve path when the response has no ``signer_match`` so the gate
         still produces a verdict.
@@ -550,13 +550,13 @@ class GateClient:
             if cached_match is not None:
                 return self._project_signer_match(cached_match, claimed, signer_norm)
 
-        # Single resolve_signer-aware assess call — server-side resolves both wallets and
+        # Single signer-aware assess call — server-side resolves both wallets and
         # returns a verdict in one round trip.
         network = options.network or self._infer_signer_network(signer_norm)
         try:
             data = self._sdk.assess(
                 address=claimed,
-                resolve_signer=cast("ResolveSigner", {"address": signer_norm, "network": network}),
+                signer=cast("Signer", {"address": signer_norm, "network": network}),
             )
         except AgentScoreError as exc:
             _log.warning("[gate] verify_wallet_signer_match assess failed: %s", exc)
@@ -627,7 +627,7 @@ class GateClient:
         try:
             data = await self._sdk.aassess(
                 address=claimed,
-                resolve_signer=cast("ResolveSigner", {"address": signer_norm, "network": network}),
+                signer=cast("Signer", {"address": signer_norm, "network": network}),
             )
         except AgentScoreError as exc:
             _log.warning("[gate] averify_wallet_signer_match assess failed: %s", exc)

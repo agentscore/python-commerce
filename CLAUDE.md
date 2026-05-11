@@ -45,7 +45,31 @@ Peer-dep pattern: payment/x402/mppx/stripe modules import lazily at runtime; ven
 | `variable_cost_merchant.py` | Pay-per-actual-usage on **two protocols**: x402 upto (Permit2 + Settlement-Overrides) AND MPP tempo session (channel + SSE + mid-stream vouchers) |
 | `compliance_merchant.py` | Regulated-goods merchant: full compliance gate + custom `on_denied` composing the denial helpers (`verification_agent_instructions`, `is_fixable_denial`, `build_signer_mismatch_body`, `build_contact_support_next_steps`, `denial_reason_to_body`/`denial_reason_status`) |
 | `per_product_policy_merchant.py` | Multi-product merchant where each row carries its own compliance policy. One product hard-gates KYC + age + state; another is anonymous; a third uses `enforcement="soft"` (request KYC but don't block sale). Demonstrates `PolicyBlock`, `build_gate_from_policy`, `run_gate_with_enforcement`, `shipping_country_allowed`, `shipping_state_allowed`. |
-| `signed_ucp_merchant.py` | Signed UCP profile (`/.well-known/ucp`) + JWKS endpoint (`/.well-known/jwks.json`). AgentScore's `agentscore-profile+jws` is a vendor extension on top of UCP for trust-mode verifiers (regulated-commerce, AP2-aware) that opt into auditable cryptographic provenance — UCP §6 itself does NOT mandate signing; production UCP merchants commonly ship unsigned. Wires ephemeral-for-dev / env-JWK-for-prod signing, kid rotation, and `Cache-Control` posture. Uses `generate_ucp_signing_key`, `sign_ucp_profile`, `build_jwks_response`, `UCPSigningKey.from_jwk`, `UCPVerificationError`. |
+| `signed_ucp_merchant.py` | Signed UCP profile (`/.well-known/ucp`) + JWKS endpoint (`/.well-known/jwks.json`). AgentScore's `agentscore-profile+jws` is a vendor extension on top of UCP for trust-mode verifiers (regulated-commerce, AP2-aware) that opt into auditable cryptographic provenance — UCP §6 itself does NOT mandate signing; production UCP merchants commonly ship unsigned. Wires ephemeral-for-dev / env-JWK-for-prod signing, kid rotation, and `Cache-Control` posture. Uses `generate_ucp_signing_key`, `sign_ucp_profile`, `build_jwks_response`, `UCPSigningKey.from_jwk`, `UCPVerificationError`. Demonstrates the payment-handler builders (`mpp_payment_handler`, `x402_payment_handler`, `stripe_spt_payment_handler` — see "Payment-handler builders" below). |
+
+## Payment-handler builders
+
+The SDK ships protocol-rooted builders for the AgentScore-published payment handlers — vendors compose UCP `payment_handlers` blocks by spreading these helpers instead of hand-writing the verbose binding wrapper:
+
+```python
+from agentscore_commerce.identity import (
+    build_ucp_profile,
+    mpp_payment_handler,
+    x402_payment_handler,
+    stripe_spt_payment_handler,
+)
+
+build_ucp_profile(
+    ...,
+    payment_handlers={
+        **mpp_payment_handler(networks=[{"network": "tempo-mainnet", "chain_id": 4217, "recipient": "0x..."}]),
+        **x402_payment_handler(networks=[{"network": "base-8453", "recipient": "0x..."}]),
+        **stripe_spt_payment_handler(profile_id="profile_..."),
+    },
+)
+```
+
+Each helper returns `{ <reverse-DNS-key>: [binding] }` so spreading composes the parent map. The handler `version`, spec URL, and schema URL are owned by the helpers (`agentscore_commerce/identity/ucp.py`) — bumping a handler spec version is a one-line change there. `mpp` + `x402` share the same `networks: [{network, recipient?, ...extras}]` config shape so consumers parse both identically. `recipient` is optional — omit when the merchant uses per-order recipients (e.g. Stripe-derived deposit addresses); the authoritative recipient still ships in the 402 body.
 
 ## Identity model
 

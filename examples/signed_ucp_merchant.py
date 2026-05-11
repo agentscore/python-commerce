@@ -122,13 +122,17 @@ async def well_known_ucp() -> JSONResponse:
             ],
         },
         payment_handlers={
-            "sh.agentscore.payment.tempo": [
+            "sh.agentscore.payment.mpp": [
                 UCPPaymentHandlerBinding(
-                    id="tempo",
+                    id="mpp",
                     version="2026-04-08",
-                    spec="https://agentscore.sh/specification/payment-handlers/tempo",
-                    schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
-                    config={"recipient": "0xfeedface"},
+                    spec="https://agentscore.sh/specification/payment-handlers/mpp",
+                    schema="https://agentscore.sh/schemas/payment-handlers/mpp.json",
+                    config={
+                        "chains": {
+                            "tempo": {"rail": "tempo-mainnet", "chain_id": 4217},
+                        },
+                    },
                 ),
             ],
         },

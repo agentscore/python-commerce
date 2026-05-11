@@ -88,3 +88,5 @@ addopts = "--cov=agentscore_commerce --cov-report=term-missing --cov-fail-under=
 filterwarnings = [
     "ignore:^EdDSA is deprecated via RFC 9864$:joserfc.errors.SecurityWarning",
 ]
+[tool.uv.sources]
+agentscore-py = { path = "../python-sdk", editable = true }

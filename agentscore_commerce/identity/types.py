@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from agentscore import Network as Network
+from agentscore.types import SignerSanctions as SignerSanctions  # noqa: TC002 — runtime re-export for vendors
 
 # Reputation-API types (Activity, Classification, Identity, Reputation, ScoreDetail,
 # Grade, ScoreStatus) live in agentscore-py — not re-exported here. Commerce SDK is
@@ -134,7 +135,7 @@ class SignerVerdict:
     """
 
     signer_match: VerifyWalletSignerResult | None = None
-    signer_sanctions: dict[str, Any] | None = None
+    signer_sanctions: SignerSanctions | None = None
 
 
 # Canonical production AgentScore API; agent memory pointers are always hardcoded to this

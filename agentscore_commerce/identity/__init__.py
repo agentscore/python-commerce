@@ -56,6 +56,9 @@ from agentscore_commerce.identity.ucp import (
     UCPServiceBinding,
     UCPSigningKey,
     build_ucp_profile,
+    mpp_payment_handler,
+    stripe_spt_payment_handler,
+    x402_payment_handler,
 )
 from agentscore_commerce.identity.ucp_jwks import (
     GeneratedUCPKey,
@@ -134,11 +137,14 @@ __all__ = [
     "extract_x402_signer",
     "generate_ucp_signing_key",
     "is_fixable_denial",
+    "mpp_payment_handler",
     "run_gate_with_enforcement",
     "shipping_country_allowed",
     "shipping_state_allowed",
     "sign_ucp_profile",
+    "stripe_spt_payment_handler",
     "ucp_a2a_extension",
     "verification_agent_instructions",
     "verify_ucp_profile",
+    "x402_payment_handler",
 ]

@@ -395,15 +395,9 @@ def build_ucp_profile(
                 },
                 signing_keys=[UCPSigningKey.from_jwk(public_jwk)],
                 payment_handlers={
-                    "sh.agentscore.payment.tempo": [
-                        UCPPaymentHandlerBinding(
-                            id="tempo",
-                            version="2026-04-08",
-                            spec="https://agentscore.sh/specification/payment-handlers/tempo",
-                            schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
-                            config={"recipient": TEMPO_ADDR},
-                        ),
-                    ],
+                    **mpp_payment_handler(networks=[
+                        {"network": "tempo-mainnet", "chain_id": 4217, "recipient": TEMPO_ADDR},
+                    ]),
                 },
                 name="Example Merchant",
                 agentscore_gate=AgentScoreGatePolicy(
@@ -456,6 +450,100 @@ def build_ucp_profile(
     )
 
 
+# ─── Payment handler builders ─────────────────────────────────────────────
+# Vendors compose UCP `payment_handlers` blocks by spreading these helpers.
+# The helpers fill in id/version/spec/schema/config wrapper so vendors only
+# supply merchant-specific data (networks + recipients + profile_id).
+#
+#   payment_handlers={
+#       **mpp_payment_handler(networks=[...]),
+#       **x402_payment_handler(networks=[...]),
+#       **stripe_spt_payment_handler(profile_id="..."),
+#   }
+#
+# The reverse-DNS keys + spec/schema URLs + handler `version` are owned by
+# these constants; bumping a handler spec version is a one-line change here.
+
+_HANDLER_VERSION = "2026-04-08"
+_SPEC_BASE = "https://agentscore.sh/specification/payment-handlers"
+_SCHEMA_BASE = "https://agentscore.sh/schemas/payment-handlers"
+
+
+def mpp_payment_handler(*, networks: list[dict[str, Any]]) -> dict[str, list[UCPPaymentHandlerBinding]]:
+    """Build the `sh.agentscore.payment.mpp` payment handler block for a UCP profile.
+
+    Each network entry: `{"network": <id>, "chain_id"?: <int>, "recipient"?: <addr>, ...}`.
+    Tempo: `tempo-mainnet` / `tempo-testnet`. Solana via `solana/charge`:
+    `mpp-solana-mainnet` / `mpp-solana-devnet`.
+
+    Spread into payment_handlers:
+        payment_handlers={
+            **mpp_payment_handler(networks=[
+                {"network": "tempo-mainnet", "chain_id": 4217},
+            ]),
+        }
+    """
+    return {
+        "sh.agentscore.payment.mpp": [
+            UCPPaymentHandlerBinding(
+                id="mpp",
+                version=_HANDLER_VERSION,
+                spec=f"{_SPEC_BASE}/mpp",
+                schema=f"{_SCHEMA_BASE}/mpp.json",
+                config={"networks": networks},
+            )
+        ]
+    }
+
+
+def x402_payment_handler(*, networks: list[dict[str, Any]]) -> dict[str, list[UCPPaymentHandlerBinding]]:
+    """Build the `sh.agentscore.payment.x402` payment handler block for a UCP profile.
+
+    Each network entry: `{"network": <id>, "recipient"?: <addr>, ...}`.
+    EVM: `base-8453`, `base-84532`. Solana: `solana-mainnet-beta`, `solana-devnet`.
+    Stellar: `stellar-pubnet`, `stellar-testnet`.
+
+    Spread into payment_handlers:
+        payment_handlers={
+            **x402_payment_handler(networks=[
+                {"network": "base-8453", "recipient": "0xabc..."},
+            ]),
+        }
+    """
+    return {
+        "sh.agentscore.payment.x402": [
+            UCPPaymentHandlerBinding(
+                id="x402",
+                version=_HANDLER_VERSION,
+                spec=f"{_SPEC_BASE}/x402",
+                schema=f"{_SCHEMA_BASE}/x402.json",
+                config={"networks": networks},
+            )
+        ]
+    }
+
+
+def stripe_spt_payment_handler(*, profile_id: str) -> dict[str, list[UCPPaymentHandlerBinding]]:
+    """Build the `sh.agentscore.payment.stripe_spt` payment handler block for a UCP profile.
+
+    Spread into payment_handlers:
+        payment_handlers={
+            **stripe_spt_payment_handler(profile_id="profile_5xKvNqM9BaH"),
+        }
+    """
+    return {
+        "sh.agentscore.payment.stripe_spt": [
+            UCPPaymentHandlerBinding(
+                id="stripe-spt",
+                version=_HANDLER_VERSION,
+                spec=f"{_SPEC_BASE}/stripe_spt",
+                schema=f"{_SCHEMA_BASE}/stripe_spt.json",
+                config={"rail": "stripe-spt", "profile_id": profile_id},
+            )
+        ]
+    }
+
+
 __all__ = [
     "AGENTSCORE_UCP_CAPABILITY",
     "AgentScoreGatePolicy",
@@ -466,4 +554,7 @@ __all__ = [
     "UCPServiceBinding",
     "UCPSigningKey",
     "build_ucp_profile",
+    "mpp_payment_handler",
+    "stripe_spt_payment_handler",
+    "x402_payment_handler",
 ]

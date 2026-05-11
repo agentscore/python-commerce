@@ -39,13 +39,13 @@ from fastapi.responses import JSONResponse
 
 from agentscore_commerce.identity import (
     AgentScoreGatePolicy,
-    UCPPaymentHandlerBinding,
     UCPServiceBinding,
     UCPSigningKey,
     UCPVerificationError,
     build_jwks_response,
     build_ucp_profile,
     generate_ucp_signing_key,
+    mpp_payment_handler,
     sign_ucp_profile,
     verify_ucp_profile,
 )
@@ -122,15 +122,11 @@ async def well_known_ucp() -> JSONResponse:
             ],
         },
         payment_handlers={
-            "sh.agentscore.payment.tempo": [
-                UCPPaymentHandlerBinding(
-                    id="tempo",
-                    version="2026-04-08",
-                    spec="https://agentscore.sh/specification/payment-handlers/tempo",
-                    schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
-                    config={"recipient": "0xfeedface"},
-                ),
-            ],
+            **mpp_payment_handler(
+                networks=[
+                    {"network": "tempo-mainnet", "chain_id": 4217, "recipient": "0xfeedface"},
+                ]
+            ),
         },
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
         # Optional: declare merchant gate policy as an `sh.agentscore.identity` capability

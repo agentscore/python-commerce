@@ -81,7 +81,7 @@ Two identity types: wallet (`X-Wallet-Address`) and operator-token (`X-Operator-
 
 Captured wallets: `capture_wallet(...)` is fire-and-forget. Reads `operator_token` stashed during gating and POSTs to `/v1/credentials/wallets`. No-ops for wallet-authenticated requests.
 
-Wallet-signer-match: `verify_wallet_signer_match` / `averify_wallet_signer_match` makes a single `/v1/assess` call with `resolve_signer` set; the API resolves both wallets and emits a `signer_match` verdict in the same response, collapsing the legacy 2 follow-up assess calls into one round trip. Repeat lookups for the same `(claimed, signer)` pair hit a per-cache-entry `signer_match_by_signer` sub-dict and skip the API entirely. Falls back to a 2-resolve path when the API doesn't emit `signer_match` (canary rollout safety).
+Wallet-signer-match: `verify_wallet_signer_match` / `averify_wallet_signer_match` makes a single `/v1/assess` call with `signer` set; the API resolves both wallets and emits a `signer_match` verdict in the same response, collapsing the legacy 2 follow-up assess calls into one round trip. Repeat lookups for the same `(claimed, signer)` pair hit a per-cache-entry `signer_match_by_signer` sub-dict and skip the API entirely. Falls back to a 2-resolve path when the API doesn't emit `signer_match` (canary rollout safety).
 
 ### Fail-open (opt-in)
 

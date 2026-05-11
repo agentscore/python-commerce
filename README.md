@@ -238,7 +238,7 @@ profile = build_ucp_profile(
                 version="2026-04-08",
                 spec="https://agentscore.sh/specification/payment-handlers/mpp",
                 schema="https://agentscore.sh/schemas/payment-handlers/mpp.json",
-                config={"chains": {"tempo": {"rail": "tempo-mainnet", "chain_id": 4217}}},
+                config={"chains": {"tempo": {"rail": "tempo-mainnet", "chain_id": 4217, "recipient": TEMPO_ADDR}}},
             ),
         ],
     },

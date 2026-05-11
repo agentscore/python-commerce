@@ -130,7 +130,7 @@ async def well_known_ucp() -> JSONResponse:
                     schema="https://agentscore.sh/schemas/payment-handlers/mpp.json",
                     config={
                         "chains": {
-                            "tempo": {"rail": "tempo-mainnet", "chain_id": 4217},
+                            "tempo": {"rail": "tempo-mainnet", "chain_id": 4217, "recipient": "0xfeedface"},
                         },
                     },
                 ),

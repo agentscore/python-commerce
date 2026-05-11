@@ -46,15 +46,13 @@ def test_corpus_covers_canonical_scenarios() -> None:
             "multikey",
             "emoji-keys",
             "int-boundary",
-            # `data-driven-claims` exercises the raw-dict fallback read path
-            # (`AssessResult(raw={"account_verification": {...}})`) that
-            # production callers populate. `typed-claims` exercises the typed
-            # field path (`AssessResult(account_verification={...}, raw=None)`)
-            # that hand-constructed callers use — Node's `buildUCPProfile`
-            # reads typed fields directly without consulting raw, so both
-            # paths must produce byte-identical canonical bytes across
-            # languages or cross-lang verify silently drifts.
-            "data-driven-claims",
-            "typed-claims",
+            # `agentscore-gate-full` exercises a fully-populated merchant policy
+            # (require_kyc + require_sanctions_clear + min_age + allowed_jurisdictions).
+            # `agentscore-gate-blocked` exercises blocked_jurisdictions (the inverse
+            # jurisdiction policy). Both languages serialize the merchant gate config
+            # identically; a drift in either's JCS-canonical output breaks cross-lang
+            # verify silently.
+            "agentscore-gate-full",
+            "agentscore-gate-blocked",
         ):
             assert f"{lang}-{scenario}.json" in names, f"missing fixture {lang}-{scenario}.json"

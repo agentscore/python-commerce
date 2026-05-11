@@ -9,7 +9,7 @@
             "spec": "https://ucp.dev/2026-04-08/specification/overview",
             "transport": "mcp",
             "endpoint": "https://m.example.com/api/ucp/mcp",
-            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+            "schema": "https://ucp.dev/services/shopping/mcp.openrpc.json"
           }
         ]
       },
@@ -24,16 +24,16 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "metZlz1oZFmvRiVvfL3ajCVdWy_-RK2PerjKSsgviLg"
+        "x": "29lgJhbXQc6T--febg1OwvqYSP2RU7xQndmHl9HStN4"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoibWV0Wmx6MW9aRm12UmlWdmZMM2FqQ1ZkV3lfLVJLMlBlcmpLU3NndmlMZyJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNaW5pbWFsIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6e30sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9tLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.z76YEZSH1zGeNTXVzbH8gP1Rzer8LpeFtDhrSCSn-wV8eWc135f9BrfEEYQGaEqiYzNlPIynfA1-iVQLqzOJDw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW1pbmltYWwtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiMjlsZ0poYlhRYzZULS1mZWJnMU93dnFZU1AyUlU3eFFuZG1IbDlIU3RONCJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNaW5pbWFsIE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6e30sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9tLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL21jcC5vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMDgifX0.H7ELZTV8BseCkX3RJUvNHAw0loE0M7iUmB4m2YsJ_k4rmYYLJ5m_8q2Ahh6OV6dOAlUfL5w5I3gKudP5rWzMDQ"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "metZlz1oZFmvRiVvfL3ajCVdWy_-RK2PerjKSsgviLg",
+        "x": "29lgJhbXQc6T--febg1OwvqYSP2RU7xQndmHl9HStN4",
         "kid": "py-minimal-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

@@ -23,7 +23,7 @@ Runnable, copy-pasteable example integrations covering the most common merchant 
 
 ## Patterns
 
-All seven examples follow the same rough shape:
+All eight examples follow the same rough shape:
 
 1. **Boot:** instantiate FastAPI, identity gate (if any), Stripe / facilitator clients (if any) via commerce factories
 2. **Discovery routes:** `/openapi.json` + `/.well-known/mpp.json` + `/llms.txt` (omitted in these focused examples; see node-commerce for the discovery wiring)

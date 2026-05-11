@@ -1,0 +1,67 @@
+{
+  "profile": {
+    "ucp": {
+      "version": "2026-04-08",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://d.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/mcp.openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {
+        "sh.agentscore.identity": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/identity",
+            "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+            "extends": [
+              "dev.ucp.shopping.checkout",
+              "dev.ucp.shopping.cart"
+            ],
+            "config": {
+              "require_kyc": true,
+              "require_sanctions_clear": true,
+              "min_age": 21,
+              "allowed_jurisdictions": [
+                "US"
+              ]
+            }
+          }
+        ]
+      },
+      "payment_handlers": {},
+      "name": "AgentScore Gate Full-Policy Merchant"
+    },
+    "signing_keys": [
+      {
+        "kid": "node-agentscore-gate-full-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "vdNcZ9OUb60NP-oo7JVSbcknT0UQPNWadgrDUyH0Ouk"
+      }
+    ],
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtYWdlbnRzY29yZS1nYXRlLWZ1bGwtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtYWdlbnRzY29yZS1nYXRlLWZ1bGwtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoidmROY1o5T1ViNjBOUC1vbzdKVlNiY2tuVDBVUVBOV2FkZ3JEVXlIME91ayJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6eyJzaC5hZ2VudHNjb3JlLmlkZW50aXR5IjpbeyJjb25maWciOnsiYWxsb3dlZF9qdXJpc2RpY3Rpb25zIjpbIlVTIl0sIm1pbl9hZ2UiOjIxLCJyZXF1aXJlX2t5YyI6dHJ1ZSwicmVxdWlyZV9zYW5jdGlvbnNfY2xlYXIiOnRydWV9LCJleHRlbmRzIjpbImRldi51Y3Auc2hvcHBpbmcuY2hlY2tvdXQiLCJkZXYudWNwLnNob3BwaW5nLmNhcnQiXSwic2NoZW1hIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NjaGVtYXMvdWNwL3NoLWFnZW50c2NvcmUtaWRlbnRpdHktdjEuanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9pZGVudGl0eSIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwibmFtZSI6IkFnZW50U2NvcmUgR2F0ZSBGdWxsLVBvbGljeSBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnt9LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vZC5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9tY3Aub3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In19.Eqb8g9LSGrBg3GytCXBHdP_kJJiWom1KgsJ9qqkHZA0ZK4qeIuYzTBhSJMvTbbFqEBsipIoNsH8Fy1QMFg0AAA"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "kid": "node-agentscore-gate-full-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "kty": "OKP",
+        "x": "vdNcZ9OUb60NP-oo7JVSbcknT0UQPNWadgrDUyH0Ouk"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "node-agentscore-gate-full-EdDSA",
+  "generator": "node"
+}

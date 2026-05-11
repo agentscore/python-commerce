@@ -1,0 +1,67 @@
+{
+  "profile": {
+    "ucp": {
+      "version": "2026-04-08",
+      "services": {
+        "dev.ucp.shopping": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://ucp.dev/2026-04-08/specification/overview",
+            "transport": "mcp",
+            "endpoint": "https://d.example.com/api/ucp/mcp",
+            "schema": "https://ucp.dev/services/shopping/mcp.openrpc.json"
+          }
+        ]
+      },
+      "capabilities": {
+        "sh.agentscore.identity": [
+          {
+            "version": "2026-04-08",
+            "spec": "https://agentscore.sh/specification/identity",
+            "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+            "config": {
+              "require_kyc": true,
+              "require_sanctions_clear": true,
+              "min_age": 21,
+              "allowed_jurisdictions": [
+                "US"
+              ]
+            },
+            "extends": [
+              "dev.ucp.shopping.checkout",
+              "dev.ucp.shopping.cart"
+            ]
+          }
+        ]
+      },
+      "payment_handlers": {},
+      "name": "AgentScore Gate Full-Policy Merchant"
+    },
+    "signing_keys": [
+      {
+        "kid": "py-agentscore-gate-full-EdDSA",
+        "kty": "OKP",
+        "alg": "EdDSA",
+        "use": "sig",
+        "crv": "Ed25519",
+        "x": "aBD5Lh0N8r_mgKsde6MWzGc6uucZnrNqWE8oAXRK-XI"
+      }
+    ],
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWFnZW50c2NvcmUtZ2F0ZS1mdWxsLUVkRFNBIiwidHlwIjoiYWdlbnRzY29yZS1wcm9maWxlK2p3cyJ9.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LWFnZW50c2NvcmUtZ2F0ZS1mdWxsLUVkRFNBIiwia3R5IjoiT0tQIiwidXNlIjoic2lnIiwieCI6ImFCRDVMaDBOOHJfbWdLc2RlNk1XekdjNnV1Y1puck5xV0U4b0FYUkstWEkifV0sInVjcCI6eyJjYXBhYmlsaXRpZXMiOnsic2guYWdlbnRzY29yZS5pZGVudGl0eSI6W3siY29uZmlnIjp7ImFsbG93ZWRfanVyaXNkaWN0aW9ucyI6WyJVUyJdLCJtaW5fYWdlIjoyMSwicmVxdWlyZV9reWMiOnRydWUsInJlcXVpcmVfc2FuY3Rpb25zX2NsZWFyIjp0cnVlfSwiZXh0ZW5kcyI6WyJkZXYudWNwLnNob3BwaW5nLmNoZWNrb3V0IiwiZGV2LnVjcC5zaG9wcGluZy5jYXJ0Il0sInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3VjcC9zaC1hZ2VudHNjb3JlLWlkZW50aXR5LXYxLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vaWRlbnRpdHkiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sIm5hbWUiOiJBZ2VudFNjb3JlIEdhdGUgRnVsbC1Qb2xpY3kgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2QuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvbWNwLm9wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.5CvH3TLesVMunm0gIdZ6O69XXhBV_whX6ed6HeMCFFHUiVopM2c39H9ZWqjyIQu-CAGJgUgH88nx_UOvDVoEAQ"
+  },
+  "jwks": {
+    "keys": [
+      {
+        "crv": "Ed25519",
+        "x": "aBD5Lh0N8r_mgKsde6MWzGc6uucZnrNqWE8oAXRK-XI",
+        "kid": "py-agentscore-gate-full-EdDSA",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kty": "OKP"
+      }
+    ]
+  },
+  "alg": "EdDSA",
+  "kid": "py-agentscore-gate-full-EdDSA",
+  "generator": "python"
+}

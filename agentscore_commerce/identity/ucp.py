@@ -18,10 +18,7 @@ Spec reference: https://ucp.dev/
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, cast
-
-if TYPE_CHECKING:
-    from agentscore_commerce.identity.types import AssessResult
+from typing import Any, Literal
 
 _DEFAULT_VERSION = "2026-04-08"
 
@@ -32,9 +29,51 @@ AGENTSCORE_UCP_CAPABILITY = "sh.agentscore.identity"
 """Capability name AgentScore registers in the UCP profile. Consumers filter on this
 to find verified-buyer claims attached to the profile."""
 
-_AGENTSCORE_CAPABILITY_VERSION = "1"
+_AGENTSCORE_CAPABILITY_VERSION = "2026-04-08"
 _AGENTSCORE_DEFAULT_SPEC_URL = "https://agentscore.sh/specification/identity"
 _AGENTSCORE_DEFAULT_SCHEMA_URL = "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json"
+
+
+@dataclass
+class AgentScoreGatePolicy:
+    """Merchant gate policy declared on the UCP profile via ``sh.agentscore.identity``.
+
+    All fields optional; merchant declares which AgentScore checks the gate enforces.
+    Snake-case field names match the AgentScore API's ``/v1/assess`` policy contract
+    verbatim. No conversion layer between this declaration and what the gate enforces.
+    """
+
+    require_kyc: bool | None = None
+    """Gate denies if the operator/account behind the agent is not Stripe-Identity-verified."""
+
+    require_sanctions_clear: bool | None = None
+    """Gate denies if the operator/account is flagged by OpenSanctions screening."""
+
+    min_age: int | None = None
+    """Gate denies if the verified age (from KYC) is below this threshold. Common: 18, 21."""
+
+    allowed_jurisdictions: list[str] | None = None
+    """ISO-3166-1 alpha-2 country codes the gate accepts. Mutually exclusive with
+    ``blocked_jurisdictions``."""
+
+    blocked_jurisdictions: list[str] | None = None
+    """ISO-3166-1 alpha-2 country codes the gate denies. Mutually exclusive with
+    ``allowed_jurisdictions``."""
+
+    def to_config(self) -> dict[str, Any]:
+        """Serialize as the binding's ``config`` object. Omits unset fields."""
+        out: dict[str, Any] = {}
+        if self.require_kyc is not None:
+            out["require_kyc"] = self.require_kyc
+        if self.require_sanctions_clear is not None:
+            out["require_sanctions_clear"] = self.require_sanctions_clear
+        if self.min_age is not None:
+            out["min_age"] = self.min_age
+        if self.allowed_jurisdictions is not None:
+            out["allowed_jurisdictions"] = self.allowed_jurisdictions
+        if self.blocked_jurisdictions is not None:
+            out["blocked_jurisdictions"] = self.blocked_jurisdictions
+        return out
 
 
 @dataclass
@@ -121,6 +160,16 @@ class UCPServiceBinding:
     _RESERVED = frozenset({"version", "spec", "transport", "endpoint", "schema", "id", "config"})
 
     def to_dict(self) -> dict[str, Any]:
+        # Per UCP spec service.json: rest/mcp/a2a transports REQUIRE endpoint;
+        # embedded does not. Validate at serialization so a misconfigured profile
+        # fails locally instead of being rejected by spec-strict platforms.
+        if self.transport in ("rest", "mcp", "a2a") and self.endpoint is None:
+            msg = (
+                f"UCPServiceBinding(transport={self.transport!r}) requires `endpoint`. "
+                "Per UCP spec service.json business_schema, rest/mcp/a2a bindings MUST "
+                "carry an endpoint URL."
+            )
+            raise ValueError(msg)
         out: dict[str, Any] = {
             "version": self.version,
             "spec": self.spec,
@@ -200,7 +249,10 @@ class UCPPaymentHandlerBinding:
             "spec": self.spec,
             "schema": self.schema,
         }
-        if self.available_instruments is not None:
+        # Per UCP spec payment_handler.json: available_instruments has minItems:1.
+        # Drop the field when empty so a caller passing `[]` doesn't ship an
+        # invalid profile.
+        if self.available_instruments:
             out["available_instruments"] = self.available_instruments
         if self.config:
             out["config"] = self.config
@@ -295,7 +347,7 @@ def build_ucp_profile(
     payment_handlers: dict[str, list[UCPPaymentHandlerBinding]] | None = None,
     name: str | None = None,
     version: str = _DEFAULT_VERSION,
-    data: AssessResult | None = None,
+    agentscore_gate: AgentScoreGatePolicy | None = None,
     agentscore_schema_url: str | None = None,
     agentscore_spec_url: str | None = None,
     supported_versions: dict[str, str] | None = None,
@@ -309,13 +361,18 @@ def build_ucp_profile(
     reverse-DNS name. Pass through :func:`sign_ucp_profile` to attach a JWS
     signature for trust-mode verifiers.
 
-    Auto-injects ``sh.agentscore.identity`` as a vendor capability when ``data``
-    carries a resolved operator. Verifiers that recognize the AgentScore namespace
-    can parse the ``claims`` extra; vanilla UCP agents see a normal capability.
+    Auto-injects ``sh.agentscore.identity`` as a vendor capability extending both
+    ``dev.ucp.shopping.checkout`` and ``dev.ucp.shopping.cart`` when
+    ``agentscore_gate`` is provided. The capability's ``config`` carries the
+    merchant's static gate policy declaration (require_kyc / require_sanctions_clear
+    / min_age / allowed_jurisdictions / blocked_jurisdictions). NO per-operator
+    data is ever placed on the public profile — per-operator identity attestation
+    flows through the AP2 risk-signal endpoint, not here.
 
     Example::
 
-        from agentscore_commerce.identity.ucp import (
+        from agentscore_commerce.identity import (
+            AgentScoreGatePolicy,
             UCPServiceBinding,
             UCPSigningKey,
             UCPPaymentHandlerBinding,
@@ -324,7 +381,6 @@ def build_ucp_profile(
 
         @app.get("/.well-known/ucp")
         async def ucp_profile():
-            result = await client.acheck(identity)
             return build_ucp_profile(
                 services={
                     "dev.ucp.shopping": [
@@ -333,7 +389,7 @@ def build_ucp_profile(
                             spec="https://ucp.dev/2026-04-08/specification/overview",
                             transport="mcp",
                             endpoint="https://merchant.example/api/ucp/mcp",
-                            schema="https://ucp.dev/services/shopping/openrpc.json",
+                            schema="https://ucp.dev/services/shopping/mcp.openrpc.json",
                         ),
                     ],
                 },
@@ -350,7 +406,9 @@ def build_ucp_profile(
                     ],
                 },
                 name="Example Merchant",
-                data=result,
+                agentscore_gate=AgentScoreGatePolicy(
+                    require_kyc=True, min_age=21, allowed_jurisdictions=["US"],
+                ),
             ).to_dict()
     """
     services = services if services is not None else {}
@@ -362,59 +420,19 @@ def build_ucp_profile(
         k: list(bindings) for k, bindings in (capabilities or {}).items()
     }
 
-    if data is not None and data.resolved_operator:
-        # Read typed AssessResult fields first (canonical path). Fall back to
-        # ``data.raw["operator_verification"]`` / ``data.raw["account_verification"]``
-        # only when the typed field is ``None`` (Python-only legacy escape hatch
-        # for callers who hand-construct ``AssessResult(raw=..., typed=None)``).
-        # Node has no raw fallback at all.
-        typed_op = data.operator_verification
-        operator_verification: dict[str, Any]
-        if typed_op is None:
-            raw = data.raw or {}
-            raw_op = raw.get("operator_verification") if isinstance(raw, dict) else None
-            operator_verification = raw_op if isinstance(raw_op, dict) else {}
-        elif isinstance(typed_op, dict):
-            operator_verification = cast("dict[str, Any]", typed_op)
-        else:
-            operator_verification = {
-                "level": getattr(typed_op, "level", None),
-                "operator_type": getattr(typed_op, "operator_type", None),
-                "verified_at": getattr(typed_op, "verified_at", None),
-            }
-
-        account_verification: dict[str, Any]
-        if data.account_verification is None:
-            raw = data.raw or {}
-            raw_av = raw.get("account_verification") if isinstance(raw, dict) else None
-            account_verification = raw_av if isinstance(raw_av, dict) else {}
-        elif isinstance(data.account_verification, dict):
-            account_verification = data.account_verification
-        else:
-            account_verification = {}
-
-        # `dict.get(k) or DEFAULT` (not `dict.get(k, DEFAULT)`) coerces both a
-        # missing key AND a present-but-falsy (None / "") value to the default,
-        # matching the node sibling's `||` semantics.
-        claims = {
-            "operator_id": data.resolved_operator,
-            "kyc_level": account_verification.get("kyc_level") or operator_verification.get("level") or "none",
-            "sanctions_clear": account_verification.get("sanctions_clear") is True,
-            "age_bracket": account_verification.get("age_bracket") or "unknown",
-            "jurisdiction": account_verification.get("jurisdiction") or "",
-            "verified_at": account_verification.get("verified_at") or operator_verification.get("verified_at") or None,
-            "verify_url": data.verify_url,
-            "issuer": "https://agentscore.sh",
-        }
-        # Multi-parent extension matching Shopify's `dev.shopify.catalog.storefront`
-        # and UCP-canonical `dev.ucp.shopping.discount` (extends [checkout, cart]).
-        # `claims` lives in `extras` so it serializes as a vendor field on the binding.
+    # Auto-inject `sh.agentscore.identity` capability when the merchant declares a gate
+    # policy. Static merchant-policy declaration only — no per-operator data on the public
+    # profile. Per-operator identity attestation flows through the AP2 risk-signal endpoint
+    # or per-request 4xx response bodies, not here. Multi-parent extension matching
+    # Shopify's `dev.shopify.catalog.storefront` and UCP-canonical
+    # `dev.ucp.shopping.discount` (extends [checkout, cart]).
+    if agentscore_gate is not None:
         binding = UCPCapabilityBinding(
             version=_AGENTSCORE_CAPABILITY_VERSION,
             spec=agentscore_spec_url or _AGENTSCORE_DEFAULT_SPEC_URL,
             schema=agentscore_schema_url or _AGENTSCORE_DEFAULT_SCHEMA_URL,
             extends=["dev.ucp.shopping.checkout", "dev.ucp.shopping.cart"],
-            extras={"claims": claims},
+            config=agentscore_gate.to_config(),
         )
         if AGENTSCORE_UCP_CAPABILITY in base_capabilities:
             base_capabilities[AGENTSCORE_UCP_CAPABILITY].append(binding)
@@ -440,6 +458,7 @@ def build_ucp_profile(
 
 __all__ = [
     "AGENTSCORE_UCP_CAPABILITY",
+    "AgentScoreGatePolicy",
     "UCPCapabilityBinding",
     "UCPPaymentHandlerBinding",
     "UCPProfile",

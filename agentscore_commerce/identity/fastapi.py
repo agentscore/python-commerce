@@ -3,7 +3,7 @@
 The adapter plugs into FastAPI's dependency-injection system. Unlike the generic ASGI
 middleware (which gates every request), this adapter lets you scope gating to specific
 routes via ``dependencies=[Depends(gate)]`` and inject the assess result with
-``Depends(get_assess_data)``.
+``Depends(get_agentscore_data)``.
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ __all__ = [
     "denial_reason_to_body",
     "extract_payment_signer",
     "extract_payment_signer_address",
-    "get_assess_data",
+    "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "is_fixable_denial",
@@ -154,13 +154,13 @@ class AgentScoreGate:
     Usage::
 
         from fastapi import Depends, FastAPI
-        from agentscore_commerce.identity.fastapi import AgentScoreGate, get_assess_data
+        from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data
 
         app = FastAPI()
         gate = AgentScoreGate(api_key="ask_...", require_kyc=True, min_age=21)
 
         @app.post("/purchase", dependencies=[Depends(gate)])
-        async def purchase(assess = Depends(get_assess_data)):
+        async def purchase(assess = Depends(get_agentscore_data)):
             # assess is the raw /v1/assess response dict
             ...
     """
@@ -306,14 +306,14 @@ class AgentScoreGate:
         )
 
 
-def get_assess_data(request: Request) -> dict[str, Any] | None:
+def get_agentscore_data(request: Request) -> dict[str, Any] | None:
     """FastAPI dependency that returns the raw ``/v1/assess`` response for the current request.
 
     Returns ``None`` when the gate was bypassed via ``fail_open`` or the route wasn't gated.
     Usage::
 
         @app.post("/purchase", dependencies=[Depends(gate)])
-        async def purchase(assess = Depends(get_assess_data)):
+        async def purchase(assess = Depends(get_agentscore_data)):
             ...
     """
     return getattr(request.state, ASSESS_STATE_KEY, None)
@@ -355,7 +355,7 @@ async def capture_wallet(
     Usage::
 
         @app.post("/purchase", dependencies=[Depends(gate)])
-        async def purchase(request: Request, assess = Depends(get_assess_data)):
+        async def purchase(request: Request, assess = Depends(get_agentscore_data)):
             # ... run payment, recover signer wallet from the payload ...
             await capture_wallet(request, signer, "evm", idempotency_key=payment_intent_id)
             return {"ok": True}

@@ -5,9 +5,10 @@ from typing import Any, Literal
 
 from agentscore import Network as Network  # noqa: TC002 — runtime re-export for vendors
 
-Grade = Literal["A", "B", "C", "D", "F"]
-
-ScoreStatus = Literal["scored", "stale", "known_unscored"]
+# Reputation-API types (Activity, Classification, Identity, Reputation, ScoreDetail,
+# Grade, ScoreStatus) live in agentscore-py — not re-exported here. Commerce SDK is
+# scoped to gate + payment + 402 + discovery; reputation lookups belong to the
+# AgentScore SDK. Import via `from agentscore import Activity, Classification, ...`.
 
 DenialCode = Literal[
     "wallet_not_trusted",
@@ -176,72 +177,6 @@ def build_agent_memory_hint() -> AgentMemoryHint:
 
 
 @dataclass
-class ScoreDetail:
-    """Typed score breakdown from the assess response."""
-
-    value: float | None
-    grade: Grade
-    status: ScoreStatus
-    confidence: float | None = None
-    scored_at: str | None = None
-    version: str | None = None
-    dimensions: dict[str, Any] | None = None
-
-
-@dataclass
-class Activity:
-    """On-chain activity summary from the assess response."""
-
-    total_verified_transactions: int = 0
-    total_candidate_transactions: int = 0
-    counterparties_count: int = 0
-    active_days: int = 0
-    active_months: int = 0
-    as_verified_payer: int = 0
-    as_verified_payee: int = 0
-    as_candidate_payer: int = 0
-    as_candidate_payee: int = 0
-    first_verified_tx_at: str | None = None
-    last_verified_tx_at: str | None = None
-    first_candidate_tx_at: str | None = None
-    last_candidate_tx_at: str | None = None
-
-
-@dataclass
-class Classification:
-    """Entity classification from the assess response."""
-
-    entity_type: str | None = None
-    confidence: float = 0.0
-    is_known: bool = False
-    is_known_erc8004_agent: bool = False
-    has_verified_payment_activity: bool = False
-    has_candidate_payment_activity: bool = False
-    reasons: list[str] = field(default_factory=list)
-
-
-@dataclass
-class Identity:
-    """Known identity links from the assess response."""
-
-    ens_name: str | None = None
-    github_url: str | None = None
-    website_url: str | None = None
-
-
-@dataclass
-class Reputation:
-    """On-chain reputation feedback summary."""
-
-    feedback_count: int = 0
-    client_count: int = 0
-    trust_avg: float | None = None
-    uptime_avg: float | None = None
-    activity_avg: float | None = None
-    last_feedback_at: str | None = None
-
-
-@dataclass
 class OperatorVerification:
     """Operator verification details from the assess response."""
 
@@ -309,9 +244,9 @@ class AssessResult:
     identity_method: str | None = None
     operator_verification: OperatorVerification | None = None
     # Account-level verification block (KYC level, age bracket, jurisdiction,
-    # sanctions verdict). Mirrors node-commerce's typed AgentScoreData.account_verification
-    # field so a hand-constructed AssessResult emits the same UCP claims in both
-    # languages without a raw-dict round trip.
+    # sanctions verdict). Mirrors node-commerce's typed
+    # AgentScoreData.account_verification field; consumed by the A2A agent-card
+    # builder when emitting per-card identity claims.
     account_verification: dict[str, Any] | None = None
     resolved_operator: str | None = None
     verify_url: str | None = None

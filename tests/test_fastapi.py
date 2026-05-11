@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from agentscore_commerce.identity.fastapi import (
     AgentScoreGate,
     capture_wallet,
-    get_assess_data,
+    get_agentscore_data,
 )
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
@@ -32,7 +32,7 @@ def _make_app(gate: AgentScoreGate) -> FastAPI:
     app = FastAPI()
 
     @app.get("/", dependencies=[Depends(gate)])
-    async def index(assess=Depends(get_assess_data)):
+    async def index(assess=Depends(get_agentscore_data)):
         return {"ok": True, "assess": assess}
 
     @app.post("/purchase", dependencies=[Depends(gate)])

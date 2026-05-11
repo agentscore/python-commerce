@@ -24,7 +24,7 @@ pip install 'agentscore-commerce[fastapi,x402,coinbase]'
 
 | Submodule | What it provides |
 |---|---|
-| `agentscore_commerce.identity.{fastapi,flask,django,aiohttp,sanic,middleware}` | Trust gate middleware: KYC, sanctions, age, jurisdiction. `AgentScoreGate(...)` (or `agentscore_gate(app, ...)` on Flask/Sanic), `get_assess_data(...)`, `capture_wallet(...)`, `verify_wallet_signer_match(...)`. |
+| `agentscore_commerce.identity.{fastapi,flask,django,aiohttp,sanic,middleware}` | Trust gate middleware: KYC, sanctions, age, jurisdiction. `AgentScoreGate(...)` (or `agentscore_gate(app, ...)` on Flask/Sanic), `get_agentscore_data(...)`, `capture_wallet(...)`, `verify_wallet_signer_match(...)`. |
 | `agentscore_commerce.identity` (package level) | Re-exports the denial helpers: `denial_reason_status`, `denial_reason_to_body`, `build_signer_mismatch_body`, `build_contact_support_next_steps`, `verification_agent_instructions`, `is_fixable_denial`, `FIXABLE_DENIAL_REASONS`. Also re-exports the per-product policy helpers: `PolicyBlock`, `GateResult`, `EnforcementMode`, `IdentityStatus`, `build_gate_from_policy`, `run_gate_with_enforcement`, `shipping_country_allowed`, `shipping_state_allowed` (for multi-product merchants where each product carries its own compliance config: hard gate vs soft vs none, per-product shipping allowlists). |
 | `agentscore_commerce.payment` | `networks`, `USDC`, `rails` registries; `payment_directive`, `build_payment_directive`, `www_authenticate_header`, `payment_required_header`, `alias_amount_fields` (v1↔v2 amount field shim that emits both `amount` and `maxAmountRequired` so v1-only x402 parsers like Coinbase awal can read v2 bodies), `settlement_override_header`, `dispatch_settlement_by_network`, `extract_payment_signer` (returns `PaymentSigner({address, network})`), `register_x402_schemes_v1_v2`; drop-in x402 helpers: `validate_x402_network_config` (boot-time guard), `verify_x402_request` (parse + validate inbound X-Payment), `process_x402_settle` (verify-then-settle with one call), `classify_x402_settle_result` (maps the tagged settle result to a recommended HTTP status / code / next_steps so merchants get a controlled envelope without coupling to facilitator-specific error text). |
 | `agentscore_commerce.discovery` | `is_discovery_probe_request`, `build_discovery_probe_response` (with optional `x402_sample` for x402-aware crawlers like `awal x402 details`), `sample_x402_accept_for_network` (USDC sample-accept builder for known CAIP-2 networks), `build_well_known_mpp`, `build_llms_txt` + `llms_txt_identity_section` + `llms_txt_payment_section` (compact + verbose modes), `build_skill_md` (Claude-Skill-compatible `/skill.md` agent-discovery manifest; strictly agent-facing data only, no internal posture), `agentscore_openapi_snippets`, `build_bazaar_discovery_payload`, `NoindexNonDiscoveryMiddleware` (ASGI middleware that emits `X-Robots-Tag: noindex` on every path except the agent-discovery surfaces; defaults cover `/openapi.json`, `/llms.txt`, `/skill.md`, `/.well-known/{mpp.json,agent-card.json,ucp,jwks.json}`, `/favicon.{png,ico}`; pure helpers `is_discovery_path` + `DEFAULT_DISCOVERY_PATHS` for non-ASGI frameworks). |
@@ -39,7 +39,7 @@ from fastapi import Depends, FastAPI, Request
 from agentscore_commerce.identity.fastapi import (
     AgentScoreGate,
     capture_wallet,
-    get_assess_data,
+    get_agentscore_data,
     verify_wallet_signer_match,
 )
 
@@ -68,7 +68,7 @@ async def gate_on_settle(request: Request) -> None:
 
 
 @app.post("/purchase", dependencies=[Depends(gate_on_settle)])
-async def purchase(request: Request, assess=Depends(get_assess_data)):
+async def purchase(request: Request, assess=Depends(get_agentscore_data)):
     # ... settle payment ...
     # After payment, capture the signer wallet for cross-merchant attribution
     await capture_wallet(request, signer, "evm", idempotency_key=payment_intent_id)
@@ -181,20 +181,37 @@ headers = build_payment_headers(BuildPaymentHeadersInput(
 
 ```python
 from agentscore_commerce.identity import (
+    AgentScoreGatePolicy,
     UCPServiceBinding,
     UCPSigningKey,
     UCPPaymentHandlerBinding,
-    A2AAgentCardCapabilities,
+    A2AAgentSkill,
     build_a2a_agent_card,
     build_ucp_profile,
     ucp_a2a_extension,
 )
 
 # Google A2A v1.0 Signed Agent Card. Publish at /.well-known/agent-card.json.
-# Per UCP §A2A binding the card MUST declare the canonical UCP extension URI;
-# pass `ucp_a2a_extension()` with empty capabilities until you bind formal UCP
-# capabilities (dev.ucp.shopping.checkout, etc.).
-card = build_a2a_agent_card(name="My Service", url=base_url, capabilities=A2AAgentCardCapabilities(...), extensions=[ucp_a2a_extension()], data=assess_result)
+# Per UCP §A2A binding the card MUST declare the canonical UCP extension URI in
+# `capabilities.extensions[]`; pass `ucp_a2a_extension()` with empty capabilities
+# until you bind formal UCP capabilities (dev.ucp.shopping.checkout, etc.).
+# Skills are top-level AgentSkill objects; identity claims live in a separate
+# AgentCardSignature (RFC 7515 JWS) wrapping the serialized card.
+card = build_a2a_agent_card(
+    name="My Service",
+    description="Buy products via agent payments.",
+    url=base_url,
+    version="1.0.0",
+    skills=[
+        A2AAgentSkill(
+            id="purchase",
+            name="Purchase",
+            description="Buy products via agent payments.",
+            tags=["commerce", "payment"],
+        ),
+    ],
+    extensions=[ucp_a2a_extension()],
+)
 
 # Google Universal Commerce Protocol. Publish at /.well-known/ucp.
 # Output shape: {"ucp": {"version", "services", "capabilities",
@@ -210,7 +227,7 @@ profile = build_ucp_profile(
                 spec="https://ucp.dev/2026-04-08/specification/overview",
                 transport="mcp",
                 endpoint=f"{base_url}/api/ucp/mcp",
-                schema="https://ucp.dev/services/shopping/openrpc.json",
+                schema="https://ucp.dev/services/shopping/mcp.openrpc.json",
             ),
         ],
     },
@@ -226,7 +243,12 @@ profile = build_ucp_profile(
         ],
     },
     signing_keys=[UCPSigningKey(kid="me", kty="EC", alg="ES256")],
-    data=assess_result,
+    # Optional: declare merchant gate policy as an `sh.agentscore.identity` capability
+    # binding inside the public profile. Static policy declaration only — no per-operator
+    # claims. Per-operator identity attestation flows through the AP2 risk-signal endpoint.
+    agentscore_gate=AgentScoreGatePolicy(
+        require_kyc=True, min_age=21, allowed_jurisdictions=["US"],
+    ),
 )
 ```
 
@@ -415,11 +437,11 @@ The `get_gate_degraded_state` helper is exported by every framework adapter (Fas
 
 ## Examples
 
-The [examples/](./examples) directory has 7 runnable single-file FastAPI apps covering common merchant scenarios. See [examples/README.md](./examples/README.md) for the full table.
+The [examples/](./examples) directory has 8 runnable single-file FastAPI apps covering common merchant scenarios. See [examples/README.md](./examples/README.md) for the full table.
 
 ## Stability
 
-`agentscore-commerce@1.4.0` ships with the full merchant SDK surface stable. Helpers are protocol translations + configurable opinions; most evolution is additive (new optional params, new helpers, new networks/rails). Major bumps are reserved for genuine protocol-mapping bugs.
+`agentscore-commerce` ships with the full merchant SDK surface stable. Helpers are protocol translations + configurable opinions; most evolution is additive (new optional params, new helpers, new networks/rails). Major bumps are reserved for genuine protocol-mapping bugs.
 
 ## Documentation
 

@@ -9,7 +9,7 @@
             "spec": "https://ucp.dev/2026-04-08/specification/overview",
             "transport": "mcp",
             "endpoint": "https://i.example.com/api/ucp/mcp",
-            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+            "schema": "https://ucp.dev/services/shopping/mcp.openrpc.json"
           }
         ]
       },
@@ -24,7 +24,7 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "0afNQAp3MfPjli1PWg6-iYAjoNnESv96e5bJ8irRcD0"
+        "x": "9tbm2c88gZyFzzDyfI0A-yfbB4xzu6m9pAWy0Ln3lNI"
       }
     ],
     "max_safe_int": 9007199254740991,
@@ -32,13 +32,13 @@
     "small_int": 42,
     "neg_small_int": -42,
     "zero": 0,
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiMGFmTlFBcDNNZlBqbGkxUFdnNi1pWUFqb05uRVN2OTZlNWJKOGlyUmNEMCJ9XSwic21hbGxfaW50Ijo0MiwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJJbnQgQm91bmRhcnkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2kuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvb3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In0sInplcm8iOjB9.SZ9CIjxAV6kQCp6eeYtzqu3KETakw_rEYTEr71xee5kaP5kLsO_5CEHcQ0AyNaGxSi9FjZMGhfWqmiVC0w3hBg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiOXRibTJjODhnWnlGenpEeWZJMEEteWZiQjR4enU2bTlwQVd5MExuM2xOSSJ9XSwic21hbGxfaW50Ijo0MiwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJJbnQgQm91bmRhcnkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2kuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvbWNwLm9wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9LCJ6ZXJvIjowfQ.oOfju-MfP_EIzK4iOzY2S0pGqz71o8UGTqbYRTOnsZ9IDKgjEv0XhKvudk4vzcoDFZ5xW-Rr7rf9fQiJtHMxCw"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "0afNQAp3MfPjli1PWg6-iYAjoNnESv96e5bJ8irRcD0",
+        "x": "9tbm2c88gZyFzzDyfI0A-yfbB4xzu6m9pAWy0Ln3lNI",
         "kid": "py-int-boundary-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

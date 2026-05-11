@@ -9,18 +9,18 @@
             "spec": "https://ucp.dev/2026-04-08/specification/overview",
             "transport": "mcp",
             "endpoint": "https://e.example.com/api/ucp/mcp",
-            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+            "schema": "https://ucp.dev/services/shopping/mcp.openrpc.json"
           }
         ]
       },
       "capabilities": {},
       "payment_handlers": {
-        "sh.agentscore.payment.stripe-spt": [
+        "sh.agentscore.payment.stripe_spt": [
           {
             "id": "stripe",
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/payment-handlers/stripe-spt",
-            "schema": "https://agentscore.sh/schemas/payment-handlers/stripe-spt.json",
+            "spec": "https://agentscore.sh/specification/payment-handlers/stripe_spt",
+            "schema": "https://agentscore.sh/schemas/payment-handlers/stripe_spt.json",
             "config": {
               "profile_id": "abc",
               "count": 7
@@ -37,16 +37,16 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "68yvy7SRtwNF91vk7bJwCfZF0llVVD6fNP4d7X4Zk5I"
+        "x": "JPj_2h7DSZ8tnCrNQFCr3mLfWTI5KASQJ6MZpd9HAZw"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWV4dHJhcy1pbnQtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LWV4dHJhcy1pbnQtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiNjh5dnk3U1J0d05GOTF2azdiSndDZlpGMGxsVlZENmZOUDRkN1g0Wms1SSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJFeHRyYXMgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC5zdHJpcGUtc3B0IjpbeyJjb25maWciOnsiY291bnQiOjcsInByb2ZpbGVfaWQiOiJhYmMifSwiaWQiOiJzdHJpcGUiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3N0cmlwZS1zcHQuanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3N0cmlwZS1zcHQiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9lLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.MKHlKWBvkWZK_2USAzWyuAS6jtz8EAUSqlhNr1pQR5n39njsoT98EjPXr9EF0YidkH6i12OCFv88GoI0gKE_Dg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWV4dHJhcy1pbnQtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LWV4dHJhcy1pbnQtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiSlBqXzJoN0RTWjh0bkNyTlFGQ3IzbUxmV1RJNUtBU1FKNk1acGQ5SEFadyJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJFeHRyYXMgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC5zdHJpcGVfc3B0IjpbeyJjb25maWciOnsiY291bnQiOjcsInByb2ZpbGVfaWQiOiJhYmMifSwiaWQiOiJzdHJpcGUiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3N0cmlwZV9zcHQuanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3N0cmlwZV9zcHQiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9lLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL21jcC5vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMDgifX0.Y2-Ji_NtxMY1CFY8oiQiac4NBXvYWr4hrza54Tzx6OU85ZCiZPk_lKjdaEiSc2YA1e8aihc9-x_ZXZZ4_xrhCA"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "68yvy7SRtwNF91vk7bJwCfZF0llVVD6fNP4d7X4Zk5I",
+        "x": "JPj_2h7DSZ8tnCrNQFCr3mLfWTI5KASQJ6MZpd9HAZw",
         "kid": "py-extras-int-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

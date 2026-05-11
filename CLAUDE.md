@@ -17,7 +17,7 @@ Every helper is extracted from a real consumer, not speculated.
 
 ## Architecture
 
-Single Python package, hatchling-built, published to PyPI as `agentscore-commerce`. Per-framework identity adapters expose the same surface (`AgentScoreGate`, or `agentscore_gate(app, ...)` for Flask/Sanic; `capture_wallet`, `verify_wallet_signer_match`, `get_assess_data`, `get_gate_degraded_state`, `get_gate_quota_info`) with network-aware address normalization (EVM lowercased, Solana base58 preserved verbatim).
+Single Python package, hatchling-built, published to PyPI as `agentscore-commerce`. Per-framework identity adapters expose the same surface (`AgentScoreGate`, or `agentscore_gate(app, ...)` for Flask/Sanic; `capture_wallet`, `verify_wallet_signer_match`, `get_agentscore_data`, `get_gate_degraded_state`, `get_gate_quota_info`) with network-aware address normalization (EVM lowercased, Solana base58 preserved verbatim).
 
 | Directory | Contents |
 |---|---|

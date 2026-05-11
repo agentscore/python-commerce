@@ -9,7 +9,7 @@
             "spec": "https://ucp.dev/2026-04-08/specification/overview",
             "transport": "mcp",
             "endpoint": "https://a.example.com/api/ucp/mcp",
-            "schema": "https://ucp.dev/services/shopping/openrpc.json"
+            "schema": "https://ucp.dev/services/shopping/mcp.openrpc.json"
           },
           {
             "version": "2026-04-08",
@@ -56,11 +56,11 @@
         "use": "sig",
         "crv": "P-256",
         "kty": "EC",
-        "x": "lLlT6hqlccYtAYP4l5tVP9jDETRSocwEh_Z1EEDbjA4",
-        "y": "IHrRW8GTsA5Jib53LG5B28i9t6PX5nvr86uZrdhhfH0"
+        "x": "rTEyD9j6Bwmi8cINDuTXIPZJKsOhroiPxNko2lUm4ug",
+        "y": "g2nukIWNA3RXPNMlOoGqMezC7kHOEsuigivBUXUnkDE"
       }
     ],
-    "signature": "eyJhbGciOiJFUzI1NiIsImtpZCI6Im5vZGUtZXMyNTYtcmFpbHMtRVMyNTYiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVTMjU2IiwiY3J2IjoiUC0yNTYiLCJraWQiOiJub2RlLWVzMjU2LXJhaWxzLUVTMjU2Iiwia3R5IjoiRUMiLCJ1c2UiOiJzaWciLCJ4IjoibExsVDZocWxjY1l0QVlQNGw1dFZQOWpERVRSU29jd0VoX1oxRUVEYmpBNCIsInkiOiJJSHJSVzhHVHNBNUppYjUzTEc1QjI4aTl0NlBYNW52cjg2dVpyZGhoZkgwIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkVTMjU2IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6eyJzaC5hZ2VudHNjb3JlLnBheW1lbnQudGVtcG8iOlt7ImNvbmZpZyI6eyJjaGFpbl9pZCI6NDIxNywicmFpbCI6InRlbXBvLW1haW5uZXQifSwiaWQiOiJ0ZW1wbyIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8uanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3RlbXBvIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV0sInNoLmFnZW50c2NvcmUucGF5bWVudC54NDAyIjpbeyJjb25maWciOnsibmV0d29ya3MiOlsiYmFzZS04NDUzIl19LCJpZCI6Ing0MDIiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3g0MDIuanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3g0MDIiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9hLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL29wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifSx7ImVuZHBvaW50IjoiaHR0cHM6Ly9hLmV4YW1wbGUuY29tLy53ZWxsLWtub3duL2FnZW50LWNhcmQuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoiYTJhIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.mYvpnIyTko3x80Yhza-iqIT-ifeVj6qwAkOy3sHeOk-GmOp4hTfyNLgS4NVhfHr-vyYeJcqHyXfGMLhH5GRXyw"
+    "signature": "eyJhbGciOiJFUzI1NiIsImtpZCI6Im5vZGUtZXMyNTYtcmFpbHMtRVMyNTYiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVTMjU2IiwiY3J2IjoiUC0yNTYiLCJraWQiOiJub2RlLWVzMjU2LXJhaWxzLUVTMjU2Iiwia3R5IjoiRUMiLCJ1c2UiOiJzaWciLCJ4IjoiclRFeUQ5ajZCd21pOGNJTkR1VFhJUFpKS3NPaHJvaVB4TmtvMmxVbTR1ZyIsInkiOiJnMm51a0lXTkEzUlhQTk1sT29HcU1lekM3a0hPRXN1aWdpdkJVWFVua0RFIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkVTMjU2IE1lcmNoYW50IiwicGF5bWVudF9oYW5kbGVycyI6eyJzaC5hZ2VudHNjb3JlLnBheW1lbnQudGVtcG8iOlt7ImNvbmZpZyI6eyJjaGFpbl9pZCI6NDIxNywicmFpbCI6InRlbXBvLW1haW5uZXQifSwiaWQiOiJ0ZW1wbyIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvdGVtcG8uanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3RlbXBvIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV0sInNoLmFnZW50c2NvcmUucGF5bWVudC54NDAyIjpbeyJjb25maWciOnsibmV0d29ya3MiOlsiYmFzZS04NDUzIl19LCJpZCI6Ing0MDIiLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3g0MDIuanNvbiIsInNwZWMiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3g0MDIiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInNlcnZpY2VzIjp7ImRldi51Y3Auc2hvcHBpbmciOlt7ImVuZHBvaW50IjoiaHR0cHM6Ly9hLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL21jcC5vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In0seyJlbmRwb2ludCI6Imh0dHBzOi8vYS5leGFtcGxlLmNvbS8ud2VsbC1rbm93bi9hZ2VudC1jYXJkLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6ImEyYSIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMDgifX0.-z0gMcjpn2kWi5q5Z3cADjx56vqVlzuca442pO61E8xUnYtTbwyMXGIicEy052yl6pCmxFKpcV6xddkzFzzmHQ"
   },
   "jwks": {
     "keys": [
@@ -70,8 +70,8 @@
         "use": "sig",
         "crv": "P-256",
         "kty": "EC",
-        "x": "lLlT6hqlccYtAYP4l5tVP9jDETRSocwEh_Z1EEDbjA4",
-        "y": "IHrRW8GTsA5Jib53LG5B28i9t6PX5nvr86uZrdhhfH0"
+        "x": "rTEyD9j6Bwmi8cINDuTXIPZJKsOhroiPxNko2lUm4ug",
+        "y": "g2nukIWNA3RXPNMlOoGqMezC7kHOEsuigivBUXUnkDE"
       }
     ]
   },

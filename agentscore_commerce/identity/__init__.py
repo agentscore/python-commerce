@@ -16,7 +16,10 @@ from agentscore_commerce.identity.a2a import (
     A2AAgentCard,
     A2AAgentCardCapabilities,
     A2AAgentCardExtension,
-    A2AAgentCardIdentity,
+    A2AAgentCardSignature,
+    A2AAgentInterface,
+    A2AAgentProvider,
+    A2AAgentSkill,
     build_a2a_agent_card,
     ucp_a2a_extension,
 )
@@ -33,23 +36,19 @@ from agentscore_commerce.identity.policy import (
 )
 from agentscore_commerce.identity.signer import extract_x402_signer
 from agentscore_commerce.identity.types import (
-    Activity,
     AgentIdentity,
     AgentMemoryHint,
     AssessResult,
-    Classification,
     DenialCode,
     DenialReason,
-    Grade,
-    Identity,
     OperatorVerification,
-    ScoreDetail,
     VerifyWalletSignerMatchOptions,
     VerifyWalletSignerResult,
     build_agent_memory_hint,
 )
 from agentscore_commerce.identity.ucp import (
     AGENTSCORE_UCP_CAPABILITY,
+    AgentScoreGatePolicy,
     UCPCapabilityBinding,
     UCPPaymentHandlerBinding,
     UCPProfile,
@@ -70,7 +69,7 @@ from agentscore_commerce.identity.ucp_jwks import (
 
 # ASGI middleware is the default import (re-exported as CreateSessionOnMissing too).
 # Framework adapters are imported from their own submodules:
-#   from agentscore_commerce.identity.fastapi import AgentScoreGate, get_assess_data  # native Depends()
+#   from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data  # native Depends()
 #   from agentscore_commerce.identity.flask import agentscore_gate
 #   from agentscore_commerce.identity.django import AgentScoreMiddleware
 #   from agentscore_commerce.identity.aiohttp import agentscore_gate_middleware
@@ -95,13 +94,15 @@ __all__ = [
     "A2AAgentCard",
     "A2AAgentCardCapabilities",
     "A2AAgentCardExtension",
-    "A2AAgentCardIdentity",
-    "Activity",
+    "A2AAgentCardSignature",
+    "A2AAgentInterface",
+    "A2AAgentProvider",
+    "A2AAgentSkill",
     "AgentIdentity",
     "AgentMemoryHint",
     "AgentScoreGate",
+    "AgentScoreGatePolicy",
     "AssessResult",
-    "Classification",
     "CreateSessionOnMissing",
     "DenialCode",
     "DenialReason",
@@ -109,12 +110,9 @@ __all__ = [
     "GateClient",
     "GateResult",
     "GeneratedUCPKey",
-    "Grade",
-    "Identity",
     "IdentityStatus",
     "OperatorVerification",
     "PolicyBlock",
-    "ScoreDetail",
     "UCPCapabilityBinding",
     "UCPPaymentHandlerBinding",
     "UCPProfile",

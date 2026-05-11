@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from agentscore_commerce.identity.middleware import AgentScoreGate, CreateSessionOnMissing, get_assess_data
+from agentscore_commerce.identity.middleware import AgentScoreGate, CreateSessionOnMissing, get_agentscore_data
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -38,7 +38,7 @@ def _homepage(request: Request) -> JSONResponse:
 
 
 def _homepage_via_getter(request: Request) -> JSONResponse:
-    return JSONResponse({"assess": get_assess_data(request)})
+    return JSONResponse({"assess": get_agentscore_data(request)})
 
 
 def _make_app(**gate_kwargs: object) -> Starlette:
@@ -139,7 +139,7 @@ class TestCreateSessionOnMissing:
         assert data["error"]["code"] == "missing_identity"
 
     @respx.mock
-    def test_get_assess_data_returns_assess_after_pass(self):
+    def test_get_agentscore_data_returns_assess_after_pass(self):
         _mock_assess()
         app = Starlette(routes=[Route("/", _homepage_via_getter)])
         gated = AgentScoreGate(app, api_key="ask_test_key")

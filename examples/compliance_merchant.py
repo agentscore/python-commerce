@@ -44,7 +44,7 @@ from agentscore_commerce.identity import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity.fastapi import AgentScoreGate, get_assess_data, verify_wallet_signer_match
+from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data, verify_wallet_signer_match
 
 SUPPORT_EMAIL = "support@example.com"
 
@@ -135,7 +135,7 @@ async def gate_on_settle(request: Request) -> None:
 
 
 @app.post("/buy", dependencies=[Depends(gate_on_settle)])
-async def buy(request: Request, assess: dict = Depends(get_assess_data)):
+async def buy(request: Request, assess: dict = Depends(get_agentscore_data)):
     # Wallet-auth: verify the payment signer matches the claimed wallet (or a same-operator
     # linked wallet). No-ops for operator_token requests. Pass `signer=` from your real x402/MPP
     # credential extraction (use extract_payment_signer from commerce.payment, etc.).

@@ -9,16 +9,9 @@ send  # noqa: F821
 ex  # noqa: F821
 
 # Public API exports
-Activity  # noqa: F821
 AgentScoreGate  # noqa: F821
 AssessResult  # noqa: F821
-Classification  # noqa: F821
 DenialReason  # noqa: F821
-Grade  # noqa: F821
-Identity  # noqa: F821
-Reputation  # noqa: F821
-ScoreDetail  # noqa: F821
-ScoreStatus  # noqa: F821
 OperatorVerification  # noqa: F821
 
 # TYPE_CHECKING imports referenced inside string-literal cast() calls

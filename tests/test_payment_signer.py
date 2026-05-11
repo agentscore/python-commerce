@@ -6,7 +6,6 @@ import json
 from agentscore_commerce.payment.signer import (
     PaymentSigner,
     extract_payment_signer,
-    extract_payment_signer_address,
     read_x402_payment_header,
 )
 
@@ -51,19 +50,6 @@ class TestExtractPaymentSigner:
             {"accepted": {"network": "eip155:1"}, "payload": {"authorization": {"from": "not-an-address"}}}
         )
         assert extract_payment_signer(header) is None
-
-
-class TestExtractPaymentSignerAddress:
-    def test_returns_address_only(self):
-        header = _encode_x402(
-            {"accepted": {"network": "eip155:8453"}, "payload": {"authorization": {"from": EVM_MIXED}}}
-        )
-        assert extract_payment_signer_address(header) == EVM_LOWER
-
-    def test_returns_none_when_signer_unrecoverable(self):
-        assert extract_payment_signer_address(None) is None
-        assert extract_payment_signer_address("") is None
-        assert extract_payment_signer_address("!!!") is None
 
 
 class TestReadX402PaymentHeader:

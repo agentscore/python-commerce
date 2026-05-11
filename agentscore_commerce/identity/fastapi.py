@@ -41,13 +41,11 @@ from agentscore_commerce.identity.types import (
     DenialReason,
     GateQuotaInfo,
     Network,
-    VerifyWalletSignerMatchOptions,
-    VerifyWalletSignerResult,
+    SignerVerdict,
     apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
-    extract_payment_signer_address,
     read_x402_payment_header,
 )
 
@@ -111,14 +109,13 @@ __all__ = [
     "denial_reason_status",
     "denial_reason_to_body",
     "extract_payment_signer",
-    "extract_payment_signer_address",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
+    "get_signer_verdict",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
-    "verify_wallet_signer_match",
 ]
 
 
@@ -239,8 +236,15 @@ class AgentScoreGate:
 
         chain_override = self._extract_chain(request)
 
+        signer_payload: dict[str, str] | None = None
+        if identity.address:
+            x402_header = read_x402_payment_header(dict(request.headers))
+            recovered = extract_payment_signer(x402_header)
+            if recovered is not None:
+                signer_payload = {"address": recovered.address, "network": recovered.network}
+
         try:
-            result = await self._client.acheck_identity(identity, chain_override)
+            result = await self._client.acheck_identity(identity, chain_override, signer=signer_payload)
         except PaymentRequiredError:
             if self._client.fail_open:
                 return
@@ -319,26 +323,24 @@ def get_agentscore_data(request: Request) -> dict[str, Any] | None:
     return getattr(request.state, ASSESS_STATE_KEY, None)
 
 
-async def verify_wallet_signer_match(
-    request: Request,
-    signer: str | None,
-    network: Network = "evm",
-) -> VerifyWalletSignerResult:
-    """Verify payment signer matches claimed X-Wallet-Address.
+def get_signer_verdict(request: Request) -> SignerVerdict | None:
+    """Synchronous read of the cached signer verdicts for the current request.
 
-    No-ops when operator-token-authenticated or when both headers were sent. See
-    :func:`agentscore_commerce.identity.middleware.verify_wallet_signer_match` for the full contract.
+    The gate middleware pre-extracts the payment signer and passes it to ``/v1/assess``
+    so the API returns ``signer_match`` + ``signer_sanctions`` blocks on the same
+    round trip. This getter reads those projected verdicts off the gate's cache; no
+    extra HTTP call.
+
+    Returns ``None`` for operator-token-only requests, for requests with no payment
+    credential yet (discovery legs), and for fail-open pass-throughs (no assess call).
     """
     state = getattr(request.state, GATE_STATE_KEY, None)
-    if not state or not state.get("wallet_address") or state.get("operator_token"):
-        return VerifyWalletSignerResult(kind="pass")
-    return await state["client"].averify_wallet_signer_match(
-        VerifyWalletSignerMatchOptions(
-            claimed_wallet=state["wallet_address"],
-            signer=signer,
-            network=network,
-        ),
-    )
+    if not state or not state.get("wallet_address"):
+        return None
+    client = state.get("client")
+    if client is None:
+        return None
+    return client.get_signer_verdict(state["wallet_address"])
 
 
 async def capture_wallet(

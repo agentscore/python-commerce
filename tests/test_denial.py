@@ -66,9 +66,8 @@ class TestIsFixableDenial:
 
 
 class TestBuildSignerMismatchBody:
-    def test_returns_none_for_pass_or_api_error(self):
+    def test_returns_none_for_pass(self):
         assert build_signer_mismatch_body(VerifyWalletSignerResult(kind="pass")) is None
-        assert build_signer_mismatch_body(VerifyWalletSignerResult(kind="api_error")) is None
 
     def test_wallet_signer_mismatch_with_linked_wallets(self):
         result = VerifyWalletSignerResult(

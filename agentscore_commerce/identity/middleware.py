@@ -36,13 +36,11 @@ from agentscore_commerce.identity.types import (
     DenialReason,
     GateQuotaInfo,
     Network,
-    VerifyWalletSignerMatchOptions,
-    VerifyWalletSignerResult,
+    SignerVerdict,
     apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
-    extract_payment_signer_address,
     read_x402_payment_header,
 )
 
@@ -72,14 +70,13 @@ __all__ = [
     "denial_reason_status",
     "denial_reason_to_body",
     "extract_payment_signer",
-    "extract_payment_signer_address",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
+    "get_signer_verdict",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
-    "verify_wallet_signer_match",
 ]
 
 
@@ -225,11 +222,18 @@ class AgentScoreGate:
 
         chain_override = self._extract_chain(request) if self._extract_chain else None
 
+        signer_payload: dict[str, str] | None = None
+        if identity.address:
+            x402_header = read_x402_payment_header(dict(request.headers))
+            recovered = extract_payment_signer(x402_header)
+            if recovered is not None:
+                signer_payload = {"address": recovered.address, "network": recovered.network}
+
         # Only acheck_identity is wrapped — `await self.app(...)` (which runs the downstream
         # ASGI app) must NOT be in the try, otherwise an exception in the user's app would
         # be misclassified as an AgentScore infra failure and (under fail_open) re-invoke it.
         try:
-            result = await self._client.acheck_identity(identity, chain_override)
+            result = await self._client.acheck_identity(identity, chain_override, signer=signer_payload)
         except PaymentRequiredError:
             if self._client.fail_open:
                 await self.app(scope, receive, send)
@@ -315,33 +319,28 @@ class AgentScoreGate:
         await response(scope, receive, send)
 
 
-async def verify_wallet_signer_match(
-    request: Request,
-    signer: str | None,
-    network: Network = "evm",
-) -> VerifyWalletSignerResult:
-    """Verify the payment signer resolves to the same operator as the claimed X-Wallet-Address.
+def get_signer_verdict(request: Request) -> SignerVerdict | None:
+    """Synchronous read of the cached signer verdicts for the current request.
 
-    Call this AFTER parsing the payment credential, BEFORE settlement. Returns:
+    Both ``signer_match`` (wallet-binding) and ``signer_sanctions`` (OFAC SDN wallet check)
+    are composed by the gate's primary ``/v1/assess`` call on this request — single round trip.
+    This getter projects them off the gate's cache; no extra HTTP call.
 
-    * ``kind='pass'`` — byte-equal or same-operator match
-    * ``kind='wallet_signer_mismatch'`` — different operator / unlinked signer
-    * ``kind='wallet_auth_requires_wallet_signing'`` — signer is None (SPT/card)
+    Returns ``None`` when the gate didn't run with a signer: operator-token-only paths,
+    discovery legs that arrive without a payment credential, and fail-open pass-throughs.
 
-    No-ops (returns ``pass`` with ``claimed_operator=None``) when the request was operator-token
-    authenticated or when both headers were sent (operator-token wins — the caller opted out of
-    strict wallet-auth). Signer-match only runs on strict wallet-auth requests.
+    Under ``policy.require_sanctions_clear``, OFAC SDN wallet-address hits already flip the
+    gate to ``decision=deny`` before the handler runs — merchant code typically only reads
+    ``signer_match`` for the wallet-binding verdict (e.g. via
+    :func:`build_signer_mismatch_body`).
     """
     state = request.scope.get("state", {}).get(GATE_STATE_KEY)
-    if not state or not state.get("wallet_address") or state.get("operator_token"):
-        return VerifyWalletSignerResult(kind="pass")
-    return await state["client"].averify_wallet_signer_match(
-        VerifyWalletSignerMatchOptions(
-            claimed_wallet=state["wallet_address"],
-            signer=signer,
-            network=network,
-        ),
-    )
+    if not state or not state.get("wallet_address"):
+        return None
+    client = state.get("client")
+    if client is None:
+        return None
+    return client.get_signer_verdict(state["wallet_address"])
 
 
 async def capture_wallet(

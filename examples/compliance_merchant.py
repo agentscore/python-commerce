@@ -15,7 +15,7 @@ What this example demonstrates:
         * build_contact_support_next_steps for the unfixable branch
         * denial_reason_to_body + denial_reason_status for the standard fall-through
           (token_expired, invalid_credential, api_error get the right status + body for free)
-    - verify_wallet_signer_match + build_signer_mismatch_body for wallet-auth verification
+    - get_signer_verdict (cached signer_match read) + build_signer_mismatch_body for wallet-auth verification
 
 The pattern: vendors only write the BUSINESS-SPECIFIC denial branches. Everything else is a
 one-line helper call.
@@ -44,7 +44,7 @@ from agentscore_commerce.identity import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data, verify_wallet_signer_match
+from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data, get_signer_verdict
 
 SUPPORT_EMAIL = "support@example.com"
 
@@ -136,13 +136,13 @@ async def gate_on_settle(request: Request) -> None:
 
 @app.post("/buy", dependencies=[Depends(gate_on_settle)])
 async def buy(request: Request, assess: dict = Depends(get_agentscore_data)):
-    # Wallet-auth: verify the payment signer matches the claimed wallet (or a same-operator
-    # linked wallet). No-ops for operator_token requests. Pass `signer=` from your real x402/MPP
-    # credential extraction (use extract_payment_signer from commerce.payment, etc.).
-    signer_match = await verify_wallet_signer_match(request, signer=None)
-    mismatch_body = build_signer_mismatch_body(signer_match)
-    if mismatch_body:
-        return JSONResponse(mismatch_body, status_code=403)
+    # Wallet-auth: read the cached signer_match verdict the gate composed on its
+    # primary /v1/assess call (single round trip). Returns None on operator_token paths.
+    verdict = get_signer_verdict(request)
+    if verdict is not None and verdict.signer_match is not None:
+        mismatch_body = build_signer_mismatch_body(verdict.signer_match)
+        if mismatch_body:
+            return JSONResponse(mismatch_body, status_code=403)
 
     # Compliance + signer-match passed. Run the actual purchase.
     return {"ok": True, "identity_method": assess.get("identity_method")}

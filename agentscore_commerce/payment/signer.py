@@ -2,8 +2,8 @@
 
 Returns `{address, network}` so vendors can pass the network into `capture_wallet(...)`
 without inferring it themselves. For Tempo MPP and Solana signers, callers must extract
-the signer themselves and pass it directly to `verify_wallet_signer_match` via the
-`signer=` argument.
+the signer themselves and pass `signer={address, network}` to `GateClient.check`/`acheck`
+directly.
 """
 
 from __future__ import annotations
@@ -62,16 +62,6 @@ def extract_payment_signer(x402_payment_header: str | None) -> PaymentSigner | N
     return None
 
 
-def extract_payment_signer_address(x402_payment_header: str | None) -> str | None:
-    """Address-only convenience over :func:`extract_payment_signer`.
-
-    Used by gate adapters where only the address matters for operator-equivalence
-    comparison.
-    """
-    result = extract_payment_signer(x402_payment_header)
-    return result.address if result else None
-
-
 def read_x402_payment_header(headers: Mapping[str, str]) -> str | None:
     """Read the x402 payment header from a request headers mapping (case-insensitive).
 
@@ -87,7 +77,6 @@ __all__ = [
     "PaymentSigner",
     "SignerNetwork",
     "extract_payment_signer",
-    "extract_payment_signer_address",
     "extract_x402_signer",
     "read_x402_payment_header",
 ]

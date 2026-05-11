@@ -761,27 +761,25 @@ class TestFlaskBadOnDenied:
                 client.get("/", headers={"x-wallet-address": "0xabc"})
 
 
-class TestFlaskVerifyWalletSignerMatchNoOp:
-    """verify_wallet_signer_match silently returns pass when Flask state isn't available."""
+class TestFlaskGetSignerVerdictNoOp:
+    """get_signer_verdict silently returns None when Flask state isn't available."""
 
     def test_no_op_outside_request_context(self) -> None:
-        from agentscore_commerce.identity.flask import verify_wallet_signer_match
+        from agentscore_commerce.identity.flask import get_signer_verdict
 
         # Flask's g raises RuntimeError when accessed outside an app context.
-        # The adapter should catch and return pass, not propagate.
-        result = verify_wallet_signer_match(signer="0xabc")
-        assert result.kind == "pass"
+        # The adapter catches and returns None, not propagate.
+        assert get_signer_verdict() is None
 
     def test_no_op_when_gate_state_missing_in_request(self) -> None:
         from flask import Flask
 
-        from agentscore_commerce.identity.flask import verify_wallet_signer_match
+        from agentscore_commerce.identity.flask import get_signer_verdict
 
         # App without the gate registered → g._agentscore_gate is absent.
         app = Flask(__name__)
         with app.test_request_context("/"):
-            result = verify_wallet_signer_match(signer="0xabc")
-            assert result.kind == "pass"
+            assert get_signer_verdict() is None
 
 
 class TestFlaskCaptureWalletNoOp:

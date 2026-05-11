@@ -34,13 +34,11 @@ from agentscore_commerce.identity.types import (
     DenialReason,
     GateQuotaInfo,
     Network,
-    VerifyWalletSignerMatchOptions,
-    VerifyWalletSignerResult,
+    SignerVerdict,
     apply_degraded,
 )
 from agentscore_commerce.payment.signer import (
     extract_payment_signer,
-    extract_payment_signer_address,
     read_x402_payment_header,
 )
 
@@ -63,14 +61,13 @@ __all__ = [
     "denial_reason_status",
     "denial_reason_to_body",
     "extract_payment_signer",
-    "extract_payment_signer_address",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
+    "get_signer_verdict",
     "is_fixable_denial",
     "read_x402_payment_header",
     "verification_agent_instructions",
-    "verify_wallet_signer_match",
 ]
 
 
@@ -224,8 +221,15 @@ def agentscore_gate(
 
         chain_override = _extract_chain(flask_request)
 
+        signer_payload: dict[str, str] | None = None
+        if identity.address:
+            x402_header = read_x402_payment_header(dict(flask_request.headers))
+            recovered = extract_payment_signer(x402_header)
+            if recovered is not None:
+                signer_payload = {"address": recovered.address, "network": recovered.network}
+
         try:
-            result = client.check_identity(identity, chain_override)
+            result = client.check_identity(identity, chain_override, signer=signer_payload)
 
             if result.allow:
                 g.agentscore = result.raw
@@ -288,31 +292,25 @@ def agentscore_gate(
             return _deny(DenialReason(code="api_error"))
 
 
-def verify_wallet_signer_match(
-    signer: str | None,
-    network: Network = "evm",
-) -> VerifyWalletSignerResult:
-    """Verify payment signer matches claimed X-Wallet-Address.
+def get_signer_verdict() -> SignerVerdict | None:
+    """Synchronous read of the cached signer verdicts for the current request.
 
-    Reads gate state from Flask's ``g`` object. No-ops when operator-token-authenticated or
-    when both headers were sent. See :func:`agentscore_commerce.identity.middleware.verify_wallet_signer_match`
-    for the full contract.
+    Reads gate state from Flask's ``g`` object. Returns ``None`` for operator-token-only
+    requests, requests with no payment credential, or fail-open pass-throughs (no
+    assess call). See :class:`SignerVerdict` for the verdict shape.
     """
     from flask import g
 
     try:
         state = getattr(g, "_agentscore_gate", None)
     except RuntimeError:
-        return VerifyWalletSignerResult(kind="pass")
-    if not state or not state.get("wallet_address") or state.get("operator_token"):
-        return VerifyWalletSignerResult(kind="pass")
-    return state["client"].verify_wallet_signer_match(
-        VerifyWalletSignerMatchOptions(
-            claimed_wallet=state["wallet_address"],
-            signer=signer,
-            network=network,
-        ),
-    )
+        return None
+    if not state or not state.get("wallet_address"):
+        return None
+    client = state.get("client")
+    if client is None:
+        return None
+    return client.get_signer_verdict(state["wallet_address"])
 
 
 def capture_wallet(

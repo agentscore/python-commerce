@@ -233,6 +233,8 @@ profile = build_ucp_profile(
     },
     payment_handlers={
         **mpp_payment_handler(networks=[{"network": "tempo-mainnet", "chain_id": 4217, "recipient": TEMPO_ADDR}]),
+        **x402_payment_handler(networks=[{"network": "base-8453", "recipient": BASE_ADDR}]),
+        **stripe_spt_payment_handler(profile_id="profile_5xKvNqM9BaH"),
     },
     signing_keys=[UCPSigningKey(kid="me", kty="EC", alg="ES256")],
     # Optional: declare merchant gate policy as an `sh.agentscore.identity` capability

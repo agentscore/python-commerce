@@ -40,7 +40,7 @@ from agentscore_commerce.identity.types import (
     GateQuotaInfo,
     Network,
     OperatorVerification,
-    VerifyWalletSignerMatchOptions,
+    SignerVerdict,
     VerifyWalletSignerResult,
 )
 
@@ -91,6 +91,11 @@ class GateClient:
         default_ua = f"agentscore-commerce/{_pkg_version('agentscore-commerce')}"
         self.user_agent = f"{user_agent} ({default_ua})" if user_agent else default_ua
         self._cache: TTLCache[AssessResult] = TTLCache(cache_seconds)
+        # Parallel cache of the raw /v1/assess response dict — populated alongside the
+        # projected AssessResult cache so get_signer_verdict() can read signer_match +
+        # signer_sanctions directly off the wire without re-shaping them through the
+        # projector. Same TTL semantics as _cache.
+        self._raw_response_cache: TTLCache[dict[str, Any]] = TTLCache(cache_seconds)
 
         self._policy: dict[str, Any] = {}
         if require_kyc is not None:
@@ -134,7 +139,11 @@ class GateClient:
         return normalize_address(address) if address else ""
 
     def _build_body(
-        self, address: str | None = None, chain: str | None = None, operator_token: str | None = None
+        self,
+        address: str | None = None,
+        chain: str | None = None,
+        operator_token: str | None = None,
+        signer: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Construct the assess request body.
 
@@ -151,6 +160,8 @@ class GateClient:
             body["chain"] = effective_chain
         if self._policy:
             body["policy"] = self._policy
+        if signer is not None:
+            body["signer"] = signer
         return body
 
     def _headers(self) -> dict[str, str]:
@@ -249,9 +260,18 @@ class GateClient:
         )
 
     def check(
-        self, address: str | None = None, chain: str | None = None, operator_token: str | None = None
+        self,
+        address: str | None = None,
+        chain: str | None = None,
+        operator_token: str | None = None,
+        signer: dict[str, str] | None = None,
     ) -> AssessResult:
-        """Synchronous assess call with caching. Accepts address and/or operator_token."""
+        """Synchronous assess call with caching. Accepts address and/or operator_token.
+
+        When ``signer`` is provided (extracted by the adapter middleware from the
+        inbound request's payment credential), the API composes ``signer_match`` and
+        ``signer_sanctions`` verdicts on the response in one round trip.
+        """
         key = self._cache_key(address, operator_token)
 
         cached = self._cache.get(key)
@@ -266,6 +286,7 @@ class GateClient:
                 operator_token=operator_token,
                 chain=effective_chain,
                 policy=cast("DecisionPolicy | None", self._policy or None),
+                signer=cast("Signer | None", signer),
             )
         except SdkPaymentRequiredError as exc:
             raise PaymentRequiredError from exc
@@ -296,14 +317,25 @@ class GateClient:
             status = exc.status_code or 0
             raise RuntimeError(f"AgentScore API returned {status}: {exc}") from exc
 
-        result = self._project(cast("dict[str, Any]", data))
+        raw = cast("dict[str, Any]", data)
+        result = self._project(raw)
         self._cache.set(key, result)
+        # Cache the raw response under the same key so get_signer_verdict() can read
+        # signer_match + signer_sanctions verdicts that the projector doesn't expose.
+        self._raw_response_cache.set(key, raw)
         return result
 
     async def acheck(
-        self, address: str | None = None, chain: str | None = None, operator_token: str | None = None
+        self,
+        address: str | None = None,
+        chain: str | None = None,
+        operator_token: str | None = None,
+        signer: dict[str, str] | None = None,
     ) -> AssessResult:
-        """Asynchronous assess call with caching. Accepts address and/or operator_token."""
+        """Asynchronous assess call with caching. Accepts address and/or operator_token.
+
+        See :meth:`check` for the ``signer`` contract.
+        """
         key = self._cache_key(address, operator_token)
 
         cached = self._cache.get(key)
@@ -317,6 +349,7 @@ class GateClient:
                 operator_token=operator_token,
                 chain=effective_chain,
                 policy=cast("DecisionPolicy | None", self._policy or None),
+                signer=cast("Signer | None", signer),
             )
         except SdkPaymentRequiredError as exc:
             raise PaymentRequiredError from exc
@@ -339,17 +372,71 @@ class GateClient:
             status = exc.status_code or 0
             raise RuntimeError(f"AgentScore API returned {status}: {exc}") from exc
 
-        result = self._project(cast("dict[str, Any]", data))
+        raw = cast("dict[str, Any]", data)
+        result = self._project(raw)
         self._cache.set(key, result)
+        # Cache the raw response under the same key so get_signer_verdict() can read
+        # signer_match + signer_sanctions verdicts that the projector doesn't expose.
+        self._raw_response_cache.set(key, raw)
         return result
 
-    def check_identity(self, identity: AgentIdentity, chain: str | None = None) -> AssessResult:
+    def check_identity(
+        self,
+        identity: AgentIdentity,
+        chain: str | None = None,
+        signer: dict[str, str] | None = None,
+    ) -> AssessResult:
         """Convenience method to check using an AgentIdentity object."""
-        return self.check(address=identity.address, chain=chain, operator_token=identity.operator_token)
+        return self.check(
+            address=identity.address,
+            chain=chain,
+            operator_token=identity.operator_token,
+            signer=signer,
+        )
 
-    async def acheck_identity(self, identity: AgentIdentity, chain: str | None = None) -> AssessResult:
+    async def acheck_identity(
+        self,
+        identity: AgentIdentity,
+        chain: str | None = None,
+        signer: dict[str, str] | None = None,
+    ) -> AssessResult:
         """Async convenience method to check using an AgentIdentity object."""
-        return await self.acheck(address=identity.address, chain=chain, operator_token=identity.operator_token)
+        return await self.acheck(
+            address=identity.address,
+            chain=chain,
+            operator_token=identity.operator_token,
+            signer=signer,
+        )
+
+    def get_signer_verdict(self, claimed_address: str) -> SignerVerdict | None:
+        """Synchronous read of the cached signer verdicts (signer_match + signer_sanctions).
+
+        Both verdicts were composed by the gate's primary /v1/assess call on this
+        request — single round trip. Returns ``None`` when the gate didn't run with
+        a signer (operator-token-only paths, discovery legs).
+
+        Under ``policy.require_sanctions_clear``, OFAC SDN wallet-address hits are
+        already enforced by the gate (decision -> deny before the handler runs);
+        merchant code typically only needs this for the signer_match wallet-binding
+        verdict.
+        """
+        claimed_norm = normalize_address(claimed_address)
+        key = self._cache_key(address=claimed_norm)
+        raw = self._raw_response_cache.get(key)
+        if not raw:
+            return None
+        signer_match = raw.get("signer_match") if isinstance(raw, dict) else None
+        signer_sanctions = raw.get("signer_sanctions") if isinstance(raw, dict) else None
+        if not signer_match and not signer_sanctions:
+            return None
+        actual_signer = signer_match.get("actual_signer") if isinstance(signer_match, dict) else None
+        signer_norm = actual_signer if isinstance(actual_signer, str) else claimed_norm
+        return SignerVerdict(
+            signer_match=(
+                self._project_signer_match(signer_match, claimed_norm, signer_norm) if signer_match else None
+            ),
+            signer_sanctions=signer_sanctions if signer_sanctions else None,
+        )
 
     def capture_wallet(
         self,
@@ -395,84 +482,6 @@ class GateClient:
     # Wallet-auth signer binding
     # ------------------------------------------------------------------
 
-    def _resolve_from_cache(self, wallet: str) -> tuple[bool, str | None, list[str]]:
-        """Look up a wallet in either cache. Returns (hit, operator, linked_wallets)."""
-        for key in (wallet, f"resolve:{wallet}"):
-            cached = self._cache.get(key)
-            if cached is not None:
-                raw = cached.raw or {}
-                op = raw.get("resolved_operator")
-                links_raw = raw.get("linked_wallets")
-                links = [w for w in links_raw if isinstance(w, str)] if isinstance(links_raw, list) else []
-                if op is None or isinstance(op, str):
-                    return True, op, links
-        return False, None, []
-
-    def _resolve_wallet_to_operator(self, wallet_address: str) -> tuple[bool, str | None, list[str]]:
-        """Resolve a wallet to its operator id via /v1/assess.
-
-        Returns ``(ok, operator)``:
-        - ``(True, <id>)``: wallet linked to that operator
-        - ``(True, None)``: wallet is valid but unlinked
-        - ``(False, None)``: transient API failure (network / non-2xx). Caller should emit
-          an ``api_error`` result rather than silently assert the wallet is unlinked.
-
-        Checks both the main evaluate cache and the resolve-specific cache before calling
-        the API — saves a second /v1/assess when the gate already resolved this wallet
-        during identity evaluation.
-
-        Returns ``(ok, operator, linked_wallets)``. ``linked_wallets`` is the set of wallets
-        sharing the same operator (both wallet-claim and captured-signer links); echoed back to
-        agents on ``wallet_signer_mismatch`` denials so they know which wallets they can
-        legitimately sign with.
-        """
-        # Network-aware: lowercase EVM, preserve Solana base58 case. The DB stores both
-        # formats verbatim in operator_credential_wallets.wallet_address; lowercasing a
-        # Solana address would never match. The cache key uses the same normalized form.
-        wallet = normalize_address(wallet_address)
-        hit, op, links = self._resolve_from_cache(wallet)
-        if hit:
-            return True, op, links
-        try:
-            data = self._sdk.assess(address=wallet)
-        except AgentScoreError:
-            return False, None, []
-        data_dict = cast("dict[str, Any]", data)
-        self._cache.set(f"resolve:{wallet}", AssessResult(allow=True, raw=data_dict))
-        op_value = data_dict.get("resolved_operator")
-        linked_raw = data_dict.get("linked_wallets")
-        linked = [w for w in linked_raw if isinstance(w, str)] if isinstance(linked_raw, list) else []
-        return True, (op_value if isinstance(op_value, str) else None), linked
-
-    async def _aresolve_wallet_to_operator(self, wallet_address: str) -> tuple[bool, str | None, list[str]]:
-        # Same network-aware normalization as the sync path; see _resolve_wallet_to_operator.
-        wallet = normalize_address(wallet_address)
-        hit, op, links = self._resolve_from_cache(wallet)
-        if hit:
-            return True, op, links
-        try:
-            data = await self._sdk.aassess(address=wallet)
-        except AgentScoreError:
-            return False, None, []
-        data_dict = cast("dict[str, Any]", data)
-        self._cache.set(f"resolve:{wallet}", AssessResult(allow=True, raw=data_dict))
-        op_value = data_dict.get("resolved_operator")
-        linked_raw = data_dict.get("linked_wallets")
-        linked = [w for w in linked_raw if isinstance(w, str)] if isinstance(linked_raw, list) else []
-        return True, (op_value if isinstance(op_value, str) else None), linked
-
-    def _report_signer_event_sync(self, kind: str) -> None:
-        """Fire-and-forget telemetry post. Never raises.
-
-        The SDK's ``telemetry_signer_match`` already swallows all errors internally —
-        this method is just the commerce-side dispatch.
-        """
-        self._sdk.telemetry_signer_match({"kind": kind})
-
-    async def _report_signer_event_async(self, kind: str) -> None:
-        """Async variant. SDK swallows all errors internally."""
-        await self._sdk.atelemetry_signer_match({"kind": kind})
-
     def _project_signer_match(
         self, sm: dict[str, Any], claimed_norm: str, signer_norm: str
     ) -> VerifyWalletSignerResult:
@@ -509,162 +518,6 @@ class GateClient:
 
     def _infer_signer_network(self, signer: str) -> str:
         return "evm" if signer.startswith("0x") else "solana"
-
-    def verify_wallet_signer_match(self, options: VerifyWalletSignerMatchOptions) -> VerifyWalletSignerResult:
-        """Verify payment signer resolves to the same operator as the claimed wallet.
-
-        Single-call path: makes one ``/v1/assess`` request with ``signer`` set;
-        the response carries a ``signer_match`` verdict the gate projects directly. Falls
-        back to a two-resolve path when the response has no ``signer_match`` so the gate
-        still produces a verdict.
-
-        Returns:
-            ``kind='pass'`` when the signer is the claimed wallet (byte-equal) or both resolve
-            to the same operator. ``kind='wallet_signer_mismatch'`` when operators differ.
-            ``kind='wallet_auth_requires_wallet_signing'`` when ``signer`` is ``None`` (SPT/card).
-            ``kind='api_error'`` when /v1/assess resolve failed — caller should retry or surface
-            as 503; distinct from mismatch so legitimate users aren't rejected on network flakes.
-        """
-        signer = options.signer
-        if signer is None:
-            self._report_signer_event_sync("wallet_auth_requires_wallet_signing")
-            return VerifyWalletSignerResult(
-                kind="wallet_auth_requires_wallet_signing",
-                claimed_wallet=options.claimed_wallet,
-                agent_instructions=WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,
-            )
-        # Network-aware normalization: lowercase EVM, preserve Solana base58. Both the
-        # byte-equal short-circuit AND the cache key derive from this — lowercasing
-        # Solana would corrupt both and make every Solana signer-match return api_error.
-        claimed = normalize_address(options.claimed_wallet)
-        signer_norm = normalize_address(signer)
-        if claimed == signer_norm:
-            self._report_signer_event_sync("pass")
-            return VerifyWalletSignerResult(kind="pass")
-
-        # Cache hit: a prior call for this same (claimed, signer) pair populated signer_match.
-        # Skip both the round trip AND the SDK telemetry post (the API recorded it last time).
-        cached_entry = self._cache.get(claimed)
-        if cached_entry is not None:
-            cached_match = cached_entry.signer_match_by_signer.get(signer_norm)
-            if cached_match is not None:
-                return self._project_signer_match(cached_match, claimed, signer_norm)
-
-        # Single signer-aware assess call — server-side resolves both wallets and
-        # returns a verdict in one round trip.
-        network = options.network or self._infer_signer_network(signer_norm)
-        try:
-            data = self._sdk.assess(
-                address=claimed,
-                signer=cast("Signer", {"address": signer_norm, "network": network}),
-            )
-        except AgentScoreError as exc:
-            _log.warning("[gate] verify_wallet_signer_match assess failed: %s", exc)
-            self._report_signer_event_sync("api_error")
-            return VerifyWalletSignerResult(kind="api_error", claimed_wallet=claimed)
-
-        data_dict = cast("dict[str, Any]", data)
-        sm = data_dict.get("signer_match")
-        if isinstance(sm, dict):
-            if cached_entry is not None:
-                # Mutate in place — TTLCache.get() returns a reference, so the stored
-                # entry sees the new sub-dict without a set() call. This preserves the
-                # gate's original cache TTL window (set() would reset it forward,
-                # causing the gate verdict to be served past its intended freshness).
-                cached_entry.signer_match_by_signer[signer_norm] = sm
-            else:
-                # No prior gate cache for this wallet — create a fresh entry with the
-                # verdict attached so a subsequent same-pair call hits cache.
-                entry = AssessResult(allow=True, raw=data_dict)
-                entry.signer_match_by_signer[signer_norm] = sm
-                self._cache.set(claimed, entry)
-            return self._project_signer_match(sm, claimed, signer_norm)
-
-        # API response had no signer_match (server didn't compute one). Two-resolve
-        # path produces a verdict from the same operator graph.
-        claimed_ok, claimed_op, claimed_links = self._resolve_wallet_to_operator(claimed)
-        signer_ok, signer_op, _ = self._resolve_wallet_to_operator(signer_norm)
-        if not claimed_ok or not signer_ok:
-            self._report_signer_event_sync("api_error")
-            return VerifyWalletSignerResult(kind="api_error", claimed_wallet=claimed)
-        if claimed_op and signer_op and claimed_op == signer_op:
-            self._report_signer_event_sync("pass")
-            return VerifyWalletSignerResult(kind="pass", claimed_operator=claimed_op, signer_operator=signer_op)
-        self._report_signer_event_sync("wallet_signer_mismatch")
-        return VerifyWalletSignerResult(
-            kind="wallet_signer_mismatch",
-            claimed_operator=claimed_op,
-            actual_signer_operator=signer_op,
-            expected_signer=claimed,
-            actual_signer=signer_norm,
-            linked_wallets=claimed_links,
-            agent_instructions=WALLET_SIGNER_MISMATCH_INSTRUCTIONS,
-        )
-
-    async def averify_wallet_signer_match(self, options: VerifyWalletSignerMatchOptions) -> VerifyWalletSignerResult:
-        """Async variant of :meth:`verify_wallet_signer_match`."""
-        signer = options.signer
-        if signer is None:
-            await self._report_signer_event_async("wallet_auth_requires_wallet_signing")
-            return VerifyWalletSignerResult(
-                kind="wallet_auth_requires_wallet_signing",
-                claimed_wallet=options.claimed_wallet,
-                agent_instructions=WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,
-            )
-        claimed = normalize_address(options.claimed_wallet)
-        signer_norm = normalize_address(signer)
-        if claimed == signer_norm:
-            await self._report_signer_event_async("pass")
-            return VerifyWalletSignerResult(kind="pass")
-
-        cached_entry = self._cache.get(claimed)
-        if cached_entry is not None:
-            cached_match = cached_entry.signer_match_by_signer.get(signer_norm)
-            if cached_match is not None:
-                return self._project_signer_match(cached_match, claimed, signer_norm)
-
-        network = options.network or self._infer_signer_network(signer_norm)
-        try:
-            data = await self._sdk.aassess(
-                address=claimed,
-                signer=cast("Signer", {"address": signer_norm, "network": network}),
-            )
-        except AgentScoreError as exc:
-            _log.warning("[gate] averify_wallet_signer_match assess failed: %s", exc)
-            await self._report_signer_event_async("api_error")
-            return VerifyWalletSignerResult(kind="api_error", claimed_wallet=claimed)
-
-        data_dict = cast("dict[str, Any]", data)
-        sm = data_dict.get("signer_match")
-        if isinstance(sm, dict):
-            if cached_entry is not None:
-                # Async mirror of the in-place-mutate optimization in :meth:`verify_wallet_signer_match`.
-                cached_entry.signer_match_by_signer[signer_norm] = sm
-            else:
-                entry = AssessResult(allow=True, raw=data_dict)
-                entry.signer_match_by_signer[signer_norm] = sm
-                self._cache.set(claimed, entry)
-            return self._project_signer_match(sm, claimed, signer_norm)
-
-        # Legacy fallback — async mirror of the sync path.
-        claimed_ok, claimed_op, claimed_links = await self._aresolve_wallet_to_operator(claimed)
-        signer_ok, signer_op, _ = await self._aresolve_wallet_to_operator(signer_norm)
-        if not claimed_ok or not signer_ok:
-            await self._report_signer_event_async("api_error")
-            return VerifyWalletSignerResult(kind="api_error", claimed_wallet=claimed)
-        if claimed_op and signer_op and claimed_op == signer_op:
-            await self._report_signer_event_async("pass")
-            return VerifyWalletSignerResult(kind="pass", claimed_operator=claimed_op, signer_operator=signer_op)
-        await self._report_signer_event_async("wallet_signer_mismatch")
-        return VerifyWalletSignerResult(
-            kind="wallet_signer_mismatch",
-            claimed_operator=claimed_op,
-            actual_signer_operator=signer_op,
-            expected_signer=claimed,
-            actual_signer=signer_norm,
-            linked_wallets=claimed_links,
-            agent_instructions=WALLET_SIGNER_MISMATCH_INSTRUCTIONS,
-        )
 
 
 # Re-export the timeout error class so adapters can recognize SDK-side timeouts

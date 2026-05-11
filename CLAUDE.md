@@ -8,7 +8,7 @@ Every helper is extracted from a real consumer, not speculated.
 
 | Submodule | What it is |
 |---|---|
-| `agentscore_commerce.identity.{fastapi,flask,django,aiohttp,sanic,middleware}` | Trust gate middleware (KYC, age, sanctions, jurisdiction) |
+| `agentscore_commerce.identity.{fastapi,flask,django,aiohttp,sanic,middleware}` | Trust gate middleware (KYC, age, sanctions on both account name and signer wallet, jurisdiction) |
 | `agentscore_commerce.payment` | Networks/USDC/rails registries, paymentauth.org directive builders, `create_x402_server` (wraps `x402[evm]>=2.9` + `cdp-sdk` for `facilitator="coinbase"`; install via the `coinbase` extra), `build_x402_accepts_for_402` (build the 402's `accepts[]` from the registered scheme; derives the right `extra.name` per network), `process_x402_settle` (verify+settle in one call), `create_mppx_server` (wraps `pympp[server,tempo,stripe]>=0.6`), dispatch-by-network, signer extraction, WWW-Authenticate header, Settlement-Overrides header |
 | `agentscore_commerce.discovery` | Discovery probe, Bazaar wrapper, `/.well-known/mpp.json`, `llms.txt` builder, `skill.md` builder (Claude-Skill-compatible agent-discovery manifest), OpenAPI snippets, `NoindexNonDiscoveryMiddleware` ASGI middleware |
 | `agentscore_commerce.challenge` | 402-body builders: accepted_methods, identity_metadata, how_to_pay, agent_instructions, build_402_body, `build_validation_error` (4xx body builder) |
@@ -17,7 +17,7 @@ Every helper is extracted from a real consumer, not speculated.
 
 ## Architecture
 
-Single Python package, hatchling-built, published to PyPI as `agentscore-commerce`. Per-framework identity adapters expose the same surface (`AgentScoreGate`, or `agentscore_gate(app, ...)` for Flask/Sanic; `capture_wallet`, `verify_wallet_signer_match`, `get_agentscore_data`, `get_gate_degraded_state`, `get_gate_quota_info`) with network-aware address normalization (EVM lowercased, Solana base58 preserved verbatim).
+Single Python package, hatchling-built, published to PyPI as `agentscore-commerce`. Per-framework identity adapters expose the same surface (`AgentScoreGate`, or `agentscore_gate(app, ...)` for Flask/Sanic; `capture_wallet`, `get_signer_verdict`, `get_agentscore_data`, `get_gate_degraded_state`, `get_gate_quota_info`) with network-aware address normalization (EVM lowercased, Solana base58 preserved verbatim). The gate middleware extracts the inbound payment signer pre-evaluate (`extract_payment_signer(x402_header)`) and passes it to `/v1/assess` via the SDK's `signer` kwarg, so the API composes both wallet-binding (`signer_match`) and OFAC SDN wallet-address (`signer_sanctions`) verdicts on one round trip; merchants read both back synchronously via `get_signer_verdict(request)` off the gate's cache.
 
 | Directory | Contents |
 |---|---|
@@ -77,11 +77,11 @@ Two identity types: wallet (`X-Wallet-Address`) and operator-token (`X-Operator-
 
 `DenialReason` codes (`missing_identity`, `identity_verification_required`, `token_expired`, `invalid_credential`, `wallet_signer_mismatch`, `wallet_auth_requires_wallet_signing`, `wallet_not_trusted`, `api_error`, `payment_required`) each carry a structured `agent_instructions` JSON block describing concrete recovery actions. See `agentscore_commerce/identity/_response.py` for the canned action copy.
 
-`create_session_on_missing` auto-mints a verification session when no identity is present and returns 403 with `verify_url` + poll instructions. `verify_wallet_signer_match` (per-adapter) compares the recovered signer against `linked_wallets[]` for cross-chain wallet-stack matching.
+`create_session_on_missing` auto-mints a verification session when no identity is present and returns 403 with `verify_url` + poll instructions. `get_signer_verdict(request)` (per-adapter) returns the cached `signer_match` + `signer_sanctions` verdicts the gate composed on its primary `/v1/assess` call (single round trip; merchants build a 403 with `build_signer_mismatch_body(result=verdict.signer_match)` when `kind != "pass"`).
 
 Captured wallets: `capture_wallet(...)` is fire-and-forget. Reads `operator_token` stashed during gating and POSTs to `/v1/credentials/wallets`. No-ops for wallet-authenticated requests.
 
-Wallet-signer-match: `verify_wallet_signer_match` / `averify_wallet_signer_match` makes a single `/v1/assess` call with `signer` set; the API resolves both wallets and emits a `signer_match` verdict in the same response, collapsing the legacy 2 follow-up assess calls into one round trip. Repeat lookups for the same `(claimed, signer)` pair hit a per-cache-entry `signer_match_by_signer` sub-dict and skip the API entirely. Falls back to a 2-resolve path when the API doesn't emit `signer_match` (canary rollout safety).
+Wallet-signer-match + signer-sanctions: the gate adapter calls `extract_payment_signer(x402_header)` pre-evaluate and passes `signer={address, network}` to the SDK's `assess`. The API returns both `signer_match` (wallet-binding) and `signer_sanctions` (OFAC SDN wallet-address) on the same response; commerce caches the raw body alongside the projected verdicts so `get_signer_verdict` is a pure cache read. Under `policy.require_sanctions_clear`, an OFAC SDN signer hit already flips `decision -> deny` before the handler runs.
 
 ### Fail-open (opt-in)
 

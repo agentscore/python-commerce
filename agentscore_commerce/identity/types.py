@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from agentscore import Network as Network  # noqa: TC002 — runtime re-export for vendors
+from agentscore import Network as Network
 
 # Reputation-API types (Activity, Classification, Identity, Reputation, ScoreDetail,
 # Grade, ScoreStatus) live in agentscore-py — not re-exported here. Commerce SDK is
@@ -90,31 +90,20 @@ class DenialReason:
     linked_wallets: list[str] = field(default_factory=list)
 
 
-@dataclass
-class VerifyWalletSignerMatchOptions:
-    """Input for GateClient.verify_wallet_signer_match."""
-
-    claimed_wallet: str
-    signer: str | None
-    # Optional explicit network. When omitted, the gate infers from the signer's address
-    # shape (EVM `0x...` → "evm", base58 → "solana"). Parity with node-commerce, where
-    # this field is optional with no default.
-    network: Network | None = None
-
-
 VerifyWalletSignerKind = Literal[
     "pass",
     "wallet_signer_mismatch",
     "wallet_auth_requires_wallet_signing",
-    # Transient — resolve call to /v1/assess failed or timed out. Caller should retry or
-    # surface 503 rather than reject the user as a signer mismatch on a network flake.
-    "api_error",
 ]
 
 
 @dataclass
 class VerifyWalletSignerResult:
-    """Result of GateClient.verify_wallet_signer_match."""
+    """Projected wallet-signer-match verdict surfaced inside :class:`SignerVerdict`.
+
+    Kept as a dataclass for API parity with node-commerce and so existing
+    ``build_signer_mismatch_body(...)`` helpers consume it unchanged.
+    """
 
     kind: VerifyWalletSignerKind
     claimed_operator: str | None = None
@@ -124,10 +113,28 @@ class VerifyWalletSignerResult:
     actual_signer: str | None = None
     linked_wallets: list[str] = field(default_factory=list)
     claimed_wallet: str | None = None
-    # JSON-encoded action copy (action + steps + user_message) populated on non-pass/
-    # non-api_error kinds so the merchant can spread it directly into a 403 body and
-    # the agent sees a concrete recovery path without a discovery-doc round trip.
+    # JSON-encoded action copy (action + steps + user_message) populated on non-pass
+    # kinds so the merchant can spread it directly into a 403 body and the agent sees
+    # a concrete recovery path without a discovery-doc round trip.
     agent_instructions: str | None = None
+
+
+@dataclass
+class SignerVerdict:
+    """Combined wallet-signer verdict surfaced by :meth:`GateClient.get_signer_verdict`.
+
+    Both ``signer_match`` and ``signer_sanctions`` come through the gate's primary
+    ``/v1/assess`` call (single round trip). ``signer_match`` describes the wallet-
+    binding; ``signer_sanctions`` describes the OFAC SDN wallet-address check.
+
+    Under ``policy.require_sanctions_clear``, a ``signer_sanctions`` hit OR an
+    unavailable lookup already flips ``decision -> deny`` inside the gate before the
+    handler runs — merchant code typically only needs to read ``signer_match`` here
+    for the wallet-binding verdict.
+    """
+
+    signer_match: VerifyWalletSignerResult | None = None
+    signer_sanctions: dict[str, Any] | None = None
 
 
 # Canonical production AgentScore API; agent memory pointers are always hardcoded to this
@@ -255,10 +262,3 @@ class AssessResult:
     # Per-account assess quota captured from X-Quota-* response headers. Absent on
     # Enterprise / unlimited tiers, or when the gate didn't call assess.
     quota: GateQuotaInfo | None = None
-    # Per-signer wallet-match verdicts cached from prior verify_wallet_signer_match() calls
-    # for this same claimed wallet. Each signer gets its own slot so two payments under the
-    # same claimed identity but from different signer wallets don't serve stale verdicts to
-    # each other. Verdicts come from the API's ``signer_match`` response field (populated
-    # when the assess request carried ``signer``), so reading a hit skips the round
-    # trip altogether.
-    signer_match_by_signer: dict[str, dict[str, Any]] = field(default_factory=dict)

@@ -7,8 +7,8 @@ deps.
 Solana payments in the AgentScore stack go through MPP `solana/charge`
 (``Authorization: Payment``), not x402, so they don't arrive at this helper. If a
 non-AgentScore merchant does receive a legacy x402 SVM payload, this function returns
-``None``; the caller should pass the recovered signer to ``verify_wallet_signer_match``
-via the ``signer=`` argument instead.
+``None``; custom adapters that recover the Solana signer themselves should pass
+``signer={address, network}`` directly to ``GateClient.check``/``acheck``.
 
 Tempo MPP signer extraction is also caller-supplied; there's no pip-installable
 equivalent of the node ``mppx`` library today.

@@ -47,7 +47,7 @@ AgentScore Commerce handles the agent commerce protocol layer; everything else i
 
 Python wraps `x402[evm]` and `pympp[server,tempo,stripe]` as peer deps; `@solana/mpp` has no Python equivalent today. Two implications:
 
-1. **`extract_payment_signer` returns EVM only.** Solana SPL Token payer recovery requires a Solana SDK (`solders` / `solana-py`) which isn't bundled. Pass the recovered Solana payer via `signer=...` to `verify_wallet_signer_match` directly.
+1. **`extract_payment_signer` returns EVM only.** Solana SPL Token payer recovery requires a Solana SDK (`solders` / `solana-py`) which isn't bundled. Custom adapters that wire Solana signer recovery should pass `signer={address, network}` directly to `GateClient.acheck()`; the API returns the wallet-binding + sanctions verdicts on the same response.
 2. **Streaming session payments (variable_cost_merchant.py)** sketches the protocol but doesn't ship a working tempo session implementation; there's no pip-installable `mppx` equivalent. The example shows the response shape; vendors using session payments today should check the [tempo session protocol docs](https://mpp.dev/guides/streamed-payments) and bind to a Solana wallet library directly.
 
 For Python merchants on x402 alone (Base or Solana), every helper (`create_x402_server`, `create_mppx_server`, directives, headers, dispatch, settle-overrides, signer extraction for EVM, accepted_methods, agent_instructions, how_to_pay) is fully native.

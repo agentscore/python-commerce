@@ -5,8 +5,8 @@ What lives here:
         be resolved by re-completing KYC (vs sanctions / age failures which are permanent).
     denial_reason_status — picks the right HTTP status code per denial code (401 for credential
         problems, 503 for transient API errors, 403 for everything else).
-    build_signer_mismatch_body — produces the standard 403 body for a verify_wallet_signer_match
-        non-pass result.
+    build_signer_mismatch_body — produces the standard 403 body for a non-pass signer_match
+        verdict (read via get_signer_verdict).
     build_contact_support_next_steps — standard `next_steps.action: "contact_support"` shape for
         unfixable compliance denials.
     verification_agent_instructions — the canned `agent_instructions` block for
@@ -73,16 +73,17 @@ def build_signer_mismatch_body(
     user_message: str | None = None,
     learn_more_url: str | None = None,
 ) -> dict[str, Any] | None:
-    """Standard 403 body for a non-pass `verify_wallet_signer_match` result.
+    """Standard 403 body for a non-pass signer_match verdict.
 
-    Returns None for pass / api_error so vendors can call unconditionally::
+    Returns None for pass so vendors can call unconditionally::
 
-        result = await verify_wallet_signer_match(request, signer=...)
-        body = build_signer_mismatch_body(result)
-        if body:
-            return JSONResponse(body, status_code=403)
+        verdict = get_signer_verdict(request)
+        if verdict is not None and verdict.signer_match is not None:
+            body = build_signer_mismatch_body(verdict.signer_match)
+            if body:
+                return JSONResponse(body, status_code=403)
     """
-    if result.kind in ("pass", "api_error"):
+    if result.kind == "pass":
         return None
 
     learn_more = learn_more_url or "https://docs.agentscore.sh/guides/agent-identity"

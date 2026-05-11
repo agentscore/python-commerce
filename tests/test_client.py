@@ -781,50 +781,6 @@ class TestInvalidCredential:
         assert reason.poll_secret is None
 
 
-class TestResolveWalletErrorHandling:
-    """The wallet→operator resolve path is used by verify_wallet_signer_match. HTTPError
-    and non-2xx responses must return (False, None, []) so the caller can map to api_error
-    instead of crashing the request."""
-
-    @respx.mock
-    def test_resolve_returns_false_on_http_error(self):
-        respx.post(ASSESS_URL).mock(side_effect=httpx.ConnectError("dns failure"))
-        client = _make_client()
-        ok, op, links = client._resolve_wallet_to_operator("0xfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed")
-        assert ok is False
-        assert op is None
-        assert links == []
-
-    @respx.mock
-    def test_resolve_returns_false_on_non_success(self):
-        respx.post(ASSESS_URL).mock(return_value=httpx.Response(500, json={"error": "boom"}))
-        client = _make_client()
-        ok, op, links = client._resolve_wallet_to_operator("0xfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed")
-        assert ok is False
-        assert op is None
-        assert links == []
-
-    @pytest.mark.asyncio
-    @respx.mock
-    async def test_aresolve_returns_false_on_http_error(self):
-        respx.post(ASSESS_URL).mock(side_effect=httpx.ConnectError("dns failure"))
-        client = _make_client()
-        ok, op, links = await client._aresolve_wallet_to_operator("0xfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed")
-        assert ok is False
-        assert op is None
-        assert links == []
-
-    @pytest.mark.asyncio
-    @respx.mock
-    async def test_aresolve_returns_false_on_non_success(self):
-        respx.post(ASSESS_URL).mock(return_value=httpx.Response(500, json={"error": "boom"}))
-        client = _make_client()
-        ok, op, links = await client._aresolve_wallet_to_operator("0xfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed")
-        assert ok is False
-        assert op is None
-        assert links == []
-
-
 class TestAcheckTypedErrors:
     """Async path mirror of TestCheckFailOpen — exercises SdkXxxError → commerce-error mapping
     in :meth:`acheck`. Pinned independently of the sync path because adapters wire each

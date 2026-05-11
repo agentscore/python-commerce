@@ -35,7 +35,6 @@ from agentscore_commerce.payment.signer import (
     PaymentSigner,
     SignerNetwork,
     extract_payment_signer,
-    extract_payment_signer_address,
     extract_x402_signer,
     read_x402_payment_header,
 )
@@ -126,7 +125,6 @@ __all__ = [
     "create_x402_server",
     "dispatch_settlement_by_network",
     "extract_payment_signer",
-    "extract_payment_signer_address",
     "extract_x402_signer",
     "lookup_rail",
     "network_family",

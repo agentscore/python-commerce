@@ -122,7 +122,7 @@ dev = [
 
 [[package]]
 name = "agentscore-py"
-version = "2.2.0"
+version = "2.3.0"
 source = { editable = "../python-sdk" }
 dependencies = [
     { name = "httpx" },

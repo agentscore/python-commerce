@@ -1,9 +1,9 @@
 """Pricing block builder + canonical type.
 
 Composes cents-denominated price components into the dollar-string shape that 402
-challenge bodies advertise. Lifts the inline pattern from martin-estate's
-``purchase.ts`` so every merchant — current and future commerce-platform plugins
-(Commerce7, WooCommerce, Shopify) — surfaces the same shape to agents.
+challenge bodies advertise. Standardizes the pricing block so every merchant —
+current and future commerce-platform plugins (Commerce7, WooCommerce, Shopify) —
+surfaces the same shape to agents.
 
 Shipping is included by default because most physical-goods merchants carry it; pass
 ``shipping_cents=0`` (or omit) for digital goods / services. Tax is optional for

@@ -4,7 +4,7 @@ Stable per-payment keys that retries of the same logical payment can reuse, so A
 ``/v1/credentials/wallets`` capture endpoint dedupes correctly and the operator's
 ``transaction_count`` doesn't inflate.
 
-Convention (matches what martin-estate uses today):
+Convention:
     1. Prefer the upstream payment-rail's stable identifier (Stripe PaymentIntent id, x402
        tx hash) when one exists — those are already idempotent on their side.
     2. Fall back to a synthesized ``pi-{order_id}-{amount_cents}`` key when no upstream id

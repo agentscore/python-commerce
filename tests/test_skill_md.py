@@ -115,7 +115,7 @@ class TestValidation:
 
     def test_rejects_uppercase_name(self) -> None:
         cfg = _base()
-        cfg.name = "Martin-Estate"
+        cfg.name = "Example-Merchant"
         with pytest.raises(ValueError, match=r"lowercase"):
             build_skill_md(cfg)
 

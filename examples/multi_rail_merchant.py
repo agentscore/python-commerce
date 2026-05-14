@@ -51,6 +51,10 @@ from agentscore_commerce.challenge import (
 from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data
 from agentscore_commerce.payment import (
     USDC,
+    SolanaMppRailSpec,
+    StripeRailSpec,
+    TempoRailSpec,
+    X402BaseRailSpec,
     build_x402_accepts_for_402,
     networks,
     process_x402_settle,
@@ -186,22 +190,24 @@ async def purchase(request: Request, assess: dict = Depends(get_agentscore_data)
     # WWW-Auth + adds x402's PAYMENT-REQUIRED):
     pympx_challenge_headers = {"www-authenticate": 'Payment id="..."'}  # from pympp.compose
     deposit_addresses = {"tempo": "0x...", "base": "0x...", "solana": "..."}  # from create_multichain_payment_intent
-    accepted = build_accepted_methods(
-        tempo={"recipient": deposit_addresses["tempo"]},
-        x402_base={"recipient": deposit_addresses["base"]},
-        solana_mpp={"recipient": deposit_addresses["solana"]},
-        stripe={"profile_id": os.environ["STRIPE_PROFILE_ID"]},
+    # Declare every rail once — every helper consumes the same RailSpec instances.
+    rails = {
+        "tempo": TempoRailSpec(recipient=deposit_addresses["tempo"]),
+        "x402_base": X402BaseRailSpec(recipient=deposit_addresses["base"]),
+        "solana_mpp": SolanaMppRailSpec(recipient=deposit_addresses["solana"]),
+        "stripe": StripeRailSpec(profile_id=os.environ["STRIPE_PROFILE_ID"]),
+    }
+    accepted = await build_accepted_methods(
+        tempo=rails["tempo"],
+        x402_base=rails["x402_base"],
+        solana_mpp=rails["solana_mpp"],
+        stripe=rails["stripe"],
     )
-    how_to_pay = build_how_to_pay(
+    how_to_pay = await build_how_to_pay(
         url=APP_URL,
         retry_body_json=str(body),
         total_usd=total_usd,
-        rails={
-            "tempo": {"recipient": deposit_addresses["tempo"]},
-            "x402_base": {"recipient": deposit_addresses["base"]},
-            "solana_mpp": {"recipient": deposit_addresses["solana"]},
-            "stripe": {"profile_id": os.environ["STRIPE_PROFILE_ID"]},
-        },
+        rails=rails,
     )
 
     result = respond_402(

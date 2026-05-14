@@ -1,5 +1,7 @@
 """Targeted tests covering optional-field branches across discovery + challenge builders."""
 
+import pytest
+
 from agentscore_commerce.challenge import (
     build_402_body,
     build_accepted_methods,
@@ -12,6 +14,10 @@ from agentscore_commerce.discovery import (
     build_well_known_mpp,
     llms_txt_identity_section,
     llms_txt_payment_section,
+)
+from agentscore_commerce.payment import (
+    SolanaMppRailSpec,
+    TempoRailSpec,
 )
 
 
@@ -94,50 +100,57 @@ def test_llms_txt_payment_section_includes_all_rails():
     assert "Stripe Shared Payment Token" in section
 
 
-def test_build_accepted_methods_includes_solana_only():
-    out = build_accepted_methods(solana_mpp={"recipient": "solanaaddr"})
+@pytest.mark.asyncio
+async def test_build_accepted_methods_includes_solana_only():
+    out = await build_accepted_methods(solana_mpp=SolanaMppRailSpec(recipient="solanaaddr"))
     assert out[0]["network"].startswith("solana:")
     assert out[0]["pay_to"] == "solanaaddr"
 
 
-def test_build_how_to_pay_solana_only():
-    out = build_how_to_pay(
+@pytest.mark.asyncio
+async def test_build_how_to_pay_solana_only():
+    out = await build_how_to_pay(
         url="https://ex.com",
         retry_body_json="{}",
         total_usd=5.0,
-        rails={"solana_mpp": {"recipient": "solanaaddr"}},
+        rails={"solana_mpp": SolanaMppRailSpec(recipient="solanaaddr")},
     )
     assert "solana_mpp" in out
     assert "agentscore-pay pay POST" in out["solana_mpp"]["command"]
 
 
-def test_build_how_to_pay_tempo_recommend_pay():
-    out = build_how_to_pay(
+@pytest.mark.asyncio
+async def test_build_how_to_pay_tempo_recommend_pay():
+    out = await build_how_to_pay(
         url="https://ex.com",
         retry_body_json="{}",
         total_usd=5.0,
-        rails={"tempo": {"recipient": "0xT", "recommend": "agentscore-pay"}},
+        rails={"tempo": TempoRailSpec(recipient="0xT", recommend="agentscore-pay")},
     )
     assert out["tempo"]["command"].startswith("agentscore-pay pay POST")
     assert out["tempo"]["alternative_command"].startswith("tempo request")
 
 
-def test_build_how_to_pay_tempo_recommend_tempo_only():
-    out = build_how_to_pay(
+@pytest.mark.asyncio
+async def test_build_how_to_pay_tempo_recommend_tempo_only():
+    out = await build_how_to_pay(
         url="https://ex.com",
         retry_body_json="{}",
         total_usd=5.0,
-        rails={"tempo": {"recipient": "0xT", "recommend": "tempo"}},
+        rails={"tempo": TempoRailSpec(recipient="0xT", recommend="tempo")},
     )
     assert "alternative_command" not in out["tempo"]
 
 
-def test_build_how_to_pay_stripe_no_profile_id_skips_link_cli():
-    out = build_how_to_pay(
+@pytest.mark.asyncio
+async def test_build_how_to_pay_stripe_no_profile_id_skips_link_cli():
+    from agentscore_commerce.payment import StripeRailSpec
+
+    out = await build_how_to_pay(
         url="https://ex.com",
         retry_body_json="{}",
         total_usd=5.0,
-        rails={"stripe": {"profile_id": None}},
+        rails={"stripe": StripeRailSpec(profile_id=None)},
     )
     assert "setup_link_cli" not in out["stripe"]
     assert "note" not in out["stripe"]

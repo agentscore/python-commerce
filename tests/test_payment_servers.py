@@ -14,8 +14,9 @@ import importlib.util
 import pytest
 
 from agentscore_commerce.payment import (
-    MppxRails,
-    TempoChargeRail,
+    StripeRailSpec,
+    TempoRailSpec,
+    TempoSessionRailSpec,
     create_mppx_server,
     create_x402_server,
 )
@@ -147,7 +148,7 @@ async def test_create_mppx_server_tempo_returns_mpp_instance() -> None:
     """create_mppx_server with a Tempo charge rail returns a configured Mpp."""
     server = await create_mppx_server(
         secret_key="X" * 32,
-        rails=MppxRails(tempo=TempoChargeRail(recipient="0x" + "00" * 20, testnet=True)),
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 20, testnet=True)},
     )
     assert type(server).__name__ == "Mpp"
     # pympp 0.6 exposes intent-named methods directly (charge, pay, …) on the Mpp instance.
@@ -159,3 +160,39 @@ async def test_create_mppx_server_tempo_returns_mpp_instance() -> None:
 async def test_create_mppx_server_no_method_or_rails_raises() -> None:
     with pytest.raises(ValueError, match="no method or rails"):
         await create_mppx_server(secret_key="X" * 32)
+
+
+@pytest.mark.skipif(not _MPPX_INSTALLED, reason="pympp not installed")
+@pytest.mark.asyncio
+async def test_create_mppx_server_tempo_session_raises_until_pympp_supports_it() -> None:
+    with pytest.raises(ImportError, match="SessionIntent"):
+        await create_mppx_server(
+            secret_key="X" * 32,
+            rails={
+                "tempo_session": TempoSessionRailSpec(
+                    recipient="0x" + "00" * 20,
+                    escrow_contract="0x" + "11" * 20,
+                    store=object(),
+                ),
+            },
+        )
+
+
+@pytest.mark.skipif(not _MPPX_INSTALLED, reason="pympp not installed")
+@pytest.mark.asyncio
+async def test_create_mppx_server_stripe_requires_secret_key() -> None:
+    with pytest.raises(ValueError, match="profile_id and secret_key"):
+        await create_mppx_server(
+            secret_key="X" * 32,
+            rails={"stripe": StripeRailSpec(profile_id="profile_x")},
+        )
+
+
+@pytest.mark.skipif(not _MPPX_INSTALLED, reason="pympp not installed")
+@pytest.mark.asyncio
+async def test_create_mppx_server_unknown_rail_spec_raises() -> None:
+    with pytest.raises(TypeError, match="unsupported rail spec"):
+        await create_mppx_server(
+            secret_key="X" * 32,
+            rails={"weird": "not-a-spec"},  # type: ignore[dict-item]
+        )

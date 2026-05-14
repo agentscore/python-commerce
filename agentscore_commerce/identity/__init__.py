@@ -35,6 +35,7 @@ from agentscore_commerce.identity.policy import (
     shipping_state_allowed,
 )
 from agentscore_commerce.identity.signer import extract_x402_signer
+from agentscore_commerce.identity.tokens import hash_operator_token
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     AgentMemoryHint,
@@ -138,6 +139,7 @@ __all__ = [
     "denial_reason_to_body",
     "extract_x402_signer",
     "generate_ucp_signing_key",
+    "hash_operator_token",
     "is_fixable_denial",
     "mpp_payment_handler",
     "run_gate_with_enforcement",

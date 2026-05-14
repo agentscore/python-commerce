@@ -540,23 +540,6 @@ def build_jwks_response(keys: list[dict[str, Any]]) -> dict[str, Any]:
 _logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class LoadUCPSigningKeyOptions:
-    """Configuration for :func:`load_ucp_signing_key_from_env`.
-
-    Env-var names are overridable so a merchant can run multiple distinct signing
-    keys from different env namespaces (e.g. ``PROD_UCP_JWK`` vs ``STAGING_UCP_JWK``).
-    ``default_kid`` and ``default_alg`` are used when the env JWK is absent or
-    doesn't carry its own ``kid`` / can't dictate alg via kty+crv.
-    """
-
-    env_jwk_var: str = "UCP_SIGNING_KEY_JWK_PRIVATE"
-    env_kid_var: str = "UCP_SIGNING_KEY_KID"
-    env_alg_var: str = "UCP_SIGNING_KEY_ALG"
-    default_kid: str = "merchant-default"
-    default_alg: Literal["EdDSA", "ES256"] = "EdDSA"
-
-
 _env_loader_cache: dict[tuple[str, str, str, str, str], GeneratedUCPKey] = {}
 _env_loader_lock = threading.Lock()
 
@@ -585,34 +568,41 @@ def _detect_alg_from_jwk(jwk: dict[str, Any]) -> Literal["EdDSA", "ES256"] | Non
     return None
 
 
-def _build_env_signing_key(opts: LoadUCPSigningKeyOptions) -> GeneratedUCPKey:
+def _build_env_signing_key(
+    *,
+    env_jwk_var: str,
+    env_kid_var: str,
+    env_alg_var: str,
+    default_kid: str,
+    default_alg: Literal["EdDSA", "ES256"],
+) -> GeneratedUCPKey:
     """Load (or generate) one signing key per env state. No locking (caller wraps)."""
-    kid_default = _read_env_trimmed(opts.env_kid_var) or opts.default_kid
-    raw_alg = (_read_env_trimmed(opts.env_alg_var) or "").upper()
+    kid_default = _read_env_trimmed(env_kid_var) or default_kid
+    raw_alg = (_read_env_trimmed(env_alg_var) or "").upper()
     # Case-insensitive env-alg comparison: secret configs commonly carry casing
     # drift (``"es256"``, ``" ES256 "``, ``"eS256"``). Strict exact-match would
     # silently downgrade to the default and operators would publish a JWKS
     # containing the wrong key family.
-    alg_fallback: Literal["EdDSA", "ES256"] = "ES256" if raw_alg == "ES256" else opts.default_alg
+    alg_fallback: Literal["EdDSA", "ES256"] = "ES256" if raw_alg == "ES256" else default_alg
 
-    env_jwk = _read_env_trimmed(opts.env_jwk_var)
+    env_jwk = _read_env_trimmed(env_jwk_var)
     if env_jwk:
         from joserfc.jwk import ECKey, OKPKey  # type: ignore[import-not-found]
 
         try:
             jwk_dict = json.loads(env_jwk)
         except json.JSONDecodeError as exc:
-            msg = f"{opts.env_jwk_var} is not valid JSON: {exc}"
+            msg = f"{env_jwk_var} is not valid JSON: {exc}"
             raise ValueError(msg) from exc
 
         if not isinstance(jwk_dict, dict) or not jwk_dict:
-            msg = f"{opts.env_jwk_var} must be a non-empty JWK object; got {type(jwk_dict).__name__}."
+            msg = f"{env_jwk_var} must be a non-empty JWK object; got {type(jwk_dict).__name__}."
             raise ValueError(msg)
 
         detected_alg = _detect_alg_from_jwk(jwk_dict)
         if not detected_alg:
             msg = (
-                f"{opts.env_jwk_var} has unsupported kty/crv "
+                f"{env_jwk_var} has unsupported kty/crv "
                 f"(got kty={jwk_dict.get('kty')!r} crv={jwk_dict.get('crv')!r}); "
                 "expected OKP+Ed25519 or EC+P-256."
             )
@@ -625,7 +615,7 @@ def _build_env_signing_key(opts: LoadUCPSigningKeyOptions) -> GeneratedUCPKey:
             # back fields of the input JWK including private key material. Surface only
             # the exception class so logs never carry key bytes through stderr / CloudWatch.
             msg = (
-                f"{opts.env_jwk_var} has malformed key material ({type(exc).__name__}). "
+                f"{env_jwk_var} has malformed key material ({type(exc).__name__}). "
                 "Verify the JWK is well-formed and matches the declared kty/crv. "
                 "Underlying details suppressed to avoid leaking key bytes."
             )
@@ -656,52 +646,56 @@ def _build_env_signing_key(opts: LoadUCPSigningKeyOptions) -> GeneratedUCPKey:
             "Loaded persistent UCP signing key kid=%s alg=%s from %s",
             public_jwk["kid"],
             detected_alg,
-            opts.env_jwk_var,
+            env_jwk_var,
         )
         return GeneratedUCPKey(private_key=priv, public_jwk=public_jwk)
 
     _logger.error(
         "%s not set; generating ephemeral signing key. Verifier caches will break across restarts. "
         "NOT SAFE FOR PRODUCTION.",
-        opts.env_jwk_var,
+        env_jwk_var,
     )
     return generate_ucp_signing_key(kid=kid_default, alg=alg_fallback)
 
 
-def load_ucp_signing_key_from_env(opts: LoadUCPSigningKeyOptions | None = None) -> GeneratedUCPKey:
+def load_ucp_signing_key_from_env(
+    *,
+    env_jwk_var: str = "UCP_SIGNING_KEY_JWK_PRIVATE",
+    env_kid_var: str = "UCP_SIGNING_KEY_KID",
+    env_alg_var: str = "UCP_SIGNING_KEY_ALG",
+    default_kid: str = "merchant-default",
+    default_alg: Literal["EdDSA", "ES256"] = "EdDSA",
+) -> GeneratedUCPKey:
     """Load the merchant's UCP signing key from env, with concurrent-safe caching.
 
-    On first call (per ``opts``): reads ``opts.env_jwk_var``, parses it as a JWK,
+    On first call (per kwargs): reads ``env_jwk_var``, parses it as a JWK,
     validates kty/crv (OKP+Ed25519 or EC+P-256), and projects to a canonical
     public JWK. Falls back to an ephemeral keypair when the env var is missing
     or whitespace-only (dev-friendly; logs a loud warning).
 
-    Subsequent calls with the same ``opts`` return the cached key without
+    Subsequent calls with the same kwargs return the cached key without
     re-reading env. Concurrent first-callers serialize on a lock so only one
     key generation runs; the rest receive the cached result.
 
-    Different ``opts`` values get separate cache entries: a merchant running
-    one signing key per env namespace (e.g. prod vs staging) does not collide.
+    Different kwargs get separate cache entries: a merchant running one signing
+    key per env namespace (e.g. prod vs staging) does not collide. Env-var
+    names are overridable so a merchant can run multiple distinct signing keys
+    from different env namespaces (e.g. ``PROD_UCP_JWK`` vs ``STAGING_UCP_JWK``).
+    ``default_kid`` and ``default_alg`` are used when the env JWK is absent or
+    doesn't carry its own ``kid`` / can't dictate alg via kty+crv.
 
     Env-driven precedence:
 
-    * Embedded ``kid`` in the JWK wins over ``opts.env_kid_var`` env value;
-      empty-string ``kid`` in the env JWK falls through to ``opts.default_kid``.
-    * Structural ``kty``+``crv`` in the JWK wins over ``opts.env_alg_var`` env
+    * Embedded ``kid`` in the JWK wins over ``env_kid_var`` env value;
+      empty-string ``kid`` in the env JWK falls through to ``default_kid``.
+    * Structural ``kty``+``crv`` in the JWK wins over ``env_alg_var`` env
       value (which is only consulted in the ephemeral fallback path).
 
     Raises ``ValueError`` with a sanitized message for malformed env JWKs;
     raw exception detail is intentionally suppressed so key bytes can never
     reach logs.
     """
-    resolved = opts if opts is not None else LoadUCPSigningKeyOptions()
-    cache_key = (
-        resolved.env_jwk_var,
-        resolved.env_kid_var,
-        resolved.env_alg_var,
-        resolved.default_kid,
-        resolved.default_alg,
-    )
+    cache_key = (env_jwk_var, env_kid_var, env_alg_var, default_kid, default_alg)
     cached = _env_loader_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -709,7 +703,13 @@ def load_ucp_signing_key_from_env(opts: LoadUCPSigningKeyOptions | None = None) 
         cached = _env_loader_cache.get(cache_key)
         if cached is not None:
             return cached
-        result = _build_env_signing_key(resolved)
+        result = _build_env_signing_key(
+            env_jwk_var=env_jwk_var,
+            env_kid_var=env_kid_var,
+            env_alg_var=env_alg_var,
+            default_kid=default_kid,
+            default_alg=default_alg,
+        )
         _env_loader_cache[cache_key] = result
         return result
 
@@ -726,7 +726,6 @@ def _reset_ucp_signing_key_cache() -> None:
 
 __all__ = [
     "GeneratedUCPKey",
-    "LoadUCPSigningKeyOptions",
     "UCPVerificationError",
     "build_jwks_response",
     "generate_ucp_signing_key",

@@ -22,7 +22,6 @@ import pytest
 from joserfc.jwk import ECKey, OKPKey
 
 from agentscore_commerce.identity.ucp_jwks import (
-    LoadUCPSigningKeyOptions,
     _reset_ucp_signing_key_cache,
     load_ucp_signing_key_from_env,
 )
@@ -105,7 +104,7 @@ def test_missing_embedded_kid_falls_through_to_default(monkeypatch) -> None:
     monkeypatch.setenv("UCP_SIGNING_KEY_JWK_PRIVATE", json.dumps(private_jwk))
     monkeypatch.delenv("UCP_SIGNING_KEY_KID", raising=False)
 
-    result = load_ucp_signing_key_from_env(LoadUCPSigningKeyOptions(default_kid="opts-default"))
+    result = load_ucp_signing_key_from_env(default_kid="opts-default")
     assert result.public_jwk["kid"] == "opts-default"
 
 
@@ -139,12 +138,12 @@ def test_generates_ephemeral_key_when_env_jwk_missing(monkeypatch) -> None:
 
     assert result.public_jwk["kty"] == "OKP"  # default alg is EdDSA
     assert result.public_jwk["alg"] == "EdDSA"
-    assert result.public_jwk["kid"] == "merchant-default"  # default from LoadUCPSigningKeyOptions
+    assert result.public_jwk["kid"] == "merchant-default"  # default kwarg
 
 
 def test_ephemeral_respects_default_alg_options(monkeypatch) -> None:
     monkeypatch.delenv("UCP_SIGNING_KEY_JWK_PRIVATE", raising=False)
-    result = load_ucp_signing_key_from_env(LoadUCPSigningKeyOptions(default_alg="ES256"))
+    result = load_ucp_signing_key_from_env(default_alg="ES256")
     assert result.public_jwk["alg"] == "ES256"
     assert result.public_jwk["kty"] == "EC"
 
@@ -241,8 +240,8 @@ def test_repeated_calls_return_cached_key(monkeypatch) -> None:
 
 def test_different_opts_get_separate_cache_entries(monkeypatch) -> None:
     monkeypatch.delenv("UCP_SIGNING_KEY_JWK_PRIVATE", raising=False)
-    first = load_ucp_signing_key_from_env(LoadUCPSigningKeyOptions(default_kid="kid-a"))
-    second = load_ucp_signing_key_from_env(LoadUCPSigningKeyOptions(default_kid="kid-b"))
+    first = load_ucp_signing_key_from_env(default_kid="kid-a")
+    second = load_ucp_signing_key_from_env(default_kid="kid-b")
     assert first is not second
     assert first.public_jwk["kid"] == "kid-a"
     assert second.public_jwk["kid"] == "kid-b"
@@ -284,5 +283,5 @@ def test_env_var_overridable_via_opts(monkeypatch) -> None:
     monkeypatch.setenv("PROD_UCP_JWK", json.dumps(private_jwk))
     monkeypatch.delenv("UCP_SIGNING_KEY_JWK_PRIVATE", raising=False)
 
-    result = load_ucp_signing_key_from_env(LoadUCPSigningKeyOptions(env_jwk_var="PROD_UCP_JWK"))
+    result = load_ucp_signing_key_from_env(env_jwk_var="PROD_UCP_JWK")
     assert result.public_jwk["kid"] == "prod-key"

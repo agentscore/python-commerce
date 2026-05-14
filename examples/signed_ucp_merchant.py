@@ -28,78 +28,34 @@ Production checklist:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import os
-from typing import Any, Literal
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from agentscore_commerce.identity import (
     AgentScoreGatePolicy,
+    LoadUCPSigningKeyOptions,
     UCPServiceBinding,
     UCPSigningKey,
     UCPVerificationError,
     build_jwks_response,
     build_ucp_profile,
-    generate_ucp_signing_key,
+    load_ucp_signing_key_from_env,
     mpp_payment_handler,
     sign_ucp_profile,
     verify_ucp_profile,
 )
-from agentscore_commerce.identity.ucp_jwks import GeneratedUCPKey
 
 logger = logging.getLogger("signed_ucp_merchant")
 
-KID = os.environ.get("UCP_SIGNING_KEY_KID", "merchant-2026-05")
-ALG: Literal["EdDSA", "ES256"] = "ES256" if os.environ.get("UCP_SIGNING_KEY_ALG") == "ES256" else "EdDSA"
-
-# Asyncio lock + cached Future so concurrent first-callers don't generate
-# different keys (race condition fix).
-_lock = asyncio.Lock()
-_cached: GeneratedUCPKey | None = None
-
-
-async def load_signing_key() -> GeneratedUCPKey:
-    global _cached
-    async with _lock:
-        if _cached is not None:
-            return _cached
-        env_jwk = os.environ.get("UCP_SIGNING_KEY_JWK_PRIVATE")
-        if env_jwk:
-            from joserfc.jwk import ECKey, OKPKey  # type: ignore[import-not-found]
-
-            try:
-                jwk_dict = json.loads(env_jwk)
-            except json.JSONDecodeError as exc:
-                msg = f"UCP_SIGNING_KEY_JWK_PRIVATE is not valid JSON: {exc}"
-                raise ValueError(msg) from exc
-            # Detect alg from JWK shape; ignore env if it conflicts.
-            kty = jwk_dict.get("kty")
-            crv = jwk_dict.get("crv")
-            if kty == "OKP" and crv == "Ed25519":
-                priv = OKPKey.import_key(jwk_dict)
-                effective_alg: Literal["EdDSA", "ES256"] = "EdDSA"
-            elif kty == "EC" and crv == "P-256":
-                priv = ECKey.import_key(jwk_dict)
-                effective_alg = "ES256"
-            else:
-                msg = f"Unsupported env JWK: kty={kty} crv={crv}"
-                raise ValueError(msg)
-            public_jwk: dict[str, Any] = priv.as_dict(private=False)
-            public_jwk.setdefault("kid", jwk_dict.get("kid", KID))
-            public_jwk["alg"] = effective_alg
-            public_jwk["use"] = "sig"
-            _cached = GeneratedUCPKey(private_key=priv, public_jwk=public_jwk)
-            return _cached
-        logger.warning(
-            "UCP_SIGNING_KEY_JWK_PRIVATE not set — generating ephemeral key. "
-            "Verifier caches will break across restarts."
-        )
-        _cached = generate_ucp_signing_key(kid=KID, alg=ALG)
-        return _cached
+# Env-loader options pin the production kid + alg defaults for this example.
+# ``UCP_SIGNING_KEY_JWK_PRIVATE`` (env) wins when set; ``UCP_SIGNING_KEY_KID``
+# and ``UCP_SIGNING_KEY_ALG`` override these defaults at runtime. The helper
+# caches the loaded key across requests and serializes concurrent first-callers
+# so two threads can never publish a JWKS that disagrees with the just-signed JWS.
+_SIGNING_KEY_OPTS = LoadUCPSigningKeyOptions(default_kid="merchant-2026-05")
 
 
 app = FastAPI()
@@ -107,7 +63,7 @@ app = FastAPI()
 
 @app.get("/.well-known/ucp")
 async def well_known_ucp() -> JSONResponse:
-    key = await load_signing_key()
+    key = load_ucp_signing_key_from_env(_SIGNING_KEY_OPTS)
     profile = build_ucp_profile(
         name="My Agent Service",
         services={
@@ -142,14 +98,14 @@ async def well_known_ucp() -> JSONResponse:
         profile.to_dict(),
         signing_key=key.private_key,
         kid=key.public_jwk["kid"],
-        alg=key.public_jwk.get("alg", ALG),
+        alg=key.public_jwk.get("alg", _SIGNING_KEY_OPTS.default_alg),
     )
     return JSONResponse(signed, headers={"Cache-Control": "public, max-age=60"})
 
 
 @app.get("/.well-known/jwks.json")
 async def well_known_jwks() -> JSONResponse:
-    key = await load_signing_key()
+    key = load_ucp_signing_key_from_env(_SIGNING_KEY_OPTS)
     return JSONResponse(
         build_jwks_response([key.public_jwk]),
         headers={
@@ -164,8 +120,10 @@ async def selftest() -> JSONResponse:
     """Local round-trip: sign+serve+fetch+verify, return UCPVerificationError code on failure."""
     profile_resp = await well_known_ucp()
     jwks_resp = await well_known_jwks()
-    profile = json.loads(profile_resp.body.decode())
-    jwks = json.loads(jwks_resp.body.decode())
+    # FastAPI's `JSONResponse.body` is typed as `bytes | memoryview[int]`; coerce to
+    # plain `bytes` so `json.loads` accepts both branches without a type error.
+    profile = json.loads(bytes(profile_resp.body))
+    jwks = json.loads(bytes(jwks_resp.body))
     try:
         verify_ucp_profile(profile, jwks)
         return JSONResponse({"ok": True, "kid": profile["signing_keys"][0]["kid"]})

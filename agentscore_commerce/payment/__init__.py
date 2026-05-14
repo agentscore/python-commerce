@@ -36,7 +36,6 @@ from agentscore_commerce.payment.signer import (
 )
 from agentscore_commerce.payment.usdc import USDC
 from agentscore_commerce.payment.wwwauthenticate import (
-    PaymentRequiredHeaderInput,
     alias_amount_fields,
     payment_required_header,
     www_authenticate_header,
@@ -87,7 +86,6 @@ __all__ = [
     "NetworkFamily",
     "PaymentHeadersRail",
     "PaymentHeadersResult",
-    "PaymentRequiredHeaderInput",
     "PaymentSigner",
     "ProcessX402SettleFailure",
     "ProcessX402SettleResult",

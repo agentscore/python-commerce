@@ -12,10 +12,7 @@ from agentscore_commerce.payment.directive import (
 )
 from agentscore_commerce.payment.networks import networks
 from agentscore_commerce.payment.usdc import USDC
-from agentscore_commerce.payment.wwwauthenticate import (
-    PaymentRequiredHeaderInput,
-    payment_required_header,
-)
+from agentscore_commerce.payment.wwwauthenticate import payment_required_header
 
 # Placeholder payTo for x402 sample accepts in the discovery probe — the probe
 # exists for crawlers to find that we support x402, not for actual payment.
@@ -156,7 +153,7 @@ def build_discovery_probe_response(opts: DiscoveryProbeOptions) -> DiscoveryProb
                 "url": opts.x402_sample.resource_url,
                 "mimeType": "application/json",
             }
-        encoded = payment_required_header(PaymentRequiredHeaderInput(**header_kwargs))
+        encoded = payment_required_header(**header_kwargs)
         headers["payment-required"] = encoded
         # Mirror the aliased accepts in the body so clients that fall back from
         # header → body (e.g. awal's discover) can still extract requirements.

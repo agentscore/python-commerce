@@ -22,6 +22,15 @@ from agentscore_commerce.payment.mppx_server import (
     create_mppx_server,
 )
 from agentscore_commerce.payment.networks import NetworkFamily, network_family, networks
+from agentscore_commerce.payment.rail_spec import (
+    RecipientLike,
+    SolanaMppRailSpec,
+    StripeRailSpec,
+    TempoRailSpec,
+    TempoSessionRailSpec,
+    X402BaseRailSpec,
+    resolve_recipient,
+)
 from agentscore_commerce.payment.rails import RailDefinition, lookup_rail, rails
 from agentscore_commerce.payment.settlement_override import (
     SETTLEMENT_OVERRIDES_HEADER,
@@ -89,14 +98,20 @@ __all__ = [
     "ProcessX402SettleResult",
     "ProcessX402SettleSuccess",
     "RailDefinition",
+    "RecipientLike",
     "SignerNetwork",
+    "SolanaMppRailSpec",
     "StripeRail",
+    "StripeRailSpec",
     "TempoChargeRail",
+    "TempoRailSpec",
     "TempoSessionRail",
+    "TempoSessionRailSpec",
     "VerifyX402RequestFailure",
     "VerifyX402RequestResult",
     "VerifyX402RequestSuccess",
     "X402AcceptsBlock",
+    "X402BaseRailSpec",
     "X402FacilitatorChoice",
     "X402SymbolicRail",
     "ZeroSettleRail",
@@ -126,6 +141,7 @@ __all__ = [
     "rails",
     "read_x402_payment_header",
     "register_x402_schemes_v1_v2",
+    "resolve_recipient",
     "settle_result_to_json_bytes",
     "settlement_override_header",
     "usd_to_atomic",

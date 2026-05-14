@@ -22,7 +22,7 @@ import httpx
 from django.http import HttpRequest, JsonResponse
 from django.test import RequestFactory
 
-from agentscore_commerce.identity.client import PaymentRequiredError, QuotaExceededError
+from agentscore_commerce.identity.core import PaymentRequiredError, QuotaExceededError
 from agentscore_commerce.identity.django import AgentScoreMiddleware, get_agentscore_data
 from agentscore_commerce.identity.types import AssessResult
 
@@ -54,7 +54,7 @@ class TestDjangoMiddleware:
     def test_allows_trusted_wallet(self) -> None:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=_mock_result()):
             resp = mw(request)
             assert resp.status_code == 200
             data = json.loads(resp.content)
@@ -64,7 +64,7 @@ class TestDjangoMiddleware:
         mw = self._make_middleware()
         result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result):
             resp = mw(request)
             assert resp.status_code == 403
             data = json.loads(resp.content)
@@ -87,14 +87,14 @@ class TestDjangoMiddleware:
     def test_api_error_fail_open(self) -> None:
         mw = self._make_middleware(fail_open=True)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", side_effect=RuntimeError("timeout")):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", side_effect=RuntimeError("timeout")):
             resp = mw(request)
             assert resp.status_code == 200
 
     def test_api_error_fail_closed(self) -> None:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", side_effect=RuntimeError("timeout")):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", side_effect=RuntimeError("timeout")):
             resp = mw(request)
             assert resp.status_code == 503
             data = json.loads(resp.content)
@@ -105,7 +105,7 @@ class TestDjangoMiddleware:
 
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=_mock_result()):
             mw(request)
             assert get_gate_degraded_state(request) == {"degraded": False}
 
@@ -115,7 +115,7 @@ class TestDjangoMiddleware:
         mw = self._make_middleware(fail_open=True)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with patch(
-            "agentscore_commerce.identity.django.GateClient.check",
+            "agentscore_commerce.identity.django.AgentScoreCore.check",
             side_effect=QuotaExceededError("quota_exceeded"),
         ):
             mw(request)
@@ -125,7 +125,7 @@ class TestDjangoMiddleware:
         mw = self._make_middleware(fail_open=True)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with patch(
-            "agentscore_commerce.identity.django.GateClient.check",
+            "agentscore_commerce.identity.django.AgentScoreCore.check",
             side_effect=QuotaExceededError("quota_exceeded"),
         ):
             resp = mw(request)
@@ -138,7 +138,7 @@ class TestDjangoMiddleware:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with patch(
-            "agentscore_commerce.identity.django.GateClient.check",
+            "agentscore_commerce.identity.django.AgentScoreCore.check",
             side_effect=QuotaExceededError("quota_exceeded"),
         ):
             resp = mw(request)
@@ -153,7 +153,7 @@ class TestDjangoMiddleware:
         mw = self._make_middleware(fail_open=True)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with patch(
-            "agentscore_commerce.identity.django.GateClient.check",
+            "agentscore_commerce.identity.django.AgentScoreCore.check",
             side_effect=httpx.TimeoutException("read timeout"),
         ):
             resp = mw(request)
@@ -166,7 +166,7 @@ class TestDjangoMiddleware:
         mw = self._make_middleware(fail_open=True)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with patch(
-            "agentscore_commerce.identity.django.GateClient.check",
+            "agentscore_commerce.identity.django.AgentScoreCore.check",
             side_effect=RuntimeError("oops"),
         ):
             resp = mw(request)
@@ -178,14 +178,14 @@ class TestDjangoMiddleware:
     def test_payment_required_fail_open(self) -> None:
         mw = self._make_middleware(fail_open=True)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", side_effect=PaymentRequiredError):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", side_effect=PaymentRequiredError):
             resp = mw(request)
             assert resp.status_code == 200
 
     def test_payment_required_fail_closed(self) -> None:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", side_effect=PaymentRequiredError):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", side_effect=PaymentRequiredError):
             resp = mw(request)
             assert resp.status_code == 403
             data = json.loads(resp.content)
@@ -198,7 +198,7 @@ class TestDjangoMiddleware:
         mw = self._make_middleware(extract_chain=custom_extract_chain)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with patch(
-            "agentscore_commerce.identity.django.GateClient.check_identity", return_value=_mock_result()
+            "agentscore_commerce.identity.django.AgentScoreCore.check_identity", return_value=_mock_result()
         ) as mock_check:
             mw(request)
             call_args = mock_check.call_args
@@ -209,14 +209,14 @@ class TestDjangoMiddleware:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         result = AssessResult(allow=True, decision=None, reasons=[], raw={"score": 75})
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result):
             resp = mw(request)
             assert resp.status_code == 200
 
     def test_attaches_data_to_request(self) -> None:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=_mock_result()):
             mw(request)
             assert hasattr(request, "agentscore")
             assert request.agentscore["score"] == 80  # type: ignore[attr-defined]
@@ -224,7 +224,7 @@ class TestDjangoMiddleware:
     def test_get_agentscore_data_returns_assess_after_pass(self) -> None:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=_mock_result()):
             mw(request)
             assert get_agentscore_data(request) == {"score": 80, "grade": "B"}
 
@@ -233,7 +233,7 @@ class TestDjangoMiddleware:
         assert get_agentscore_data(request) is None
 
     def test_compliance_params_passed_to_client(self) -> None:
-        with patch("agentscore_commerce.identity.django.GateClient") as mock_cls:
+        with patch("agentscore_commerce.identity.django.AgentScoreCore") as mock_cls:
             mock_cls.return_value = mock_cls
             mock_cls.fail_open = False
             mock_cls.check.return_value = _mock_result()
@@ -261,7 +261,7 @@ class TestDjangoMiddleware:
             },
         )
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result):
             resp = mw(request)
             assert resp.status_code == 403
             data = json.loads(resp.content)
@@ -282,7 +282,7 @@ class TestDjangoMiddleware:
         }
         result = AssessResult(allow=True, decision="allow", reasons=[], raw=raw)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result):
             resp = mw(request)
             assert resp.status_code == 200
             assert request.agentscore["operator_verification"]["level"] == "kyc_verified"  # type: ignore[attr-defined]
@@ -295,7 +295,7 @@ class TestDjangoMiddleware:
         }
         result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw=raw)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result):
             resp = mw(request)
             assert resp.status_code == 403
             data = json.loads(resp.content)
@@ -376,7 +376,7 @@ class TestDjangoCreateSessionOnMissing:
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with (
             patch(
-                "agentscore_commerce.identity.django.GateClient.check",
+                "agentscore_commerce.identity.django.AgentScoreCore.check",
                 return_value=result,
             ),
             patch(
@@ -400,7 +400,7 @@ class TestDjangoCreateSessionOnMissing:
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
         with (
             patch(
-                "agentscore_commerce.identity.django.GateClient.check",
+                "agentscore_commerce.identity.django.AgentScoreCore.check",
                 return_value=result,
             ),
             patch(
@@ -463,7 +463,7 @@ class TestDjangoIdentityModel:
         mw = self._make_middleware()
         request = self.factory.get("/", HTTP_X_OPERATOR_TOKEN="opc_django_test")
         with patch(
-            "agentscore_commerce.identity.django.GateClient.check_identity", return_value=_mock_result()
+            "agentscore_commerce.identity.django.AgentScoreCore.check_identity", return_value=_mock_result()
         ) as mock_check:
             resp = mw(request)
             assert resp.status_code == 200
@@ -484,8 +484,8 @@ class TestDjangoCaptureWallet:
         mw = self._make_middleware()
         request = self.factory.post("/purchase", HTTP_X_OPERATOR_TOKEN="opc_django_cap")
         with (
-            patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()),
-            patch("agentscore_commerce.identity.django.GateClient.capture_wallet") as mock_capture,
+            patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=_mock_result()),
+            patch("agentscore_commerce.identity.django.AgentScoreCore.capture_wallet") as mock_capture,
         ):
             mw(request)
             capture_wallet(request, "0xsigner", "evm", idempotency_key="pi_abc")
@@ -502,8 +502,8 @@ class TestDjangoCaptureWallet:
         mw = self._make_middleware()
         request = self.factory.post("/purchase", HTTP_X_WALLET_ADDRESS="0xabc")
         with (
-            patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()),
-            patch("agentscore_commerce.identity.django.GateClient.capture_wallet") as mock_capture,
+            patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=_mock_result()),
+            patch("agentscore_commerce.identity.django.AgentScoreCore.capture_wallet") as mock_capture,
         ):
             mw(request)
             capture_wallet(request, "0xsigner", "evm")
@@ -514,7 +514,7 @@ class TestDjangoCaptureWallet:
 
         # A handler calling capture_wallet without the gate middleware ever running.
         request = self.factory.post("/purchase")
-        with patch("agentscore_commerce.identity.django.GateClient.capture_wallet") as mock_capture:
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.capture_wallet") as mock_capture:
             capture_wallet(request, "0xsigner", "evm")
             mock_capture.assert_not_called()
 
@@ -608,7 +608,7 @@ class TestDjangoChainOption:
         settings.AGENTSCORE_GATE = {"api_key": "test-key", "fail_open": True}
         mw = AgentScoreMiddleware(boom_view)
 
-        with patch("agentscore_commerce.identity.django.GateClient.check", return_value=_mock_result()):
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=_mock_result()):
             request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
             try:
                 mw(request)
@@ -647,7 +647,7 @@ class TestDjangoQuotaPropagation:
                 quota=GateQuotaInfo(limit=1500, used=1200, reset="2026-06-01T00:00:00Z"),
             )
             request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
-            with patch("agentscore_commerce.identity.django.GateClient.check", return_value=result):
+            with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result):
                 resp = mw(request)
                 assert resp.status_code == 200
             assert captured["quota"] is not None

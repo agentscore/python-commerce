@@ -236,7 +236,7 @@ class TestErrorPaths:
             return web.json_response({k: v for k, v in state.items() if k != "client"})
 
         with patch(
-            "agentscore_commerce.identity.aiohttp.GateClient.acheck_identity",
+            "agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity",
             side_effect=httpx.TimeoutException("read timeout"),
         ):
             client = await _client(_make_app(handler=_snoop, fail_open=True))
@@ -254,7 +254,7 @@ class TestErrorPaths:
             return web.json_response({k: v for k, v in state.items() if k != "client"})
 
         with patch(
-            "agentscore_commerce.identity.aiohttp.GateClient.acheck_identity",
+            "agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity",
             side_effect=RuntimeError("oops"),
         ):
             client = await _client(_make_app(handler=_snoop, fail_open=True))
@@ -431,7 +431,7 @@ class TestCaptureWallet:
         # Handler wired without the gate middleware — capture_wallet must silently no-op.
         app = web.Application()
         app.router.add_post("/", _capture_handler)
-        with patch("agentscore_commerce.identity.client.GateClient.acapture_wallet", new=AsyncMock()) as mock_cap:
+        with patch("agentscore_commerce.identity.core.AgentScoreCore.acapture_wallet", new=AsyncMock()) as mock_cap:
             client = await _client(app)
             async with client:
                 resp = await client.post("/")

@@ -23,7 +23,7 @@ from agentscore_commerce.identity.a2a import (
     build_a2a_agent_card,
     ucp_a2a_extension,
 )
-from agentscore_commerce.identity.client import GateClient
+from agentscore_commerce.identity.core import AgentScoreCore
 from agentscore_commerce.identity.policy import (
     EnforcementMode,
     GateResult,
@@ -106,6 +106,7 @@ __all__ = [
     "A2AAgentSkill",
     "AgentIdentity",
     "AgentMemoryHint",
+    "AgentScoreCore",
     "AgentScoreGate",
     "AgentScoreGatePolicy",
     "AssessResult",
@@ -113,7 +114,6 @@ __all__ = [
     "DenialCode",
     "DenialReason",
     "EnforcementMode",
-    "GateClient",
     "GateResult",
     "GeneratedUCPKey",
     "IdentityStatus",

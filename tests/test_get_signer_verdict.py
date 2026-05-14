@@ -207,7 +207,7 @@ def test_sanic_get_signer_verdict_delegates_to_client() -> None:
 
 
 # ---------------------------------------------------------------------------
-# GateClient.get_signer_verdict — projection branches
+# AgentScoreCore.get_signer_verdict — projection branches
 # ---------------------------------------------------------------------------
 
 
@@ -222,9 +222,9 @@ def test_client_get_signer_verdict_projects_each_kind(kind: str, expected_kind: 
     """Cover the branches in _project_signer_match (pass + wallet_auth_requires_wallet_signing)."""
     from unittest.mock import patch
 
-    from agentscore_commerce.identity.client import GateClient
+    from agentscore_commerce.identity.core import AgentScoreCore
 
-    client = GateClient(api_key="test-api-key")
+    client = AgentScoreCore(api_key="test-api-key")
 
     def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
         resp = MagicMock()

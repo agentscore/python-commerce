@@ -1,7 +1,7 @@
 """Tests for the Sanic adapter.
 
 Sanic's test client runs the app on a real loopback socket and uses httpx to hit it,
-which makes respx-based URL mocking awkward. We mock ``GateClient.acheck_identity``
+which makes respx-based URL mocking awkward. We mock ``AgentScoreCore.acheck_identity``
 directly (matching the Flask/Django test pattern) and verify the adapter plumbing.
 """
 
@@ -46,7 +46,7 @@ class TestIdentityExtraction:
     def test_allows_trusted_wallet(self):
         app = _make_app("sanic_allow_wallet")
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(return_value=_allow_result()),
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -62,7 +62,7 @@ class TestIdentityExtraction:
             return response.json({"assess": get_agentscore_data(request)})
 
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(return_value=_allow_result()),
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -72,7 +72,7 @@ class TestIdentityExtraction:
     def test_denies_untrusted_wallet(self):
         app = _make_app("sanic_deny_wallet")
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(return_value=_deny_result()),
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -94,7 +94,7 @@ class TestIdentityExtraction:
     def test_passes_operator_token_to_assess(self):
         app = _make_app("sanic_operator_token")
         mock = AsyncMock(return_value=_allow_result())
-        with patch("agentscore_commerce.identity.sanic.GateClient.acheck_identity", new=mock):
+        with patch("agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity", new=mock):
             app.test_client.get("/", headers={"X-Operator-Token": "opc_abc"})
         # First positional arg is the AgentIdentity instance.
         identity_arg = mock.await_args.args[0]
@@ -104,11 +104,11 @@ class TestIdentityExtraction:
 
 class TestErrorPaths:
     def test_returns_403_payment_required_on_402(self):
-        from agentscore_commerce.identity.client import PaymentRequiredError
+        from agentscore_commerce.identity.core import PaymentRequiredError
 
         app = _make_app("sanic_402")
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=PaymentRequiredError()),
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -118,7 +118,7 @@ class TestErrorPaths:
     def test_returns_503_api_error_on_exception(self):
         app = _make_app("sanic_api_error")
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=RuntimeError("boom")),
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -126,11 +126,11 @@ class TestErrorPaths:
         assert resp.json["error"]["code"] == "api_error"
 
     def test_fail_open_allows_through_on_402(self):
-        from agentscore_commerce.identity.client import PaymentRequiredError
+        from agentscore_commerce.identity.core import PaymentRequiredError
 
         app = _make_app("sanic_fail_open_402", fail_open=True)
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=PaymentRequiredError()),
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -149,7 +149,7 @@ class TestErrorPaths:
             return response.json({"ok": True})
 
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(return_value=_allow_result()),
         ):
             _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
@@ -157,7 +157,7 @@ class TestErrorPaths:
         assert captured == {"degraded": False}
 
     def test_get_gate_degraded_state_returns_infra_reason_when_degraded(self):
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
         from agentscore_commerce.identity.sanic import get_gate_degraded_state
 
         app = Sanic.get_app("sanic_get_state_degraded", force_create=True)
@@ -170,7 +170,7 @@ class TestErrorPaths:
             return response.json({"ok": True})
 
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
         ):
             _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
@@ -180,11 +180,11 @@ class TestErrorPaths:
     def test_quota_exceeded_returns_503_when_fail_closed(self):
         import json as _json
 
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
 
         app = _make_app("sanic_quota_closed")
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -195,7 +195,7 @@ class TestErrorPaths:
         assert "merchant-side issue" in instructions["steps"][0]
 
     def test_quota_exceeded_marks_degraded_when_fail_open(self):
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
         from agentscore_commerce.identity.sanic import GATE_STATE_ATTR
 
         # Build a fresh app to inspect gate state.
@@ -208,7 +208,7 @@ class TestErrorPaths:
             return response.json({k: v for k, v in state.items() if k != "client"})
 
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
         ):
             _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
@@ -231,7 +231,7 @@ class TestErrorPaths:
             return response.json({k: v for k, v in state.items() if k != "client"})
 
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=httpx.TimeoutException("read timeout")),
         ):
             _, resp = app.test_client.get("/snoop", headers={"X-Wallet-Address": "0xabc"})
@@ -243,7 +243,7 @@ class TestErrorPaths:
     def test_fail_open_allows_through_on_api_error(self):
         app = _make_app("sanic_fail_open_api", fail_open=True)
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=RuntimeError("boom")),
         ):
             _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
@@ -253,10 +253,10 @@ class TestErrorPaths:
 class TestChainOption:
     def test_no_extract_chain_passes_none_to_acheck_identity(self):
         """Adapter passes None as chain override when extract_chain isn't configured,
-        so GateClient's constructor-level chain takes effect (or no chain is sent)."""
+        so AgentScoreCore's constructor-level chain takes effect (or no chain is sent)."""
         app = _make_app("sanic_chain_none", chain="solana")
         mock = AsyncMock(return_value=_allow_result())
-        with patch("agentscore_commerce.identity.sanic.GateClient.acheck_identity", new=mock):
+        with patch("agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity", new=mock):
             app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         chain_arg = mock.await_args.args[1]
         assert chain_arg is None  # extract_chain not set → adapter passes None
@@ -264,12 +264,12 @@ class TestChainOption:
     def test_extract_chain_callback_passed_to_acheck_identity(self):
         app = _make_app("sanic_chain_callback", extract_chain=lambda _req: "ethereum")
         mock = AsyncMock(return_value=_allow_result())
-        with patch("agentscore_commerce.identity.sanic.GateClient.acheck_identity", new=mock):
+        with patch("agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity", new=mock):
             app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert mock.await_args.args[1] == "ethereum"
 
     def test_constructor_chain_stored_on_client(self):
-        """The constructor-level `chain` option is forwarded to GateClient so it gets
+        """The constructor-level `chain` option is forwarded to AgentScoreCore so it gets
         embedded in every outbound /v1/assess body (verified in test_client.py)."""
         app = _make_app("sanic_chain_ctor", chain="base")
         # Access the client instance via the registered middleware to confirm chain was stored.
@@ -328,7 +328,7 @@ class TestCreateSessionOnMissing:
         )
         with (
             patch(
-                "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+                "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
                 new=AsyncMock(return_value=kyc_result),
             ),
             patch(
@@ -350,7 +350,7 @@ class TestCreateSessionOnMissing:
         )
         with (
             patch(
-                "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+                "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
                 new=AsyncMock(return_value=unfixable),
             ),
             patch(
@@ -369,11 +369,11 @@ class TestCaptureWallet:
         app = _make_app("sanic_capture_op")
         with (
             patch(
-                "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+                "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
                 new=AsyncMock(return_value=_allow_result()),
             ),
             patch(
-                "agentscore_commerce.identity.sanic.GateClient.acapture_wallet",
+                "agentscore_commerce.identity.sanic.AgentScoreCore.acapture_wallet",
                 new=AsyncMock(),
             ) as mock_capture,
         ):
@@ -390,11 +390,11 @@ class TestCaptureWallet:
         app = _make_app("sanic_capture_wallet")
         with (
             patch(
-                "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+                "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
                 new=AsyncMock(return_value=_allow_result()),
             ),
             patch(
-                "agentscore_commerce.identity.sanic.GateClient.acapture_wallet",
+                "agentscore_commerce.identity.sanic.AgentScoreCore.acapture_wallet",
                 new=AsyncMock(),
             ) as mock_capture,
         ):
@@ -412,7 +412,7 @@ class TestCaptureWallet:
             return response.json({"ok": True})
 
         with patch(
-            "agentscore_commerce.identity.sanic.GateClient.acapture_wallet",
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acapture_wallet",
             new=AsyncMock(),
         ) as mock_capture:
             _, resp = app.test_client.post("/purchase")
@@ -421,7 +421,7 @@ class TestCaptureWallet:
 
 
 def test_sanic_passes_through_token_expired():
-    from agentscore_commerce.identity.client import TokenDeniedError
+    from agentscore_commerce.identity.core import TokenDeniedError
 
     app = Sanic("sanic_token_expired_test")
     agentscore_gate(app, api_key="ak", fail_open=False)
@@ -431,7 +431,7 @@ def test_sanic_passes_through_token_expired():
         return response.json({"ok": True})
 
     with patch(
-        "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+        "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
         new=AsyncMock(
             side_effect=TokenDeniedError(
                 {
@@ -466,7 +466,7 @@ def test_sanic_api_error_on_unexpected_exception():
         return response.json({"ok": True})
 
     with patch(
-        "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+        "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
         new=AsyncMock(side_effect=RuntimeError("unexpected")),
     ):
         _req, resp = app.test_client.get("/", headers={"x-wallet-address": "0xabc"})
@@ -497,7 +497,7 @@ def test_sanic_propagates_quota_from_assess_response():
         quota=GateQuotaInfo(limit=1500, used=1200, reset="2026-06-01T00:00:00Z"),
     )
     with patch(
-        "agentscore_commerce.identity.sanic.GateClient.acheck_identity",
+        "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
         new=AsyncMock(return_value=result),
     ):
         _req, resp = app.test_client.get("/", headers={"x-wallet-address": "0xabc"})

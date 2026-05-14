@@ -16,7 +16,7 @@ import pytest
 
 from agentscore_commerce.identity import (
     AgentMemoryHint,
-    GateClient,
+    AgentScoreCore,
     build_agent_memory_hint,
     extract_x402_signer,
 )
@@ -83,13 +83,13 @@ def test_extract_x402_signer_rejects_non_evm() -> None:
 
 
 # ---------------------------------------------------------------------------
-# GateClient.check passes signer through; client.get_signer_verdict reads it back
+# AgentScoreCore.check passes signer through; client.get_signer_verdict reads it back
 # ---------------------------------------------------------------------------
 
 
 def test_check_forwards_signer_to_assess_body() -> None:
     """Adapter pre-extracts the signer; client.check threads it onto the request body."""
-    client = GateClient(api_key=API_KEY)
+    client = AgentScoreCore(api_key=API_KEY)
     captured: dict[str, object] = {}
 
     def fake_post(*_args: object, **kwargs: object) -> MagicMock:
@@ -109,7 +109,7 @@ def test_check_forwards_signer_to_assess_body() -> None:
 
 def test_get_signer_verdict_projects_cached_signer_match() -> None:
     """After a check() with signer, get_signer_verdict reads signer_match + signer_sanctions."""
-    client = GateClient(api_key=API_KEY)
+    client = AgentScoreCore(api_key=API_KEY)
 
     def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
         resp = MagicMock()
@@ -147,7 +147,7 @@ def test_get_signer_verdict_projects_cached_signer_match() -> None:
 
 def test_get_signer_verdict_returns_none_when_no_signer_blocks() -> None:
     """Operator-token-only paths leave signer_match + signer_sanctions absent."""
-    client = GateClient(api_key=API_KEY)
+    client = AgentScoreCore(api_key=API_KEY)
 
     def fake_post(*_args: object, **_kwargs: object) -> MagicMock:
         resp = MagicMock()
@@ -164,7 +164,7 @@ def test_get_signer_verdict_returns_none_when_no_signer_blocks() -> None:
 
 def test_get_signer_verdict_returns_none_when_address_not_cached() -> None:
     """No assess call yet → no cache entry → no verdict."""
-    client = GateClient(api_key=API_KEY)
+    client = AgentScoreCore(api_key=API_KEY)
     assert client.get_signer_verdict(WALLET_A) is None
 
 
@@ -187,9 +187,9 @@ def _mock_401(code: str, next_steps: dict[str, object] | None = None) -> MagicMo
 
 
 def test_check_raises_token_denied_on_401_expired() -> None:
-    from agentscore_commerce.identity.client import TokenDeniedError
+    from agentscore_commerce.identity.core import TokenDeniedError
 
-    client = GateClient(api_key=API_KEY)
+    client = AgentScoreCore(api_key=API_KEY)
     mock_resp = _mock_401("token_expired", {"action": "deliver_verify_url_and_poll"})
     with patch.object(client._sync_client, "post", return_value=mock_resp):
         try:
@@ -202,9 +202,9 @@ def test_check_raises_token_denied_on_401_expired() -> None:
 
 
 def test_check_raises_token_denied_on_401_revoked() -> None:
-    from agentscore_commerce.identity.client import TokenDeniedError
+    from agentscore_commerce.identity.core import TokenDeniedError
 
-    client = GateClient(api_key=API_KEY)
+    client = AgentScoreCore(api_key=API_KEY)
     with patch.object(client._sync_client, "post", return_value=_mock_401("token_expired")):
         try:
             client.check(operator_token="opc_revoked")
@@ -217,9 +217,9 @@ def test_check_raises_token_denied_on_401_revoked() -> None:
 
 def test_check_raises_runtime_error_on_401_unknown_code() -> None:
     """401 with an unrecognized error code falls through to generic RuntimeError, not TokenDeniedError."""
-    from agentscore_commerce.identity.client import TokenDeniedError
+    from agentscore_commerce.identity.core import TokenDeniedError
 
-    client = GateClient(api_key=API_KEY)
+    client = AgentScoreCore(api_key=API_KEY)
     with patch.object(client._sync_client, "post", return_value=_mock_401("something_else")):
         try:
             client.check(operator_token="opc_odd")
@@ -233,9 +233,9 @@ def test_check_raises_runtime_error_on_401_unknown_code() -> None:
 async def test_acheck_raises_token_denied_on_401() -> None:
     from unittest.mock import AsyncMock
 
-    from agentscore_commerce.identity.client import TokenDeniedError
+    from agentscore_commerce.identity.core import TokenDeniedError
 
-    client = GateClient(api_key=API_KEY)
+    client = AgentScoreCore(api_key=API_KEY)
     client._async_client.post = AsyncMock(return_value=_mock_401("token_expired"))
     try:
         await client.acheck(operator_token="opc_expired")

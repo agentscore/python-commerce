@@ -90,7 +90,7 @@ def build_gate_from_policy(
 
     Use a fresh gate per request rather than constructing once at module scope
     when policy varies per resource (e.g. per product). The gate is cheap to
-    instantiate; AgentScore's response cache lives on :class:`GateClient`
+    instantiate; AgentScore's response cache lives on :class:`AgentScoreCore`
     inside the gate, scoped to the lifetime of this gate instance.
     """
     if policy is None:

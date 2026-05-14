@@ -23,7 +23,7 @@ The compatible-clients-per-rail table sources from the same SDK constant
 
 import re
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, TypedDict
 
 from agentscore_commerce.challenge.agent_instructions import (
     RailKey,
@@ -31,7 +31,6 @@ from agentscore_commerce.challenge.agent_instructions import (
 )
 
 __all__ = [
-    "BuildSkillMdInput",
     "RailKey",
     "SkillMdEndpoint",
     "SkillMdIdentityRequirements",
@@ -44,115 +43,64 @@ __all__ = [
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 
-@dataclass
-class SkillMdEndpoint:
+class SkillMdEndpoint(TypedDict):
+    """One row in the ``## Endpoints`` table."""
+
     method: HttpMethod
     path: str
     auth_required: bool
     description: str
 
 
-@dataclass
-class SkillMdIdentityRequirements:
+class SkillMdIdentityRequirements(TypedDict, total=False):
     """Agent-observable identity requirements only (kyc / age / jurisdictions / sanctions).
 
     Internal posture (``fail_open``, mount strategy, KYC vendor) is intentionally not
     part of this shape — agents act on outcomes, not implementation.
     """
 
-    kyc_required: bool = False
-    min_age: int | None = None
-    allowed_jurisdictions: list[str] | None = None
-    sanctions_clear: bool = False
+    kyc_required: bool
+    min_age: int | None
+    allowed_jurisdictions: list[str] | None
+    sanctions_clear: bool
 
 
-@dataclass
-class SkillMdShippingPolicy:
-    allowed_countries: list[str] | None = None
-    blocked_states: list[str] | None = None
+class SkillMdShippingPolicy(TypedDict, total=False):
+    allowed_countries: list[str] | None
+    blocked_states: list[str] | None
 
 
-@dataclass
-class SkillMdLink:
+class SkillMdLink(TypedDict):
     label: str
     url: str
 
 
-@dataclass
-class BuildSkillMdInput:
-    """Inputs for ``build_skill_md``.
-
-    Required fields: ``name``, ``description``, ``homepage``, ``merchant_name``,
-    ``accepted_rails``, ``endpoints``, ``triggers``.
-    """
-
-    # Required frontmatter / body
+# Internal aggregate so the 11 private section helpers don't need 14 kwargs each;
+# `build_skill_md` flattens the public API and constructs this once.
+@dataclass(frozen=True)
+class _SkillCtx:
     name: str
-    """Skill manifest identifier — kebab-case per agentskills.io spec: 1-64 chars,
-    lowercase alphanumeric + hyphens, no leading/trailing/consecutive hyphens. Validated
-    at build time; invalid names raise ``ValueError``."""
     description: str
-    """Skill description — agentskills.io spec: 1-1024 chars, non-empty. Should describe
-    both what the skill does AND when to use it; imperative phrasing recommended
-    ("Use when…"). Validated at build time; over-length raises ``ValueError``."""
     homepage: str
-    """Merchant homepage (or domain root). Emitted as ``metadata.homepage`` per spec
-    (top-level non-spec fields go under metadata)."""
     merchant_name: str
-    """Human display name (e.g. 'Example Merchant')."""
     accepted_rails: list[RailKey]
-    """Rails the merchant accepts. Drives the Payment + Compatible Clients sections.
-    Order is preserved in render."""
     endpoints: list[SkillMdEndpoint]
-    """Agent-facing endpoints — path, method, whether auth is required, brief purpose."""
     triggers: list[str]
-    """When this skill should fire (skill loader uses for trigger matching)."""
-
-    # Optional frontmatter
     version: str | int = 1
-    """Skill schema version — emitted as a quoted string under ``metadata.version`` per
-    spec (metadata values must be strings). Accepts string or int; ints are converted."""
     license: str | None = None
-    """Optional ``license:`` frontmatter — license name or path to a bundled license file."""
     compatibility: str | None = None
-    """Optional ``compatibility:`` frontmatter — environment requirements (max 500 chars).
-    e.g. 'Requires Python 3.11+'."""
     allowed_tools: str | None = None
-    """Optional ``allowed-tools:`` frontmatter — space-separated string of pre-approved
-    tools (experimental per spec)."""
     metadata: dict[str, str | int] = field(default_factory=dict)
-    """Additional caller-defined metadata entries — flat string keys/values nested under
-    ``metadata:``. Spec requires string values; ints are converted. ``version`` and
-    ``homepage`` keys are always sourced from the dedicated fields, never from this
-    mapping."""
-
-    # Optional body
     tagline: str | None = None
-    """Optional one-line tagline appearing under the title."""
     intro: str | None = None
-    """Optional short prose intro describing what the merchant offers."""
     files: list[SkillMdLink] = field(default_factory=list)
-    """Discovery surface URLs surfaced under the 'Important Files' table. The skill.md
-    URL itself is added automatically — list other surfaces (llms.txt, mpp.json,
-    openapi.json, agent-card.json)."""
     compatible_clients: dict[str, list[str]] | None = None
-    """Override the per-rail compatible-clients matrix. When omitted, derives from
-    ``accepted_rails`` via the SDK's smoke-verified default. Override entries for rails
-    not in ``accepted_rails`` are ignored (the rail isn't accepted, so the row isn't
-    rendered)."""
     identity: SkillMdIdentityRequirements | None = None
     identity_bootstrap_url: str | None = None
-    """URL to the identity-bootstrap skill. Linked from the Identity Prerequisite section
-    so an agent without a Passport can follow the bootstrap before attempting purchase."""
     shipping: SkillMdShippingPolicy | None = None
-    """Physical-goods shipping policy. Omit for digital merchants."""
     onboarding_steps: list[str] = field(default_factory=list)
-    """Optional numbered onboarding steps."""
     support_links: list[SkillMdLink] = field(default_factory=list)
-    """Support / homepage / docs links rendered in the Support section."""
     refresh_footer: bool = True
-    """When True (default), append a footer noting clients can refresh skill.md to pick
-    up new endpoints."""
 
 
 _RAIL_LABELS: dict[str, str] = {
@@ -185,7 +133,7 @@ _DESCRIPTION_MAX = 1024
 _COMPATIBILITY_MAX = 500
 
 
-def _validate(input: BuildSkillMdInput) -> None:
+def _validate(input: _SkillCtx) -> None:
     n = input.name
     if not n or len(n) > _NAME_MAX:
         raise ValueError(f"build_skill_md: name must be 1-{_NAME_MAX} characters (got {len(n) if n else 0})")
@@ -226,7 +174,7 @@ def _table_cell(value: str) -> str:
     return value.replace("\\", "\\\\").replace("|", "\\|")
 
 
-def _frontmatter(input: BuildSkillMdInput) -> str:
+def _frontmatter(input: _SkillCtx) -> str:
     lines = ["---", f"name: {input.name}", f"description: {_quote_yaml(input.description)}"]
     if input.license:
         lines.append(f"license: {_quote_yaml(input.license)}")
@@ -250,7 +198,7 @@ def _frontmatter(input: BuildSkillMdInput) -> str:
     return "\n".join(lines)
 
 
-def _title_block(input: BuildSkillMdInput) -> str:
+def _title_block(input: _SkillCtx) -> str:
     parts = [f"# {input.merchant_name}"]
     if input.tagline:
         parts.append(f"_{input.tagline}_")
@@ -259,7 +207,7 @@ def _title_block(input: BuildSkillMdInput) -> str:
     return "\n\n".join(parts)
 
 
-def _important_files(input: BuildSkillMdInput) -> str:
+def _important_files(input: _SkillCtx) -> str:
     skill_url = f"{input.homepage.rstrip('/')}/skill.md"
     rows = [
         "| File | URL |",
@@ -267,11 +215,11 @@ def _important_files(input: BuildSkillMdInput) -> str:
         f"| **SKILL.md** (this file) | `{skill_url}` |",
     ]
     for f in input.files:
-        rows.append(f"| {_table_cell(f.label)} | `{_table_cell(f.url)}` |")
+        rows.append(f"| {_table_cell(f['label'])} | `{_table_cell(f['url'])}` |")
     return "\n".join(["## Important Files", "", *rows])
 
 
-def _payment_section(input: BuildSkillMdInput) -> str:
+def _payment_section(input: _SkillCtx) -> str:
     override = input.compatible_clients
     defaults = compatible_clients_by_rails(input.accepted_rails) or {}
     clients: dict[str, list[str]] = {}
@@ -292,18 +240,20 @@ def _payment_section(input: BuildSkillMdInput) -> str:
     return "\n".join(["## Payment", "", intro, "", *rows])
 
 
-def _identity_section(input: BuildSkillMdInput) -> str:
+def _identity_section(input: _SkillCtx) -> str:
     id_ = input.identity
     if id_ is None:
         return ""
     reqs: list[str] = []
-    if id_.kyc_required:
+    if id_.get("kyc_required"):
         reqs.append("KYC verified Passport")
-    if id_.min_age:
-        reqs.append(f"age {id_.min_age}+")
-    if id_.allowed_jurisdictions:
-        reqs.append(f"{'/'.join(id_.allowed_jurisdictions)} only")
-    if id_.sanctions_clear:
+    min_age = id_.get("min_age")
+    if min_age:
+        reqs.append(f"age {min_age}+")
+    allowed = id_.get("allowed_jurisdictions")
+    if allowed:
+        reqs.append(f"{'/'.join(allowed)} only")
+    if id_.get("sanctions_clear"):
         reqs.append("sanctions clear")
     if not reqs:
         return ""
@@ -330,58 +280,86 @@ def _identity_section(input: BuildSkillMdInput) -> str:
     )
 
 
-def _shipping_section(input: BuildSkillMdInput) -> str:
+def _shipping_section(input: _SkillCtx) -> str:
     s = input.shipping
-    if s is None or (not s.allowed_countries and not s.blocked_states):
+    if s is None:
+        return ""
+    allowed_countries = s.get("allowed_countries")
+    blocked_states = s.get("blocked_states")
+    if not allowed_countries and not blocked_states:
         return ""
     lines = ["## Shipping", ""]
-    if s.allowed_countries:
-        lines.append(f"Ships to: {', '.join(s.allowed_countries)}.")
-    if s.blocked_states:
+    if allowed_countries:
+        lines.append(f"Ships to: {', '.join(allowed_countries)}.")
+    if blocked_states:
         if len(lines) > 2:
             lines.append("")
-        lines.append(f"Blocked US states: {', '.join(s.blocked_states)}.")
+        lines.append(f"Blocked US states: {', '.join(blocked_states)}.")
     return "\n".join(lines)
 
 
-def _endpoints_section(input: BuildSkillMdInput) -> str:
+def _endpoints_section(input: _SkillCtx) -> str:
     if not input.endpoints:
         return ""
     rows = ["| Method | Path | Auth | Purpose |", "|---|---|---|---|"]
     for e in input.endpoints:
-        auth_label = "identity required" if e.auth_required else "anonymous"
-        rows.append(f"| {e.method} | `{_table_cell(e.path)}` | {auth_label} | {_table_cell(e.description)} |")
+        auth_label = "identity required" if e["auth_required"] else "anonymous"
+        rows.append(f"| {e['method']} | `{_table_cell(e['path'])}` | {auth_label} | {_table_cell(e['description'])} |")
     return "\n".join(["## Endpoints", "", *rows])
 
 
-def _onboarding_section(input: BuildSkillMdInput) -> str:
+def _onboarding_section(input: _SkillCtx) -> str:
     if not input.onboarding_steps:
         return ""
     rows = [f"{i + 1}. {step}" for i, step in enumerate(input.onboarding_steps)]
     return "\n".join(["## Onboarding Flow", "", *rows])
 
 
-def _triggers_section(input: BuildSkillMdInput) -> str:
+def _triggers_section(input: _SkillCtx) -> str:
     if not input.triggers:
         return ""
     rows = [f"- {t}" for t in input.triggers]
     return "\n".join(["## Triggers", "", "Use this skill when the user wants to:", "", *rows])
 
 
-def _support_section(input: BuildSkillMdInput) -> str:
+def _support_section(input: _SkillCtx) -> str:
     if not input.support_links:
         return ""
-    rows = [f"- **{link.label}**: {link.url}" for link in input.support_links]
+    rows = [f"- **{link['label']}**: {link['url']}" for link in input.support_links]
     return "\n".join(["## Support", "", *rows])
 
 
-def _refresh_footer(input: BuildSkillMdInput) -> str:
+def _refresh_footer(input: _SkillCtx) -> str:
     if not input.refresh_footer:
         return ""
     return "_Re-fetch this file periodically to pick up new endpoints, rails, or policies._"
 
 
-def build_skill_md(input: BuildSkillMdInput) -> str:
+def build_skill_md(
+    *,
+    name: str,
+    description: str,
+    homepage: str,
+    merchant_name: str,
+    accepted_rails: list[RailKey],
+    endpoints: list[SkillMdEndpoint],
+    triggers: list[str],
+    version: str | int = 1,
+    license: str | None = None,
+    compatibility: str | None = None,
+    allowed_tools: str | None = None,
+    metadata: dict[str, str | int] | None = None,
+    tagline: str | None = None,
+    intro: str | None = None,
+    files: list[SkillMdLink] | None = None,
+    compatible_clients: dict[str, list[str]] | None = None,
+    identity: SkillMdIdentityRequirements | None = None,
+    identity_bootstrap_url: str | None = None,
+    shipping: SkillMdShippingPolicy | None = None,
+    onboarding_steps: list[str] | None = None,
+    support_links: list[SkillMdLink] | None = None,
+    refresh_footer: bool = True,
+) -> str:
     """Render an agentskills.io-compatible ``skill.md`` for an agent-commerce merchant.
 
     Output is YAML frontmatter (``name`` / ``description`` / optional ``license`` /
@@ -390,19 +368,43 @@ def build_skill_md(input: BuildSkillMdInput) -> str:
     links — exactly the agent-facing contract, with no internal posture (no
     ``fail_open``, no mount-strategy names, no KYC vendor, no defense parameters).
     """
-    _validate(input)
+    ctx = _SkillCtx(
+        name=name,
+        description=description,
+        homepage=homepage,
+        merchant_name=merchant_name,
+        accepted_rails=accepted_rails,
+        endpoints=endpoints,
+        triggers=triggers,
+        version=version,
+        license=license,
+        compatibility=compatibility,
+        allowed_tools=allowed_tools,
+        metadata=metadata or {},
+        tagline=tagline,
+        intro=intro,
+        files=files or [],
+        compatible_clients=compatible_clients,
+        identity=identity,
+        identity_bootstrap_url=identity_bootstrap_url,
+        shipping=shipping,
+        onboarding_steps=onboarding_steps or [],
+        support_links=support_links or [],
+        refresh_footer=refresh_footer,
+    )
+    _validate(ctx)
     sections = [
-        _frontmatter(input),
-        _title_block(input),
-        _important_files(input),
-        _identity_section(input),
-        _payment_section(input),
-        _shipping_section(input),
-        _onboarding_section(input),
-        _endpoints_section(input),
-        _triggers_section(input),
-        _support_section(input),
-        _refresh_footer(input),
+        _frontmatter(ctx),
+        _title_block(ctx),
+        _important_files(ctx),
+        _identity_section(ctx),
+        _payment_section(ctx),
+        _shipping_section(ctx),
+        _onboarding_section(ctx),
+        _endpoints_section(ctx),
+        _triggers_section(ctx),
+        _support_section(ctx),
+        _refresh_footer(ctx),
     ]
     body = "\n\n".join(s for s in sections if s)
     while "\n\n\n" in body:

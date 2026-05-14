@@ -2,7 +2,7 @@
 
 import base64
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
@@ -93,64 +93,60 @@ class X402SampleProbe:
 
 
 @dataclass
-class DiscoveryProbeOptions:
-    realm: str
-    sample_rail: str
-    sample_amount_usd: float
-    sample_recipient: str
-    intent: str = "charge"
-    ttl_seconds: int = 300
-    docs_url: str | None = None
-    message: str | None = None
-    x402_sample: X402SampleProbe | None = field(default=None)
-
-
-@dataclass
 class DiscoveryProbeResponse:
     status: int
     headers: dict[str, str]
     body: str
 
 
-def build_discovery_probe_response(opts: DiscoveryProbeOptions) -> DiscoveryProbeResponse:
+def build_discovery_probe_response(
+    *,
+    realm: str,
+    sample_rail: str,
+    sample_amount_usd: float,
+    sample_recipient: str,
+    intent: str = "charge",
+    ttl_seconds: int = 300,
+    docs_url: str | None = None,
+    message: str | None = None,
+    x402_sample: X402SampleProbe | None = None,
+) -> DiscoveryProbeResponse:
     """Build a 402 response advertising a sample Payment challenge for crawler indexing."""
     probe_id = f"probe_{int(datetime.now(UTC).timestamp() * 1000)}"
-    expires = (datetime.now(UTC) + timedelta(seconds=opts.ttl_seconds)).isoformat().replace("+00:00", "Z")
-    request = build_payment_request_blob(
-        rail=opts.sample_rail, amount_usd=opts.sample_amount_usd, recipient=opts.sample_recipient
-    )
+    expires = (datetime.now(UTC) + timedelta(seconds=ttl_seconds)).isoformat().replace("+00:00", "Z")
+    request = build_payment_request_blob(rail=sample_rail, amount_usd=sample_amount_usd, recipient=sample_recipient)
     directive = payment_directive(
-        rail=opts.sample_rail, id=probe_id, realm=opts.realm, intent=opts.intent, expires=expires, request=request
+        rail=sample_rail, id=probe_id, realm=realm, intent=intent, expires=expires, request=request
     )
     body_obj: dict[str, Any] = {
         "error": {
             "code": "payment_required",
-            "message": opts.message
+            "message": message
             or "This endpoint requires payment. Send a valid request body to receive a full challenge.",
         },
         "discovery": True,
     }
-    if opts.docs_url:
-        body_obj["docs"] = opts.docs_url
+    if docs_url:
+        body_obj["docs"] = docs_url
     headers: dict[str, str] = {"content-type": "application/json", "www-authenticate": directive}
 
-    if opts.x402_sample is not None:
-        x402v = opts.x402_sample.version
-        if opts.x402_sample.accepts is not None:
-            sample_accepts: list[Any] = opts.x402_sample.accepts
+    if x402_sample is not None:
+        x402v = x402_sample.version
+        if x402_sample.accepts is not None:
+            sample_accepts: list[Any] = x402_sample.accepts
         else:
             sample_accepts = [
                 e
-                for n in (opts.x402_sample.networks or [])
-                for e in [sample_x402_accept_for_network(n, opts.x402_sample.amount_atomic)]
+                for n in (x402_sample.networks or [])
+                for e in [sample_x402_accept_for_network(n, x402_sample.amount_atomic)]
                 if e is not None
             ]
         # payment_required_header internally runs alias_amount_fields, so v1+v2
         # parsers both find their expected field name on the header decode.
         header_kwargs: dict[str, Any] = {"x402_version": x402v, "accepts": sample_accepts}
-        if opts.x402_sample.resource_url:
+        if x402_sample.resource_url:
             header_kwargs["resource"] = {
-                "url": opts.x402_sample.resource_url,
+                "url": x402_sample.resource_url,
                 "mimeType": "application/json",
             }
         encoded = payment_required_header(**header_kwargs)

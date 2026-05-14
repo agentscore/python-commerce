@@ -10,14 +10,9 @@ from collections.abc import Awaitable
 
 import pytest
 
-from agentscore_commerce.challenge import (
-    Build402BodyInput,
-    Respond402Input,
-    respond_402,
-)
+from agentscore_commerce.challenge import build_402_body, respond_402
 from agentscore_commerce.payment import (
     X402_SUPPORTED_BASE_NETWORKS,
-    PaymentRequiredHeaderInput,
     ProcessX402SettleFailure,
     ProcessX402SettleInput,
     ProcessX402SettleSuccess,
@@ -140,13 +135,11 @@ def test_stripe_test_tx_hashes_documented():
 
 def test_respond_402_preserves_mppx_www_authenticate():
     result = respond_402(
-        Respond402Input(
-            mppx_challenge_headers={
-                "WWW-Authenticate": 'Payment id="ord_x", method="tempo", request="..."',
-                "Content-Type": "application/json",
-            },
-            body=Build402BodyInput(accepted_methods=[{"method": "tempo/charge"}]),
-        )
+        mppx_challenge_headers={
+            "WWW-Authenticate": 'Payment id="ord_x", method="tempo", request="..."',
+            "Content-Type": "application/json",
+        },
+        body=build_402_body(accepted_methods=[{"method": "tempo/charge"}]),
     )
     assert result.status == 402
     assert "tempo" in result.headers["www-authenticate"]
@@ -158,15 +151,13 @@ def test_respond_402_preserves_mppx_www_authenticate():
 
 def test_respond_402_layers_payment_required_when_x402_set():
     result = respond_402(
-        Respond402Input(
-            mppx_challenge_headers={"www-authenticate": 'Payment id="ord_y"'},
-            body=Build402BodyInput(accepted_methods=[]),
-            x402=PaymentRequiredHeaderInput(
-                x402_version=2,
-                accepts=[{"scheme": "exact", "network": "eip155:84532"}],
-                resource={"url": "https://x.example/y", "mimeType": "application/json"},
-            ),
-        )
+        mppx_challenge_headers={"www-authenticate": 'Payment id="ord_y"'},
+        body=build_402_body(accepted_methods=[]),
+        x402={
+            "x402_version": 2,
+            "accepts": [{"scheme": "exact", "network": "eip155:84532"}],
+            "resource": {"url": "https://x.example/y", "mimeType": "application/json"},
+        },
     )
     assert "payment-required" in result.headers
     decoded = json.loads(base64.b64decode(result.headers["payment-required"]).decode())

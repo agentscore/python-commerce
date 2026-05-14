@@ -39,21 +39,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agentscore_commerce.challenge import (
-    Build402BodyInput,
-    BuildAcceptedMethodsInput,
-    BuildAgentInstructionsInput,
-    BuildHowToPayInput,
-    BuildValidationErrorInput,
-    HowToPayRails,
-    Respond402Input,
-    SolanaMppConfig,
-    SolanaMppRailConfig,
-    StripeConfig,
-    StripeRailConfig,
-    TempoConfig,
-    TempoRailConfig,
-    X402BaseConfig,
-    X402BaseRailConfig,
+    build_402_body,
     build_accepted_methods,
     build_agent_instructions,
     build_how_to_pay,
@@ -65,7 +51,6 @@ from agentscore_commerce.challenge import (
 from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data
 from agentscore_commerce.payment import (
     USDC,
-    PaymentRequiredHeaderInput,
     ProcessX402SettleInput,
     ValidateX402NetworkConfigInput,
     VerifyX402RequestInput,
@@ -179,12 +164,10 @@ async def purchase(request: Request, assess: dict = Depends(get_agentscore_data)
         if not settle.success:
             return JSONResponse(
                 build_validation_error(
-                    BuildValidationErrorInput(
-                        code="payment_proof_invalid",
-                        message=f"Payment failed during settlement (phase: {settle.phase or 'unknown'}).",
-                        next_steps={"action": "regenerate_payment_credential"},
-                        extra={"phase": settle.phase},
-                    )
+                    code="payment_proof_invalid",
+                    message=f"Payment failed during settlement (phase: {settle.phase or 'unknown'}).",
+                    next_steps={"action": "regenerate_payment_credential"},
+                    extra={"phase": settle.phase},
                 ),
                 status_code=400,
             )
@@ -215,73 +198,67 @@ async def purchase(request: Request, assess: dict = Depends(get_agentscore_data)
     pympx_challenge_headers = {"www-authenticate": 'Payment id="..."'}  # from pympp.compose
     deposit_addresses = {"tempo": "0x...", "base": "0x...", "solana": "..."}  # from create_multichain_payment_intent
     accepted = build_accepted_methods(
-        BuildAcceptedMethodsInput(
-            tempo=TempoConfig(recipient=deposit_addresses["tempo"]),
-            x402_base=X402BaseConfig(recipient=deposit_addresses["base"]),
-            solana_mpp=SolanaMppConfig(recipient=deposit_addresses["solana"]),
-            stripe=StripeConfig(profile_id=os.environ["STRIPE_PROFILE_ID"]),
-        )
+        tempo={"recipient": deposit_addresses["tempo"]},
+        x402_base={"recipient": deposit_addresses["base"]},
+        solana_mpp={"recipient": deposit_addresses["solana"]},
+        stripe={"profile_id": os.environ["STRIPE_PROFILE_ID"]},
     )
     how_to_pay = build_how_to_pay(
-        BuildHowToPayInput(
-            url=APP_URL,
-            retry_body_json=str(body),
-            total_usd=total_usd,
-            rails=HowToPayRails(
-                tempo=TempoRailConfig(recipient=deposit_addresses["tempo"]),
-                x402_base=X402BaseRailConfig(recipient=deposit_addresses["base"]),
-                solana_mpp=SolanaMppRailConfig(recipient=deposit_addresses["solana"]),
-                stripe=StripeRailConfig(profile_id=os.environ["STRIPE_PROFILE_ID"]),
-            ),
-        )
+        url=APP_URL,
+        retry_body_json=str(body),
+        total_usd=total_usd,
+        rails={
+            "tempo": {"recipient": deposit_addresses["tempo"]},
+            "x402_base": {"recipient": deposit_addresses["base"]},
+            "solana_mpp": {"recipient": deposit_addresses["solana"]},
+            "stripe": {"profile_id": os.environ["STRIPE_PROFILE_ID"]},
+        },
     )
 
     result = respond_402(
-        Respond402Input(
-            mppx_challenge_headers=pympx_challenge_headers,
-            body=Build402BodyInput(
-                accepted_methods=accepted,
-                agent_instructions=build_agent_instructions(BuildAgentInstructionsInput(how_to_pay=how_to_pay)),
-                pricing=pricing,
-                amount_usd=total_usd,
-                retry_body=body,
-                # Production merchants track first-encounter state in their own DB;
-                # for demo purposes we always emit the cross-merchant pattern hint.
-                agent_memory=first_encounter_agent_memory(first_encounter=True),
-            ),
-            x402=PaymentRequiredHeaderInput(
-                x402_version=2,
-                # Base accept comes from the registered x402 scheme — `extra` (incl. the
-                # network-correct USDC `name`) is filled in automatically. Solana goes
-                # through MPP `solana/charge` not x402's exact scheme, so it stays inline.
-                accepts=[
-                    *build_x402_accepts_for_402(
-                        x402_server,
-                        network=X402_BASE_NETWORK,
-                        price=f"${total_usd}",
-                        pay_to=deposit_addresses["base"],
-                        max_timeout_seconds=300,
+        mppx_challenge_headers=pympx_challenge_headers,
+        body=build_402_body(
+            accepted_methods=accepted,
+            agent_instructions=build_agent_instructions(how_to_pay=how_to_pay),
+            pricing=pricing,
+            amount_usd=total_usd,
+            retry_body=body,
+            # Production merchants track first-encounter state in their own DB;
+            # for demo purposes we always emit the cross-merchant pattern hint.
+            agent_memory=first_encounter_agent_memory(first_encounter=True),
+        ),
+        x402={
+            "x402_version": 2,
+            # Base accept comes from the registered x402 scheme — `extra` (incl. the
+            # network-correct USDC `name`) is filled in automatically. Solana goes
+            # through MPP `solana/charge` not x402's exact scheme, so it stays inline.
+            "accepts": [
+                *build_x402_accepts_for_402(
+                    x402_server,
+                    network=X402_BASE_NETWORK,
+                    price=f"${total_usd}",
+                    pay_to=deposit_addresses["base"],
+                    max_timeout_seconds=300,
+                ),
+                {
+                    "scheme": "exact",
+                    "network": SOLANA_NETWORK_CAIP2,
+                    "amount": str(round(float(total_usd) * 1_000_000)),
+                    "asset": (
+                        USDC.solana.devnet.mint
+                        if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2
+                        else USDC.solana.mainnet.mint
                     ),
-                    {
-                        "scheme": "exact",
-                        "network": SOLANA_NETWORK_CAIP2,
-                        "amount": str(round(float(total_usd) * 1_000_000)),
-                        "asset": (
-                            USDC.solana.devnet.mint
-                            if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2
-                            else USDC.solana.mainnet.mint
-                        ),
-                        "payTo": deposit_addresses["solana"],
-                        "maxTimeoutSeconds": 300,
-                        # SVM transactions require feePayer in extra. Default to
-                        # the recipient (round-trip safe for dev). Production
-                        # merchants typically point at the Coinbase facilitator's
-                        # payer address.
-                        "extra": {"feePayer": deposit_addresses["solana"]},
-                    },
-                ],
-                resource={"url": str(request.url), "mimeType": "application/json"},
-            ),
-        )
+                    "payTo": deposit_addresses["solana"],
+                    "maxTimeoutSeconds": 300,
+                    # SVM transactions require feePayer in extra. Default to
+                    # the recipient (round-trip safe for dev). Production
+                    # merchants typically point at the Coinbase facilitator's
+                    # payer address.
+                    "extra": {"feePayer": deposit_addresses["solana"]},
+                },
+            ],
+            "resource": {"url": str(request.url), "mimeType": "application/json"},
+        },
     )
     return JSONResponse(result.body, status_code=result.status, headers=result.headers)

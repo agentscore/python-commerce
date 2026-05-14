@@ -1,15 +1,6 @@
 """Targeted tests covering optional-field branches across discovery + challenge builders."""
 
 from agentscore_commerce.challenge import (
-    Build402BodyInput,
-    BuildAcceptedMethodsInput,
-    BuildAgentInstructionsInput,
-    BuildHowToPayInput,
-    HowToPayRails,
-    SolanaMppConfig,
-    SolanaMppRailConfig,
-    StripeRailConfig,
-    TempoRailConfig,
     build_402_body,
     build_accepted_methods,
     build_agent_instructions,
@@ -116,19 +107,17 @@ def test_llms_txt_payment_section_includes_all_rails():
 
 
 def test_build_accepted_methods_includes_solana_only():
-    out = build_accepted_methods(BuildAcceptedMethodsInput(solana_mpp=SolanaMppConfig(recipient="solanaaddr")))
+    out = build_accepted_methods(solana_mpp={"recipient": "solanaaddr"})
     assert out[0]["network"].startswith("solana:")
     assert out[0]["pay_to"] == "solanaaddr"
 
 
 def test_build_how_to_pay_solana_only():
     out = build_how_to_pay(
-        BuildHowToPayInput(
-            url="https://ex.com",
-            retry_body_json="{}",
-            total_usd=5.0,
-            rails=HowToPayRails(solana_mpp=SolanaMppRailConfig(recipient="solanaaddr")),
-        )
+        url="https://ex.com",
+        retry_body_json="{}",
+        total_usd=5.0,
+        rails={"solana_mpp": {"recipient": "solanaaddr"}},
     )
     assert "solana_mpp" in out
     assert "agentscore-pay pay POST" in out["solana_mpp"]["command"]
@@ -136,12 +125,10 @@ def test_build_how_to_pay_solana_only():
 
 def test_build_how_to_pay_tempo_recommend_pay():
     out = build_how_to_pay(
-        BuildHowToPayInput(
-            url="https://ex.com",
-            retry_body_json="{}",
-            total_usd=5.0,
-            rails=HowToPayRails(tempo=TempoRailConfig(recipient="0xT", recommend="agentscore-pay")),
-        )
+        url="https://ex.com",
+        retry_body_json="{}",
+        total_usd=5.0,
+        rails={"tempo": {"recipient": "0xT", "recommend": "agentscore-pay"}},
     )
     assert out["tempo"]["command"].startswith("agentscore-pay pay POST")
     assert out["tempo"]["alternative_command"].startswith("tempo request")
@@ -149,24 +136,20 @@ def test_build_how_to_pay_tempo_recommend_pay():
 
 def test_build_how_to_pay_tempo_recommend_tempo_only():
     out = build_how_to_pay(
-        BuildHowToPayInput(
-            url="https://ex.com",
-            retry_body_json="{}",
-            total_usd=5.0,
-            rails=HowToPayRails(tempo=TempoRailConfig(recipient="0xT", recommend="tempo")),
-        )
+        url="https://ex.com",
+        retry_body_json="{}",
+        total_usd=5.0,
+        rails={"tempo": {"recipient": "0xT", "recommend": "tempo"}},
     )
     assert "alternative_command" not in out["tempo"]
 
 
 def test_build_how_to_pay_stripe_no_profile_id_skips_link_cli():
     out = build_how_to_pay(
-        BuildHowToPayInput(
-            url="https://ex.com",
-            retry_body_json="{}",
-            total_usd=5.0,
-            rails=HowToPayRails(stripe=StripeRailConfig(profile_id=None)),
-        )
+        url="https://ex.com",
+        retry_body_json="{}",
+        total_usd=5.0,
+        rails={"stripe": {"profile_id": None}},
     )
     assert "setup_link_cli" not in out["stripe"]
     assert "note" not in out["stripe"]
@@ -174,11 +157,9 @@ def test_build_how_to_pay_stripe_no_profile_id_skips_link_cli():
 
 def test_build_agent_instructions_with_recommended_and_extra():
     out = build_agent_instructions(
-        BuildAgentInstructionsInput(
-            how_to_pay={"tempo": {}},
-            recommended="tempo",
-            extra={"vendor_field": "value"},
-        )
+        how_to_pay={"tempo": {}},
+        recommended="tempo",
+        extra={"vendor_field": "value"},
     )
     assert out["recommended"] == "tempo"
     assert out["vendor_field"] == "value"
@@ -186,15 +167,13 @@ def test_build_agent_instructions_with_recommended_and_extra():
 
 def test_build_402_body_includes_all_optional_blocks():
     body = build_402_body(
-        Build402BodyInput(
-            accepted_methods=[],
-            agent_memory={"pattern": "agentscore-shared-identity"},
-            currency="USD",
-            product={"id": "p_1", "name": "Wine"},
-            recommended="tempo",
-            retry_body={"product_id": "p_1"},
-            extra={"vendor_field": "value"},
-        )
+        accepted_methods=[],
+        agent_memory={"pattern": "agentscore-shared-identity"},
+        currency="USD",
+        product={"id": "p_1", "name": "Wine"},
+        recommended="tempo",
+        retry_body={"product_id": "p_1"},
+        extra={"vendor_field": "value"},
     )
     assert body["agent_memory"] == {"pattern": "agentscore-shared-identity"}
     assert body["currency"] == "USD"

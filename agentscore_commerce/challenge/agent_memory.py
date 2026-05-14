@@ -29,14 +29,14 @@ def first_encounter_agent_memory(
 
     Use directly with the ``agent_memory`` field of :func:`build_402_body`::
 
-        body = build_402_body(Build402BodyInput(
+        body = build_402_body(
             accepted_methods=accepted,
             agent_instructions=instructions,
             pricing=pricing,
             agent_memory=first_encounter_agent_memory(
                 first_encounter=not has_seen_operator(operator_token),
             ),
-        ))
+        )
 
     Returning ``None`` means ``build_402_body`` cleanly skips the field instead of
     emitting ``agent_memory: null`` (which would imply "I tried but failed" rather than

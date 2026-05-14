@@ -4,7 +4,6 @@ import json
 from agentscore_commerce.payment import (
     SETTLEMENT_OVERRIDES_HEADER,
     USDC,
-    PaymentRequiredHeaderInput,
     lookup_rail,
     network_family,
     networks,
@@ -58,9 +57,7 @@ def test_www_authenticate_header_joins_directives():
 
 
 def test_payment_required_header_base64_encodes_json():
-    h = payment_required_header(
-        PaymentRequiredHeaderInput(x402_version=2, accepts=[{"scheme": "exact"}], resource={"url": "https://x"})
-    )
+    h = payment_required_header(x402_version=2, accepts=[{"scheme": "exact"}], resource={"url": "https://x"})
     decoded = json.loads(base64.b64decode(h))
     assert decoded["x402Version"] == 2
     assert decoded["accepts"] == [{"scheme": "exact"}]
@@ -75,10 +72,8 @@ def test_payment_required_header_emits_v1_alias_for_v2_clients():
     from agentscore_commerce.payment import alias_amount_fields
 
     h = payment_required_header(
-        PaymentRequiredHeaderInput(
-            x402_version=2,
-            accepts=[{"scheme": "exact", "network": "eip155:84532", "amount": "110000"}],
-        )
+        x402_version=2,
+        accepts=[{"scheme": "exact", "network": "eip155:84532", "amount": "110000"}],
     )
     decoded = json.loads(base64.b64decode(h))
     assert decoded["accepts"][0]["amount"] == "110000"

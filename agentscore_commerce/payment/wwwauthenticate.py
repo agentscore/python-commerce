@@ -2,7 +2,6 @@
 
 import base64
 import json
-from dataclasses import dataclass
 from typing import Any, Literal
 
 
@@ -39,21 +38,19 @@ def alias_amount_fields(accepts: list[Any]) -> list[Any]:
     return out
 
 
-@dataclass
-class PaymentRequiredHeaderInput:
-    x402_version: Literal[1, 2]
-    accepts: list[Any]
-    resource: dict[str, str] | None = None
-
-
-def payment_required_header(input: PaymentRequiredHeaderInput) -> str:
+def payment_required_header(
+    *,
+    x402_version: Literal[1, 2],
+    accepts: list[Any],
+    resource: dict[str, str] | None = None,
+) -> str:
     """Encode the standard x402 PAYMENT-REQUIRED header (base64-encoded JSON).
 
     Each accepts entry is post-processed via :func:`alias_amount_fields` so v1-only
     clients (e.g. awal) and v2-strict clients can both read it.
     """
-    body: dict[str, Any] = {"x402Version": input.x402_version, "accepts": alias_amount_fields(input.accepts)}
-    if input.resource is not None:
-        body["resource"] = input.resource
+    body: dict[str, Any] = {"x402Version": x402_version, "accepts": alias_amount_fields(accepts)}
+    if resource is not None:
+        body["resource"] = resource
     raw = json.dumps(body, separators=(",", ":")).encode()
     return base64.b64encode(raw).decode()

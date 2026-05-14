@@ -30,7 +30,7 @@ Usage::
 from dataclasses import dataclass
 from typing import Any
 
-from agentscore_commerce.payment.wwwauthenticate import PaymentRequiredHeaderInput, payment_required_header
+from agentscore_commerce.payment.wwwauthenticate import payment_required_header
 
 
 @dataclass
@@ -61,8 +61,5 @@ def respond_402(
     headers = {k.lower(): v for k, v in mppx_challenge_headers.items()}
     headers["content-type"] = "application/json"
     if x402 is not None:
-        # PaymentRequiredHeaderInput still exists pending the wwwauthenticate
-        # flatten in a subsequent PR; respond_402's public API takes a dict now
-        # and we adapt internally so the wrapper deletion is invisible to callers.
-        headers["payment-required"] = payment_required_header(PaymentRequiredHeaderInput(**x402))
+        headers["payment-required"] = payment_required_header(**x402)
     return Respond402Result(body=body, headers=headers, status=402)

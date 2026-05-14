@@ -16,7 +16,6 @@ from typing import Any, Literal, TypedDict
 
 from agentscore_commerce.payment.directive import build_payment_directive
 from agentscore_commerce.payment.wwwauthenticate import (
-    PaymentRequiredHeaderInput,
     payment_required_header,
     www_authenticate_header,
 )
@@ -138,11 +137,9 @@ def build_payment_headers(
 
     if x402 is not None:
         result["payment_required"] = payment_required_header(
-            PaymentRequiredHeaderInput(
-                x402_version=x402.version,
-                accepts=x402.accepts,
-                resource=x402.resource,
-            ),
+            x402_version=x402.version,
+            accepts=x402.accepts,
+            resource=x402.resource,
         )
 
     return result

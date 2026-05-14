@@ -26,8 +26,6 @@ from agentscore_commerce.payment import (
 from agentscore_commerce.stripe_multichain import (
     STRIPE_TEST_TX_HASH_FAILED,
     STRIPE_TEST_TX_HASH_SUCCESS,
-    PiCacheOptions,
-    SimulateDepositIfTestModeInput,
     create_pi_cache,
     simulate_deposit_if_test_mode,
 )
@@ -39,7 +37,7 @@ from agentscore_commerce.stripe_multichain import (
 
 @pytest.mark.asyncio
 async def test_pi_cache_address_round_trip():
-    cache = create_pi_cache(PiCacheOptions(ttl_seconds=10))
+    cache = create_pi_cache(ttl_seconds=10)
     assert await cache.has_address("0xdeadbeef") is False
     await cache.cache_address("0xdeadbeef")
     assert await cache.has_address("0xdeadbeef") is True
@@ -47,7 +45,7 @@ async def test_pi_cache_address_round_trip():
 
 
 def test_pi_cache_payment_intent_round_trip():
-    cache = create_pi_cache(PiCacheOptions(ttl_seconds=10))
+    cache = create_pi_cache(ttl_seconds=10)
     assert cache.get_payment_intent_id("0xaddr") is None
     cache.cache_payment_intent("0xaddr", "pi_test_123")
     assert cache.get_payment_intent_id("0xaddr") == "pi_test_123"
@@ -55,7 +53,7 @@ def test_pi_cache_payment_intent_round_trip():
 
 
 def test_pi_cache_network_addresses_round_trip():
-    cache = create_pi_cache(PiCacheOptions(ttl_seconds=10))
+    cache = create_pi_cache(ttl_seconds=10)
     cache.cache_network_addresses("pi_test", {"base": "0xbase", "solana": "Gso1ana"})
     assert cache.get_network_deposit_address("pi_test", "base") == "0xbase"
     assert cache.get_network_deposit_address("pi_test", "solana") == "Gso1ana"
@@ -65,7 +63,7 @@ def test_pi_cache_network_addresses_round_trip():
 
 
 def test_pi_cache_ttl_eviction_via_expired_entries():
-    cache = create_pi_cache(PiCacheOptions(ttl_seconds=0))
+    cache = create_pi_cache(ttl_seconds=0)
     cache.cache_payment_intent("0xaddr", "pi_short")
     # ttl=0 means expires_at == now; subsequent get returns None
     time.sleep(0.01)
@@ -94,12 +92,10 @@ async def test_pi_cache_no_redis_url_falls_back_to_memory_only():
 async def test_simulate_deposit_skips_on_live_key():
     called: list[str] = []
     await simulate_deposit_if_test_mode(
-        SimulateDepositIfTestModeInput(
-            get_payment_intent_id=lambda addr: called.append(addr) or "pi_x",
-            deposit_address="0xaddr",
-            network="base",
-            stripe_secret_key="sk_live_real_one",
-        )
+        get_payment_intent_id=lambda addr: called.append(addr) or "pi_x",
+        deposit_address="0xaddr",
+        network="base",
+        stripe_secret_key="sk_live_real_one",
     )
     # Should never even look up the PI on a live key
     assert called == []
@@ -108,12 +104,10 @@ async def test_simulate_deposit_skips_on_live_key():
 @pytest.mark.asyncio
 async def test_simulate_deposit_no_pi_warns_and_returns():
     await simulate_deposit_if_test_mode(
-        SimulateDepositIfTestModeInput(
-            get_payment_intent_id=lambda _addr: None,
-            deposit_address="0xaddr",
-            network="base",
-            stripe_secret_key="sk_test_xyz",
-        )
+        get_payment_intent_id=lambda _addr: None,
+        deposit_address="0xaddr",
+        network="base",
+        stripe_secret_key="sk_test_xyz",
     )
     # No exception; warning logged (not asserted here, would need caplog)
 

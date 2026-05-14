@@ -4,7 +4,7 @@ Creates a PaymentIntent with `payment_method_options.crypto.deposit_options.netw
 chains, returning the PI id + deposit addresses per network. Distinct from the Stripe SPT flow.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 
@@ -17,43 +17,45 @@ class StripeClientLike(Protocol):
 
 
 @dataclass
-class CreateMultichainPaymentIntentInput:
-    stripe: Any  # StripeClientLike, but kept loose so vendors can pass their actual `stripe.StripeClient`
-    amount: int  # in cents (Stripe convention)
-    currency: str = "usd"
-    networks: list[str] = field(default_factory=lambda: ["tempo", "base", "solana"])
-    metadata: dict[str, str] | None = None
-    idempotency_key: str | None = None
-
-
-@dataclass
 class MultichainPaymentIntentResult:
     payment_intent_id: str
     deposit_addresses: dict[str, str]
 
 
-def create_multichain_payment_intent(input: CreateMultichainPaymentIntentInput) -> MultichainPaymentIntentResult:
+_DEFAULT_NETWORKS: tuple[str, ...] = ("tempo", "base", "solana")
+
+
+def create_multichain_payment_intent(
+    *,
+    stripe: Any,  # StripeClientLike, kept loose so vendors can pass their actual `stripe.StripeClient`
+    amount: int,  # in cents (Stripe convention)
+    currency: str = "usd",
+    networks: list[str] | None = None,
+    metadata: dict[str, str] | None = None,
+    idempotency_key: str | None = None,
+) -> MultichainPaymentIntentResult:
     """Create a Stripe PaymentIntent with multichain crypto deposit_options.
 
     Returns the PI id + per-network deposit addresses. Raises if Stripe doesn't return any addresses.
     """
+    resolved_networks = list(networks) if networks else list(_DEFAULT_NETWORKS)
     params: dict[str, Any] = {
-        "amount": input.amount,
-        "currency": input.currency,
+        "amount": amount,
+        "currency": currency,
         "payment_method_types": ["crypto"],
         "payment_method_data": {"type": "crypto"},
         "payment_method_options": {
-            "crypto": {"mode": "deposit", "deposit_options": {"networks": input.networks}},
+            "crypto": {"mode": "deposit", "deposit_options": {"networks": resolved_networks}},
         },
         "confirm": True,
     }
-    if input.metadata:
-        params["metadata"] = input.metadata
+    if metadata:
+        params["metadata"] = metadata
 
     pi = (
-        input.stripe.payment_intents.create(params, idempotency_key=input.idempotency_key)
-        if input.idempotency_key
-        else input.stripe.payment_intents.create(params)
+        stripe.payment_intents.create(params, idempotency_key=idempotency_key)
+        if idempotency_key
+        else stripe.payment_intents.create(params)
     )
     deposit_addresses: dict[str, str] = {}
     next_action = getattr(pi, "next_action", None) or (pi.get("next_action") if isinstance(pi, dict) else None)

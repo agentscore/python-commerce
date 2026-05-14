@@ -58,8 +58,6 @@ from agentscore_commerce.payment import (
     verify_x402_request,
 )
 from agentscore_commerce.stripe_multichain import (
-    PiCacheOptions,
-    SimulateDepositIfTestModeInput,
     create_pi_cache,
     simulate_deposit_if_test_mode,
 )
@@ -75,7 +73,7 @@ validate_x402_network_config(base_network=X402_BASE_NETWORK)
 # Singleton Stripe PI / deposit-address cache. Backed by Redis when REDIS_URL is set
 # (multi-instance deployments need this so a deposit lands on whichever instance
 # settles it); falls back to in-process dict for single-instance dev.
-pi_cache = create_pi_cache(PiCacheOptions(redis_url=os.environ.get("REDIS_URL")))
+pi_cache = create_pi_cache(redis_url=os.environ.get("REDIS_URL"))
 
 app = FastAPI()
 _gate = AgentScoreGate(
@@ -168,12 +166,10 @@ async def purchase(request: Request, assess: dict = Depends(get_agentscore_data)
         # Fire Stripe testnet sim; no-ops on live keys. x402 settle only ever
         # lands on base in 1.4+ (Solana moved to MPP `solana/charge`).
         await simulate_deposit_if_test_mode(
-            SimulateDepositIfTestModeInput(
-                get_payment_intent_id=pi_cache.get_payment_intent_id,
-                deposit_address=verified.signed_pay_to,
-                network="base",
-                stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
-            )
+            get_payment_intent_id=pi_cache.get_payment_intent_id,
+            deposit_address=verified.signed_pay_to,
+            network="base",
+            stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
         )
 
         headers: dict[str, str] = {}

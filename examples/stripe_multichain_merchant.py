@@ -24,8 +24,6 @@ from fastapi import FastAPI
 
 from agentscore_commerce.stripe_multichain import (
     STRIPE_TEST_TX_HASH_SUCCESS,
-    CreateMultichainPaymentIntentInput,
-    SimulateCryptoDepositInput,
     create_multichain_payment_intent,
     get_deposit_address,
     simulate_crypto_deposit,
@@ -40,13 +38,11 @@ app = FastAPI()
 async def buy(body: dict):
     # Create a multichain PaymentIntent — Stripe issues deposit addresses for each requested chain.
     result = create_multichain_payment_intent(
-        CreateMultichainPaymentIntentInput(
-            stripe=stripe_client,
-            amount=body.get("amount_cents", 25000),
-            networks=["tempo", "base", "solana"],
-            metadata={"order_id": body.get("order_id", "ord_demo"), "merchant": "example"},
-            idempotency_key=body.get("order_id"),
-        )
+        stripe=stripe_client,
+        amount=body.get("amount_cents", 25000),
+        networks=["tempo", "base", "solana"],
+        metadata={"order_id": body.get("order_id", "ord_demo"), "merchant": "example"},
+        idempotency_key=body.get("order_id"),
     )
 
     base_addr = get_deposit_address(result, "base")
@@ -65,13 +61,11 @@ async def buy(body: dict):
 @app.post("/testnet/simulate-deposit")
 async def simulate_deposit(body: dict):
     await simulate_crypto_deposit(
-        SimulateCryptoDepositInput(
-            payment_intent_id=body["payment_intent_id"],
-            network=body["network"],
-            stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
-            stripe_version="2026-03-04.preview",
-            token_currency="usdc",
-            transaction_hash=STRIPE_TEST_TX_HASH_SUCCESS,
-        )
+        payment_intent_id=body["payment_intent_id"],
+        network=body["network"],
+        stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
+        stripe_version="2026-03-04.preview",
+        token_currency="usdc",
+        transaction_hash=STRIPE_TEST_TX_HASH_SUCCESS,
     )
     return {"ok": True, "simulated": True}

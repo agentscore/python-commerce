@@ -4,7 +4,7 @@ import base64
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
 from agentscore_commerce.payment.directive import (
     build_payment_request_blob,
@@ -169,14 +169,6 @@ def build_discovery_probe_response(opts: DiscoveryProbeOptions) -> DiscoveryProb
         headers=headers,
         body=json.dumps(body_obj, separators=(",", ":")),
     )
-
-
-class _RequestLike(Protocol):
-    method: str
-
-    def headers_get(self, name: str) -> str | None: ...
-
-    async def body_text(self) -> str: ...
 
 
 async def is_discovery_probe_request(method: str, authorization: str | None, body_text: str) -> bool:

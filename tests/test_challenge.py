@@ -1,3 +1,5 @@
+import pytest
+
 from agentscore_commerce.challenge import (
     PricingBlock,
     SignerMatchResult,
@@ -8,12 +10,19 @@ from agentscore_commerce.challenge import (
     build_how_to_pay,
     build_identity_metadata,
 )
+from agentscore_commerce.payment import (
+    SolanaMppRailSpec,
+    StripeRailSpec,
+    TempoRailSpec,
+    X402BaseRailSpec,
+)
 
 
-def test_build_accepted_methods_includes_only_provided_rails():
-    out = build_accepted_methods(
-        tempo={"recipient": "0xT"},
-        stripe={"profile_id": "acct_x"},
+@pytest.mark.asyncio
+async def test_build_accepted_methods_includes_only_provided_rails():
+    out = await build_accepted_methods(
+        tempo=TempoRailSpec(recipient="0xT"),
+        stripe=StripeRailSpec(profile_id="acct_x"),
     )
     methods = [e["method"] for e in out]
     assert "tempo/charge" in methods
@@ -21,25 +30,43 @@ def test_build_accepted_methods_includes_only_provided_rails():
     assert all(e["method"] != "x402/exact" for e in out)
 
 
-def test_build_accepted_methods_full_set():
-    out = build_accepted_methods(
-        tempo={"recipient": "0xT"},
-        x402_base={"recipient": "0xB"},
-        solana_mpp={"recipient": "solanaaddr"},
-        stripe={"profile_id": "acct_x"},
+@pytest.mark.asyncio
+async def test_build_accepted_methods_full_set():
+    out = await build_accepted_methods(
+        tempo=TempoRailSpec(recipient="0xT"),
+        x402_base=X402BaseRailSpec(recipient="0xB"),
+        solana_mpp=SolanaMppRailSpec(recipient="solanaaddr"),
+        stripe=StripeRailSpec(profile_id="acct_x"),
     )
     assert len(out) == 4
     assert out[1]["pay_to"] == "0xB"
     assert out[2]["network"].startswith("solana:")
 
 
-def test_build_accepted_methods_overrides_defaults():
-    """Per-rail dict values override the rail's protocol defaults inline."""
-    out = build_accepted_methods(
-        tempo={"recipient": "0xT", "network": "tempo-testnet", "chain_id": 42431},
+@pytest.mark.asyncio
+async def test_build_accepted_methods_overrides_defaults():
+    """Per-rail spec fields override the rail's protocol defaults."""
+    out = await build_accepted_methods(
+        tempo=TempoRailSpec(recipient="0xT", network="tempo-testnet", chain_id=42431),
     )
     assert out[0]["network"] == "tempo-testnet"
     assert out[0]["chain_id"] == 42431
+
+
+@pytest.mark.asyncio
+async def test_build_accepted_methods_recipient_factory_called_per_helper():
+    """Async recipient factory resolves to a fresh address on each invocation."""
+    calls = 0
+
+    async def factory() -> str:
+        nonlocal calls
+        calls += 1
+        return f"0xfresh-{calls}"
+
+    first = await build_accepted_methods(tempo=TempoRailSpec(recipient=factory))
+    second = await build_accepted_methods(tempo=TempoRailSpec(recipient=factory))
+    assert first[0]["pay_to"] == "0xfresh-1"
+    assert second[0]["pay_to"] == "0xfresh-2"
 
 
 def test_build_identity_metadata_wallet_mode_emits_signer_constraint():
@@ -64,15 +91,16 @@ def test_build_identity_metadata_token_mode_only_returns_mode():
     assert md == {"identity_mode": "operator_token"}
 
 
-def test_build_how_to_pay_emits_per_rail_blocks():
-    out = build_how_to_pay(
+@pytest.mark.asyncio
+async def test_build_how_to_pay_emits_per_rail_blocks():
+    out = await build_how_to_pay(
         url="https://ex.com/buy",
         retry_body_json='{"x":1}',
         total_usd=10.0,
         rails={
-            "tempo": {"recipient": "0xT"},
-            "x402_base": {"recipient": "0xB"},
-            "stripe": {"profile_id": "acct_x"},
+            "tempo": TempoRailSpec(recipient="0xT"),
+            "x402_base": X402BaseRailSpec(recipient="0xB"),
+            "stripe": StripeRailSpec(profile_id="acct_x"),
         },
     )
     assert "tempo" in out
@@ -83,27 +111,41 @@ def test_build_how_to_pay_emits_per_rail_blocks():
     assert "setup_link_cli" in out["stripe"]
 
 
-def test_build_how_to_pay_blocks_link_cli_above_500():
-    out = build_how_to_pay(
+@pytest.mark.asyncio
+async def test_build_how_to_pay_blocks_link_cli_above_500():
+    out = await build_how_to_pay(
         url="https://ex.com/buy",
         retry_body_json="{}",
         total_usd=750.0,
-        rails={"stripe": {"profile_id": "acct_x"}},
+        rails={"stripe": StripeRailSpec(profile_id="acct_x")},
     )
     assert "note" in out["stripe"]
     assert "setup_link_cli" not in out["stripe"]
 
 
-def test_build_how_to_pay_recommend_kwarg_switches_command():
+@pytest.mark.asyncio
+async def test_build_how_to_pay_recommend_kwarg_switches_command():
     """`recommend='agentscore-pay'` puts the pay CLI command as primary; `'tempo'` uses tempo request."""
-    out = build_how_to_pay(
+    out = await build_how_to_pay(
         url="https://ex.com/buy",
         retry_body_json="{}",
         total_usd=5.0,
-        rails={"tempo": {"recipient": "0xT", "recommend": "agentscore-pay"}},
+        rails={"tempo": TempoRailSpec(recipient="0xT", recommend="agentscore-pay")},
     )
     assert "agentscore-pay pay POST" in out["tempo"]["command"]
     assert "tempo request" in out["tempo"]["alternative_command"]
+
+
+@pytest.mark.asyncio
+async def test_build_how_to_pay_testnet_flag_swaps_network_name():
+    """`TempoRailSpec(testnet=True)` surfaces 'tempo-testnet' in the prerequisite copy."""
+    out = await build_how_to_pay(
+        url="https://ex.com/buy",
+        retry_body_json="{}",
+        total_usd=5.0,
+        rails={"tempo": TempoRailSpec(recipient="0xT", testnet=True)},
+    )
+    assert "tempo-testnet" in out["tempo"]["prerequisite"]
 
 
 def test_build_agent_instructions_uses_defaults():

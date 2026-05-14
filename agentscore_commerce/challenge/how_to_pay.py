@@ -3,9 +3,12 @@
 import math
 from typing import Any
 
-_DEFAULT_TEMPO = {"network_name": "tempo-mainnet", "chain_id": 4217, "recommend": "both"}
-_DEFAULT_X402_BASE = {"network": "eip155:8453"}
-_DEFAULT_SOLANA_MPP = {"network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"}
+from agentscore_commerce.payment.rail_spec import (
+    SolanaMppRailSpec,
+    StripeRailSpec,
+    TempoRailSpec,
+    X402BaseRailSpec,
+)
 
 TEMPO_SETUP = [
     "curl -fsSL https://tempo.xyz/install | bash",
@@ -25,12 +28,21 @@ PAY_SETUP_SOLANA = [
 ]
 
 
-def build_how_to_pay(
+class HowToPayRails(dict):
+    """`build_how_to_pay`'s `rails` map.
+
+    Dict keyed by rail name where each value is the matching `*RailSpec`. Subclasses
+    `dict` so existing callers' literal-dict construction keeps working without
+    import churn while still benefiting from the type alias when annotated explicitly.
+    """
+
+
+async def build_how_to_pay(
     *,
     url: str,
     retry_body_json: str,
     total_usd: float | str,
-    rails: dict[str, dict[str, Any]],
+    rails: dict[str, TempoRailSpec | X402BaseRailSpec | SolanaMppRailSpec | StripeRailSpec],
     op_token_placeholder: str = "<your_opc_token>",  # noqa: S107 — literal placeholder, not a secret
     max_spend: float | str | None = None,
 ) -> dict[str, Any]:
@@ -38,9 +50,11 @@ def build_how_to_pay(
 
     Generates per-rail setup/command/what_it_does so agents see concrete commands per rail in the 402 body.
     ``rails`` is a dict keyed by rail name (``"tempo"``, ``"x402_base"``, ``"solana_mpp"``, ``"stripe"``);
-    each value is a plain dict carrying the rail's config (``recipient`` for chain rails, ``profile_id``
-    + ``product_name`` for stripe, plus the protocol-default overrides ``network`` / ``network_name`` /
-    ``chain_id`` / ``recommend``). Pass ``rails={}`` to emit no per-rail block.
+    each value is the matching `*RailSpec` instance. Pass ``rails={}`` to emit no per-rail block.
+
+    `recipient` resolution: only `accepted_methods` consumes the resolved address; `how_to_pay`
+    surfaces commands the agent runs, none of which include the recipient string. So this builder
+    does NOT resolve `RecipientLike` factories.
     """
     total_num = float(total_usd) if isinstance(total_usd, str) else total_usd
     max_spend_str = str(max_spend) if max_spend is not None else f"{math.ceil(total_num) + 1:.2f}"
@@ -48,10 +62,10 @@ def build_how_to_pay(
     block: dict[str, Any] = {}
 
     tempo = rails.get("tempo")
-    if tempo:
-        network_name = tempo.get("network_name", _DEFAULT_TEMPO["network_name"])
-        chain_id = tempo.get("chain_id", _DEFAULT_TEMPO["chain_id"])
-        recommend = tempo.get("recommend", _DEFAULT_TEMPO["recommend"])
+    if isinstance(tempo, TempoRailSpec):
+        network_name = "tempo-testnet" if tempo.testnet else tempo.network
+        chain_id = tempo.chain_id
+        recommend = tempo.recommend
         tempo_command = (
             f"tempo request -X POST -H 'X-Operator-Token: {op_token}' -H 'Content-Type: application/json' "
             f"--json '{retry_body_json}' --max-spend {max_spend_str} {url}"
@@ -80,8 +94,8 @@ def build_how_to_pay(
         block["tempo"] = entry
 
     x402_base = rails.get("x402_base")
-    if x402_base:
-        network = x402_base.get("network", _DEFAULT_X402_BASE["network"])
+    if isinstance(x402_base, X402BaseRailSpec):
+        network = x402_base.network
         block["x402_base"] = {
             "setup": PAY_SETUP_BASE,
             "prerequisite": (
@@ -100,8 +114,8 @@ def build_how_to_pay(
         }
 
     solana_mpp = rails.get("solana_mpp")
-    if solana_mpp:
-        network = solana_mpp.get("network", _DEFAULT_SOLANA_MPP["network"])
+    if isinstance(solana_mpp, SolanaMppRailSpec):
+        network = solana_mpp.network
         block["solana_mpp"] = {
             "setup": PAY_SETUP_SOLANA,
             "prerequisite": (
@@ -120,9 +134,9 @@ def build_how_to_pay(
         }
 
     stripe = rails.get("stripe")
-    if stripe:
-        profile_id = stripe.get("profile_id")
-        product_name = stripe.get("product_name") or "this purchase"
+    if isinstance(stripe, StripeRailSpec):
+        profile_id = stripe.profile_id
+        product_name = stripe.product_name or "this purchase"
         amount_cents = round(total_num * 100)
         link_cli_blocked = amount_cents > 50000
         spt_context = (

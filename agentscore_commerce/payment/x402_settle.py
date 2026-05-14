@@ -189,6 +189,79 @@ def classify_x402_settle_result(result: ProcessX402SettleResult) -> ClassifiedX4
     return None
 
 
+def classify_orchestration_error(err: BaseException | str) -> ClassifiedX402Error | None:
+    """Classify a thrown error during the 402 orchestration.
+
+    Catches errors that escape ``process_x402_settle`` (e.g. raised by ``mppx.compose``,
+    a Stripe SDK call, or any other payment-side library code wrapped in a single
+    ``try/except`` around the full settle flow). Returns a :class:`ClassifiedX402Error`
+    when the error message matches a known pattern; ``None`` otherwise.
+
+    Callers should rethrow on ``None`` — this helper never swallows unknown errors.
+    The typical pattern::
+
+        try:
+            ...
+        except Exception as exc:
+            classified = classify_orchestration_error(exc)
+            if classified is not None:
+                return JSONResponse(
+                    {"error": {"code": classified.code, "message": classified.message},
+                     "next_steps": classified.next_steps},
+                    status_code=classified.status,
+                )
+            log.error("unclassified payment error: %s", exc)
+            raise
+
+    Pattern matching is case-insensitive substring on the error message:
+
+    * ``"x402version"`` / ``"invalid payment"`` / ``"unsupported x402"`` →
+      400 ``payment_proof_invalid`` / ``regenerate_payment_credential``
+    * ``"stripe"`` / ``"facilitator"`` / ``"cdp"`` →
+      503 ``payment_provider_unavailable`` / ``retry_or_swap_method``
+    * Anything else → ``None`` (caller rethrows)
+
+    Substring matching is intentionally narrow. New error families should land here
+    explicitly rather than have the helper grow opaque heuristics. For tagged failure
+    results that already classify themselves, use :func:`classify_x402_settle_result`.
+    """
+    msg = str(err) if isinstance(err, BaseException) else err
+    if not isinstance(msg, str):
+        return None
+    msg_lower = msg.lower()
+
+    if any(needle in msg_lower for needle in ("x402version", "invalid payment", "unsupported x402")):
+        return ClassifiedX402Error(
+            status=400,
+            code="payment_proof_invalid",
+            message="Payment credential is malformed or uses an unsupported version",
+            next_steps={
+                "action": "regenerate_payment_credential",
+                "user_message": (
+                    "The payment credential is malformed or uses an unsupported version. "
+                    "Regenerate from a fresh 402 challenge and re-sign."
+                ),
+            },
+        )
+
+    if any(needle in msg_lower for needle in ("stripe", "facilitator", "cdp")):
+        return ClassifiedX402Error(
+            status=503,
+            code="payment_provider_unavailable",
+            message="Payment provider returned an error",
+            next_steps={
+                "action": "retry_or_swap_method",
+                "retry_after_seconds": 10,
+                "user_message": (
+                    "Transient payment-provider error. Retry in a few seconds, "
+                    "or pick a different rail from the 402 challenge."
+                ),
+            },
+        )
+
+    return None
+
+
 def coerce_resource_config(config: Any) -> Any:
     """Best-effort dict → x402 ``ResourceConfig`` coercion.
 

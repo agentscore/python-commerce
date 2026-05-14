@@ -3,8 +3,6 @@ import pytest
 import respx
 
 from agentscore_commerce.stripe_multichain import (
-    CreateMultichainPaymentIntentInput,
-    SimulateCryptoDepositInput,
     create_multichain_payment_intent,
     get_deposit_address,
     simulate_crypto_deposit,
@@ -42,9 +40,7 @@ def test_create_multichain_payment_intent_extracts_addresses():
         },
     }
     api = _FakeAPI(response)
-    result = create_multichain_payment_intent(
-        CreateMultichainPaymentIntentInput(stripe=_FakeClient(api), amount=10000, idempotency_key="k1")
-    )
+    result = create_multichain_payment_intent(stripe=_FakeClient(api), amount=10000, idempotency_key="k1")
     assert result.payment_intent_id == "pi_123"
     assert result.deposit_addresses == {"tempo": "0xtempo", "base": "0xbase", "solana": "solanaaddr"}
     assert api.last_idem == "k1"
@@ -54,9 +50,7 @@ def test_create_multichain_payment_intent_extracts_addresses():
 def test_create_multichain_payment_intent_raises_when_no_addresses():
     response = {"id": "pi_x", "next_action": None}
     with pytest.raises(RuntimeError, match="No deposit addresses"):
-        create_multichain_payment_intent(
-            CreateMultichainPaymentIntentInput(stripe=_FakeClient(_FakeAPI(response)), amount=100)
-        )
+        create_multichain_payment_intent(stripe=_FakeClient(_FakeAPI(response)), amount=100)
 
 
 def test_get_deposit_address_returns_per_network():
@@ -73,9 +67,7 @@ async def test_simulate_crypto_deposit_calls_test_helpers_endpoint():
         return_value=httpx.Response(200, text="{}")
     )
     await simulate_crypto_deposit(
-        SimulateCryptoDepositInput(
-            payment_intent_id="pi_1", network="base", stripe_secret_key="sk_test_x", token_currency="usdc"
-        )
+        payment_intent_id="pi_1", network="base", stripe_secret_key="sk_test_x", token_currency="usdc"
     )
     assert route.called
 
@@ -86,9 +78,55 @@ async def test_simulate_crypto_deposit_raises_on_non_2xx():
         return_value=httpx.Response(400, text='{"error":"bad"}')
     )
     with pytest.raises(RuntimeError, match="failed: 400"):
-        await simulate_crypto_deposit(
-            SimulateCryptoDepositInput(payment_intent_id="pi_2", network="base", stripe_secret_key="sk_test_x")
-        )
+        await simulate_crypto_deposit(payment_intent_id="pi_2", network="base", stripe_secret_key="sk_test_x")
+
+
+@respx.mock
+async def test_simulate_crypto_deposit_includes_transaction_hash_stripe_version_and_extra():
+    """Optional kwargs (`transaction_hash`, `stripe_version`, `extra`) reach the wire."""
+    route = respx.post("https://api.stripe.com/v1/test_helpers/payment_intents/pi_3/simulate_crypto_deposit").mock(
+        return_value=httpx.Response(200, text="{}")
+    )
+    await simulate_crypto_deposit(
+        payment_intent_id="pi_3",
+        network="base",
+        stripe_secret_key="sk_test_x",
+        token_currency="usdc",
+        transaction_hash="0xabc",
+        stripe_version="2024-04-10",
+        extra={"description": "smoke"},
+    )
+    assert route.called
+    body = route.calls.last.request.content.decode()
+    assert "transaction_hash=0xabc" in body
+    assert "description=smoke" in body
+    assert route.calls.last.request.headers.get("Stripe-Version") == "2024-04-10"
+
+
+async def test_simulate_deposit_if_test_mode_logs_and_swallows_errors(caplog):
+    """If `simulate_crypto_deposit` raises, the wrapper logs the failure and returns."""
+    import logging
+
+    from agentscore_commerce.stripe_multichain import simulate_deposit_if_test_mode
+
+    async def _raises(**_kwargs):
+        raise RuntimeError("simulated boom")
+
+    import agentscore_commerce.stripe_multichain.simulate_deposit as mod
+
+    original = mod.simulate_crypto_deposit
+    mod.simulate_crypto_deposit = _raises  # type: ignore[assignment]
+    try:
+        with caplog.at_level(logging.ERROR, logger="agentscore_commerce.stripe_multichain"):
+            await simulate_deposit_if_test_mode(
+                get_payment_intent_id=lambda _addr: "pi_xerr",
+                deposit_address="0xaddr",
+                network="base",
+                stripe_secret_key="sk_test_x",
+            )
+        assert any("Failed to simulate base deposit for PI pi_xerr" in r.message for r in caplog.records)
+    finally:
+        mod.simulate_crypto_deposit = original  # type: ignore[assignment]
 
 
 # ── create_mppx_stripe: the pympp wrapper ───────────────────────────────────

@@ -53,19 +53,6 @@ class _Entry(Generic[T]):
 
 
 @dataclass
-class PiCacheOptions:
-    """Optional configuration for :func:`create_pi_cache`."""
-
-    #: Redis connection URL (e.g. ``rediss://…cache.amazonaws.com:6379``). When omitted,
-    #: the cache falls back to in-process dicts with the same API.
-    redis_url: str | None = None
-    #: TTL for cached entries in seconds. Default 300.
-    ttl_seconds: int = 300
-    #: Prefix for Redis keys. Default ``'payto:'``.
-    key_prefix: str = "payto:"
-
-
-@dataclass
 class PiCache:
     """Stripe PI + deposit-address cache produced by :func:`create_pi_cache`."""
 
@@ -78,17 +65,25 @@ class PiCache:
     stop: Callable[[], None]
 
 
-def create_pi_cache(opts: PiCacheOptions | None = None) -> PiCache:
+def create_pi_cache(
+    *,
+    redis_url: str | None = None,
+    ttl_seconds: int = 300,
+    key_prefix: str = "payto:",
+) -> PiCache:
     """Construct a Stripe PI + deposit-address cache instance.
 
     Returns a ``PiCache`` with async ``cache_address`` / ``has_address`` (Redis-backed
     when ``redis_url`` is set) and sync helpers for PI-id and network-address lookup.
     A background task evicts expired in-memory entries every 60 seconds; call
     ``stop()`` from server shutdown handlers to cancel it.
+
+    ``redis_url`` — connection URL (e.g. ``rediss://…cache.amazonaws.com:6379``); when
+    omitted, the cache falls back to in-process dicts with the same API.
+    ``ttl_seconds`` — entry TTL (default 300).
+    ``key_prefix`` — Redis key prefix (default ``'payto:'``).
     """
-    options = opts or PiCacheOptions()
-    ttl = options.ttl_seconds
-    key_prefix = options.key_prefix
+    ttl = ttl_seconds
 
     redis_client: _RedisLike | None = None
     addr_mem_cache: dict[str, float] = {}
@@ -97,7 +92,7 @@ def create_pi_cache(opts: PiCacheOptions | None = None) -> PiCache:
 
     async def _get_redis() -> _RedisLike | None:
         nonlocal redis_client
-        if not options.redis_url:
+        if not redis_url:
             return None
         if redis_client is not None:
             return redis_client
@@ -112,7 +107,7 @@ def create_pi_cache(opts: PiCacheOptions | None = None) -> PiCache:
                 "[pi-cache] redis_url set but `redis` is not installed. Run `pip install redis` or unset redis_url."
             )
             return None
-        redis_client = redis_asyncio.from_url(options.redis_url)
+        redis_client = redis_asyncio.from_url(redis_url)
         return redis_client
 
     async def cache_address(address: str) -> None:

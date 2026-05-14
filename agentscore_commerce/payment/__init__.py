@@ -1,5 +1,6 @@
 """Payment helpers — networks/usdc/rails registries, paymentauth.org directive builders, dispatch, headers."""
 
+from agentscore_commerce.payment.amounts import usd_to_atomic
 from agentscore_commerce.payment.directive import (
     BuildPaymentDirectiveInput,
     PaymentDirectiveInput,
@@ -137,6 +138,7 @@ __all__ = [
     "register_x402_schemes_v1_v2",
     "settle_result_to_json_bytes",
     "settlement_override_header",
+    "usd_to_atomic",
     "validate_x402_network_config",
     "verify_x402_request",
     "www_authenticate_header",

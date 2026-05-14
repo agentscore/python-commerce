@@ -53,6 +53,20 @@ def test_create_multichain_payment_intent_raises_when_no_addresses():
         create_multichain_payment_intent(stripe=_FakeClient(_FakeAPI(response)), amount=100)
 
 
+def test_create_multichain_payment_intent_forwards_metadata():
+    response = {
+        "id": "pi_md",
+        "next_action": {"crypto_display_details": {"deposit_addresses": {"tempo": {"address": "0xt"}}}},
+    }
+    api = _FakeAPI(response)
+    create_multichain_payment_intent(
+        stripe=_FakeClient(api),
+        amount=500,
+        metadata={"order_id": "order_42"},
+    )
+    assert api.last_params["metadata"] == {"order_id": "order_42"}
+
+
 def test_get_deposit_address_returns_per_network():
     from agentscore_commerce.stripe_multichain.payment_intent import MultichainPaymentIntentResult
 

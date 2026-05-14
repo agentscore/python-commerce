@@ -24,12 +24,11 @@ def test_identity_barrel_exports_hash_operator_token() -> None:
 
 
 def test_identity_barrel_exports_ucp_env_loader() -> None:
-    """``load_ucp_signing_key_from_env`` + ``LoadUCPSigningKeyOptions`` reachable from the identity barrel."""
+    """``load_ucp_signing_key_from_env`` reachable from the identity barrel."""
     from agentscore_commerce import identity as barrel
     from agentscore_commerce.identity import ucp_jwks as module
 
     assert barrel.load_ucp_signing_key_from_env is module.load_ucp_signing_key_from_env
-    assert barrel.LoadUCPSigningKeyOptions is module.LoadUCPSigningKeyOptions
 
 
 def test_payment_barrel_exports_detect_rail_zero_settle_usd_to_atomic() -> None:

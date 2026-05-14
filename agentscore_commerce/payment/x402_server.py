@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import importlib
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from agentscore_commerce.payment.networks import networks
@@ -49,38 +49,6 @@ class CustomScheme:
 
     network: str
     scheme: Any
-
-
-@dataclass
-class CreateX402ServerOptions:
-    """Configuration for :func:`create_x402_server`."""
-
-    facilitator: X402FacilitatorChoice | Any = "http"
-    """Facilitator selection — ``"coinbase"`` (requires ``cdp-sdk`` peer dep + the
-    ``CDP_API_KEY_ID`` / ``CDP_API_KEY_SECRET`` env vars or explicit ``cdp_api_key_id``
-    / ``cdp_api_key_secret`` args), ``"http"`` (public testnet facilitator at
-    ``x402.org``), or any pre-built facilitator instance."""
-
-    rails: list[X402SymbolicRail] = field(default_factory=list)
-    """Symbolic rail names to register schemes for. Each gets v1+v2 dual-register
-    applied. Requires ``x402[evm]`` peer dep installed."""
-
-    schemes: list[CustomScheme] = field(default_factory=list)
-    """Advanced: register custom (network, scheme) pairs in addition to ``rails``."""
-
-    bazaar: bool = False
-    """Register the Bazaar discovery extension. Requires the extension peer dep installed."""
-
-    initialize: bool = True
-    """Initialize the server immediately (calls facilitator). Default ``True``."""
-
-    cdp_api_key_id: str | None = None
-    """CDP API key id for the Coinbase facilitator. Falls back to
-    ``CDP_API_KEY_ID`` env var. Only consulted when ``facilitator="coinbase"``."""
-
-    cdp_api_key_secret: str | None = None
-    """CDP API key secret for the Coinbase facilitator. Falls back to
-    ``CDP_API_KEY_SECRET`` env var. Only consulted when ``facilitator="coinbase"``."""
 
 
 def _import_optional(module_name: str) -> Any | None:
@@ -331,7 +299,6 @@ def build_x402_accepts_for_402(
 
 
 __all__ = [
-    "CreateX402ServerOptions",
     "CustomScheme",
     "X402FacilitatorChoice",
     "X402SymbolicRail",

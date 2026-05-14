@@ -42,7 +42,6 @@ from agentscore_commerce.payment.wwwauthenticate import (
 )
 from agentscore_commerce.payment.x402 import register_x402_schemes_v1_v2
 from agentscore_commerce.payment.x402_server import (
-    CreateX402ServerOptions,
     CustomScheme,
     X402FacilitatorChoice,
     X402SymbolicRail,
@@ -80,7 +79,6 @@ __all__ = [
     "USDC",
     "X402_SUPPORTED_BASE_NETWORKS",
     "ClassifiedX402Error",
-    "CreateX402ServerOptions",
     "CustomScheme",
     "MppxRails",
     "NetworkFamily",

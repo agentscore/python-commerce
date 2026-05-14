@@ -64,7 +64,6 @@ from agentscore_commerce.identity.ucp import (
 )
 from agentscore_commerce.identity.ucp_jwks import (
     GeneratedUCPKey,
-    LoadUCPSigningKeyOptions,
     UCPVerificationError,
     build_jwks_response,
     generate_ucp_signing_key,
@@ -118,7 +117,6 @@ __all__ = [
     "GateResult",
     "GeneratedUCPKey",
     "IdentityStatus",
-    "LoadUCPSigningKeyOptions",
     "OperatorVerification",
     "PolicyBlock",
     "SignerSanctions",

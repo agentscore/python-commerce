@@ -36,7 +36,6 @@ from fastapi.responses import JSONResponse
 
 from agentscore_commerce.identity import (
     AgentScoreGatePolicy,
-    LoadUCPSigningKeyOptions,
     UCPServiceBinding,
     UCPSigningKey,
     UCPVerificationError,
@@ -50,12 +49,12 @@ from agentscore_commerce.identity import (
 
 logger = logging.getLogger("signed_ucp_merchant")
 
-# Env-loader options pin the production kid + alg defaults for this example.
+# Env-loader kwargs pin the production kid + alg defaults for this example.
 # ``UCP_SIGNING_KEY_JWK_PRIVATE`` (env) wins when set; ``UCP_SIGNING_KEY_KID``
 # and ``UCP_SIGNING_KEY_ALG`` override these defaults at runtime. The helper
 # caches the loaded key across requests and serializes concurrent first-callers
 # so two threads can never publish a JWKS that disagrees with the just-signed JWS.
-_SIGNING_KEY_OPTS = LoadUCPSigningKeyOptions(default_kid="merchant-2026-05")
+_SIGNING_KEY_OPTS = {"default_kid": "merchant-2026-05"}
 
 
 app = FastAPI()
@@ -63,7 +62,7 @@ app = FastAPI()
 
 @app.get("/.well-known/ucp")
 async def well_known_ucp() -> JSONResponse:
-    key = load_ucp_signing_key_from_env(_SIGNING_KEY_OPTS)
+    key = load_ucp_signing_key_from_env(**_SIGNING_KEY_OPTS)
     profile = build_ucp_profile(
         name="My Agent Service",
         services={
@@ -98,14 +97,14 @@ async def well_known_ucp() -> JSONResponse:
         profile.to_dict(),
         signing_key=key.private_key,
         kid=key.public_jwk["kid"],
-        alg=key.public_jwk.get("alg", _SIGNING_KEY_OPTS.default_alg),
+        alg=key.public_jwk.get("alg", "EdDSA"),
     )
     return JSONResponse(signed, headers={"Cache-Control": "public, max-age=60"})
 
 
 @app.get("/.well-known/jwks.json")
 async def well_known_jwks() -> JSONResponse:
-    key = load_ucp_signing_key_from_env(_SIGNING_KEY_OPTS)
+    key = load_ucp_signing_key_from_env(**_SIGNING_KEY_OPTS)
     return JSONResponse(
         build_jwks_response([key.public_jwk]),
         headers={

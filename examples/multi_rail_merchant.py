@@ -51,9 +51,6 @@ from agentscore_commerce.challenge import (
 from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data
 from agentscore_commerce.payment import (
     USDC,
-    ProcessX402SettleInput,
-    ValidateX402NetworkConfigInput,
-    VerifyX402RequestInput,
     build_x402_accepts_for_402,
     networks,
     process_x402_settle,
@@ -73,7 +70,7 @@ SOLANA_NETWORK_CAIP2 = os.environ.get("SOLANA_NETWORK_CAIP2", networks.solana.ma
 
 # Boot-time guard: validate the configured x402 networks are in the supported set.
 # Raises on misconfigured deploys before the first request.
-validate_x402_network_config(ValidateX402NetworkConfigInput(base_network=X402_BASE_NETWORK))
+validate_x402_network_config(base_network=X402_BASE_NETWORK)
 
 # Singleton Stripe PI / deposit-address cache. Backed by Redis when REDIS_URL is set
 # (multi-instance deployments need this so a deposit lands on whichever instance
@@ -134,32 +131,28 @@ async def purchase(request: Request, assess: dict = Depends(get_agentscore_data)
     # ──────────────────────────────────────────────────────────────────────────
     if request.headers.get("payment-signature") or request.headers.get("x-payment"):
         verified = await verify_x402_request(
-            VerifyX402RequestInput(
-                headers=dict(request.headers),
-                is_cached_address=pi_cache.has_address,
-                accepted_network=X402_BASE_NETWORK,
-            )
+            headers=dict(request.headers),
+            is_cached_address=pi_cache.has_address,
+            accepted_network=X402_BASE_NETWORK,
         )
         if not verified.ok:
             return JSONResponse(verified.body, status_code=verified.status)
 
         settle = await process_x402_settle(
-            ProcessX402SettleInput(
-                x402_server=x402_server,
-                payload=verified.payload,
-                resource_config={
-                    "scheme": "exact",
-                    "network": verified.signed_network,
-                    "price": f"${total_usd}",
-                    "payTo": verified.signed_pay_to,
-                    "maxTimeoutSeconds": 300,
-                },
-                resource_meta={
-                    "url": str(request.url),
-                    "description": "Agent purchase via x402",
-                    "mimeType": "application/json",
-                },
-            )
+            x402_server=x402_server,
+            payload=verified.payload,
+            resource_config={
+                "scheme": "exact",
+                "network": verified.signed_network,
+                "price": f"${total_usd}",
+                "payTo": verified.signed_pay_to,
+                "maxTimeoutSeconds": 300,
+            },
+            resource_meta={
+                "url": str(request.url),
+                "description": "Agent purchase via x402",
+                "mimeType": "application/json",
+            },
         )
         if not settle.success:
             return JSONResponse(

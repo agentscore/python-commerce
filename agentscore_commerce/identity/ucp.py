@@ -20,6 +20,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from agentscore_commerce.payment.networks import networks
+from agentscore_commerce.payment.rail_spec import (
+    RecipientLike,
+    SolanaMppRailSpec,
+    StripeRailSpec,
+    TempoRailSpec,
+    TempoSessionRailSpec,
+    X402BaseRailSpec,
+)
+
 _DEFAULT_VERSION = "2026-04-08"
 
 # Reverse-DNS namespacing per UCP convention. The bare ``agentscore-identity`` form
@@ -469,17 +479,89 @@ _SPEC_BASE = "https://agentscore.sh/specification/payment-handlers"
 _SCHEMA_BASE = "https://agentscore.sh/schemas/payment-handlers"
 
 
-def mpp_payment_handler(*, networks: list[dict[str, Any]]) -> dict[str, list[UCPPaymentHandlerBinding]]:
+# CAIP-2 → UCP-namespace network-name mapping. UCP payment_handler bindings publish
+# network strings in the UCP namespace ("base-8453", "solana-mainnet-beta"); RailSpecs
+# carry the CAIP-2 form internally ("eip155:8453", "solana:5eykt4..."). Unknown values
+# pass through verbatim — vendors who pin a non-standard rail can override the spec's
+# network field directly.
+_CAIP2_TO_UCP_NETWORK = {
+    networks.base.mainnet.caip2: "base-8453",
+    networks.base.sepolia.caip2: "base-84532",
+    networks.solana.mainnet.caip2: "solana-mainnet-beta",
+    networks.solana.devnet.caip2: "solana-devnet",
+}
+
+
+def _ucp_network_name(caip2_or_ucp: str) -> str:
+    return _CAIP2_TO_UCP_NETWORK.get(caip2_or_ucp, caip2_or_ucp)
+
+
+def _static_recipient(r: RecipientLike) -> str | None:
+    """Return the recipient as a string when it's already concrete; `None` for factories.
+
+    Per-order factory recipients (e.g. Stripe-multichain mints fresh deposits per
+    PaymentIntent) cannot be advertised in the static UCP profile — the authoritative
+    recipient ships in the 402 body at request time instead.
+    """
+    return r if isinstance(r, str) else None
+
+
+def _tempo_to_network_entry(spec: TempoRailSpec) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "network": "tempo-testnet" if spec.testnet else spec.network,
+        "chain_id": spec.chain_id,
+    }
+    static = _static_recipient(spec.recipient)
+    if static is not None:
+        entry["recipient"] = static
+    return entry
+
+
+def _solana_mpp_to_network_entry(spec: SolanaMppRailSpec) -> dict[str, Any]:
+    entry: dict[str, Any] = {"network": _ucp_network_name(spec.network)}
+    static = _static_recipient(spec.recipient)
+    if static is not None:
+        entry["recipient"] = static
+    return entry
+
+
+def _tempo_session_to_network_entry(spec: TempoSessionRailSpec) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "network": "tempo-testnet" if spec.testnet else "tempo-mainnet",
+        "escrow_contract": spec.escrow_contract,
+    }
+    static = _static_recipient(spec.recipient)
+    if static is not None:
+        entry["recipient"] = static
+    return entry
+
+
+def _mpp_rail_to_network_entry(spec: TempoRailSpec | SolanaMppRailSpec | TempoSessionRailSpec) -> dict[str, Any]:
+    if isinstance(spec, TempoRailSpec):
+        return _tempo_to_network_entry(spec)
+    if isinstance(spec, SolanaMppRailSpec):
+        return _solana_mpp_to_network_entry(spec)
+    if isinstance(spec, TempoSessionRailSpec):
+        return _tempo_session_to_network_entry(spec)
+    msg = f"mpp_payment_handler: unsupported rail spec type {type(spec).__name__}"
+    raise TypeError(msg)
+
+
+def mpp_payment_handler(
+    *,
+    networks: list[TempoRailSpec | SolanaMppRailSpec | TempoSessionRailSpec],
+) -> dict[str, list[UCPPaymentHandlerBinding]]:
     """Build the `sh.agentscore.payment.mpp` payment handler block for a UCP profile.
 
-    Each network entry: `{"network": <id>, "chain_id"?: <int>, "recipient"?: <addr>, ...}`.
-    Tempo: `tempo-mainnet` / `tempo-testnet`. Solana via `solana/charge`:
-    `mpp-solana-mainnet` / `mpp-solana-devnet`.
+    Pass any mix of `TempoRailSpec`, `SolanaMppRailSpec`, and `TempoSessionRailSpec`.
+    Tempo + Solana SPL both flow through the MPP handler; tempo-session covers the
+    pay-as-you-go channel variant.
 
     Spread into payment_handlers:
         payment_handlers={
             **mpp_payment_handler(networks=[
-                {"network": "tempo-mainnet", "chain_id": 4217},
+                TempoRailSpec(recipient="0xabc..."),
+                SolanaMppRailSpec(recipient="solanaaddr..."),
             ]),
         }
     """
@@ -490,23 +572,34 @@ def mpp_payment_handler(*, networks: list[dict[str, Any]]) -> dict[str, list[UCP
                 version=_HANDLER_VERSION,
                 spec=f"{_SPEC_BASE}/mpp",
                 schema=f"{_SCHEMA_BASE}/mpp.json",
-                config={"networks": networks},
+                config={"networks": [_mpp_rail_to_network_entry(s) for s in networks]},
             )
         ]
     }
 
 
-def x402_payment_handler(*, networks: list[dict[str, Any]]) -> dict[str, list[UCPPaymentHandlerBinding]]:
+def _x402_rail_to_network_entry(spec: X402BaseRailSpec) -> dict[str, Any]:
+    entry: dict[str, Any] = {"network": _ucp_network_name(spec.network)}
+    static = _static_recipient(spec.recipient)
+    if static is not None:
+        entry["recipient"] = static
+    return entry
+
+
+def x402_payment_handler(
+    *,
+    networks: list[X402BaseRailSpec],
+) -> dict[str, list[UCPPaymentHandlerBinding]]:
     """Build the `sh.agentscore.payment.x402` payment handler block for a UCP profile.
 
-    Each network entry: `{"network": <id>, "recipient"?: <addr>, ...}`.
-    EVM: `base-8453`, `base-84532`. Solana: `solana-mainnet-beta`, `solana-devnet`.
-    Stellar: `stellar-pubnet`, `stellar-testnet`.
+    Today only x402 on EVM (Base mainnet / sepolia) ships through this SDK; the
+    `X402BaseRailSpec.network` defaults to `eip155:8453` (CAIP-2) and is converted to
+    `base-8453` for the UCP profile internally.
 
     Spread into payment_handlers:
         payment_handlers={
             **x402_payment_handler(networks=[
-                {"network": "base-8453", "recipient": "0xabc..."},
+                X402BaseRailSpec(recipient="0xabc..."),
             ]),
         }
     """
@@ -517,18 +610,22 @@ def x402_payment_handler(*, networks: list[dict[str, Any]]) -> dict[str, list[UC
                 version=_HANDLER_VERSION,
                 spec=f"{_SPEC_BASE}/x402",
                 schema=f"{_SCHEMA_BASE}/x402.json",
-                config={"networks": networks},
+                config={"networks": [_x402_rail_to_network_entry(s) for s in networks]},
             )
         ]
     }
 
 
-def stripe_spt_payment_handler(*, profile_id: str) -> dict[str, list[UCPPaymentHandlerBinding]]:
+def stripe_spt_payment_handler(*, spec: StripeRailSpec) -> dict[str, list[UCPPaymentHandlerBinding]]:
     """Build the `sh.agentscore.payment.stripe_spt` payment handler block for a UCP profile.
+
+    `spec.profile_id` is the merchant-side network identifier the agent's SPT is scoped
+    to; advertised verbatim in the UCP profile so trust-mode verifiers know which Stripe
+    network they're scoped against.
 
     Spread into payment_handlers:
         payment_handlers={
-            **stripe_spt_payment_handler(profile_id="profile_5xKvNqM9BaH"),
+            **stripe_spt_payment_handler(spec=StripeRailSpec(profile_id="profile_5xKvNqM9BaH")),
         }
     """
     return {
@@ -538,7 +635,7 @@ def stripe_spt_payment_handler(*, profile_id: str) -> dict[str, list[UCPPaymentH
                 version=_HANDLER_VERSION,
                 spec=f"{_SPEC_BASE}/stripe_spt",
                 schema=f"{_SCHEMA_BASE}/stripe_spt.json",
-                config={"rail": "stripe-spt", "profile_id": profile_id},
+                config={"rail": "stripe-spt", "profile_id": spec.profile_id},
             )
         ]
     }

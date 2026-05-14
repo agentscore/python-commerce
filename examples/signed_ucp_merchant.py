@@ -46,6 +46,7 @@ from agentscore_commerce.identity import (
     sign_ucp_profile,
     verify_ucp_profile,
 )
+from agentscore_commerce.payment import TempoRailSpec
 
 logger = logging.getLogger("signed_ucp_merchant")
 
@@ -78,9 +79,7 @@ async def well_known_ucp() -> JSONResponse:
         },
         payment_handlers={
             **mpp_payment_handler(
-                networks=[
-                    {"network": "tempo-mainnet", "chain_id": 4217, "recipient": "0xfeedface"},
-                ]
+                networks=[TempoRailSpec(recipient="0xfeedface")],
             ),
         },
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],

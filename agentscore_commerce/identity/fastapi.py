@@ -26,8 +26,8 @@ from agentscore_commerce.identity._response import (
     build_missing_identity_reason,
     denial_reason_to_body,
 )
-from agentscore_commerce.identity.client import (
-    GateClient,
+from agentscore_commerce.identity.core import (
+    AgentScoreCore,
     InvalidCredentialError,
     PaymentRequiredError,
     QuotaExceededError,
@@ -181,7 +181,7 @@ class AgentScoreGate:
         on_denied: Callable[[Request, DenialReason], tuple[dict[str, Any], int]] | None = None,
         create_session_on_missing: CreateSessionOnMissing | None = None,
     ) -> None:
-        self._client = GateClient(
+        self._client = AgentScoreCore(
             api_key=api_key,
             require_kyc=require_kyc,
             require_sanctions_clear=require_sanctions_clear,

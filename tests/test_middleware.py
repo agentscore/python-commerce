@@ -464,7 +464,7 @@ def test_middleware_timeout_marks_degraded_when_fail_open():
     )
 
     with patch(
-        "agentscore_commerce.identity.middleware.GateClient.acheck_identity",
+        "agentscore_commerce.identity.middleware.AgentScoreCore.acheck_identity",
         new=AsyncMock(side_effect=httpx.TimeoutException("read timeout")),
     ):
         client = TestClient(app, raise_server_exceptions=False)

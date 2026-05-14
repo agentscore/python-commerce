@@ -55,7 +55,7 @@ DEFAULT_BASE_URL = "https://api.agentscore.sh"
 DEFAULT_CACHE_SECONDS = 300
 
 
-class GateClient:
+class AgentScoreCore:
     """Shared client for calling the AgentScore assess API.
 
     Manages caching and policy construction. Used by all framework adapters.

@@ -191,7 +191,7 @@ class TestDependency:
             return {"ok": True}
 
         with patch(
-            "agentscore_commerce.identity.fastapi.GateClient.acheck_identity",
+            "agentscore_commerce.identity.fastapi.AgentScoreCore.acheck_identity",
             new=AsyncMock(
                 return_value=__import__("agentscore_commerce.identity.types", fromlist=["AssessResult"]).AssessResult(
                     allow=True, decision="allow"
@@ -207,7 +207,7 @@ class TestDependency:
         """get_gate_degraded_state returns {degraded: True, infra_reason: ...} when gate degraded."""
         from fastapi import FastAPI
 
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
         from agentscore_commerce.identity.fastapi import get_gate_degraded_state
 
         gate = AgentScoreGate(api_key="ask_test", fail_open=True)
@@ -220,7 +220,7 @@ class TestDependency:
             return {"ok": True}
 
         with patch(
-            "agentscore_commerce.identity.fastapi.GateClient.acheck_identity",
+            "agentscore_commerce.identity.fastapi.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=QuotaExceededError("quota_exceeded")),
         ):
             client = TestClient(app)
@@ -246,7 +246,7 @@ class TestDependency:
             return {"ok": True}
 
         with patch(
-            "agentscore_commerce.identity.fastapi.GateClient.acheck_identity",
+            "agentscore_commerce.identity.fastapi.AgentScoreCore.acheck_identity",
             new=AsyncMock(side_effect=httpx.TimeoutException("read timeout")),
         ):
             client = TestClient(app)
@@ -455,7 +455,7 @@ class TestCaptureWallet:
 
         client = TestClient(app)
         with patch(
-            "agentscore_commerce.identity.client.GateClient.acapture_wallet",
+            "agentscore_commerce.identity.core.AgentScoreCore.acapture_wallet",
             new=AsyncMock(),
         ) as mock_cap:
             resp = client.post("/purchase")

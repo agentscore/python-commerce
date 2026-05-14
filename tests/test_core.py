@@ -1,4 +1,4 @@
-"""Direct unit tests for GateClient internals."""
+"""Direct unit tests for AgentScoreCore internals."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ import httpx
 import pytest
 import respx
 
-from agentscore_commerce.identity.client import GateClient, PaymentRequiredError
+from agentscore_commerce.identity.core import AgentScoreCore, PaymentRequiredError
 
 
-def _make_client(**kwargs) -> GateClient:
+def _make_client(**kwargs) -> AgentScoreCore:
     defaults = {"api_key": "ask_test_key"}
     defaults.update(kwargs)
-    return GateClient(**defaults)
+    return AgentScoreCore(**defaults)
 
 
 class TestHeaders:
@@ -195,7 +195,7 @@ class TestParseResponseStatusCodes:
     """
 
     def test_429_raises_quota_exceeded(self):
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
 
         client = _make_client()
         resp = MagicMock(spec=httpx.Response)
@@ -204,7 +204,7 @@ class TestParseResponseStatusCodes:
             client._parse_response(resp)
 
     def test_401_token_expired_raises_token_denied(self):
-        from agentscore_commerce.identity.client import TokenDeniedError
+        from agentscore_commerce.identity.core import TokenDeniedError
 
         client = _make_client()
         resp = MagicMock(spec=httpx.Response)
@@ -220,7 +220,7 @@ class TestParseResponseStatusCodes:
         assert info.value.body.get("verify_url") == "https://x"
 
     def test_401_invalid_credential_raises_invalid_credential(self):
-        from agentscore_commerce.identity.client import InvalidCredentialError
+        from agentscore_commerce.identity.core import InvalidCredentialError
 
         client = _make_client()
         resp = MagicMock(spec=httpx.Response)
@@ -342,7 +342,7 @@ class TestCheckFailOpen:
     def test_check_raises_quota_exceeded_on_429(self):
         """429 must be distinguishable from generic 5xx so adapters surface
         ``infra_reason='quota_exceeded'`` separately when fail_open=True."""
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
 
         client = _make_client(fail_open=False)
         respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
@@ -355,7 +355,7 @@ class TestCheckFailOpen:
         """SDK emits typed QuotaExceededError when body has error.code='quota_exceeded' —
         commerce wraps it so callers get the gate's QuotaExceededError sentinel.
         """
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
 
         client = _make_client(fail_open=False)
         respx.post(ASSESS_URL).mock(
@@ -380,7 +380,7 @@ class TestCheckFailOpen:
     @respx.mock
     def test_check_raises_token_denied_on_typed_401(self):
         """401 with error.code='token_expired' surfaces TokenDeniedError carrying body."""
-        from agentscore_commerce.identity.client import TokenDeniedError
+        from agentscore_commerce.identity.core import TokenDeniedError
 
         client = _make_client(fail_open=False)
         respx.post(ASSESS_URL).mock(
@@ -402,7 +402,7 @@ class TestCheckFailOpen:
     @respx.mock
     def test_check_raises_invalid_credential_on_typed_401(self):
         """401 with error.code='invalid_credential' surfaces InvalidCredentialError."""
-        from agentscore_commerce.identity.client import InvalidCredentialError
+        from agentscore_commerce.identity.core import InvalidCredentialError
 
         client = _make_client(fail_open=False)
         respx.post(ASSESS_URL).mock(
@@ -734,7 +734,7 @@ class TestInvalidCredential:
 
     @respx.mock
     def test_raises_invalid_credential_on_401_invalid_credential(self):
-        from agentscore_commerce.identity.client import InvalidCredentialError
+        from agentscore_commerce.identity.core import InvalidCredentialError
 
         respx.post(ASSESS_URL).mock(
             return_value=httpx.Response(
@@ -768,7 +768,7 @@ class TestInvalidCredential:
             client.check(operator_token="opc_x")
 
     def test_build_invalid_credential_reason_carries_action_copy(self):
-        from agentscore_commerce.identity.client import build_invalid_credential_reason
+        from agentscore_commerce.identity.core import build_invalid_credential_reason
 
         reason = build_invalid_credential_reason()
         assert reason.code == "invalid_credential"
@@ -790,7 +790,7 @@ class TestAcheckTypedErrors:
     @pytest.mark.asyncio
     @respx.mock
     async def test_acheck_raises_quota_exceeded_on_typed_429(self):
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
 
         client = _make_client()
         respx.post(ASSESS_URL).mock(
@@ -807,7 +807,7 @@ class TestAcheckTypedErrors:
     @respx.mock
     async def test_acheck_raises_quota_exceeded_on_untyped_429(self):
         """Mirrors the sync defensive 429-fallback path."""
-        from agentscore_commerce.identity.client import QuotaExceededError
+        from agentscore_commerce.identity.core import QuotaExceededError
 
         client = _make_client()
         respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
@@ -827,7 +827,7 @@ class TestAcheckTypedErrors:
     @pytest.mark.asyncio
     @respx.mock
     async def test_acheck_raises_token_denied_on_typed_401(self):
-        from agentscore_commerce.identity.client import TokenDeniedError
+        from agentscore_commerce.identity.core import TokenDeniedError
 
         client = _make_client()
         respx.post(ASSESS_URL).mock(
@@ -849,7 +849,7 @@ class TestAcheckTypedErrors:
     @pytest.mark.asyncio
     @respx.mock
     async def test_acheck_raises_invalid_credential_on_typed_401(self):
-        from agentscore_commerce.identity.client import InvalidCredentialError
+        from agentscore_commerce.identity.core import InvalidCredentialError
 
         client = _make_client()
         respx.post(ASSESS_URL).mock(

@@ -122,7 +122,7 @@ class VerifyWalletSignerResult:
 
 @dataclass
 class SignerVerdict:
-    """Combined wallet-signer verdict surfaced by :meth:`GateClient.get_signer_verdict`.
+    """Combined wallet-signer verdict surfaced by :meth:`AgentScoreCore.get_signer_verdict`.
 
     Both ``signer_match`` and ``signer_sanctions`` come through the gate's primary
     ``/v1/assess`` call (single round trip). ``signer_match`` describes the wallet-

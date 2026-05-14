@@ -19,8 +19,8 @@ from agentscore_commerce.identity._response import (
     build_missing_identity_reason,
     denial_reason_to_body,
 )
-from agentscore_commerce.identity.client import (
-    GateClient,
+from agentscore_commerce.identity.core import (
+    AgentScoreCore,
     InvalidCredentialError,
     PaymentRequiredError,
     QuotaExceededError,
@@ -167,7 +167,7 @@ def agentscore_gate(
     from flask import g, jsonify
     from flask import request as flask_request
 
-    client = GateClient(
+    client = AgentScoreCore(
         api_key=api_key,
         require_kyc=require_kyc,
         require_sanctions_clear=require_sanctions_clear,

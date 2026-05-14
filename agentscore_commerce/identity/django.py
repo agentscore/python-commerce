@@ -20,8 +20,8 @@ from agentscore_commerce.identity._response import (
     build_missing_identity_reason,
     denial_reason_to_body,
 )
-from agentscore_commerce.identity.client import (
-    GateClient,
+from agentscore_commerce.identity.core import (
+    AgentScoreCore,
     InvalidCredentialError,
     PaymentRequiredError,
     QuotaExceededError,
@@ -129,7 +129,7 @@ class AgentScoreMiddleware:
 
         config: dict[str, Any] = getattr(settings, "AGENTSCORE_GATE", {})
 
-        self._client = GateClient(
+        self._client = AgentScoreCore(
             api_key=config.get("api_key", ""),
             require_kyc=config.get("require_kyc"),
             require_sanctions_clear=config.get("require_sanctions_clear"),

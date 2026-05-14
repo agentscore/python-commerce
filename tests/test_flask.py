@@ -8,7 +8,7 @@ import httpx
 import pytest
 from flask import Flask
 
-from agentscore_commerce.identity.client import PaymentRequiredError, QuotaExceededError
+from agentscore_commerce.identity.core import PaymentRequiredError, QuotaExceededError
 from agentscore_commerce.identity.flask import agentscore_gate, get_agentscore_data
 from agentscore_commerce.identity.types import AssessResult
 
@@ -36,7 +36,7 @@ class TestFlaskGate:
 
     def test_allows_trusted_wallet(self) -> None:
         app = _make_app()
-        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=_mock_result()):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=_mock_result()):
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 200
@@ -53,7 +53,7 @@ class TestFlaskGate:
         def index() -> dict[str, object]:
             return {"assess": get_agentscore_data()}
 
-        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=_mock_result()):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=_mock_result()):
             resp = app.test_client().get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 200
             assert resp.get_json()["assess"] == {"score": 80, "grade": "B"}
@@ -66,7 +66,7 @@ class TestFlaskGate:
     def test_blocks_untrusted_wallet(self) -> None:
         app = _make_app()
         result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
-        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=result):
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 403
@@ -89,14 +89,14 @@ class TestFlaskGate:
 
     def test_api_error_fail_open(self) -> None:
         app = _make_app(fail_open=True)
-        with patch("agentscore_commerce.identity.flask.GateClient.check", side_effect=RuntimeError("timeout")):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", side_effect=RuntimeError("timeout")):
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 200
 
     def test_api_error_fail_closed(self) -> None:
         app = _make_app()
-        with patch("agentscore_commerce.identity.flask.GateClient.check", side_effect=RuntimeError("timeout")):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", side_effect=RuntimeError("timeout")):
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 503
@@ -114,7 +114,7 @@ class TestFlaskGate:
             captured.update(get_gate_degraded_state())
             return {"ok": True}
 
-        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=_mock_result()):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=_mock_result()):
             resp = app.test_client().get("/snoop", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 200
             assert captured == {"degraded": False}
@@ -131,7 +131,7 @@ class TestFlaskGate:
             return {"ok": True}
 
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=QuotaExceededError("quota_exceeded"),
         ):
             resp = app.test_client().get("/snoop", headers={"x-wallet-address": "0xabc"})
@@ -151,7 +151,7 @@ class TestFlaskGate:
             return jsonify({k: v for k, v in state.items() if k != "client"})
 
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=QuotaExceededError("quota_exceeded"),
         ):
             client = app.test_client()
@@ -166,7 +166,7 @@ class TestFlaskGate:
 
         app = _make_app()
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=QuotaExceededError("quota_exceeded"),
         ):
             client = app.test_client()
@@ -189,7 +189,7 @@ class TestFlaskGate:
             return jsonify({k: v for k, v in state.items() if k != "client"})
 
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=httpx.TimeoutException("read timeout"),
         ):
             client = app.test_client()
@@ -210,7 +210,7 @@ class TestFlaskGate:
             return jsonify({k: v for k, v in state.items() if k != "client"})
 
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=RuntimeError("oops"),
         ):
             client = app.test_client()
@@ -223,7 +223,7 @@ class TestFlaskGate:
     def test_payment_required_fail_open(self) -> None:
         app = _make_app(fail_open=True)
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=PaymentRequiredError,
         ):
             client = app.test_client()
@@ -233,7 +233,7 @@ class TestFlaskGate:
     def test_payment_required_fail_closed(self) -> None:
         app = _make_app()
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=PaymentRequiredError,
         ):
             client = app.test_client()
@@ -248,7 +248,7 @@ class TestFlaskGate:
 
         app = _make_app(extract_chain=custom_extract_chain)
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check_identity", return_value=_mock_result()
+            "agentscore_commerce.identity.flask.AgentScoreCore.check_identity", return_value=_mock_result()
         ) as mock_check:
             client = app.test_client()
             client.get("/", headers={"x-wallet-address": "0xabc"})
@@ -271,7 +271,7 @@ class TestFlaskGate:
             agentscore_gate(app, api_key="")
 
     def test_compliance_params_passed_to_client(self) -> None:
-        with patch("agentscore_commerce.identity.flask.GateClient") as mock_cls:
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore") as mock_cls:
             mock_cls.return_value = mock_cls
             mock_cls.fail_open = False
             app = Flask(__name__)
@@ -300,7 +300,7 @@ class TestFlaskGate:
                 "operator_verification": {"level": "none"},
             },
         )
-        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=result):
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 403
@@ -321,7 +321,7 @@ class TestFlaskGate:
             },
         }
         result = AssessResult(allow=True, decision="allow", reasons=[], raw=raw)
-        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=result):
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 200
@@ -335,7 +335,7 @@ class TestFlaskGate:
             "verify_url": "https://agentscore.sh/verify/abc123",
         }
         result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw=raw)
-        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=result):
             client = app.test_client()
             resp = client.get("/", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 403
@@ -400,7 +400,7 @@ class TestFlaskCreateSessionOnMissing:
         )
         with (
             patch(
-                "agentscore_commerce.identity.flask.GateClient.check",
+                "agentscore_commerce.identity.flask.AgentScoreCore.check",
                 return_value=result,
             ),
             patch(
@@ -422,7 +422,7 @@ class TestFlaskCreateSessionOnMissing:
         result = AssessResult(allow=False, decision="deny", reasons=["sanctions_flagged"], raw={})
         with (
             patch(
-                "agentscore_commerce.identity.flask.GateClient.check",
+                "agentscore_commerce.identity.flask.AgentScoreCore.check",
                 return_value=result,
             ),
             patch(
@@ -488,7 +488,7 @@ class TestFlaskIdentityModel:
     def test_operator_token_header_calls_check_identity(self) -> None:
         app = _make_app()
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check_identity", return_value=_mock_result()
+            "agentscore_commerce.identity.flask.AgentScoreCore.check_identity", return_value=_mock_result()
         ) as mock_check:
             client = app.test_client()
             resp = client.get("/", headers={"x-operator-token": "opc_flask_test"})
@@ -519,8 +519,8 @@ class TestFlaskCaptureWallet:
     def test_captures_when_operator_token_present(self) -> None:
         app = _make_capture_app()
         with (
-            patch("agentscore_commerce.identity.flask.GateClient.check", return_value=_mock_result()),
-            patch("agentscore_commerce.identity.flask.GateClient.capture_wallet") as mock_capture,
+            patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=_mock_result()),
+            patch("agentscore_commerce.identity.flask.AgentScoreCore.capture_wallet") as mock_capture,
         ):
             client = app.test_client()
             resp = client.post("/purchase", headers={"x-operator-token": "opc_abc"})
@@ -535,8 +535,8 @@ class TestFlaskCaptureWallet:
     def test_no_ops_when_wallet_authenticated(self) -> None:
         app = _make_capture_app()
         with (
-            patch("agentscore_commerce.identity.flask.GateClient.check", return_value=_mock_result()),
-            patch("agentscore_commerce.identity.flask.GateClient.capture_wallet") as mock_capture,
+            patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=_mock_result()),
+            patch("agentscore_commerce.identity.flask.AgentScoreCore.capture_wallet") as mock_capture,
         ):
             client = app.test_client()
             resp = client.post("/purchase", headers={"x-wallet-address": "0xabc"})
@@ -555,7 +555,7 @@ class TestFlaskCaptureWallet:
         # App context but no request context — Flask's `g` is only meaningful inside a request.
         with (
             app.app_context(),
-            patch("agentscore_commerce.identity.flask.GateClient.capture_wallet") as mock_capture,
+            patch("agentscore_commerce.identity.flask.AgentScoreCore.capture_wallet") as mock_capture,
         ):
             capture_wallet("0xsigner", "evm")
             mock_capture.assert_not_called()
@@ -623,11 +623,11 @@ class TestFlaskTokenDenied:
     def test_passes_through_token_expired_with_auto_session(self) -> None:
         # Revoked and expired credentials both surface as token_expired; adapter forwards
         # the API's auto-minted session fields into the 403 body.
-        from agentscore_commerce.identity.client import TokenDeniedError
+        from agentscore_commerce.identity.core import TokenDeniedError
 
         app = _make_app()
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=TokenDeniedError(
                 {
                     "error": {"code": "token_expired", "message": "invalid"},
@@ -651,11 +651,11 @@ class TestFlaskTokenDenied:
         assert _json.loads(body["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
 
     def test_passes_through_token_expired_without_next_steps(self) -> None:
-        from agentscore_commerce.identity.client import TokenDeniedError
+        from agentscore_commerce.identity.core import TokenDeniedError
 
         app = _make_app()
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=TokenDeniedError({"error": {"code": "token_expired", "message": "invalid"}}),
         ):
             client = app.test_client()
@@ -679,7 +679,7 @@ class TestFlaskGenericFailure:
 
         app = _make_app()
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=httpx.ConnectError("dns lookup failed"),
         ):
             client = app.test_client()
@@ -693,7 +693,7 @@ class TestFlaskGenericFailure:
 
         app = _make_app(fail_open=True)
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=httpx.ConnectError("dns lookup failed"),
         ):
             client = app.test_client()
@@ -705,7 +705,7 @@ class TestFlaskGenericFailure:
     def test_payment_required_surfaces_as_denial(self) -> None:
         app = _make_app()
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=PaymentRequiredError,
         ):
             client = app.test_client()
@@ -729,7 +729,7 @@ class TestFlaskBadOnDenied:
     def test_wallet_not_trusted_branch_bad_on_denied_shape(self) -> None:
         app = _make_app(on_denied=lambda _req, _reason: None)
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             return_value=_mock_result(allow=False, decision="deny"),
         ):
             client = app.test_client()
@@ -737,11 +737,11 @@ class TestFlaskBadOnDenied:
                 client.get("/", headers={"x-wallet-address": "0xabc"})
 
     def test_token_denied_branch_bad_on_denied_shape(self) -> None:
-        from agentscore_commerce.identity.client import TokenDeniedError
+        from agentscore_commerce.identity.core import TokenDeniedError
 
         app = _make_app(on_denied=lambda _req, _reason: 42)
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=TokenDeniedError({"error": {"code": "token_expired"}}),
         ):
             client = app.test_client()
@@ -753,7 +753,7 @@ class TestFlaskBadOnDenied:
 
         app = _make_app(on_denied=lambda _req, _reason: ({"x": 1},))  # single-element tuple
         with patch(
-            "agentscore_commerce.identity.flask.GateClient.check",
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
             side_effect=httpx.ConnectError("dns down"),
         ):
             client = app.test_client()
@@ -822,7 +822,7 @@ class TestFlaskQuotaPropagation:
             raw={"decision": "allow"},
             quota=GateQuotaInfo(limit=1500, used=1200, reset="2026-06-01T00:00:00Z"),
         )
-        with patch("agentscore_commerce.identity.flask.GateClient.check", return_value=result):
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=result):
             client = app.test_client()
             resp = client.get("/quota", headers={"x-wallet-address": "0xabc"})
             assert resp.status_code == 200

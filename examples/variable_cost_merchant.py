@@ -94,9 +94,9 @@ async def complete(request: Request):
 async def stream(request: Request):
     """MPP tempo session path — agent opens channel, server streams SSE with mid-stream vouchers.
 
-    Production wiring: ``mpp = await create_mppx_server(secret_key=MPP_SECRET, rails=MppxRails(
-    tempo_session=TempoSessionRail(recipient=TEMPO_RECIPIENT, escrow_contract=TEMPO_ESCROW,
-    store=YourChannelStore())))`` — parse channel state from ``Authorization: Payment``,
+    Production wiring: ``mpp = await create_mppx_server(secret_key=MPP_SECRET, rails={
+    "tempo_session": TempoSessionRailSpec(recipient=TEMPO_RECIPIENT, escrow_contract=TEMPO_ESCROW,
+    store=YourChannelStore())})`` — parse channel state from ``Authorization: Payment``,
     emit SSE chunks, request fresh voucher signatures as cumulative cost grows, close
     channel on completion.
     """

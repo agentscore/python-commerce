@@ -9,7 +9,7 @@ from agentscore_commerce.payment.directive import (
     build_payment_request_blob,
     payment_directive,
 )
-from agentscore_commerce.payment.dispatch import dispatch_settlement_by_network
+from agentscore_commerce.payment.dispatch import detect_rail_from_headers, dispatch_settlement_by_network
 from agentscore_commerce.payment.headers import (
     BuildPaymentHeadersInput,
     PaymentHeadersRail,
@@ -124,6 +124,7 @@ __all__ = [
     "coerce_resource_config",
     "create_mppx_server",
     "create_x402_server",
+    "detect_rail_from_headers",
     "dispatch_settlement_by_network",
     "extract_payment_signer",
     "extract_x402_signer",

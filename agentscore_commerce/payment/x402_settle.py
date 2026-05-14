@@ -30,27 +30,6 @@ from urllib.parse import urlparse
 
 
 @dataclass
-class ProcessX402SettleInput:
-    """Input for :func:`process_x402_settle`."""
-
-    #: The x402 server instance from ``create_x402_server``.
-    x402_server: Any
-    #: The verified x402 payload extracted from the X-Payment header.
-    payload: Any
-    #: Resource configuration the facilitator validates against (network, price, payTo,
-    #: asset, max_timeout_seconds, etc.). Shape is x402-server-specific.
-    resource_config: Any
-    #: Resource metadata exposed to the facilitator.
-    resource_meta: dict[str, str]
-    #: Optional extension to enrich during verify (e.g. Bazaar).
-    extension: Any = None
-    #: Transport context for the extension enrich step. Defaults to ``{"method": "POST",
-    #: "adapter": {"getPath": <pathname>}, "routePattern": <pathname>}`` derived from
-    #: ``resource_meta["url"]``.
-    transport_context: Any = None
-
-
-@dataclass
 class ProcessX402SettleSuccess:
     """Success outcome from :func:`process_x402_settle`."""
 
@@ -322,14 +301,31 @@ def coerce_payment_payload(payload: Any) -> Any:
         return payload
 
 
-async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402SettleResult:
-    """Run the x402 verify→settle flow and return a tagged outcome."""
-    server = input.x402_server
-    resource_config = coerce_resource_config(input.resource_config)
-    payload = coerce_payment_payload(input.payload)
+async def process_x402_settle(
+    *,
+    x402_server: Any,
+    payload: Any,
+    resource_config: Any,
+    resource_meta: dict[str, str],
+    extension: Any = None,
+    transport_context: Any = None,
+) -> ProcessX402SettleResult:
+    """Run the x402 verify→settle flow and return a tagged outcome.
+
+    ``resource_config`` accepts either a ``dict`` (JS-style with ``payTo`` /
+    ``maxTimeoutSeconds`` camelCase keys) or an x402 ``ResourceConfig`` instance —
+    dicts are coerced before the build step.
+
+    Set ``extension`` to fold a Bazaar (or other) extension into the verify step;
+    ``transport_context`` defaults to a POST context derived from
+    ``resource_meta["url"]`` when an extension is supplied.
+    """
+    server = x402_server
+    coerced_config = coerce_resource_config(resource_config)
+    coerced_payload = coerce_payment_payload(payload)
 
     try:
-        built_requirements = server.build_payment_requirements(resource_config)
+        built_requirements = server.build_payment_requirements(coerced_config)
     except Exception as err:
         return ProcessX402SettleFailure(phase="facilitator_error", step="build_requirements", error=err)
     if not built_requirements:
@@ -344,22 +340,22 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
     # second argument to ``build_payment_requirements`` rather than as a verify-step
     # input, but the fold happens at build time — so we replay the build with the
     # enriched extensions and use those requirements going forward.
-    if input.extension is not None:
-        transport_context = input.transport_context
-        if transport_context is None:
-            path = urlparse(input.resource_meta["url"]).path
-            transport_context = {
+    if extension is not None:
+        resolved_transport_context = transport_context
+        if resolved_transport_context is None:
+            path = urlparse(resource_meta["url"]).path
+            resolved_transport_context = {
                 "method": "POST",
                 "adapter": {"getPath": lambda: path},
                 "routePattern": path,
             }
         try:
-            enriched_ext = server.enrich_extensions(input.extension, transport_context)
+            enriched_ext = server.enrich_extensions(extension, resolved_transport_context)
         except Exception as err:
             return ProcessX402SettleFailure(phase="facilitator_error", step="enrich_extensions", error=err)
         try:
             built_requirements = server.build_payment_requirements(
-                resource_config, list(enriched_ext.keys()) if isinstance(enriched_ext, dict) else None
+                coerced_config, list(enriched_ext.keys()) if isinstance(enriched_ext, dict) else None
             )
             if built_requirements:
                 matched_requirement = built_requirements[0]
@@ -370,7 +366,7 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
     # — not ``process_payment_request`` (a fictional method that earlier versions of this
     # helper called and only ever worked against test stubs).
     try:
-        verify_result = await server.verify_payment(payload, matched_requirement)
+        verify_result = await server.verify_payment(coerced_payload, matched_requirement)
     except Exception as err:
         return ProcessX402SettleFailure(phase="facilitator_error", step="verify_payment", error=err)
 
@@ -391,7 +387,7 @@ async def process_x402_settle(input: ProcessX402SettleInput) -> ProcessX402Settl
         return ProcessX402SettleFailure(phase="verify_failed", verify_result=verify_result)
 
     try:
-        settle_result = await server.settle_payment(payload, matched_requirement)
+        settle_result = await server.settle_payment(coerced_payload, matched_requirement)
         payment_response_header: str | None = None
         if settle_result is not None:
             payment_response_header = base64.b64encode(settle_result_to_json_bytes(settle_result)).decode()

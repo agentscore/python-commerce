@@ -30,41 +30,21 @@ if TYPE_CHECKING:
 X402_SUPPORTED_BASE_NETWORKS: frozenset[str] = frozenset({networks.base.mainnet.caip2, networks.base.sepolia.caip2})
 
 
-@dataclass
-class ValidateX402NetworkConfigInput:
-    """Input for :func:`validate_x402_network_config`."""
-
-    base_network: str
-
-
-def validate_x402_network_config(input: ValidateX402NetworkConfigInput) -> None:
+def validate_x402_network_config(*, base_network: str) -> None:
     """Boot-time guard: raise if the base network isn't supported.
 
     Raises ``ValueError`` with a message that names the unsupported value AND lists the
     valid options — agents tracking down a misconfigured deploy don't need to grep for
     the supported list.
     """
-    if input.base_network not in X402_SUPPORTED_BASE_NETWORKS:
+    if base_network not in X402_SUPPORTED_BASE_NETWORKS:
         raise ValueError(
-            f"X402_BASE_NETWORK={input.base_network} is not supported. "
+            f"X402_BASE_NETWORK={base_network} is not supported. "
             f"Use one of: {', '.join(sorted(X402_SUPPORTED_BASE_NETWORKS))}"
         )
 
 
 _EVM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
-
-
-@dataclass
-class VerifyX402RequestInput:
-    """Input for :func:`verify_x402_request`."""
-
-    #: The incoming request headers (case-insensitive lookup).
-    headers: dict[str, str]
-    #: Async lookup that returns ``True`` when the address was minted by this merchant
-    #: (typically ``pi_cache.has_address``).
-    is_cached_address: Callable[[str], Awaitable[bool]]
-    #: The merchant's accepted Base CAIP-2 network.
-    accepted_network: str
 
 
 @dataclass
@@ -116,7 +96,12 @@ def _regenerate_body(message: str, user_message: str) -> dict[str, Any]:
     }
 
 
-async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402RequestResult:
+async def verify_x402_request(
+    *,
+    headers: dict[str, str],
+    is_cached_address: Callable[[str], Awaitable[bool]],
+    accepted_network: str,
+) -> VerifyX402RequestResult:
     """Parse the x402 X-Payment header and validate network + payTo + cache hit.
 
     Returns ``VerifyX402RequestSuccess`` when valid; the caller passes ``payload``
@@ -127,7 +112,7 @@ async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402Reques
     Reads the header from ``payment-signature`` first, falling back to ``x-payment``
     (both are in the wild as the binary-friendly transport name evolved).
     """
-    header_value = _header_lookup(input.headers, "payment-signature", "x-payment")
+    header_value = _header_lookup(headers, "payment-signature", "x-payment")
     if not header_value:
         return VerifyX402RequestFailure(
             body=_regenerate_body(
@@ -156,14 +141,14 @@ async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402Reques
     signed_network = accepted.get("network")
     signed_pay_to = accepted.get("payTo")
 
-    if not signed_network or signed_network != input.accepted_network:
+    if not signed_network or signed_network != accepted_network:
         if signed_network and signed_network.lower().startswith("solana:"):
             return VerifyX402RequestFailure(
                 body=_regenerate_body(
                     (
                         f"x402 on {signed_network} is not accepted; "
                         f"Solana payments must use the `solana/charge` rail advertised in the 402 challenge. "
-                        f"This server accepts x402 on {input.accepted_network} only."
+                        f"This server accepts x402 on {accepted_network} only."
                     ),
                     (
                         "Solana payments are not accepted over x402 at this merchant. "
@@ -173,10 +158,7 @@ async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402Reques
             )
         return VerifyX402RequestFailure(
             body=_regenerate_body(
-                (
-                    f"Unsupported x402 network {signed_network or '<missing>'}; "
-                    f"this server accepts {input.accepted_network}."
-                ),
+                (f"Unsupported x402 network {signed_network or '<missing>'}; this server accepts {accepted_network}."),
                 (
                     "The credential signed for an unsupported network. Pick the accepted "
                     "network from the 402 challenge and re-sign."
@@ -195,7 +177,7 @@ async def verify_x402_request(input: VerifyX402RequestInput) -> VerifyX402Reques
             ),
         )
 
-    if not await input.is_cached_address(signed_pay_to):
+    if not await is_cached_address(signed_pay_to):
         return VerifyX402RequestFailure(
             body=_regenerate_body(
                 "payTo address not found in cache or expired. Request a fresh 402 challenge and retry.",

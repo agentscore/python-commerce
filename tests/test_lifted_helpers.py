@@ -14,11 +14,8 @@ from agentscore_commerce.challenge import build_402_body, respond_402
 from agentscore_commerce.payment import (
     X402_SUPPORTED_BASE_NETWORKS,
     ProcessX402SettleFailure,
-    ProcessX402SettleInput,
     ProcessX402SettleSuccess,
-    ValidateX402NetworkConfigInput,
     VerifyX402RequestFailure,
-    VerifyX402RequestInput,
     VerifyX402RequestSuccess,
     classify_x402_settle_result,
     networks,
@@ -171,12 +168,12 @@ def test_respond_402_layers_payment_required_when_x402_set():
 
 
 def test_validate_x402_accepts_supported_base():
-    validate_x402_network_config(ValidateX402NetworkConfigInput(base_network=networks.base.sepolia.caip2))
+    validate_x402_network_config(base_network=networks.base.sepolia.caip2)
 
 
 def test_validate_x402_rejects_unknown_base():
     with pytest.raises(ValueError, match="X402_BASE_NETWORK=eip155:9999"):
-        validate_x402_network_config(ValidateX402NetworkConfigInput(base_network="eip155:9999"))
+        validate_x402_network_config(base_network="eip155:9999")
 
 
 def test_x402_supported_networks_constants():
@@ -204,11 +201,9 @@ def _x_payment(payload: dict) -> str:
 @pytest.mark.asyncio
 async def test_verify_x402_missing_header():
     res = await verify_x402_request(
-        VerifyX402RequestInput(
-            headers={},
-            is_cached_address=_always_true,
-            accepted_network=networks.base.sepolia.caip2,
-        )
+        headers={},
+        is_cached_address=_always_true,
+        accepted_network=networks.base.sepolia.caip2,
     )
     assert isinstance(res, VerifyX402RequestFailure)
     assert "missing" in res.body["error"]["message"]
@@ -217,11 +212,9 @@ async def test_verify_x402_missing_header():
 @pytest.mark.asyncio
 async def test_verify_x402_bad_base64():
     res = await verify_x402_request(
-        VerifyX402RequestInput(
-            headers={"X-Payment": "not-base64-json"},
-            is_cached_address=_always_true,
-            accepted_network=networks.base.sepolia.caip2,
-        )
+        headers={"X-Payment": "not-base64-json"},
+        is_cached_address=_always_true,
+        accepted_network=networks.base.sepolia.caip2,
     )
     assert isinstance(res, VerifyX402RequestFailure)
     assert "valid base64" in res.body["error"]["message"]
@@ -231,11 +224,9 @@ async def test_verify_x402_bad_base64():
 async def test_verify_x402_unsupported_network():
     payload = {"accepted": {"network": "eip155:9999", "payTo": "0x" + "a" * 40}}
     res = await verify_x402_request(
-        VerifyX402RequestInput(
-            headers={"x-payment": _x_payment(payload)},
-            is_cached_address=_always_true,
-            accepted_network=networks.base.sepolia.caip2,
-        )
+        headers={"x-payment": _x_payment(payload)},
+        is_cached_address=_always_true,
+        accepted_network=networks.base.sepolia.caip2,
     )
     assert isinstance(res, VerifyX402RequestFailure)
     assert "Unsupported x402 network" in res.body["error"]["message"]
@@ -245,11 +236,9 @@ async def test_verify_x402_unsupported_network():
 async def test_verify_x402_malformed_evm_pay_to():
     payload = {"accepted": {"network": networks.base.sepolia.caip2, "payTo": "not-an-address"}}
     res = await verify_x402_request(
-        VerifyX402RequestInput(
-            headers={"x-payment": _x_payment(payload)},
-            is_cached_address=_always_true,
-            accepted_network=networks.base.sepolia.caip2,
-        )
+        headers={"x-payment": _x_payment(payload)},
+        is_cached_address=_always_true,
+        accepted_network=networks.base.sepolia.caip2,
     )
     assert isinstance(res, VerifyX402RequestFailure)
     assert "malformed accepted.payTo" in res.body["error"]["message"]
@@ -259,11 +248,9 @@ async def test_verify_x402_malformed_evm_pay_to():
 async def test_verify_x402_pay_to_not_in_cache():
     payload = {"accepted": {"network": networks.base.sepolia.caip2, "payTo": "0x" + "f" * 40}}
     res = await verify_x402_request(
-        VerifyX402RequestInput(
-            headers={"x-payment": _x_payment(payload)},
-            is_cached_address=_always_false,
-            accepted_network=networks.base.sepolia.caip2,
-        )
+        headers={"x-payment": _x_payment(payload)},
+        is_cached_address=_always_false,
+        accepted_network=networks.base.sepolia.caip2,
     )
     assert isinstance(res, VerifyX402RequestFailure)
     assert "not found in cache" in res.body["error"]["message"]
@@ -273,11 +260,9 @@ async def test_verify_x402_pay_to_not_in_cache():
 async def test_verify_x402_failures_carry_regenerate_next_steps():
     """Every failure path emits next_steps with regenerate_payment_credential + user_message + warning."""
     res = await verify_x402_request(
-        VerifyX402RequestInput(
-            headers={},
-            is_cached_address=_always_true,
-            accepted_network=networks.base.sepolia.caip2,
-        )
+        headers={},
+        is_cached_address=_always_true,
+        accepted_network=networks.base.sepolia.caip2,
     )
     assert isinstance(res, VerifyX402RequestFailure)
     assert res.body["next_steps"]["action"] == "regenerate_payment_credential"
@@ -290,11 +275,9 @@ async def test_verify_x402_success_evm():
     pay_to = "0x" + "1" * 40
     payload = {"accepted": {"network": networks.base.sepolia.caip2, "payTo": pay_to}}
     res = await verify_x402_request(
-        VerifyX402RequestInput(
-            headers={"x-payment": _x_payment(payload)},
-            is_cached_address=_always_true,
-            accepted_network=networks.base.sepolia.caip2,
-        )
+        headers={"x-payment": _x_payment(payload)},
+        is_cached_address=_always_true,
+        accepted_network=networks.base.sepolia.caip2,
     )
     assert isinstance(res, VerifyX402RequestSuccess)
     assert res.signed_pay_to == pay_to
@@ -310,11 +293,9 @@ async def test_verify_x402_rejects_solana_credential():
     """
     payload = {"accepted": {"network": networks.solana.mainnet.caip2, "payTo": "11111111111111111111111111111111"}}
     res = await verify_x402_request(
-        VerifyX402RequestInput(
-            headers={"x-payment": _x_payment(payload)},
-            is_cached_address=_always_true,
-            accepted_network=networks.base.sepolia.caip2,
-        )
+        headers={"x-payment": _x_payment(payload)},
+        is_cached_address=_always_true,
+        accepted_network=networks.base.sepolia.caip2,
     )
     assert isinstance(res, VerifyX402RequestFailure)
     msg = res.body["error"]["message"]
@@ -376,12 +357,10 @@ _RESOURCE_META = {"url": "http://localhost/x", "description": "d", "mimeType": "
 async def test_process_x402_settle_no_requirements():
     server = _FakeServer(requirements=[], verify_result={"success": True})
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=server,
-            payload={},
-            resource_config={},
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=server,
+        payload={},
+        resource_config={},
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "no_requirements"
@@ -391,12 +370,10 @@ async def test_process_x402_settle_no_requirements():
 async def test_process_x402_settle_verify_failed():
     server = _FakeServer(requirements=[{"id": "req1"}], verify_result={"success": False, "error": "bad sig"})
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=server,
-            payload={},
-            resource_config={},
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=server,
+        payload={},
+        resource_config={},
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "verify_failed"
@@ -410,12 +387,10 @@ async def test_process_x402_settle_settle_failed():
         settle_result=RuntimeError("facilitator timeout"),
     )
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=server,
-            payload={},
-            resource_config={},
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=server,
+        payload={},
+        resource_config={},
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "settle_failed"
@@ -430,13 +405,11 @@ async def test_process_x402_settle_success_returns_payment_response_header():
         settle_result={"tx_hash": "0xabc", "amount": "110000"},
     )
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=server,
-            payload={},
-            resource_config={},
-            resource_meta=_RESOURCE_META,
-            extension={"name": "bazaar"},
-        )
+        x402_server=server,
+        payload={},
+        resource_config={},
+        resource_meta=_RESOURCE_META,
+        extension={"name": "bazaar"},
     )
     assert isinstance(res, ProcessX402SettleSuccess)
     assert res.matched_requirement == {"id": "req1"}
@@ -466,18 +439,16 @@ async def test_process_x402_settle_coerces_dict_resource_config_with_camelcase_k
             return {"tx_hash": "0xabc"}
 
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=_CapturingServer(),
-            payload={},
-            resource_config={
-                "scheme": "exact",
-                "network": "eip155:8453",
-                "price": "$0.10",
-                "payTo": "0xa43d4e316ef5f430426cd1b454167e5f85e3f4f1",
-                "maxTimeoutSeconds": 300,
-            },
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=_CapturingServer(),
+        payload={},
+        resource_config={
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "price": "$0.10",
+            "payTo": "0xa43d4e316ef5f430426cd1b454167e5f85e3f4f1",
+            "maxTimeoutSeconds": 300,
+        },
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleSuccess)
     # Coerced into x402's ResourceConfig (Pydantic model with snake_case attrs).
@@ -514,12 +485,10 @@ async def test_process_x402_settle_passes_typed_resource_config_unchanged():
             return {"tx_hash": "0xabc"}
 
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=_CapturingServer(),
-            payload={},
-            resource_config=typed,
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=_CapturingServer(),
+        payload={},
+        resource_config=typed,
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleSuccess)
     assert captured["cfg"] is typed
@@ -570,18 +539,16 @@ async def test_process_x402_settle_coerces_dict_payload_v2_to_typed_payment_payl
         },
     }
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=_CapturingServer(),
-            payload=payload_dict,
-            resource_config={
-                "scheme": "exact",
-                "network": "eip155:8453",
-                "price": "$0.10",
-                "payTo": "0x" + "00" * 19 + "dE" + "aD",
-                "maxTimeoutSeconds": 300,
-            },
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=_CapturingServer(),
+        payload=payload_dict,
+        resource_config={
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "price": "$0.10",
+            "payTo": "0x" + "00" * 19 + "dE" + "aD",
+            "maxTimeoutSeconds": 300,
+        },
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleSuccess)
     # Both verify and settle legs received the typed Pydantic model, not the raw dict.
@@ -622,18 +589,16 @@ async def test_process_x402_settle_serializes_pydantic_settle_result_to_payment_
             return pydantic_settle
 
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=_PydanticSettleServer(),
-            payload={},
-            resource_config={
-                "scheme": "exact",
-                "network": "eip155:8453",
-                "price": "$0.10",
-                "payTo": "0x" + "00" * 19 + "dE" + "aD",
-                "maxTimeoutSeconds": 300,
-            },
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=_PydanticSettleServer(),
+        payload={},
+        resource_config={
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "price": "$0.10",
+            "payTo": "0x" + "00" * 19 + "dE" + "aD",
+            "maxTimeoutSeconds": 300,
+        },
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleSuccess)
     assert res.payment_response_header is not None
@@ -660,18 +625,16 @@ async def test_process_x402_settle_serializes_dict_settle_result_for_legacy_stub
             return {"success": True, "transaction": "0xdef"}
 
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=_DictSettleServer(),
-            payload={},
-            resource_config={
-                "scheme": "exact",
-                "network": "eip155:8453",
-                "price": "$0.10",
-                "payTo": "0x" + "00" * 19 + "dE" + "aD",
-                "maxTimeoutSeconds": 300,
-            },
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=_DictSettleServer(),
+        payload={},
+        resource_config={
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "price": "$0.10",
+            "payTo": "0x" + "00" * 19 + "dE" + "aD",
+            "maxTimeoutSeconds": 300,
+        },
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleSuccess)
     assert res.payment_response_header is not None
@@ -722,18 +685,16 @@ async def test_process_x402_settle_passes_typed_payment_payload_unchanged():
             return {"tx_hash": "0xabc"}
 
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=_CapturingServer(),
-            payload=typed,
-            resource_config={
-                "scheme": "exact",
-                "network": "eip155:8453",
-                "price": "$0.10",
-                "payTo": "0x" + "00" * 19 + "dE" + "aD",
-                "maxTimeoutSeconds": 300,
-            },
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=_CapturingServer(),
+        payload=typed,
+        resource_config={
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "price": "$0.10",
+            "payTo": "0x" + "00" * 19 + "dE" + "aD",
+            "maxTimeoutSeconds": 300,
+        },
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleSuccess)
     assert captured["payload"] is typed
@@ -751,12 +712,10 @@ async def test_process_x402_settle_wraps_build_requirements_throws_as_facilitato
         verify_result={"success": True},
     )
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=server,
-            payload={},
-            resource_config={},
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=server,
+        payload={},
+        resource_config={},
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "facilitator_error"
@@ -772,13 +731,11 @@ async def test_process_x402_settle_wraps_enrich_extensions_throws_as_facilitator
         enrich_result=RuntimeError("extension barfed"),
     )
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=server,
-            payload={},
-            resource_config={},
-            resource_meta=_RESOURCE_META,
-            extension={"name": "bazaar"},
-        )
+        x402_server=server,
+        payload={},
+        resource_config={},
+        resource_meta=_RESOURCE_META,
+        extension={"name": "bazaar"},
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "facilitator_error"
@@ -792,12 +749,10 @@ async def test_process_x402_settle_wraps_verify_payment_throws_as_facilitator_er
         verify_result=RuntimeError("CDP facilitator: solana:devnet not supported"),
     )
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=server,
-            payload={},
-            resource_config={},
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=server,
+        payload={},
+        resource_config={},
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "facilitator_error"
@@ -813,12 +768,10 @@ async def test_process_x402_settle_does_not_swallow_settle_failed_as_facilitator
         settle_result=RuntimeError("on-chain rejection"),
     )
     res = await process_x402_settle(
-        ProcessX402SettleInput(
-            x402_server=server,
-            payload={},
-            resource_config={},
-            resource_meta=_RESOURCE_META,
-        )
+        x402_server=server,
+        payload={},
+        resource_config={},
+        resource_meta=_RESOURCE_META,
     )
     assert isinstance(res, ProcessX402SettleFailure)
     assert res.phase == "settle_failed"

@@ -5,7 +5,6 @@ from agentscore_commerce.payment import (
     SETTLEMENT_OVERRIDES_HEADER,
     USDC,
     PaymentRequiredHeaderInput,
-    SettlementOverrides,
     lookup_rail,
     network_family,
     networks,
@@ -96,7 +95,7 @@ def test_payment_required_header_emits_v1_alias_for_v2_clients():
 
 
 def test_settlement_override_header_returns_name_value_pair():
-    name, value = settlement_override_header(SettlementOverrides(amount="1500"))
+    name, value = settlement_override_header(amount="1500")
     assert name == SETTLEMENT_OVERRIDES_HEADER
     assert json.loads(value) == {"amount": "1500"}
 

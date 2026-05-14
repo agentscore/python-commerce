@@ -7,8 +7,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Protocol
 
 from agentscore_commerce.payment.directive import (
-    PaymentDirectiveInput,
-    PaymentRequestInput,
     build_payment_request_blob,
     payment_directive,
 )
@@ -122,12 +120,10 @@ def build_discovery_probe_response(opts: DiscoveryProbeOptions) -> DiscoveryProb
     probe_id = f"probe_{int(datetime.now(UTC).timestamp() * 1000)}"
     expires = (datetime.now(UTC) + timedelta(seconds=opts.ttl_seconds)).isoformat().replace("+00:00", "Z")
     request = build_payment_request_blob(
-        PaymentRequestInput(rail=opts.sample_rail, amount_usd=opts.sample_amount_usd, recipient=opts.sample_recipient)
+        rail=opts.sample_rail, amount_usd=opts.sample_amount_usd, recipient=opts.sample_recipient
     )
     directive = payment_directive(
-        PaymentDirectiveInput(
-            rail=opts.sample_rail, id=probe_id, realm=opts.realm, intent=opts.intent, expires=expires, request=request
-        )
+        rail=opts.sample_rail, id=probe_id, realm=opts.realm, intent=opts.intent, expires=expires, request=request
     )
     body_obj: dict[str, Any] = {
         "error": {

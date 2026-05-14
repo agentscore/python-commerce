@@ -46,7 +46,6 @@ from agentscore_commerce.discovery import (
 )
 from agentscore_commerce.payment import (
     USDC,
-    PaymentDirectiveInput,
     networks,
     payment_directive,
     www_authenticate_header,
@@ -109,15 +108,9 @@ async def search(request: Request):
             "mpp-solana-devnet" if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2 else "mpp-solana-mainnet"
         )
         directives = [
-            payment_directive(
-                PaymentDirectiveInput(rail=_TEMPO_RAIL, id=f"{challenge_id}_tempo", realm=REALM, request="")
-            ),
-            payment_directive(
-                PaymentDirectiveInput(rail=x402_base_rail, id=f"{challenge_id}_base", realm=REALM, request="")
-            ),
-            payment_directive(
-                PaymentDirectiveInput(rail=solana_mpp_rail, id=f"{challenge_id}_solana", realm=REALM, request="")
-            ),
+            payment_directive(rail=_TEMPO_RAIL, id=f"{challenge_id}_tempo", realm=REALM, request=""),
+            payment_directive(rail=x402_base_rail, id=f"{challenge_id}_base", realm=REALM, request=""),
+            payment_directive(rail=solana_mpp_rail, id=f"{challenge_id}_solana", realm=REALM, request=""),
         ]
         accepts = [
             {

@@ -2,9 +2,6 @@ import base64
 import json
 
 from agentscore_commerce.payment import (
-    BuildPaymentDirectiveInput,
-    PaymentDirectiveInput,
-    PaymentRequestInput,
     build_payment_directive,
     build_payment_request_blob,
     payment_directive,
@@ -17,7 +14,7 @@ def _decode(blob: str) -> dict:
 
 
 def test_build_payment_request_blob_with_rail():
-    blob = build_payment_request_blob(PaymentRequestInput(rail="x402-base-mainnet", amount_usd=1.0))
+    blob = build_payment_request_blob(rail="x402-base-mainnet", amount_usd=1.0)
     decoded = _decode(blob)
     assert decoded["amount"] == "1000000"  # 1 USDC at 6 decimals
     assert decoded["currency"] == "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
@@ -27,7 +24,7 @@ def test_build_payment_request_blob_with_rail():
 
 def test_build_payment_request_blob_overrides_take_precedence():
     blob = build_payment_request_blob(
-        PaymentRequestInput(rail="x402-base-mainnet", amount_usd=2, decimals=2, currency="usd", network_id="acct_x")
+        rail="x402-base-mainnet", amount_usd=2, decimals=2, currency="usd", network_id="acct_x"
     )
     decoded = _decode(blob)
     assert decoded["amount"] == "200"
@@ -41,7 +38,7 @@ def test_build_payment_request_blob_includes_decimals_for_node_parity():
     (mppx tempo schema requires it). If this assertion fails, node-commerce and python-commerce
     are emitting different request blobs for the same payment, which breaks cross-SDK interop.
     """
-    blob = build_payment_request_blob(PaymentRequestInput(rail="tempo-mainnet", amount_usd="1.50", recipient="0xabc"))
+    blob = build_payment_request_blob(rail="tempo-mainnet", amount_usd="1.50", recipient="0xabc")
     decoded = _decode(blob)
     # Output keys must match buildPaymentRequestBlob exactly across both SDK languages
     assert set(decoded.keys()) >= {"amount", "currency", "decimals"}
@@ -50,9 +47,7 @@ def test_build_payment_request_blob_includes_decimals_for_node_parity():
 
 
 def test_payment_directive_format():
-    directive = payment_directive(
-        PaymentDirectiveInput(rail="tempo-mainnet", id="chg_1", realm="ex.com", request="abc")
-    )
+    directive = payment_directive(rail="tempo-mainnet", id="chg_1", realm="ex.com", request="abc")
     assert directive.startswith('Payment id="chg_1"')
     assert 'method="tempo"' in directive
     assert 'intent="charge"' in directive
@@ -61,9 +56,7 @@ def test_payment_directive_format():
 
 def test_build_payment_directive_combines_blob_and_directive():
     directive = build_payment_directive(
-        BuildPaymentDirectiveInput(
-            rail="tempo-mainnet", id="chg_2", realm="ex.com", amount_usd="0.5", recipient="0xabc"
-        )
+        rail="tempo-mainnet", id="chg_2", realm="ex.com", amount_usd="0.5", recipient="0xabc"
     )
     assert 'method="tempo"' in directive
     assert "request=" in directive

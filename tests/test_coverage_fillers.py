@@ -7,11 +7,7 @@ from agentscore_commerce.challenge import (
     build_how_to_pay,
 )
 from agentscore_commerce.discovery import (
-    BazaarDiscoveryConfig,
-    LlmsTxtIdentitySectionInput,
-    LlmsTxtPaymentSectionInput,
     PaymentMethodConfig,
-    WellKnownMppInput,
     build_bazaar_discovery_payload,
     build_well_known_mpp,
     llms_txt_identity_section,
@@ -21,12 +17,10 @@ from agentscore_commerce.discovery import (
 
 def test_bazaar_payload_includes_all_optional_fields():
     payload = build_bazaar_discovery_payload(
-        BazaarDiscoveryConfig(
-            body_type="json",
-            input={"q": "string"},
-            output={"results": "array"},
-            extra={"version": "1.0"},
-        )
+        body_type="json",
+        input={"q": "string"},
+        output={"results": "array"},
+        extra={"version": "1.0"},
     )
     assert payload == {
         "bodyType": "json",
@@ -37,28 +31,26 @@ def test_bazaar_payload_includes_all_optional_fields():
 
 
 def test_bazaar_payload_omits_empty_fields():
-    payload = build_bazaar_discovery_payload(BazaarDiscoveryConfig())
+    payload = build_bazaar_discovery_payload()
     assert payload == {}
 
 
 def test_well_known_mpp_includes_all_optional_blocks():
     out = build_well_known_mpp(
-        WellKnownMppInput(
-            name="Ex",
-            description="A merchant",
-            url="https://ex.com",
-            openapi="https://ex.com/openapi.json",
-            endpoints={"buy": {"method": "POST", "url": "/buy"}},
-            catalog={"categories": ["wine"]},
-            purchase=PaymentMethodConfig(
-                methods=["tempo"],
-                required_fields=["product_id", "qty"],
-                optional_fields=["gift_note"],
-                x402={"networks": ["base"]},
-                compliance={"require_kyc": True},
-            ),
-            shipping={"countries": ["US"]},
-        )
+        name="Ex",
+        description="A merchant",
+        url="https://ex.com",
+        openapi="https://ex.com/openapi.json",
+        endpoints={"buy": {"method": "POST", "url": "/buy"}},
+        catalog={"categories": ["wine"]},
+        purchase=PaymentMethodConfig(
+            methods=["tempo"],
+            required_fields=["product_id", "qty"],
+            optional_fields=["gift_note"],
+            x402={"networks": ["base"]},
+            compliance={"require_kyc": True},
+        ),
+        shipping={"countries": ["US"]},
     )
     assert out["description"] == "A merchant"
     assert out["openapi"].endswith("openapi.json")
@@ -71,20 +63,18 @@ def test_well_known_mpp_includes_all_optional_blocks():
 
 
 def test_llms_txt_identity_section_returns_empty_when_agentscore_false():
-    assert llms_txt_identity_section(LlmsTxtIdentitySectionInput(agentscore=False)) == ""
+    assert llms_txt_identity_section(agentscore=False) == ""
 
 
 def test_llms_txt_identity_section_includes_compliance_note():
     section = llms_txt_identity_section(
-        LlmsTxtIdentitySectionInput(
-            agentscore=True,
-            compliance={
-                "require_kyc": True,
-                "min_age": 21,
-                "allowed_jurisdictions": ["US", "CA"],
-                "require_sanctions_clear": True,
-            },
-        )
+        agentscore=True,
+        compliance={
+            "require_kyc": True,
+            "min_age": 21,
+            "allowed_jurisdictions": ["US", "CA"],
+            "require_sanctions_clear": True,
+        },
     )
     assert "Compliance:" in section
     assert "KYC required" in section
@@ -95,10 +85,8 @@ def test_llms_txt_identity_section_includes_compliance_note():
 
 def test_llms_txt_payment_section_includes_all_rails():
     section = llms_txt_payment_section(
-        LlmsTxtPaymentSectionInput(
-            rails=["tempo-mainnet", "x402-base-mainnet", "mpp-solana-mainnet", "stripe-spt"],
-            app_url="https://ex.com/buy",
-        )
+        rails=["tempo-mainnet", "x402-base-mainnet", "mpp-solana-mainnet", "stripe-spt"],
+        app_url="https://ex.com/buy",
     )
     assert "Tempo USDC via MPP" in section
     assert "x402 USDC on Base" in section

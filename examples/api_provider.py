@@ -38,7 +38,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agentscore_commerce.discovery import (
-    DiscoveryProbeOptions,
     NoindexNonDiscoveryMiddleware,
     X402SampleProbe,
     build_discovery_probe_response,
@@ -82,19 +81,17 @@ async def search(request: Request):
     # Discovery probe — empty-body POST without any payment header → return sample 402.
     if await is_discovery_probe_request(request.method, auth, body_text):
         probe = build_discovery_probe_response(
-            DiscoveryProbeOptions(
-                realm=REALM,
-                sample_rail=_TEMPO_RAIL,
-                sample_amount_usd=PRICE_USDC,
-                sample_recipient=os.environ["TEMPO_RECIPIENT"],
-                # Advertise x402 support so crawlers (e.g. ``awal x402 details``)
-                # can find it on an empty-body POST. Commerce synthesizes USDC
-                # sample accepts from the registry per CAIP-2 network passed.
-                x402_sample=X402SampleProbe(
-                    networks=[X402_BASE_NETWORK, SOLANA_NETWORK_CAIP2],
-                    resource_url=f"{REALM}/search",
-                ),
-            )
+            realm=REALM,
+            sample_rail=_TEMPO_RAIL,
+            sample_amount_usd=PRICE_USDC,
+            sample_recipient=os.environ["TEMPO_RECIPIENT"],
+            # Advertise x402 support so crawlers (e.g. ``awal x402 details``)
+            # can find it on an empty-body POST. Commerce synthesizes USDC
+            # sample accepts from the registry per CAIP-2 network passed.
+            x402_sample=X402SampleProbe(
+                networks=[X402_BASE_NETWORK, SOLANA_NETWORK_CAIP2],
+                resource_url=f"{REALM}/search",
+            ),
         )
         return JSONResponse(json.loads(probe.body), status_code=probe.status, headers=probe.headers)
 

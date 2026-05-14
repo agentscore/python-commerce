@@ -1,23 +1,27 @@
 """llms.txt builders — identity section + payment section + full document assembler."""
 
 import re
-from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypedDict
 
 
-@dataclass
-class LlmsTxtIdentitySectionInput:
-    agentscore: bool = False
-    compliance: dict[str, Any] | None = None
+class LlmsTxtSection(TypedDict):
+    """One ``## Heading`` block in :func:`build_llms_txt`."""
+
+    heading: str
+    content: str
 
 
-def llms_txt_identity_section(input: LlmsTxtIdentitySectionInput) -> str:
+def llms_txt_identity_section(
+    *,
+    agentscore: bool = False,
+    compliance: dict[str, Any] | None = None,
+) -> str:
     """Generate the standard "Choose your identity header" section for an AgentScore-gated merchant's llms.txt."""
-    if not input.agentscore:
+    if not agentscore:
         return ""
     compliance_note = ""
-    if input.compliance:
-        c = input.compliance
+    if compliance:
+        c = compliance
         parts: list[str] = []
         if c.get("require_kyc"):
             parts.append("KYC required")
@@ -55,28 +59,30 @@ def llms_txt_identity_section(input: LlmsTxtIdentitySectionInput) -> str:
     )
 
 
-@dataclass
-class LlmsTxtPaymentSectionInput:
-    rails: list[str]
-    app_url: str
-    verbose: bool = False
-    """Emit the verbose multi-step variant (setup commands per rail + full command examples + warnings).
-    Default False (one-line bullet per rail). Use this when llms.txt is the primary integration doc."""
-    tempo_network_name: str = "tempo-mainnet"
-    """Verbose mode only — Tempo network name to mention in prerequisites."""
-    tempo_chain_id: int = 4217
-    """Verbose mode only — Tempo chain id to mention in prerequisites."""
-
-
-def llms_txt_payment_section(input: LlmsTxtPaymentSectionInput) -> str:
+def llms_txt_payment_section(
+    *,
+    rails: list[str],
+    app_url: str,
+    verbose: bool = False,
+    tempo_network_name: str = "tempo-mainnet",
+    tempo_chain_id: int = 4217,
+) -> str:
     """Generate the standard "## Payment" section.
 
-    Pass `verbose=True` for the rich variant — multi-step setup + full command examples +
+    Pass ``verbose=True`` for the rich variant — multi-step setup + full command examples +
     exact-amount warnings. Default is the compact one-bullet-per-rail form.
+
+    ``tempo_network_name`` / ``tempo_chain_id`` are surfaced in the verbose-mode prerequisites;
+    ignored in compact mode.
     """
-    if input.verbose:
-        return _llms_txt_payment_section_verbose(input)
-    return _llms_txt_payment_section_compact(input)
+    if verbose:
+        return _llms_txt_payment_section_verbose(
+            rails=rails,
+            app_url=app_url,
+            tempo_network_name=tempo_network_name,
+            tempo_chain_id=tempo_chain_id,
+        )
+    return _llms_txt_payment_section_compact(rails=rails, app_url=app_url)
 
 
 def _has_rail_family(rails: list[str], prefix: str) -> bool:
@@ -90,25 +96,25 @@ def _is_testnet_rail(rails: list[str], prefix: str) -> bool:
     return any(r.startswith(prefix) and _TESTNET_MARKER.search(r) for r in rails)
 
 
-def _llms_txt_payment_section_compact(input: LlmsTxtPaymentSectionInput) -> str:
+def _llms_txt_payment_section_compact(*, rails: list[str], app_url: str) -> str:
     lines: list[str] = ["## Payment", ""]
-    rails = list(input.rails)
-    if _has_rail_family(rails, "tempo-"):
+    rails_list = list(rails)
+    if _has_rail_family(rails_list, "tempo-"):
         lines.append(
             "- **Tempo USDC via MPP** — "
-            f"`tempo request -X POST -H \"X-Operator-Token: opc_...\" --json '{{...}}' --max-spend N {input.app_url}`"
+            f"`tempo request -X POST -H \"X-Operator-Token: opc_...\" --json '{{...}}' --max-spend N {app_url}`"
         )
-    if _has_rail_family(rails, "x402-base-"):
+    if _has_rail_family(rails_list, "x402-base-"):
         lines.append(
-            f"- **x402 USDC on Base** (EIP-3009) — `agentscore-pay pay POST {input.app_url} --chain base "
+            f"- **x402 USDC on Base** (EIP-3009) — `agentscore-pay pay POST {app_url} --chain base "
             "-H \"X-Operator-Token: opc_...\" -d '{...}'`"
         )
-    if _has_rail_family(rails, "mpp-solana-"):
+    if _has_rail_family(rails_list, "mpp-solana-"):
         lines.append(
-            f"- **x402 USDC on Solana** (SPL Token) — `agentscore-pay pay POST {input.app_url} --chain solana "
+            f"- **x402 USDC on Solana** (SPL Token) — `agentscore-pay pay POST {app_url} --chain solana "
             "-H \"X-Operator-Token: opc_...\" -d '{...}'`"
         )
-    if "stripe-spt" in rails:
+    if "stripe-spt" in rails_list:
         lines.append(
             "- **Stripe Shared Payment Token** — agent mints SPT (own Stripe account scoped to networkId, "
             "OR `link-cli spend-request create --credential-type shared_payment_token --network-id "
@@ -123,14 +129,20 @@ def _llms_txt_payment_section_compact(input: LlmsTxtPaymentSectionInput) -> str:
     return "\n".join(lines)
 
 
-def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
-    rails = list(input.rails)
-    has_tempo = _has_rail_family(rails, "tempo-")
-    has_base = _has_rail_family(rails, "x402-base-")
-    has_solana = _has_rail_family(rails, "mpp-solana-")
-    has_stripe = "stripe-spt" in rails
-    base_network_name = "Base Sepolia" if _is_testnet_rail(rails, "x402-base-") else "Base"
-    solana_network_name = "Solana devnet" if _is_testnet_rail(rails, "mpp-solana-") else "Solana"
+def _llms_txt_payment_section_verbose(
+    *,
+    rails: list[str],
+    app_url: str,
+    tempo_network_name: str,
+    tempo_chain_id: int,
+) -> str:
+    rails_list = list(rails)
+    has_tempo = _has_rail_family(rails_list, "tempo-")
+    has_base = _has_rail_family(rails_list, "x402-base-")
+    has_solana = _has_rail_family(rails_list, "mpp-solana-")
+    has_stripe = "stripe-spt" in rails_list
+    base_network_name = "Base Sepolia" if _is_testnet_rail(rails_list, "x402-base-") else "Base"
+    solana_network_name = "Solana devnet" if _is_testnet_rail(rails_list, "mpp-solana-") else "Solana"
 
     lines: list[str] = ["## Payment", ""]
     lines.append(
@@ -159,8 +171,8 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
         lines.append("1. Install the Tempo CLI: curl -fsSL https://tempo.xyz/install | bash")
         lines.append("2. Log in to your Tempo Wallet: tempo wallet login (passkey auth in browser)")
         lines.append(
-            f"3. Confirm your balance: tempo wallet whoami (need USDC.e on {input.tempo_network_name}, "
-            f"chain {input.tempo_chain_id})"
+            f"3. Confirm your balance: tempo wallet whoami (need USDC.e on {tempo_network_name}, "
+            f"chain {tempo_chain_id})"
         )
         lines.append("4. If balance is zero, fund it: tempo wallet fund")
         lines.append("")
@@ -171,11 +183,11 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
         lines.append('  -H "Content-Type: application/json" \\')
         lines.append("  --json '{...}' \\")
         lines.append("  --max-spend N \\")
-        lines.append(f"  {input.app_url}")
+        lines.append(f"  {app_url}")
         lines.append("")
         lines.append(
             f"`tempo request` handles the full MPP handshake: sends the POST, receives the 402 challenge, "
-            f"signs the payment on {input.tempo_network_name}, submits the credential, and returns the "
+            f"signs the payment on {tempo_network_name}, submits the credential, and returns the "
             "completed order."
         )
         lines.append("")
@@ -203,7 +215,7 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
         lines.append("")
         lines.append("Then submit the paid purchase:")
         lines.append("")
-        lines.append(f"agentscore-pay pay POST {input.app_url} \\")
+        lines.append(f"agentscore-pay pay POST {app_url} \\")
         lines.append(f"  {'--chain base' if has_base else '--chain solana'} \\")
         lines.append('  -H "X-Operator-Token: opc_your_credential" \\')
         lines.append('  -H "Content-Type: application/json" \\')
@@ -247,35 +259,33 @@ def _llms_txt_payment_section_verbose(input: LlmsTxtPaymentSectionInput) -> str:
     return "\n".join(lines)
 
 
-@dataclass
-class LlmsTxtSection:
-    heading: str
-    content: str
+def build_llms_txt(
+    *,
+    merchant_name: str,
+    sections: list[LlmsTxtSection] | None = None,
+    tagline: str | None = None,
+    agentscore_identity: dict[str, Any] | None = None,
+    payment: dict[str, Any] | None = None,
+) -> str:
+    """Assemble a complete llms.txt document with optional AgentScore identity + payment boilerplate.
 
-
-@dataclass
-class BuildLlmsTxtInput:
-    merchant_name: str
-    sections: list[LlmsTxtSection] = field(default_factory=list)
-    tagline: str | None = None
-    agentscore_identity: LlmsTxtIdentitySectionInput | None = None
-    payment: LlmsTxtPaymentSectionInput | None = None
-
-
-def build_llms_txt(input: BuildLlmsTxtInput) -> str:
-    """Assemble a complete llms.txt document with optional AgentScore identity + payment boilerplate."""
-    parts: list[str] = [f"# {input.merchant_name}"]
-    if input.tagline:
-        parts.append(f"> {input.tagline}")
+    ``agentscore_identity`` is a dict forwarded to :func:`llms_txt_identity_section`
+    (keys: ``agentscore``, ``compliance``). ``payment`` is a dict forwarded to
+    :func:`llms_txt_payment_section` (keys: ``rails``, ``app_url``, ``verbose``,
+    ``tempo_network_name``, ``tempo_chain_id``).
+    """
+    parts: list[str] = [f"# {merchant_name}"]
+    if tagline:
+        parts.append(f"> {tagline}")
     parts.append("")
-    for s in input.sections:
-        parts.append(f"## {s.heading}")
+    for s in sections or []:
+        parts.append(f"## {s['heading']}")
         parts.append("")
-        parts.append(s.content)
+        parts.append(s["content"])
         parts.append("")
-    if input.agentscore_identity:
-        parts.append(llms_txt_identity_section(input.agentscore_identity))
+    if agentscore_identity:
+        parts.append(llms_txt_identity_section(**agentscore_identity))
         parts.append("")
-    if input.payment:
-        parts.append(llms_txt_payment_section(input.payment))
+    if payment:
+        parts.append(llms_txt_payment_section(**payment))
     return "\n".join(parts)

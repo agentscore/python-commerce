@@ -1,20 +1,15 @@
 """Discovery helpers — probe responder, Bazaar payload builder, .well-known/mpp.json, llms.txt, OpenAPI snippets."""
 
-from agentscore_commerce.discovery.bazaar import BazaarDiscoveryConfig, build_bazaar_discovery_payload
+from agentscore_commerce.discovery.bazaar import build_bazaar_discovery_payload
 from agentscore_commerce.discovery.llms_txt import (
-    BuildLlmsTxtInput,
-    LlmsTxtIdentitySectionInput,
-    LlmsTxtPaymentSectionInput,
     LlmsTxtSection,
     build_llms_txt,
     llms_txt_identity_section,
     llms_txt_payment_section,
 )
 from agentscore_commerce.discovery.openapi import (
-    BuildAgentScoreOpenApiSnippetsInput,
     XPaymentInfoDynamicPrice,
     XPaymentInfoFixedPrice,
-    XPaymentInfoInput,
     XPaymentInfoMpp,
     agentscore_denial_schemas,
     agentscore_openapi_snippets,
@@ -25,7 +20,6 @@ from agentscore_commerce.discovery.openapi import (
     x_payment_info_extension,
 )
 from agentscore_commerce.discovery.probe import (
-    DiscoveryProbeOptions,
     DiscoveryProbeResponse,
     X402SampleProbe,
     build_discovery_probe_response,
@@ -41,7 +35,6 @@ from agentscore_commerce.discovery.robots_tag import (
     is_discovery_path,
 )
 from agentscore_commerce.discovery.skill_md import (
-    BuildSkillMdInput,
     RailKey,
     SkillMdEndpoint,
     SkillMdIdentityRequirements,
@@ -52,11 +45,9 @@ from agentscore_commerce.discovery.skill_md import (
 )
 from agentscore_commerce.discovery.well_known_mpp import (
     PaymentMethodConfig,
-    WellKnownMppInput,
     build_well_known_mpp,
 )
 from agentscore_commerce.discovery.well_known_x402 import (
-    BuildWellKnownX402Input,
     WellKnownX402Resource,
     build_well_known_x402,
 )
@@ -64,16 +55,8 @@ from agentscore_commerce.discovery.well_known_x402 import (
 __all__ = [
     "DEFAULT_DISCOVERY_PATHS",
     "DEFAULT_ROBOTS_TAG",
-    "BazaarDiscoveryConfig",
-    "BuildAgentScoreOpenApiSnippetsInput",
-    "BuildLlmsTxtInput",
-    "BuildSkillMdInput",
-    "BuildWellKnownX402Input",
-    "DiscoveryProbeOptions",
     "DiscoveryProbeResponse",
     "DjangoNoindexMiddleware",
-    "LlmsTxtIdentitySectionInput",
-    "LlmsTxtPaymentSectionInput",
     "LlmsTxtSection",
     "NoindexNonDiscoveryMiddleware",
     "PaymentMethodConfig",
@@ -82,12 +65,10 @@ __all__ = [
     "SkillMdIdentityRequirements",
     "SkillMdLink",
     "SkillMdShippingPolicy",
-    "WellKnownMppInput",
     "WellKnownX402Resource",
     "X402SampleProbe",
     "XPaymentInfoDynamicPrice",
     "XPaymentInfoFixedPrice",
-    "XPaymentInfoInput",
     "XPaymentInfoMpp",
     "agentscore_denial_schemas",
     "agentscore_openapi_snippets",

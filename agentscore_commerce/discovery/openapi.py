@@ -78,30 +78,22 @@ class XPaymentInfoMpp:
     currency: str
 
 
-@dataclass
-class XPaymentInfoInput:
-    """Per-operation `x-payment-info` extension input, per the x402scan discovery spec.
-
-    ``protocols`` is a list of single-key dicts. Use ``{"x402": {}}`` for x402,
-    ``{"mpp": {"method": ..., "intent": ..., "currency": ...}}`` for MPP. Order is
-    preserved.
-    """
-
-    price: XPaymentInfoPrice
-    protocols: list[dict[str, Any]]
-
-
-def x_payment_info_extension(input: XPaymentInfoInput) -> dict[str, Any]:
+def x_payment_info_extension(
+    *,
+    price: XPaymentInfoPrice,
+    protocols: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Wrap a price + protocols block under ``x-payment-info``.
 
-    For spreading into an OpenAPI operation object.
+    For spreading into an OpenAPI operation object. ``protocols`` is a list of
+    single-key dicts: ``{"x402": {}}`` for x402, ``{"mpp": {"method": ...,
+    "intent": ..., "currency": ...}}`` for MPP. Order is preserved.
     """
-    price = input.price
     if isinstance(price, XPaymentInfoFixedPrice):
         price_dict: dict[str, Any] = {"mode": "fixed", "currency": price.currency, "amount": price.amount}
     else:
         price_dict = {"mode": "dynamic", "currency": price.currency, "min": price.min, "max": price.max}
-    return {"x-payment-info": {"price": price_dict, "protocols": input.protocols}}
+    return {"x-payment-info": {"price": price_dict, "protocols": protocols}}
 
 
 def x_guidance_extension(text: str) -> dict[str, str]:
@@ -216,24 +208,21 @@ def agentscore_payment_required_schema() -> dict[str, Any]:
     }
 
 
-@dataclass
-class BuildAgentScoreOpenApiSnippetsInput:
-    security: bool = True
-    denials: bool = True
-    payment_required: bool = True
-
-
-def agentscore_openapi_snippets(opts: BuildAgentScoreOpenApiSnippetsInput | None = None) -> dict[str, Any]:
+def agentscore_openapi_snippets(
+    *,
+    security: bool = True,
+    denials: bool = True,
+    payment_required: bool = True,
+) -> dict[str, Any]:
     """Returns a `components` snippet ready to merge into an OpenAPI document."""
-    o = opts or BuildAgentScoreOpenApiSnippetsInput()
     out: dict[str, Any] = {}
-    if o.security:
+    if security:
         out["securitySchemes"] = agentscore_security_schemes()
-    if o.denials or o.payment_required:
+    if denials or payment_required:
         schemas: dict[str, Any] = {}
-        if o.denials:
+        if denials:
             schemas.update(agentscore_denial_schemas())
-        if o.payment_required:
+        if payment_required:
             schemas.update(agentscore_payment_required_schema())
         out["schemas"] = schemas
     return out

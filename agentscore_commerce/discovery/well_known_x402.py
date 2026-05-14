@@ -18,12 +18,10 @@ authoritative over this static metadata.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
 
 
-@dataclass
-class WellKnownX402Resource:
+class WellKnownX402Resource(TypedDict):
     """Entry in the ``resources`` list."""
 
     #: HTTP method, uppercase: ``GET | POST | PUT | PATCH | DELETE``.
@@ -32,14 +30,13 @@ class WellKnownX402Resource:
     path: str
 
 
-@dataclass
-class BuildWellKnownX402Input:
-    #: Invocable, payment-required routes. Each entry becomes ``"METHOD /path"``.
-    resources: list[WellKnownX402Resource]
+def build_well_known_x402(*, resources: list[WellKnownX402Resource]) -> dict[str, Any]:
+    """Emit the ``/.well-known/x402`` discovery body.
 
-
-def build_well_known_x402(input: BuildWellKnownX402Input) -> dict[str, Any]:
+    ``resources`` is a list of ``{"method": ..., "path": ...}`` dicts; each becomes
+    a ``"METHOD /path"`` entry in the output.
+    """
     return {
         "version": 1,
-        "resources": [f"{r.method.upper()} {r.path}" for r in input.resources],
+        "resources": [f"{r['method'].upper()} {r['path']}" for r in resources],
     }

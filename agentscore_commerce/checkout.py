@@ -206,15 +206,15 @@ class CheckoutResult:
     ``"settle_failed"``, ...) for diagnostics."""
 
 
-PricingFn: TypeAlias = Callable[["CheckoutContext"], "Awaitable[PricingResult] | PricingResult"]
-RecipientsFn: TypeAlias = Callable[["CheckoutContext"], "Awaitable[dict[str, str]] | dict[str, str]"]
-ReferenceIdFn: TypeAlias = Callable[["CheckoutContext"], "Awaitable[str] | str"]
+PricingFn: TypeAlias = Callable[[CheckoutContext], Awaitable[PricingResult] | PricingResult]
+RecipientsFn: TypeAlias = Callable[[CheckoutContext], Awaitable[dict[str, str]] | dict[str, str]]
+ReferenceIdFn: TypeAlias = Callable[[CheckoutContext], Awaitable[str] | str]
 OnSettledFn: TypeAlias = Callable[
-    ["CheckoutContext", "SettleOutcome"],
-    "Awaitable[dict[str, Any] | None] | dict[str, Any] | None",
+    [CheckoutContext, SettleOutcome],
+    Awaitable[dict[str, Any] | None] | dict[str, Any] | None,
 ]
-ComposeMppxFn: TypeAlias = Callable[["CheckoutContext"], "Awaitable[MppxComposeOutcome] | MppxComposeOutcome"]
-IsCachedAddressFn: TypeAlias = Callable[[str], "Awaitable[bool] | bool"]
+ComposeMppxFn: TypeAlias = Callable[[CheckoutContext], Awaitable[MppxComposeOutcome] | MppxComposeOutcome]
+IsCachedAddressFn: TypeAlias = Callable[[str], Awaitable[bool] | bool]
 
 
 def _has_x402_header(headers: dict[str, str]) -> bool:

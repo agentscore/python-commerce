@@ -39,8 +39,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agentscore_commerce.payment import (
-    PaymentDirectiveInput,
-    SettlementOverrides,
     payment_directive,
     settlement_override_header,
     www_authenticate_header,
@@ -54,10 +52,8 @@ app = FastAPI()
 
 def _build_402_body(url: str) -> tuple[dict, dict]:
     directives = [
-        payment_directive(PaymentDirectiveInput(rail="x402-base-mainnet-upto", id="chg_upto", realm=REALM, request="")),
-        payment_directive(
-            PaymentDirectiveInput(rail="tempo-mainnet", id="chg_session", realm=REALM, intent="session", request="")
-        ),
+        payment_directive(rail="x402-base-mainnet-upto", id="chg_upto", realm=REALM, request=""),
+        payment_directive(rail="tempo-mainnet", id="chg_session", realm=REALM, intent="session", request=""),
     ]
     body = {
         "payment_required": True,
@@ -87,7 +83,7 @@ async def complete(request: Request):
     actual_atomic = str(int(actual_usd * 1_000_000))  # USDC atomic units
 
     # Tell the facilitator to settle for `actual_atomic` instead of the authorized max.
-    name, value = settlement_override_header(SettlementOverrides(amount=actual_atomic))
+    name, value = settlement_override_header(amount=actual_atomic)
     return JSONResponse(
         {"text": text, "tokens_used": tokens_used, "charged_usd": actual_usd},
         headers={name: value},

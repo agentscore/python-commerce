@@ -11,13 +11,10 @@ full control.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 
-from agentscore_commerce.payment.directive import (
-    BuildPaymentDirectiveInput,
-    build_payment_directive,
-)
+from agentscore_commerce.payment.directive import build_payment_directive
 from agentscore_commerce.payment.wwwauthenticate import (
     PaymentRequiredHeaderInput,
     payment_required_header,
@@ -69,23 +66,6 @@ class X402AcceptsBlock:
     resource: dict[str, str] | None = None
 
 
-@dataclass
-class BuildPaymentHeadersInput:
-    """Input shape for :func:`build_payment_headers`."""
-
-    rails: list[PaymentHeadersRail] = field(default_factory=list)
-    order_id: str = ""
-    """Order id used as the directive challenge id (per-rail it becomes ``{order_id}-{rail}``)."""
-
-    realm: str = ""
-    """Realm — the host of the merchant URL (e.g. ``agents.merchant.example``)."""
-
-    x402: X402AcceptsBlock | None = None
-    """Optional x402 ``accepts`` array — included as the standard PAYMENT-REQUIRED header
-    so x402 clients (``x402[fastapi]``, ``agentscore-pay``) can parse the binary-friendly
-    format. Pass ``None`` (or omit) to skip the PAYMENT-REQUIRED header."""
-
-
 class PaymentHeadersResult(TypedDict, total=False):
     """Header dict returned by :func:`build_payment_headers`."""
 
@@ -98,19 +78,31 @@ class PaymentHeadersResult(TypedDict, total=False):
     were provided."""
 
 
-def build_payment_headers(input: BuildPaymentHeadersInput) -> PaymentHeadersResult:
+def build_payment_headers(
+    *,
+    rails: list[PaymentHeadersRail] | None = None,
+    order_id: str = "",
+    realm: str = "",
+    x402: X402AcceptsBlock | None = None,
+) -> PaymentHeadersResult:
     """Compose WWW-Authenticate + PAYMENT-REQUIRED headers from a single rails declaration.
 
     Returns a dict with snake_case keys — callers map to actual HTTP header names::
 
-        headers = build_payment_headers(BuildPaymentHeadersInput(...))
+        headers = build_payment_headers(...)
         response.headers["www-authenticate"] = headers["www_authenticate"]
         if "payment_required" in headers:
             response.headers["PAYMENT-REQUIRED"] = headers["payment_required"]
 
+    ``order_id`` is used as the directive challenge id (per-rail it becomes
+    ``"{order_id}-{rail}"``). ``realm`` is the host of the merchant URL (e.g.
+    ``agents.merchant.example``). ``x402`` is optional — pass an ``X402AcceptsBlock``
+    to include the standard PAYMENT-REQUIRED header so x402 clients (``x402[fastapi]``,
+    ``agentscore-pay``) can parse the binary-friendly format. Omit to skip.
+
     Example::
 
-        headers = build_payment_headers(BuildPaymentHeadersInput(
+        headers = build_payment_headers(
             order_id="ord_123",
             realm="agents.merchant.example",
             rails=[
@@ -119,37 +111,37 @@ def build_payment_headers(input: BuildPaymentHeadersInput) -> PaymentHeadersResu
                 PaymentHeadersRail(rail="stripe", amount_usd=25, network_id=STRIPE_PROFILE_ID),
             ],
             x402=X402AcceptsBlock(accepts=x402_accepts, version=2),
-        ))
+        )
     """
     directives = []
-    for rail in input.rails:
-        # `intent` is non-Optional on BuildPaymentDirectiveInput (defaults to "charge");
+    for rail_entry in rails or []:
+        # `intent` is non-Optional on build_payment_directive (defaults to "charge");
         # only forward when the rail explicitly sets it so the default applies otherwise.
         kwargs: dict[str, Any] = {
-            "id": f"{input.order_id}-{rail.rail}",
-            "realm": input.realm,
-            "rail": rail.rail,
-            "amount_usd": rail.amount_usd,
-            "recipient": rail.recipient,
-            "network_id": rail.network_id,
-            "chain_id": rail.chain_id,
-            "currency": rail.currency,
-            "decimals": rail.decimals,
-            "method": rail.method,
-            "expires": rail.expires,
+            "id": f"{order_id}-{rail_entry.rail}",
+            "realm": realm,
+            "rail": rail_entry.rail,
+            "amount_usd": rail_entry.amount_usd,
+            "recipient": rail_entry.recipient,
+            "network_id": rail_entry.network_id,
+            "chain_id": rail_entry.chain_id,
+            "currency": rail_entry.currency,
+            "decimals": rail_entry.decimals,
+            "method": rail_entry.method,
+            "expires": rail_entry.expires,
         }
-        if rail.intent is not None:
-            kwargs["intent"] = rail.intent
-        directives.append(build_payment_directive(BuildPaymentDirectiveInput(**kwargs)))
+        if rail_entry.intent is not None:
+            kwargs["intent"] = rail_entry.intent
+        directives.append(build_payment_directive(**kwargs))
 
     result: PaymentHeadersResult = {"www_authenticate": www_authenticate_header(directives)}
 
-    if input.x402 is not None:
+    if x402 is not None:
         result["payment_required"] = payment_required_header(
             PaymentRequiredHeaderInput(
-                x402_version=input.x402.version,
-                accepts=input.x402.accepts,
-                resource=input.x402.resource,
+                x402_version=x402.version,
+                accepts=x402.accepts,
+                resource=x402.resource,
             ),
         )
 
@@ -157,7 +149,6 @@ def build_payment_headers(input: BuildPaymentHeadersInput) -> PaymentHeadersResu
 
 
 __all__ = [
-    "BuildPaymentHeadersInput",
     "PaymentHeadersRail",
     "PaymentHeadersResult",
     "X402AcceptsBlock",

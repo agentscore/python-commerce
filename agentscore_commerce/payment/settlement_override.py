@@ -8,16 +8,14 @@ amount instead of the advertised maximum. Per the x402 docs, the amount field ac
 """
 
 import json
-from dataclasses import dataclass
 
 SETTLEMENT_OVERRIDES_HEADER = "Settlement-Overrides"
 
 
-@dataclass
-class SettlementOverrides:
-    amount: str  # raw atomic units, '<n>%' percentage, or '$X.YZ' dollar price
+def settlement_override_header(*, amount: str) -> tuple[str, str]:
+    """Build a (name, value) pair for the x402 Settlement-Overrides response header.
 
-
-def settlement_override_header(overrides: SettlementOverrides) -> tuple[str, str]:
-    """Build a (name, value) pair for the x402 Settlement-Overrides response header."""
-    return SETTLEMENT_OVERRIDES_HEADER, json.dumps({"amount": overrides.amount}, separators=(",", ":"))
+    ``amount`` is the override value: raw atomic units, ``"<n>%"`` percentage, or ``"$X.YZ"``
+    dollar price.
+    """
+    return SETTLEMENT_OVERRIDES_HEADER, json.dumps({"amount": amount}, separators=(",", ":"))

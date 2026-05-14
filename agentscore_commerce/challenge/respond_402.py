@@ -17,38 +17,20 @@ The seam is fiddly enough to get wrong by hand:
 
 Usage::
 
-    from agentscore_commerce.challenge import respond_402, Respond402Input
+    from agentscore_commerce.challenge import respond_402
 
-    result = respond_402(Respond402Input(
+    result = respond_402(
         mppx_challenge_headers=dict(challenge_response.headers),
-        body=Build402BodyInput(accepted_methods=..., ...),
-        x402=PaymentRequiredHeaderInput(x402_version=2, accepts=..., resource=...),
-    ))
+        body={"accepted_methods": ..., ...},
+        x402={"x402_version": 2, "accepts": [...], "resource": {...}},
+    )
     return JSONResponse(result.body, status_code=result.status, headers=result.headers)
 """
 
 from dataclasses import dataclass
+from typing import Any
 
-from agentscore_commerce.challenge.body import Build402BodyInput, build_402_body
-from agentscore_commerce.payment.wwwauthenticate import (
-    PaymentRequiredHeaderInput,
-    payment_required_header,
-)
-
-
-@dataclass
-class Respond402Input:
-    """Input for :func:`respond_402`."""
-
-    #: Headers from the pympp ``compose()`` 402 response. The ``www-authenticate``
-    #: header is preserved verbatim — pympp's server-side validator matches credentials
-    #: to the directive ids it generated, so overwriting breaks the round-trip.
-    mppx_challenge_headers: dict[str, str]
-    #: Inputs to :func:`build_402_body` — the rich JSON body sent to the agent.
-    body: Build402BodyInput
-    #: When set, layers on the x402 PAYMENT-REQUIRED header (base64-encoded JSON).
-    #: Omit for merchants that don't accept x402 (Base/Solana) — pympp-only setups.
-    x402: PaymentRequiredHeaderInput | None = None
+from agentscore_commerce.payment.wwwauthenticate import PaymentRequiredHeaderInput, payment_required_header
 
 
 @dataclass
@@ -60,15 +42,27 @@ class Respond402Result:
     status: int = 402
 
 
-def respond_402(input: Respond402Input) -> Respond402Result:
+def respond_402(
+    *,
+    mppx_challenge_headers: dict[str, str],
+    body: dict[str, Any],
+    x402: dict[str, Any] | None = None,
+) -> Respond402Result:
     """Compose the rich body + preserved-mppx WWW-Auth + optional x402 PAYMENT-REQUIRED.
 
     The merchant wraps the returned ``Respond402Result`` in their framework's response
     shape (``JSONResponse`` for FastAPI, ``flask.Response`` for Flask, etc.).
+
+    ``body`` is the already-built dict from :func:`build_402_body`. ``x402``, when
+    set, carries the PAYMENT-REQUIRED header inputs (``x402_version``, ``accepts``,
+    ``resource``); omit for merchants that don't accept x402 (Base / Solana) — pympp-only
+    setups.
     """
-    body = build_402_body(input.body)
-    headers = {k.lower(): v for k, v in input.mppx_challenge_headers.items()}
+    headers = {k.lower(): v for k, v in mppx_challenge_headers.items()}
     headers["content-type"] = "application/json"
-    if input.x402 is not None:
-        headers["payment-required"] = payment_required_header(input.x402)
+    if x402 is not None:
+        # PaymentRequiredHeaderInput still exists pending the wwwauthenticate
+        # flatten in a subsequent PR; respond_402's public API takes a dict now
+        # and we adapt internally so the wrapper deletion is invisible to callers.
+        headers["payment-required"] = payment_required_header(PaymentRequiredHeaderInput(**x402))
     return Respond402Result(body=body, headers=headers, status=402)

@@ -1,7 +1,6 @@
 """agent_instructions block builder for the 402 body."""
 
 from collections.abc import Iterable
-from dataclasses import dataclass, field
 from typing import Any, Literal
 
 _TEMPO_WARNING = (
@@ -74,7 +73,7 @@ def compatible_clients_by_rails(rails: Iterable[str]) -> dict[str, list[str]] | 
 def _default_compatible_clients(how_to_pay: dict[str, Any]) -> dict[str, list[str]] | None:
     """Default ``compatible_clients`` derived from the rails declared in ``how_to_pay``.
 
-    Vendors override this in ``BuildAgentInstructionsInput(compatible_clients=...)``
+    Vendors override via the ``compatible_clients`` kwarg of ``build_agent_instructions``
     to add their own tested clients or remove entries that don't fit their endpoint.
     Verified state as of the SDK release.
     """
@@ -90,55 +89,44 @@ def _default_compatible_clients(how_to_pay: dict[str, Any]) -> dict[str, list[st
     return compatible_clients_by_rails(rails)
 
 
-@dataclass
-class BuildAgentInstructionsInput:
-    how_to_pay: dict[str, Any]
-    recommended_tools: list[str] | None = None
-    wallet_compatibility: str | None = None
-    timeout_seconds: int = 300
-    warnings: list[str] | None = None
+def build_agent_instructions(
+    *,
+    how_to_pay: dict[str, Any],
+    recommended_tools: list[str] | None = None,
+    wallet_compatibility: str | None = None,
+    timeout_seconds: int = 300,
+    warnings: list[str] | None = None,
     # Appended to the default protocol-footgun warnings. Use this to keep the SDK's
     # protocol warnings AND add merchant-specific notes. Ignored when ``warnings`` is set.
-    extra_warnings: list[str] | None = None
-    recommended: str | None = None
+    extra_warnings: list[str] | None = None,
+    recommended: str | None = None,
     # Per-rail list of client names the merchant has verified work end-to-end.
     # Vendors set this from their own smoke matrix — defaults to None, in which case
     # the field is not emitted (avoids vouching for clients the merchant has not tested).
     # Keys are rail identifiers (e.g. "x402_base", "tempo_mpp"); values are display labels.
-    compatible_clients: dict[str, list[str]] | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
-
-
-def build_agent_instructions(input: BuildAgentInstructionsInput) -> dict[str, Any]:
+    compatible_clients: dict[str, list[str]] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Build the agent_instructions block — combines how_to_pay with tools, warnings, compat note, timeout.
 
     Defaults adapt to the rails declared in ``how_to_pay``: only tempo-relevant warnings/tools
     appear if ``how_to_pay["tempo"]`` is set, only x402-relevant ones if ``x402_base``/
     ``solana_mpp`` are set. Vendors override ``warnings``/``recommended_tools`` for full control.
     """
-    recommended_tools = (
-        input.recommended_tools if input.recommended_tools is not None else _default_recommended_tools(input.how_to_pay)
-    )
-    warnings = (
-        input.warnings
-        if input.warnings is not None
-        else [*_default_warnings(input.how_to_pay), *(input.extra_warnings or [])]
-    )
-    compatible_clients = (
-        input.compatible_clients
-        if input.compatible_clients is not None
-        else _default_compatible_clients(input.how_to_pay)
-    )
+    resolved_tools = recommended_tools if recommended_tools is not None else _default_recommended_tools(how_to_pay)
+    resolved_warnings = warnings if warnings is not None else [*_default_warnings(how_to_pay), *(extra_warnings or [])]
+    resolved_clients = compatible_clients if compatible_clients is not None else _default_compatible_clients(how_to_pay)
     out: dict[str, Any] = {
-        "how_to_pay": input.how_to_pay,
-        "recommended_tools": recommended_tools,
-        "wallet_compatibility": input.wallet_compatibility or DEFAULT_WALLET_COMPATIBILITY,
-        "timeout_seconds": input.timeout_seconds,
-        "warnings": warnings,
+        "how_to_pay": how_to_pay,
+        "recommended_tools": resolved_tools,
+        "wallet_compatibility": wallet_compatibility or DEFAULT_WALLET_COMPATIBILITY,
+        "timeout_seconds": timeout_seconds,
+        "warnings": resolved_warnings,
     }
-    if input.recommended:
-        out["recommended"] = input.recommended
-    if compatible_clients:
-        out["compatible_clients"] = compatible_clients
-    out.update(input.extra)
+    if recommended:
+        out["recommended"] = recommended
+    if resolved_clients:
+        out["compatible_clients"] = resolved_clients
+    if extra:
+        out.update(extra)
     return out

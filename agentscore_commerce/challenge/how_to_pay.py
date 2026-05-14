@@ -1,53 +1,11 @@
 """how_to_pay block builder — per-rail setup/command/what_it_does for 402 agent_instructions."""
 
 import math
-from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
-
-@dataclass
-class TempoRailConfig:
-    recipient: str
-    network_name: str = "tempo-mainnet"
-    chain_id: int = 4217
-    recommend: Literal["tempo", "agentscore-pay", "both"] = "both"
-
-
-@dataclass
-class X402BaseRailConfig:
-    recipient: str
-    network: str = "eip155:8453"
-
-
-@dataclass
-class SolanaMppRailConfig:
-    recipient: str
-    network: str = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-
-
-@dataclass
-class StripeRailConfig:
-    profile_id: str | None = None
-    product_name: str | None = None
-
-
-@dataclass
-class HowToPayRails:
-    tempo: TempoRailConfig | None = None
-    x402_base: X402BaseRailConfig | None = None
-    solana_mpp: SolanaMppRailConfig | None = None
-    stripe: StripeRailConfig | None = None
-
-
-@dataclass
-class BuildHowToPayInput:
-    url: str
-    retry_body_json: str
-    total_usd: float | str
-    rails: HowToPayRails
-    op_token_placeholder: str = "<your_opc_token>"
-    max_spend: float | str | None = None
-
+_DEFAULT_TEMPO = {"network_name": "tempo-mainnet", "chain_id": 4217, "recommend": "both"}
+_DEFAULT_X402_BASE = {"network": "eip155:8453"}
+_DEFAULT_SOLANA_MPP = {"network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"}
 
 TEMPO_SETUP = [
     "curl -fsSL https://tempo.xyz/install | bash",
@@ -67,56 +25,72 @@ PAY_SETUP_SOLANA = [
 ]
 
 
-def build_how_to_pay(input: BuildHowToPayInput) -> dict[str, Any]:
+def build_how_to_pay(
+    *,
+    url: str,
+    retry_body_json: str,
+    total_usd: float | str,
+    rails: dict[str, dict[str, Any]],
+    op_token_placeholder: str = "<your_opc_token>",  # noqa: S107 — literal placeholder, not a secret
+    max_spend: float | str | None = None,
+) -> dict[str, Any]:
     """Build the agent_instructions.how_to_pay block.
 
     Generates per-rail setup/command/what_it_does so agents see concrete commands per rail in the 402 body.
+    ``rails`` is a dict keyed by rail name (``"tempo"``, ``"x402_base"``, ``"solana_mpp"``, ``"stripe"``);
+    each value is a plain dict carrying the rail's config (``recipient`` for chain rails, ``profile_id``
+    + ``product_name`` for stripe, plus the protocol-default overrides ``network`` / ``network_name`` /
+    ``chain_id`` / ``recommend``). Pass ``rails={}`` to emit no per-rail block.
     """
-    total_num = float(input.total_usd) if isinstance(input.total_usd, str) else input.total_usd
-    max_spend = str(input.max_spend) if input.max_spend is not None else f"{math.ceil(total_num) + 1:.2f}"
-    op_token = input.op_token_placeholder
+    total_num = float(total_usd) if isinstance(total_usd, str) else total_usd
+    max_spend_str = str(max_spend) if max_spend is not None else f"{math.ceil(total_num) + 1:.2f}"
+    op_token = op_token_placeholder
     block: dict[str, Any] = {}
 
-    if input.rails.tempo:
-        t = input.rails.tempo
+    tempo = rails.get("tempo")
+    if tempo:
+        network_name = tempo.get("network_name", _DEFAULT_TEMPO["network_name"])
+        chain_id = tempo.get("chain_id", _DEFAULT_TEMPO["chain_id"])
+        recommend = tempo.get("recommend", _DEFAULT_TEMPO["recommend"])
         tempo_command = (
             f"tempo request -X POST -H 'X-Operator-Token: {op_token}' -H 'Content-Type: application/json' "
-            f"--json '{input.retry_body_json}' --max-spend {max_spend} {input.url}"
+            f"--json '{retry_body_json}' --max-spend {max_spend_str} {url}"
         )
         pay_command = (
-            f"agentscore-pay pay POST {input.url} --chain tempo -H 'X-Operator-Token: {op_token}' "
-            f"-H 'Content-Type: application/json' -d '{input.retry_body_json}' --max-spend {max_spend}"
+            f"agentscore-pay pay POST {url} --chain tempo -H 'X-Operator-Token: {op_token}' "
+            f"-H 'Content-Type: application/json' -d '{retry_body_json}' --max-spend {max_spend_str}"
         )
         entry: dict[str, Any] = {
             "setup": TEMPO_SETUP,
             "prerequisite": (
-                f"Run `tempo wallet whoami` and confirm USDC.e balance on {t.network_name} (chain {t.chain_id}) "
-                f"is at least ${max_spend}. If the tempo CLI is not installed, run the setup commands above first."
+                f"Run `tempo wallet whoami` and confirm USDC.e balance on {network_name} (chain {chain_id}) "
+                f"is at least ${max_spend_str}. If the tempo CLI is not installed, run the setup commands above first."
             ),
-            "command": pay_command if t.recommend == "agentscore-pay" else tempo_command,
+            "command": pay_command if recommend == "agentscore-pay" else tempo_command,
             "what_it_does": (
-                f"Hits this endpoint, receives this same 402, signs the MPP challenge on {t.network_name}, and "
+                f"Hits this endpoint, receives this same 402, signs the MPP challenge on {network_name}, and "
                 "submits the credential back via Authorization: Payment. Either client (tempo request or "
                 "agentscore-pay pay --chain tempo) works — both run the full MPP handshake."
             ),
         }
-        if t.recommend == "both":
+        if recommend == "both":
             entry["alternative_command"] = pay_command
-        elif t.recommend == "agentscore-pay":
+        elif recommend == "agentscore-pay":
             entry["alternative_command"] = tempo_command
         block["tempo"] = entry
 
-    if input.rails.x402_base:
-        b = input.rails.x402_base
+    x402_base = rails.get("x402_base")
+    if x402_base:
+        network = x402_base.get("network", _DEFAULT_X402_BASE["network"])
         block["x402_base"] = {
             "setup": PAY_SETUP_BASE,
             "prerequisite": (
-                f"Run `agentscore-pay balance --chain base` and confirm USDC balance on Base ({b.network}) is at "
-                f"least ${max_spend}. If the CLI is not installed, run the setup commands above first."
+                f"Run `agentscore-pay balance --chain base` and confirm USDC balance on Base ({network}) is at "
+                f"least ${max_spend_str}. If the CLI is not installed, run the setup commands above first."
             ),
             "command": (
-                f"agentscore-pay pay POST {input.url} --chain base -H 'X-Operator-Token: {op_token}' "
-                f"-H 'Content-Type: application/json' -d '{input.retry_body_json}' --max-spend {max_spend}"
+                f"agentscore-pay pay POST {url} --chain base -H 'X-Operator-Token: {op_token}' "
+                f"-H 'Content-Type: application/json' -d '{retry_body_json}' --max-spend {max_spend_str}"
             ),
             "what_it_does": (
                 "Hits this endpoint, receives this same 402, signs an EIP-3009 USDC TransferWithAuthorization "
@@ -125,17 +99,18 @@ def build_how_to_pay(input: BuildHowToPayInput) -> dict[str, Any]:
             ),
         }
 
-    if input.rails.solana_mpp:
-        s = input.rails.solana_mpp
+    solana_mpp = rails.get("solana_mpp")
+    if solana_mpp:
+        network = solana_mpp.get("network", _DEFAULT_SOLANA_MPP["network"])
         block["solana_mpp"] = {
             "setup": PAY_SETUP_SOLANA,
             "prerequisite": (
-                f"Run `agentscore-pay balance --chain solana` and confirm USDC balance on Solana ({s.network}) "
-                f"is at least ${max_spend}. If the CLI is not installed, run the setup commands above first."
+                f"Run `agentscore-pay balance --chain solana` and confirm USDC balance on Solana ({network}) "
+                f"is at least ${max_spend_str}. If the CLI is not installed, run the setup commands above first."
             ),
             "command": (
-                f"agentscore-pay pay POST {input.url} --chain solana -H 'X-Operator-Token: {op_token}' "
-                f"-H 'Content-Type: application/json' -d '{input.retry_body_json}' --max-spend {max_spend}"
+                f"agentscore-pay pay POST {url} --chain solana -H 'X-Operator-Token: {op_token}' "
+                f"-H 'Content-Type: application/json' -d '{retry_body_json}' --max-spend {max_spend_str}"
             ),
             "what_it_does": (
                 "Hits this endpoint, receives this same 402, signs an SPL Token TransferChecked transaction on "
@@ -144,11 +119,12 @@ def build_how_to_pay(input: BuildHowToPayInput) -> dict[str, Any]:
             ),
         }
 
-    if input.rails.stripe:
-        cfg = input.rails.stripe
+    stripe = rails.get("stripe")
+    if stripe:
+        profile_id = stripe.get("profile_id")
+        product_name = stripe.get("product_name") or "this purchase"
         amount_cents = round(total_num * 100)
         link_cli_blocked = amount_cents > 50000
-        product_name = cfg.product_name or "this purchase"
         spt_context = (
             f'Purchasing "{product_name}" via the agent commerce API. The user authorized this purchase '
             f"through their AI agent for ${total_num}; charge to be settled via shared payment token over the "
@@ -164,7 +140,7 @@ def build_how_to_pay(input: BuildHowToPayInput) -> dict[str, Any]:
                 "via Authorization: Payment MPP header with method=stripe/charge."
             ),
         }
-        if cfg.profile_id and not link_cli_blocked:
+        if profile_id and not link_cli_blocked:
             stripe_block["setup_link_cli"] = [
                 "npm install -g @stripe/link-cli   # or use npx -y @stripe/link-cli for one-shot",
                 "link-cli auth login   # one-time, opens your Link wallet",
@@ -174,13 +150,13 @@ def build_how_to_pay(input: BuildHowToPayInput) -> dict[str, Any]:
                 (
                     "SPEND_ID=$(link-cli spend-request create "
                     "--payment-method-id <csmrpd_id_from_payment_methods_list> "
-                    f"--credential-type shared_payment_token --network-id {cfg.profile_id} "
+                    f"--credential-type shared_payment_token --network-id {profile_id} "
                     f"--amount {amount_cents} "
                     f'--context "{spt_context}" --request-approval --output-json | jq -r .id)'
                 ),
                 (
-                    f"link-cli mpp pay {input.url} --spend-request-id $SPEND_ID --method POST "
-                    f"--data '{input.retry_body_json}' --header 'X-Operator-Token: {op_token}' --output-json"
+                    f"link-cli mpp pay {url} --spend-request-id $SPEND_ID --method POST "
+                    f"--data '{retry_body_json}' --header 'X-Operator-Token: {op_token}' --output-json"
                 ),
             ]
             stripe_block["what_it_does_link_cli"] = (

@@ -1,90 +1,85 @@
 """accepted_methods[] builder for enriched 402 bodies."""
 
-from dataclasses import dataclass, field
 from typing import Any
 
-
-@dataclass
-class TempoConfig:
-    recipient: str
-    network: str = "tempo-mainnet"
-    chain_id: int = 4217
-    token: str = "0x20C000000000000000000000b9537d11c60E8b50"
-    symbol: str = "USDC.e"
-    decimals: int = 6
-
-
-@dataclass
-class X402BaseConfig:
-    recipient: str
-    network: str = "eip155:8453"
-    chain_id: int = 8453
-    token: str = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    symbol: str = "USDC"
-    decimals: int = 6
-
-
-@dataclass
-class SolanaMppConfig:
-    recipient: str
-    network: str = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-    token: str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-    symbol: str = "USDC"
-    decimals: int = 6
+_DEFAULT_TEMPO = {
+    "network": "tempo-mainnet",
+    "chain_id": 4217,
+    "token": "0x20C000000000000000000000b9537d11c60E8b50",
+    "symbol": "USDC.e",
+    "decimals": 6,
+}
+_DEFAULT_X402_BASE = {
+    "network": "eip155:8453",
+    "chain_id": 8453,
+    "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "symbol": "USDC",
+    "decimals": 6,
+}
+_DEFAULT_SOLANA_MPP = {
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "symbol": "USDC",
+    "decimals": 6,
+}
+_DEFAULT_STRIPE_RAILS = ["card", "link", "shared_payment_token"]
 
 
-@dataclass
-class StripeConfig:
-    profile_id: str | None = None
-    rails: list[str] = field(default_factory=lambda: ["card", "link", "shared_payment_token"])
+def build_accepted_methods(
+    *,
+    tempo: dict[str, Any] | None = None,
+    x402_base: dict[str, Any] | None = None,
+    solana_mpp: dict[str, Any] | None = None,
+    stripe: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Build the accepted_methods[] array. Each rail entry conditionally included if vendor passed it.
 
-
-@dataclass
-class BuildAcceptedMethodsInput:
-    tempo: TempoConfig | None = None
-    x402_base: X402BaseConfig | None = None
-    solana_mpp: SolanaMppConfig | None = None
-    stripe: StripeConfig | None = None
-
-
-def build_accepted_methods(input: BuildAcceptedMethodsInput) -> list[dict[str, Any]]:
-    """Build the accepted_methods[] array. Each rail entry conditionally included if vendor passed it."""
+    Each rail value is a plain dict. Required key: ``recipient`` (or ``profile_id`` for stripe).
+    Optional keys override the rail's protocol defaults: ``network``, ``chain_id``, ``token``,
+    ``symbol``, ``decimals`` (for chain rails) or ``rails`` (for stripe).
+    """
     out: list[dict[str, Any]] = []
-    if input.tempo:
+    if tempo:
         out.append(
             {
                 "method": "tempo/charge",
-                "network": input.tempo.network,
-                "chain_id": input.tempo.chain_id,
-                "token": input.tempo.token,
-                "symbol": input.tempo.symbol,
-                "decimals": input.tempo.decimals,
-                "pay_to": input.tempo.recipient,
+                "network": tempo.get("network", _DEFAULT_TEMPO["network"]),
+                "chain_id": tempo.get("chain_id", _DEFAULT_TEMPO["chain_id"]),
+                "token": tempo.get("token", _DEFAULT_TEMPO["token"]),
+                "symbol": tempo.get("symbol", _DEFAULT_TEMPO["symbol"]),
+                "decimals": tempo.get("decimals", _DEFAULT_TEMPO["decimals"]),
+                "pay_to": tempo["recipient"],
             }
         )
-    if input.x402_base:
+    if x402_base:
         out.append(
             {
                 "method": "x402/exact",
-                "network": input.x402_base.network,
-                "chain_id": input.x402_base.chain_id,
-                "token": input.x402_base.token,
-                "symbol": input.x402_base.symbol,
-                "decimals": input.x402_base.decimals,
-                "pay_to": input.x402_base.recipient,
+                "network": x402_base.get("network", _DEFAULT_X402_BASE["network"]),
+                "chain_id": x402_base.get("chain_id", _DEFAULT_X402_BASE["chain_id"]),
+                "token": x402_base.get("token", _DEFAULT_X402_BASE["token"]),
+                "symbol": x402_base.get("symbol", _DEFAULT_X402_BASE["symbol"]),
+                "decimals": x402_base.get("decimals", _DEFAULT_X402_BASE["decimals"]),
+                "pay_to": x402_base["recipient"],
             }
         )
-    if input.solana_mpp:
+    if solana_mpp:
         out.append(
             {
                 "method": "x402/exact",
-                "network": input.solana_mpp.network,
-                "token": input.solana_mpp.token,
-                "symbol": input.solana_mpp.symbol,
-                "decimals": input.solana_mpp.decimals,
-                "pay_to": input.solana_mpp.recipient,
+                "network": solana_mpp.get("network", _DEFAULT_SOLANA_MPP["network"]),
+                "token": solana_mpp.get("token", _DEFAULT_SOLANA_MPP["token"]),
+                "symbol": solana_mpp.get("symbol", _DEFAULT_SOLANA_MPP["symbol"]),
+                "decimals": solana_mpp.get("decimals", _DEFAULT_SOLANA_MPP["decimals"]),
+                "pay_to": solana_mpp["recipient"],
             }
         )
-    if input.stripe:
-        out.append({"method": "stripe/charge", "rails": input.stripe.rails, "profile_id": input.stripe.profile_id})
+    if stripe:
+        out.append(
+            {
+                "method": "stripe/charge",
+                "rails": stripe.get("rails", _DEFAULT_STRIPE_RAILS),
+                "profile_id": stripe.get("profile_id"),
+            }
+        )
     return out

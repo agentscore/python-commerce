@@ -55,7 +55,6 @@ from agentscore_commerce.identity import (
     AgentScoreCore,
     AgentScoreGatePolicy,
     AssessResult,
-    CreateSessionOnMissing,
     DenialCode,
     DenialReason,
     EnforcementMode,
@@ -97,6 +96,7 @@ from agentscore_commerce.identity import (
     verify_ucp_profile,
     x402_payment_handler,
 )
+from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 from agentscore_commerce.identity.types import PolicyCheck, PolicyResult
 from agentscore_commerce.payment import (
     PaymentSigner,

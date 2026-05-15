@@ -28,12 +28,12 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Request
 
+from agentscore_commerce import CreateSessionOnMissing
 from agentscore_commerce.identity.fastapi import (
     AgentScoreGate,
     capture_wallet,
     get_agentscore_data,
 )
-from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
 app = FastAPI()
 

@@ -6,10 +6,11 @@ cryptographic provenance. UCP §6 itself does NOT mandate profile-body signing;
 production UCP merchants commonly ship unsigned, and vanilla UCP-aware agents
 read the canonical body and ignore the ``signature`` field.
 
-The 2.0 SDK ships `build_signed_ucp_response` + `build_signed_jwks_response`
-which fold loading + signing + Cache-Control + CORS into one call. Pass a
-`Checkout` instance and the helpers compose the `payment_handlers` block
-from the configured rails automatically.
+The 2.0 SDK ships :meth:`Checkout.mount_ucp_routes_fastapi` (and one for each
+framework adapter) which folds loading + signing + Cache-Control + CORS + the
+3-route registration block (GET ucp + GET jwks + OPTIONS preflight) into one
+call. Pass the merchant's :class:`Checkout` and the helpers compose the
+``payment_handlers`` block from the configured rails automatically.
 
 Run::
 
@@ -25,7 +26,7 @@ Production checklist:
   new profiles with the new key, then dropping the old JWK after your verifier
   cache TTL expires.
 
-Call `bootstrap_ucp_signing_key()` in your lifespan handler so a malformed
+Call :func:`bootstrap_ucp_signing_key` in your lifespan handler so a malformed
 ``UCP_SIGNING_KEY_JWK_PRIVATE`` env value fails the deploy fast instead of
 surfacing on the first ``/.well-known/ucp`` hit.
 """
@@ -35,17 +36,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agentscore_commerce import AgentScoreGatePolicy, Checkout, PricingResult
-from agentscore_commerce.discovery import (
-    bootstrap_ucp_signing_key,
-    build_signed_jwks_response,
-    build_signed_ucp_response,
-    default_a2a_services,
-    well_known_preflight_response,
-)
+from agentscore_commerce.discovery import bootstrap_ucp_signing_key, default_a2a_services
 from agentscore_commerce.payment import TempoRailSpec
 
 SIGNING_KID = "merchant-2026-05"
@@ -64,47 +59,24 @@ checkout = Checkout(
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # Eager-load the signing key so a malformed env JWK fails the deploy fast.
     bootstrap_ucp_signing_key(default_kid=SIGNING_KID)
     yield
 
 
 app = FastAPI(lifespan=lifespan)
 
-
-@app.get("/.well-known/ucp")
-async def well_known_ucp(request: Request) -> Response:
-    resp = build_signed_ucp_response(
-        checkout=checkout,
-        name="My Agent Service",
-        well_known_ucp_url="https://agents.example.com/.well-known/ucp",
-        services=default_a2a_services(agent_card_url="https://agents.example.com/.well-known/agent-card.json"),
-        request_headers=dict(request.headers),
-        signing_kid=SIGNING_KID,
-        # Optional: declare merchant gate policy as an `sh.agentscore.identity`
-        # capability binding inside the public profile. Static policy
-        # declaration only; per-operator identity attestation flows through the
-        # AP2 risk-signal endpoint.
-        agentscore_gate=AgentScoreGatePolicy(
-            require_kyc=True,
-            min_age=21,
-            allowed_jurisdictions=["US"],
-        ),
-    )
-    return Response(content=resp.content, status_code=resp.status, media_type=resp.media_type, headers=resp.headers)
-
-
-@app.get("/.well-known/jwks.json")
-async def well_known_jwks(request: Request) -> Response:
-    resp = build_signed_jwks_response(request_headers=dict(request.headers), signing_kid=SIGNING_KID)
-    return Response(content=resp.content, status_code=resp.status, media_type=resp.media_type, headers=resp.headers)
-
-
-@app.options("/.well-known/ucp")
-@app.options("/.well-known/jwks.json")
-async def well_known_preflight(request: Request) -> Response:
-    preflight = well_known_preflight_response(dict(request.headers))
-    return Response(status_code=preflight.status, headers=preflight.headers)
+checkout.mount_ucp_routes_fastapi(
+    app,
+    name="My Agent Service",
+    well_known_ucp_url="https://agents.example.com/.well-known/ucp",
+    services=default_a2a_services(agent_card_url="https://agents.example.com/.well-known/agent-card.json"),
+    signing_kid=SIGNING_KID,
+    agentscore_gate=AgentScoreGatePolicy(
+        require_kyc=True,
+        min_age=21,
+        allowed_jurisdictions=["US"],
+    ),
+)
 
 
 @app.get("/_selftest/ucp")
@@ -112,12 +84,13 @@ async def selftest(request: Request) -> JSONResponse:
     """Local round-trip: sign+serve+fetch+verify, return UCPVerificationError code on failure."""
     import json
 
+    from starlette.testclient import TestClient
+
     from agentscore_commerce.identity import UCPVerificationError, verify_ucp_profile
 
-    profile_resp = await well_known_ucp(request)
-    jwks_resp = await well_known_jwks(request)
-    profile = json.loads(bytes(profile_resp.body))
-    jwks = json.loads(bytes(jwks_resp.body))
+    client = TestClient(app)
+    profile = client.get("/.well-known/ucp").json()
+    jwks = json.loads(client.get("/.well-known/jwks.json").content)
     try:
         verify_ucp_profile(profile, jwks)
         return JSONResponse({"ok": True, "kid": profile["signing_keys"][0]["kid"]})

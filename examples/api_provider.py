@@ -35,20 +35,14 @@ Env vars:
 Run: uvicorn examples.api_provider:app --port 3000
 """
 
-import json
 import os
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from agentscore_commerce import Checkout, PricingResult, SettleOutcome
-from agentscore_commerce.discovery import (
-    NoindexNonDiscoveryMiddleware,
-    X402SampleProbe,
-    build_discovery_probe_response,
-    is_discovery_probe_request,
-)
+from agentscore_commerce import Checkout, DiscoveryProbeConfig, PricingResult, SettleOutcome
+from agentscore_commerce.discovery import NoindexNonDiscoveryMiddleware, X402SampleProbe
 from agentscore_commerce.payment import (
     SolanaMppRailSpec,
     TempoRailSpec,
@@ -107,30 +101,23 @@ checkout = Checkout(
     cdp_api_key_id=os.environ.get("CDP_API_KEY_ID"),
     cdp_api_key_secret=os.environ.get("CDP_API_KEY_SECRET"),
     mppx_secret_key=os.environ.get("MPP_SECRET_KEY"),
+    # Auto-route empty-body POSTs without a payment header to a sample 402 so
+    # crawlers (`awal x402 details`, x402-proxy, ...) can find this surface
+    # without committing to a real charge. The probe advertises SAMPLE accepts;
+    # real rails fire only when the agent retries with a credential.
+    discovery_probe=DiscoveryProbeConfig(
+        realm=REALM,
+        sample_rail=_TEMPO_RAIL_NAME,
+        sample_amount_usd=PRICE_USDC,
+        sample_recipient=os.environ["TEMPO_RECIPIENT"],
+        x402_sample=X402SampleProbe(
+            networks=[X402_BASE_NETWORK, SOLANA_NETWORK_CAIP2],
+            resource_url=f"https://{REALM}/search",
+        ),
+    ),
 )
 
 
 @app.post("/search")
 async def search(request: Request) -> JSONResponse:
-    body_bytes = await request.body()
-    body_text = body_bytes.decode() if body_bytes else ""
-    auth = request.headers.get("authorization")
-
-    # Discovery probe: empty-body POST without any payment header. Return sample
-    # 402 so crawlers (`awal x402 details`, x402-proxy, ...) can find this surface
-    # without committing to a real charge. Handle inline because the probe
-    # advertises SAMPLE accepts (not the merchant's real settle rails).
-    if await is_discovery_probe_request(request.method, auth, body_text):
-        probe = build_discovery_probe_response(
-            realm=REALM,
-            sample_rail=_TEMPO_RAIL_NAME,
-            sample_amount_usd=PRICE_USDC,
-            sample_recipient=os.environ["TEMPO_RECIPIENT"],
-            x402_sample=X402SampleProbe(
-                networks=[X402_BASE_NETWORK, SOLANA_NETWORK_CAIP2],
-                resource_url=f"https://{REALM}/search",
-            ),
-        )
-        return JSONResponse(json.loads(probe.body), status_code=probe.status, headers=probe.headers)
-
     return await checkout.handle_fastapi(request)

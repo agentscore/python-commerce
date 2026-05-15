@@ -42,10 +42,7 @@ from agentscore_commerce import (
     PricingResult,
     SettleOutcome,
 )
-from agentscore_commerce.identity.policy import (
-    shipping_country_allowed,
-    shipping_state_allowed,
-)
+from agentscore_commerce.identity.policy import validate_shipping_against_policy
 from agentscore_commerce.payment import TempoRailSpec
 
 API_KEY = os.environ.get("AGENTSCORE_API_KEY", "ask_test_dummy")
@@ -90,16 +87,12 @@ async def _validate_purchase(ctx: Any) -> dict[str, Any]:
         raise CheckoutValidationError(code="product_not_found", message=f"No product with slug {slug!r}.")
 
     policy = product["policy"]
-    if not shipping_country_allowed(shipping.get("country", ""), policy):
-        raise CheckoutValidationError(
-            code="unsupported_jurisdiction",
-            message=f"Cannot ship to {shipping.get('country')}.",
-        )
-    if not shipping_state_allowed(shipping.get("state", ""), shipping.get("country", ""), policy):
-        raise CheckoutValidationError(
-            code="unsupported_jurisdiction",
-            message=f"Cannot ship to {shipping.get('state')}.",
-        )
+    validate_shipping_against_policy(
+        country=shipping.get("country", ""),
+        state=shipping.get("state", ""),
+        policy=policy,
+        product_name=product["name"],
+    )
     return {"product": product, "policy": policy}
 
 

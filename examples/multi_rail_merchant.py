@@ -50,8 +50,8 @@ from agentscore_commerce import (
     CheckoutValidationError,
     PricingResult,
     SettleOutcome,
+    pricing_result,
 )
-from agentscore_commerce.challenge import build_pricing_block
 from agentscore_commerce.payment import (
     SolanaMppRailSpec,
     StripeRailSpec,
@@ -95,17 +95,12 @@ async def _validate_purchase(ctx: Any) -> dict[str, Any]:
 
 
 async def _compute_pricing(ctx: Any) -> PricingResult:
-    subtotal_cents = 25000  # $250.00; vendor pricing logic goes here.
-    tax_cents = 2000
-    total_cents = subtotal_cents + tax_cents
-    pricing = build_pricing_block(
-        subtotal_cents=subtotal_cents,
-        tax_cents=tax_cents,
+    return pricing_result(
+        subtotal_cents=25000,  # $250.00; vendor pricing logic goes here.
+        tax_cents=2000,
         tax_rate=0.08,
         tax_state=ctx.state.get("shipping_state", "CA"),
-        currency="USD",
     )
-    return PricingResult(amount_usd=total_cents / 100, body_extras={"pricing": pricing})
 
 
 async def _mint_recipients(ctx: Any) -> dict[str, str]:

@@ -38,6 +38,7 @@ from typing import Any
 
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
+    SolanaMppRailSpec,
     StripeRailSpec,
     TempoRailSpec,
     TempoSessionRailSpec,
@@ -45,7 +46,7 @@ from agentscore_commerce.payment.rail_spec import (
 )
 from agentscore_commerce.payment.usdc import USDC
 
-MppxRailSpec = TempoRailSpec | TempoSessionRailSpec | StripeRailSpec
+MppxRailSpec = TempoRailSpec | TempoSessionRailSpec | StripeRailSpec | SolanaMppRailSpec
 
 
 def _import_optional(module_name: str) -> Any | None:

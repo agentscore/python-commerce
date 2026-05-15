@@ -404,12 +404,10 @@ async def process_x402_settle(
 def settle_result_to_json_bytes(settle_result: Any) -> bytes:
     """Serialize the settle result to a base64-friendly JSON byte string.
 
-    x402 2.9's ``settle_payment`` returns a Pydantic ``SettleResponse`` model that
-    ``json.dumps`` rejects with ``TypeError: Object of type SettleResponse is not
-    JSON serializable``. Use ``model_dump_json(by_alias=True)`` for Pydantic models
-    (so emitted keys match the wire shape — ``errorReason`` / ``errorMessage`` rather
-    than the snake_case attrs) and fall through to ``json.dumps`` for plain dicts
-    (used by older x402 / test stubs).
+    Pydantic ``SettleResponse`` (x402's wire shape) goes through ``model_dump_json
+    (by_alias=True)`` so emitted keys match the wire shape (``errorReason`` /
+    ``errorMessage`` rather than the snake_case attrs). Plain dicts fall through
+    to ``json.dumps``.
     """
     model_dump_json = getattr(settle_result, "model_dump_json", None)
     if callable(model_dump_json):

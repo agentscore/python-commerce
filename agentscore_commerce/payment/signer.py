@@ -18,7 +18,7 @@ The MPP path requires the credential to carry a spec-compliant ``did:pkh``
 source (top-level or under ``challenge``). Credentials that omit the source
 field and rely on the Solana TransferChecked-authority fallback (extracting
 the signer from the signed-tx payload via ``@solana/kit``) are recovered by
-the Node sibling, not by this Python helper — Python has no ``@solana/kit``
+the Node sibling, not by this Python helper; Python has no ``@solana/kit``
 equivalent. Production MPP clients emit the ``did:pkh`` source field, so
 this is a non-issue for spec-compliant traffic.
 """
@@ -132,10 +132,34 @@ def _extract_from_mpp_auth(authorization: str) -> PaymentSigner | None:
     return None
 
 
+def extract_signer_for_precheck(headers: Mapping[str, str]) -> PaymentSigner | None:
+    """One-call signer extraction across both supported credential formats.
+
+    Tries the x402 ``X-Payment`` / ``payment-signature`` header first (EIP-3009
+    ``payload.authorization.from``), then falls back to the MPP ``Authorization:
+    Payment`` header DID. Returns the first one that resolves, or ``None``.
+
+    Use this for wallet-cap prechecks and other "did the agent claim to sign as
+    X?" checks where you need the signer BEFORE invoking Checkout; Checkout's
+    own settle path runs verification separately and surfaces the verified
+    signer on ``SettleOutcome.signer_address``.
+    """
+    lower = {k.lower(): v for k, v in headers.items()}
+    x402 = lower.get("payment-signature") or lower.get("x-payment")
+    if x402:
+        signer = extract_payment_signer(x402)
+        if signer is not None:
+            return signer
+    authorization = lower.get("authorization")
+    if authorization and authorization.lower().startswith("payment "):
+        return extract_payment_signer(authorization_header=authorization)
+    return None
+
+
 def read_x402_payment_header(headers: Mapping[str, str]) -> str | None:
     """Read the x402 payment header from a request headers mapping (case-insensitive).
 
-    Tries ``payment-signature`` first, then ``x-payment`` — both names appear in the wild
+    Tries ``payment-signature`` first, then ``x-payment``; both names appear in the wild
     as the binary-friendly transport name evolved. Takes a mapping rather than a framework
     Request so the same helper works across FastAPI / Flask / Django / aiohttp / Sanic / ASGI.
     """
@@ -147,6 +171,7 @@ __all__ = [
     "PaymentSigner",
     "SignerNetwork",
     "extract_payment_signer",
+    "extract_signer_for_precheck",
     "extract_x402_signer",
     "read_x402_payment_header",
 ]

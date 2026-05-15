@@ -1,0 +1,584 @@
+"""Coverage for the seamless-merchant helpers shipped in the latest SDK additions:
+
+* ``lazy_x402_server`` / ``lazy_mppx_server``; memoized async getters
+* ``extract_signer_for_precheck``; one-call signer across x402 + mpp headers
+* ``make_mppx_compose_hook``; canonical ``compose_mppx`` factory
+* ``purchase_mode_note`` / ``build_agentscore_onboarding_steps`` /
+  ``standard_endpoint_descriptions`` / ``build_order_success_next_steps``
+* ``build_redemption_skill_md``
+* The new validation_response_* framework variants + ``validation_envelope``
+* Checkout framework adapters (handle_flask / handle_django / handle_aiohttp /
+  handle_sanic); handle_fastapi is already exercised in test_checkout.py.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import json
+from typing import Any
+from unittest.mock import patch
+
+import pytest
+
+from agentscore_commerce import (
+    Checkout,
+    CheckoutRequest,
+    MppxComposeOutcome,
+    SettleOutcome,
+    validation_envelope,
+    validation_response_aiohttp,
+    validation_response_django,
+    validation_response_fastapi,
+    validation_response_flask,
+    validation_response_sanic,
+)
+from agentscore_commerce.checkout_hooks import make_mppx_compose_hook
+from agentscore_commerce.discovery import (
+    PURCHASE_MODE_NOTES,
+    build_agentscore_onboarding_steps,
+    build_order_success_next_steps,
+    build_redemption_skill_md,
+    purchase_mode_note,
+    standard_endpoint_descriptions,
+)
+from agentscore_commerce.payment import (
+    PaymentSigner,
+    TempoRailSpec,
+    X402BaseRailSpec,
+    extract_signer_for_precheck,
+    lazy_mppx_server,
+    lazy_x402_server,
+)
+
+
+def _req(headers: dict[str, str] | None = None) -> CheckoutRequest:
+    return CheckoutRequest(
+        method="POST",
+        url="https://api.example/purchase",
+        headers=headers or {},
+        body={"item": "wine"},
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# lazy_x402_server / lazy_mppx_server
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_lazy_x402_server_memoizes_single_instance() -> None:
+    spec = X402BaseRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD", network="eip155:84532")
+    sentinel = object()
+    calls = 0
+
+    async def _fake_create(*, facilitator: str, rails: list[str]) -> object:
+        nonlocal calls
+        calls += 1
+        assert facilitator == "http"
+        assert rails == ["x402-base-sepolia"]
+        return sentinel
+
+    with patch("agentscore_commerce.payment.lazy.create_x402_server", _fake_create):
+        getter = lazy_x402_server(spec=spec)
+        a, b = await asyncio.gather(getter(), getter())
+    assert a is sentinel
+    assert b is sentinel
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_lazy_x402_server_picks_coinbase_with_full_creds() -> None:
+    spec = X402BaseRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD")
+
+    async def _fake_create(*, facilitator: str, rails: list[str]) -> str:
+        return f"{facilitator}:{rails[0]}"
+
+    with patch("agentscore_commerce.payment.lazy.create_x402_server", _fake_create):
+        getter = lazy_x402_server(
+            spec=spec,
+            cdp_api_key_id="k",
+            cdp_api_key_secret="s",
+        )
+        out = await getter()
+    assert out == "coinbase:x402-base-mainnet"
+
+
+def test_lazy_x402_server_rejects_unknown_network() -> None:
+    bad = X402BaseRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD")
+    object.__setattr__(bad, "network", "eip155:1")
+    with pytest.raises(ValueError, match=r"unsupported X402BaseRailSpec\.network"):
+        lazy_x402_server(spec=bad)
+
+
+@pytest.mark.asyncio
+async def test_lazy_mppx_server_memoizes_single_instance() -> None:
+    spec = TempoRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD")
+    sentinel = object()
+    calls = 0
+
+    async def _fake_create(*, secret_key: str, rails: Any, realm: str | None) -> object:
+        nonlocal calls
+        calls += 1
+        assert secret_key == "secret"
+        assert "tempo" in rails
+        assert realm == "test-realm"
+        return sentinel
+
+    with patch("agentscore_commerce.payment.lazy.create_mppx_server", _fake_create):
+        getter = lazy_mppx_server(
+            rails={"tempo": spec},
+            secret_key="secret",
+            realm="test-realm",
+        )
+        a, b = await asyncio.gather(getter(), getter())
+    assert a is sentinel
+    assert b is sentinel
+    assert calls == 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# extract_signer_for_precheck
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _encode_x402_header(payload: dict[str, Any]) -> str:
+    return base64.b64encode(json.dumps(payload).encode()).decode()
+
+
+def test_extract_signer_for_precheck_reads_x402_payment_signature() -> None:
+    payload = {
+        "x402Version": 2,
+        "scheme": "exact",
+        "network": "eip155:84532",
+        "payload": {
+            "authorization": {
+                "from": "0xAbC0000000000000000000000000000000000001",
+            },
+        },
+    }
+    headers = {"Payment-Signature": _encode_x402_header(payload)}
+    signer = extract_signer_for_precheck(headers)
+    assert signer == PaymentSigner(
+        address="0xabc0000000000000000000000000000000000001",
+        network="evm",
+    )
+
+
+def test_extract_signer_for_precheck_reads_x_payment_alias() -> None:
+    payload = {
+        "x402Version": 2,
+        "scheme": "exact",
+        "network": "eip155:84532",
+        "payload": {"authorization": {"from": "0xAbC0000000000000000000000000000000000002"}},
+    }
+    signer = extract_signer_for_precheck({"X-Payment": _encode_x402_header(payload)})
+    assert signer is not None
+    assert signer.address.endswith("002")
+
+
+def test_extract_signer_for_precheck_no_headers_returns_none() -> None:
+    assert extract_signer_for_precheck({}) is None
+    assert extract_signer_for_precheck({"authorization": "Bearer not-a-payment"}) is None
+
+
+def test_extract_signer_for_precheck_garbled_x402_falls_through() -> None:
+    # Garbled x402 returns None, then we fall through to authorization (which is missing → None).
+    assert extract_signer_for_precheck({"Payment-Signature": "!!!notbase64!!!"}) is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# make_mppx_compose_hook
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_make_mppx_compose_hook_returns_402_when_no_pricing() -> None:
+    async def _getter() -> Any:
+        raise AssertionError("server should not be touched when pricing is None")
+
+    hook = make_mppx_compose_hook(server_getter=_getter)
+
+    class _Ctx:
+        request = _req()
+        pricing = None
+
+    out = await hook(_Ctx())
+    assert out.status == 402
+
+
+@pytest.mark.asyncio
+async def test_make_mppx_compose_hook_emits_challenge_headers_on_402() -> None:
+    class _Challenge:
+        def to_www_authenticate(self, realm: str) -> str:
+            return f'Payment realm="{realm}"'
+
+    class _Mpp:
+        realm = "test-realm"
+
+        async def charge(self, *, authorization: str | None, amount: str) -> _Challenge:
+            assert authorization is None
+            assert amount == "1.00"
+            return _Challenge()
+
+    async def _getter() -> _Mpp:
+        return _Mpp()
+
+    hook = make_mppx_compose_hook(server_getter=_getter)
+
+    class _Pricing:
+        amount_usd = 1.0
+
+    class _Ctx:
+        request = _req()
+        pricing = _Pricing()
+
+    out = await hook(_Ctx())
+    assert out.status == 402
+    assert out.headers == {"www-authenticate": 'Payment realm="test-realm"'}
+
+
+@pytest.mark.asyncio
+async def test_make_mppx_compose_hook_lifts_signer_from_did_pkh_eip155() -> None:
+    class _Credential:
+        source = "did:pkh:eip155:8453:0xABCD000000000000000000000000000000000003"
+
+    class _Receipt:
+        reference = "0xtx_hash"
+        transaction = None
+
+    class _Mpp:
+        realm = "r"
+
+        async def charge(self, *, authorization: str | None, amount: str) -> tuple:
+            return (_Credential(), _Receipt())
+
+    async def _getter() -> _Mpp:
+        return _Mpp()
+
+    hook = make_mppx_compose_hook(server_getter=_getter)
+
+    class _Pricing:
+        amount_usd = 0.1
+
+    class _Ctx:
+        request = _req({"authorization": "Payment somevalidcred"})
+        pricing = _Pricing()
+
+    out = await hook(_Ctx())
+    assert out.status == 200
+    assert out.tx_hash == "0xtx_hash"
+    assert out.signer_address == "0xabcd000000000000000000000000000000000003"
+    assert out.signer_network == "evm"
+
+
+@pytest.mark.asyncio
+async def test_make_mppx_compose_hook_returns_402_when_charge_raises() -> None:
+    class _Mpp:
+        realm = "r"
+
+        async def charge(self, *, authorization: str | None, amount: str) -> Any:
+            raise RuntimeError("pympp blew up")
+
+    async def _getter() -> _Mpp:
+        return _Mpp()
+
+    hook = make_mppx_compose_hook(server_getter=_getter)
+
+    class _Pricing:
+        amount_usd = 1.0
+
+    class _Ctx:
+        request = _req()
+        pricing = _Pricing()
+
+    out = await hook(_Ctx())
+    assert out.status == 402
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# discovery/agentscore_content + redemption_md
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_purchase_mode_note_returns_known_modes() -> None:
+    for mode in ("redemption_only", "coupon_applicable", "paid_only"):
+        assert purchase_mode_note(mode) == PURCHASE_MODE_NOTES[mode]
+
+
+def test_purchase_mode_note_unknown_returns_empty_string() -> None:
+    assert purchase_mode_note("not-a-real-mode") == ""
+
+
+def test_build_agentscore_onboarding_steps_substitutes_merchant_url_and_rails() -> None:
+    steps = build_agentscore_onboarding_steps(
+        merchant_name="AgentScore Store",
+        app_url="https://store.example",
+        accepted_rails=["tempo", "x402-base", "solana-mpp"],
+        requires_kyc=True,
+    )
+    text = "\n".join(steps)
+    assert "AgentScore Store" in text
+    assert "Tempo USDC" in text
+    assert "x402 USDC on Base" in text
+    assert "Solana SPL USDC" in text
+    assert "tempo | base | solana" in text
+    assert "required for this merchant" in text
+    assert "https://store.example/catalog" in text
+    assert "https://store.example/purchase" in text
+
+
+def test_build_agentscore_onboarding_steps_no_kyc_drops_required_clause() -> None:
+    steps = build_agentscore_onboarding_steps(
+        merchant_name="API Co",
+        app_url="https://api.example",
+        accepted_rails=["x402-base"],
+        requires_kyc=False,
+    )
+    assert "required for this merchant" not in "\n".join(steps)
+
+
+def test_build_agentscore_onboarding_steps_unknown_rails_passed_through() -> None:
+    steps = build_agentscore_onboarding_steps(
+        merchant_name="X",
+        app_url="https://x.example",
+        accepted_rails=["future-rail"],
+    )
+    assert "future-rail" in "\n".join(steps)
+    assert "tempo|base" in steps[-1]  # default fallback when no mappable rail present
+
+
+def test_standard_endpoint_descriptions_mentions_all_routes() -> None:
+    desc = standard_endpoint_descriptions(app_url="https://x.example")
+    assert "GET /catalog" in desc
+    assert "POST /purchase" in desc
+    assert "GET /orders/{id}" in desc
+
+
+def test_build_order_success_next_steps_omits_eta_when_missing() -> None:
+    out = build_order_success_next_steps(order_status_url="https://x/orders/1")
+    assert out == {
+        "action": "done",
+        "order_status_url": "https://x/orders/1",
+        "user_message": (
+            "Order complete. Your AgentScore Passport is now active across every AgentScore-gated merchant."
+        ),
+    }
+
+
+def test_build_order_success_next_steps_includes_eta_when_provided() -> None:
+    out = build_order_success_next_steps(
+        order_status_url="https://x/orders/1",
+        fulfillment_eta="ships in 3-5 business days",
+    )
+    assert out["fulfillment_eta"] == "ships in 3-5 business days"
+
+
+def test_build_redemption_skill_md_substitutes_merchant_and_url() -> None:
+    md = build_redemption_skill_md(
+        merchant_name="AgentScore Store",
+        app_url="https://store.example",
+    )
+    assert "AgentScore Store" in md
+    assert "https://store.example/catalog" in md
+    assert "https://store.example/purchase" in md
+    assert "Don't have a code?" not in md
+
+
+def test_build_redemption_skill_md_with_peer_pointer_emits_section() -> None:
+    md = build_redemption_skill_md(
+        merchant_name="AgentScore Store",
+        app_url="https://store.example",
+        peer_merchant_pointer="https://martin.example",
+        sku_intro="a custom SKU intro.",
+    )
+    assert "Don't have a code?" in md
+    assert "https://martin.example" in md
+    assert "a custom SKU intro." in md
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# validation_envelope + per-framework validation_response_*
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_validation_envelope_shape() -> None:
+    out = validation_envelope(code="bad", message="nope", extra={"hint": "x"})
+    assert out["error"]["code"] == "bad"
+    assert out["error"]["message"] == "nope"
+    assert out["next_steps"]["action"] == "fix_request"
+    assert out["next_steps"]["user_message"] == "nope"
+    assert out.get("hint") == "x"
+
+
+def test_validation_response_fastapi_returns_jsonresponse_with_status() -> None:
+    from fastapi.responses import JSONResponse
+
+    resp = validation_response_fastapi(code="bad", message="nope", status=422)
+    assert isinstance(resp, JSONResponse)
+    assert resp.status_code == 422
+    assert json.loads(resp.body)["error"]["code"] == "bad"
+
+
+def test_validation_response_flask_returns_response_with_status() -> None:
+    flask = pytest.importorskip("flask")
+
+    app = flask.Flask(__name__)
+    with app.app_context():
+        resp = validation_response_flask(code="bad", message="nope", status=400)
+        assert resp.status_code == 400
+        body = json.loads(resp.get_data(as_text=True))
+        assert body["error"]["code"] == "bad"
+
+
+def test_validation_response_django_returns_jsonresponse_with_status() -> None:
+    pytest.importorskip("django")
+    from django.conf import settings as dj_settings
+
+    if not dj_settings.configured:
+        dj_settings.configure(DEBUG=True, ALLOWED_HOSTS=["*"])
+
+    resp = validation_response_django(code="bad", message="nope", status=400)
+    assert resp.status_code == 400
+    body = json.loads(resp.content)
+    assert body["error"]["code"] == "bad"
+
+
+def test_validation_response_aiohttp_returns_web_response() -> None:
+    pytest.importorskip("aiohttp")
+    resp = validation_response_aiohttp(code="bad", message="nope", status=400)
+    assert resp.status == 400
+    assert b'"bad"' in resp.body
+
+
+def test_validation_response_sanic_returns_http_response() -> None:
+    pytest.importorskip("sanic")
+    resp = validation_response_sanic(code="bad", message="nope", status=400)
+    assert resp.status == 400
+    body_bytes = resp.body if isinstance(resp.body, bytes) else resp.body.encode()
+    assert b'"bad"' in body_bytes
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Checkout framework adapters (handle_flask, handle_django, handle_aiohttp, handle_sanic)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _minimal_checkout() -> Checkout:
+    """Build a Checkout that returns inline on settle so each adapter can exercise
+    handle_<framework> end-to-end without needing a real x402 server."""
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(ctx: Any) -> Any:
+        from agentscore_commerce.checkout import PricingResult
+
+        return PricingResult(amount_usd=1.0)
+
+    async def _compose_mppx(ctx: Any) -> MppxComposeOutcome:
+        # Discovery leg: no auth → 402 with WWW-Auth.
+        if not ctx.request.headers.get("authorization"):
+            return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment realm="test"'})
+        return MppxComposeOutcome(
+            status=200,
+            rail_key="tempo",
+            tx_hash="0xtest",
+            signer_address="0x" + "00" * 19 + "dE",
+            signer_network="evm",
+        )
+
+    async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
+        return {"order_id": "o-1", "tx_hash": outcome.tx_hash}
+
+    return Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD")},
+        url="https://api.example/purchase",
+        compute_pricing=_pricing,
+        compose_mppx=_compose_mppx,
+        on_settled=_on_settled,
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_aiohttp_returns_402_on_discovery_leg() -> None:
+    aiohttp_pytest = pytest.importorskip("aiohttp")
+    from aiohttp import web
+    from aiohttp.test_utils import make_mocked_request
+
+    checkout = _minimal_checkout()
+    req = make_mocked_request("POST", "/purchase", headers={})
+    resp = await checkout.handle_aiohttp(req, body={"item": "wine"})
+    assert isinstance(resp, web.Response)
+    assert resp.status == 402
+    _ = aiohttp_pytest  # marker for ruff
+
+
+@pytest.mark.asyncio
+async def test_handle_aiohttp_returns_invalid_body_envelope_when_body_missing() -> None:
+    pytest.importorskip("aiohttp")
+    from aiohttp.test_utils import make_mocked_request
+
+    checkout = _minimal_checkout()
+
+    class _NoJsonReq:
+        method = "POST"
+        url = "/purchase"
+        headers: dict[str, str] = {}
+
+        async def json(self) -> Any:
+            raise ValueError("not json")
+
+    resp = await checkout.handle_aiohttp(_NoJsonReq())
+    assert resp.status == 400
+    _ = make_mocked_request  # ruff
+
+
+@pytest.mark.asyncio
+async def test_handle_sanic_returns_402_on_discovery_leg() -> None:
+    pytest.importorskip("sanic")
+
+    class _SanicReq:
+        method = "POST"
+        url = "/purchase"
+        headers: dict[str, str] = {}
+
+        @property
+        def json(self) -> dict[str, Any]:
+            return {"item": "wine"}
+
+    checkout = _minimal_checkout()
+    resp = await checkout.handle_sanic(_SanicReq())
+    assert resp.status == 402
+
+
+def test_handle_flask_returns_402_on_discovery_leg() -> None:
+    flask = pytest.importorskip("flask")
+
+    app = flask.Flask(__name__)
+    checkout = _minimal_checkout()
+
+    with app.test_request_context("/purchase", method="POST", json={"item": "wine"}):
+        from flask import request as flask_request
+
+        resp = checkout.handle_flask(flask_request)
+        assert resp.status_code == 402
+
+
+def test_handle_django_returns_402_on_discovery_leg(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("django")
+    from django.conf import settings as dj_settings
+
+    if not dj_settings.configured:
+        dj_settings.configure(DEBUG=True, ALLOWED_HOSTS=["*"])
+    monkeypatch.setattr(dj_settings, "ALLOWED_HOSTS", ["*"])
+
+    from django.test import RequestFactory
+
+    checkout = _minimal_checkout()
+    factory = RequestFactory()
+    req = factory.post(
+        "/purchase",
+        data=json.dumps({"item": "wine"}),
+        content_type="application/json",
+    )
+    resp = checkout.handle_django(req)
+    assert resp.status_code == 402

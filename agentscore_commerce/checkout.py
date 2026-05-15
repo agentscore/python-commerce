@@ -1,4 +1,4 @@
-"""High-level Checkout orchestrator — composes 402-emit + verify+settle.
+"""High-level Checkout orchestrator; composes 402-emit + verify+settle.
 
 The Checkout primitive collapses the agent-commerce dance (emit 402 →
 verify+settle on retry → respond) into a single ``await
@@ -11,18 +11,18 @@ checkout.handle(request)`` call. It services every merchant shape:
 * **Self-custody-only merchants** configure chain rails (Tempo / Base / Solana)
   via ``X402BaseRailSpec`` / ``TempoRailSpec`` / ``SolanaMppRailSpec``.
 * **Custodial-only merchants** configure ``StripeRailSpec`` and skip the chain
-  rails — Stripe SPT settles via the same ``compose_mppx`` hook.
+  rails; Stripe SPT settles via the same ``compose_mppx`` hook.
 * **Multi-rail merchants** configure all of the above; the agent picks the rail.
 
-Three flexibility axes — every combination is supported:
+Three flexibility axes; every combination is supported:
 
-* **x402 only / MPP only / both** — Checkout works with ``x402_server`` alone,
+* **x402 only / MPP only / both**; Checkout works with ``x402_server`` alone,
   ``compose_mppx`` alone, or both. Whichever payment header arrives is dispatched
   to the configured handler; the other path is simply absent.
-* **Self-custody / Stripe / mixed** — rails dict is the single source of truth.
+* **Self-custody / Stripe / mixed**; rails dict is the single source of truth.
   Listing ``StripeRailSpec`` makes Stripe SPT an acceptable rail; omitting it
   makes the merchant chain-only. Mixing freely is the default.
-* **Gated / ungated identity** — ``CheckoutRequest.assess`` is optional. Merchants
+* **Gated / ungated identity**; ``CheckoutRequest.assess`` is optional. Merchants
   who run :class:`AgentScoreGate` upstream pass its result through; merchants
   running anonymous (per-call API, public discovery) leave it ``None``.
 
@@ -56,7 +56,7 @@ Usage (API seller, per-call billing with inline response)::
         on_settled=lambda ctx, outcome: {"data": await run_api_call(ctx.body)},
         x402_server=x402,
         x402_base_network="eip155:8453",
-        # compose_mppx omitted — x402-only API merchants don't need MPP rails
+        # compose_mppx omitted; x402-only API merchants don't need MPP rails
     )
 
 ``handle(request)`` returns a framework-neutral :class:`CheckoutResult`
@@ -73,9 +73,9 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, TypeAlias
 
 from agentscore_commerce.challenge.accepted_methods import build_accepted_methods
-from agentscore_commerce.challenge.agent_instructions import build_agent_instructions
+from agentscore_commerce.challenge.agent_instructions import RailKey, build_agent_instructions
 from agentscore_commerce.challenge.agent_memory import first_encounter_agent_memory
-from agentscore_commerce.challenge.body import build_402_body
+from agentscore_commerce.challenge.body import X402PaymentRequired, build_402_body
 from agentscore_commerce.challenge.how_to_pay import build_how_to_pay
 from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
 from agentscore_commerce.challenge.respond_402 import Respond402Result, respond_402
@@ -90,16 +90,73 @@ from agentscore_commerce.payment.rail_spec import (
 )
 from agentscore_commerce.payment.x402_settle import (
     ProcessX402SettleSuccess,
+    classify_x402_settle_result,
     process_x402_settle,
 )
 from agentscore_commerce.payment.x402_validation import (
     VerifyX402RequestSuccess,
     verify_x402_request,
 )
+from agentscore_commerce.payment.zero_settle import zero_amount_carve_out
 
 CheckoutRailSpec: TypeAlias = (
     TempoRailSpec | X402BaseRailSpec | SolanaMppRailSpec | StripeRailSpec | TempoSessionRailSpec
 )
+
+
+def _spec_rail_key(spec: CheckoutRailSpec) -> RailKey | None:
+    """Map a ``*RailSpec`` instance to its canonical :data:`RailKey` slug.
+
+    Tempo charge and Tempo session both speak MPP on Tempo, so they fold to
+    ``"tempo_mpp"``. Unknown types return ``None``.
+    """
+    if isinstance(spec, (TempoRailSpec, TempoSessionRailSpec)):
+        return "tempo_mpp"
+    if isinstance(spec, X402BaseRailSpec):
+        return "x402_base"
+    if isinstance(spec, SolanaMppRailSpec):
+        return "solana_mpp"
+    if isinstance(spec, StripeRailSpec):
+        return "stripe"
+    return None
+
+
+def _spec_method_name(spec: CheckoutRailSpec) -> str | None:
+    """Protocol-shaped method name for the ``methods: [...]`` discovery array."""
+    if isinstance(spec, (TempoRailSpec, TempoSessionRailSpec)):
+        return "tempo/charge"
+    if isinstance(spec, X402BaseRailSpec):
+        return "x402/exact (base)"
+    if isinstance(spec, SolanaMppRailSpec):
+        return "solana/charge"
+    if isinstance(spec, StripeRailSpec):
+        return "stripe/spt"
+    return None
+
+
+class CheckoutValidationError(Exception):
+    """Raised from a :attr:`Checkout.pre_validate` hook to short-circuit with a 4xx.
+
+    Checkout catches this and emits the canonical ``{error, next_steps}`` envelope
+    via :func:`build_validation_error` so merchants don't have to construct
+    ``JSONResponse`` themselves in the pre-validate path.
+    """
+
+    def __init__(
+        self,
+        *,
+        code: str,
+        message: str,
+        action: str = "fix_request",
+        status: int = 400,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.action = action
+        self.status = status
+        self.extra = extra
 
 
 @dataclass
@@ -125,14 +182,14 @@ class CheckoutRequest:
     """
     raw: Any = None
     """Optional escape hatch for the framework's native request object. Pass when
-    your ``compose_mppx`` hook needs to call ``mppx.compose(...)(raw_request)`` —
+    your ``compose_mppx`` hook needs to call ``mppx.compose(...)(raw_request)`` ;
     pympp's compose binds to the raw HTTP request, so the orchestrator forwards
     this through unchanged."""
 
 
 @dataclass
 class PricingResult:
-    """Output of :attr:`Checkout.compute_pricing` — per-request pricing."""
+    """Output of :attr:`Checkout.compute_pricing`; per-request pricing."""
 
     amount_usd: float
     """Total to charge in USD (or the upper bound, for ``mode="upto"`` rails)."""
@@ -140,6 +197,15 @@ class PricingResult:
     block: PricingBlock | None = None
     """Optional pre-built :class:`PricingBlock`. When omitted, Checkout builds a minimal
     block from ``amount_usd`` so the 402 body always carries pricing metadata."""
+    product: dict[str, str] | None = None
+    """Optional product block surfaced in the 402 body's ``product`` field. Goods
+    merchants populate ``{id, name, slug, list_price_usd, ...}``; API sellers leave
+    this ``None`` since per-call billing has no product concept."""
+    body_extras: dict[str, Any] | None = None
+    """Optional merchant-specific fields merged into the 402 body alongside the
+    standard ``accepted_methods`` / ``agent_instructions`` / ``pricing`` blocks.
+    Useful for ``redemption_code_applied``, coupon hints, or any other field the
+    merchant wants the agent to see in the challenge body."""
 
 
 @dataclass
@@ -155,19 +221,80 @@ class CheckoutContext:
     recipients: dict[str, str] = field(default_factory=dict)
     """rail-key → recipient address, after :attr:`Checkout.mint_recipients` runs (if
     provided). Static rails (treasury-funded) inherit recipients from the RailSpec."""
+    state: dict[str, Any] = field(default_factory=dict)
+    """Merchant-supplied per-request state, populated by :attr:`Checkout.pre_validate`.
+    Other hooks read from here (e.g. ``ctx.state["product"]`` after pre_validate
+    resolved it). Stays empty when no pre_validate is configured."""
+
+    @property
+    def identity_status(self) -> str:
+        """Read the gate's identity verdict out of ``request.assess``.
+
+        Returns ``"verified"`` / ``"unverified"`` / ``"anonymous"`` / ``"denied"``.
+        Defaults to ``"anonymous"`` when no gate ran for this request.
+        """
+        assess = self.request.assess or {}
+        value = assess.get("identity_status")
+        return value if isinstance(value, str) else "anonymous"
+
+
+@dataclass
+class CheckoutGateConfig:
+    """Optional gate configuration for :class:`Checkout`.
+
+    When set, Checkout runs :class:`AgentScoreGate` on the settle leg (no
+    header → 402 emit only) and surfaces ``identity_status`` to hooks via
+    ``ctx.assess``.
+
+    ``per_request_policy`` resolves the per-product / per-tier compliance fields
+    (``enforcement``, ``require_kyc``, ``min_age``, ``allowed_jurisdictions``)
+    at request time; merchants typically read these from a product row.
+    Return ``None`` to skip the gate entirely for that request.
+
+    Note: today this assumes a FastAPI request (the gate machinery raises
+    ``HTTPException``). Pass ``CheckoutRequest.raw=request`` so the gate has
+    something to operate on. Future framework adapters will lift this constraint.
+    """
+
+    api_key: str
+    base_url: str = "https://api.agentscore.sh"
+    merchant_name: str | None = None
+    context: str = "checkout"
+    per_request_policy: Callable[[CheckoutContext], Any] | None = None
 
 
 @dataclass
 class SettleOutcome:
-    """Surface passed to :attr:`Checkout.on_settled` after a payment lands."""
+    """Surface passed to :attr:`Checkout.on_settled` after a payment lands.
+
+    Normalized fields (``tx_hash`` / ``signer_address`` / ``signer_network``) are
+    extracted by Checkout from the underlying settle result so merchants don't
+    need to know that x402's raw is a Pydantic ``SettleResponse`` with
+    ``.transaction`` while MPP's raw is a ``{credential, receipt}`` dict with
+    the signer hidden inside ``credential.source``. Read these directly.
+    """
 
     rail: Literal["x402", "mpp"]
     """Which protocol settled. ``"mpp"`` covers tempo / tempo-session / solana / stripe-spt."""
+    rail_key: str = ""
+    """The merchant's rails-dict key that handled this settle (e.g. ``"x402_base"``,
+    ``"tempo"``, ``"stripe"``). Read this directly in ``on_settled`` to label the
+    rail however the merchant persists it; saves the ``"x402" → "x402-base"``
+    translation."""
+    tx_hash: str | None = None
+    """On-chain transaction hash when the rail settled to chain. ``None`` for $0
+    carve-outs, Stripe SPT, and pre-pympp-SessionIntent tempo sessions."""
+    signer_address: str | None = None
+    """Wallet that signed the payment credential. Normalized (EVM lowercased,
+    Solana base58 preserved). ``None`` for rails without a signer (Stripe SPT)."""
+    signer_network: str | None = None
+    """``"evm"`` / ``"solana"`` for chain signers; ``None`` otherwise."""
     payment_response_header: str | None = None
     """The ``PAYMENT-RESPONSE`` header to echo (x402 success path). ``None`` for MPP."""
     raw: Any = None
-    """The underlying settle result (``ProcessX402SettleSuccess`` or merchant-supplied
-    MPP compose result) for merchants that need to inspect tx hash / facilitator details."""
+    """The underlying settle result. Inspect for power-user fields (facilitator
+    diagnostics, raw receipt blobs); prefer the normalized fields above for the
+    common case."""
 
 
 @dataclass
@@ -175,17 +302,33 @@ class MppxComposeOutcome:
     """Result a ``compose_mppx`` hook returns when handling an MPP credential.
 
     ``status=200`` means pympp validated the ``Authorization: Payment`` credential
-    and the settlement landed — Checkout runs ``on_settled`` and returns success.
+    and the settlement landed; Checkout runs ``on_settled`` and returns success.
 
     ``status=402`` means pympp emitted a 402 (no credential / invalid credential).
     Checkout layers its rich body on top of pympp's WWW-Authenticate header and
     optional x402 PAYMENT-REQUIRED, returning the composed 402.
+
+    On ``status=200``, return ``tx_hash`` / ``signer_address`` / ``signer_network``
+    so they flow through to ``SettleOutcome`` without merchants having to
+    destructure ``raw`` per pympp version. The canonical hook
+    :func:`make_mppx_compose_hook` populates these for tempo MPP.
     """
 
     status: Literal[200, 402]
     headers: dict[str, str] = field(default_factory=dict)
     """For ``status=402``: the WWW-Authenticate (+ any other) headers pympp's
     compose emitted. Checkout merges these into the final 402 response."""
+    rail_key: str = "tempo"
+    """For ``status=200``: which merchant rails-dict key handled this settle.
+    Defaults to ``"tempo"`` (most common MPP rail); override for Stripe SPT or
+    Solana MPP. Surfaced verbatim on :attr:`SettleOutcome.rail_key`."""
+    tx_hash: str | None = None
+    """For ``status=200``: on-chain tx hash from the pympp Receipt (when settled
+    to chain). ``None`` for $0 carve-outs and Stripe SPT."""
+    signer_address: str | None = None
+    """For ``status=200``: wallet that signed the MPP credential, normalized."""
+    signer_network: str | None = None
+    """For ``status=200``: ``"evm"`` / ``"solana"`` depending on the rail."""
     payment_response_header: str | None = None
     """For ``status=200``: optional PAYMENT-RESPONSE header echoed to the agent."""
     raw: Any = None
@@ -206,6 +349,10 @@ class CheckoutResult:
     ``"settle_failed"``, ...) for diagnostics."""
 
 
+PreValidateFn: TypeAlias = Callable[
+    [CheckoutContext],
+    "Awaitable[dict[str, Any] | None] | dict[str, Any] | None",
+]
 PricingFn: TypeAlias = Callable[[CheckoutContext], Awaitable[PricingResult] | PricingResult]
 RecipientsFn: TypeAlias = Callable[[CheckoutContext], Awaitable[dict[str, str]] | dict[str, str]]
 ReferenceIdFn: TypeAlias = Callable[[CheckoutContext], Awaitable[str] | str]
@@ -246,34 +393,41 @@ class Checkout:
 
     Required:
 
-    * ``rails`` — rail-key → ``*RailSpec``. The same map every other helper
+    * ``rails``; rail-key → ``*RailSpec``. The same map every other helper
       consumes (:func:`build_accepted_methods`, :func:`build_how_to_pay`,
       :func:`create_mppx_server`).
-    * ``url`` — absolute URL of the checkout endpoint.
-    * ``compute_pricing`` — async/sync function ``(ctx) -> PricingResult``.
+    * ``url``; absolute URL of the checkout endpoint.
+    * ``compute_pricing``; async/sync function ``(ctx) -> PricingResult``.
 
     Optional:
 
-    * ``x402_server`` — built via :func:`create_x402_server`. Pair it with an
+    * ``x402_server``; built via :func:`create_x402_server`. Pair it with an
       ``X402BaseRailSpec`` in ``rails["x402_base"]``; the CAIP-2 network is
       read from ``rail.network`` (defaults to ``eip155:8453``).
-    * ``compose_mppx`` — async/sync function ``(ctx) -> MppxComposeOutcome``.
+    * ``compose_mppx``; async/sync function ``(ctx) -> MppxComposeOutcome``.
       Required when the merchant accepts ``Authorization: Payment`` credentials
       (Tempo / Solana MPP / Stripe SPT). Omit for x402-only merchants.
-    * ``mint_recipients`` — async/sync function ``(ctx) -> dict[rail_key, address]``.
+    * ``mint_recipients``; async/sync function ``(ctx) -> dict[rail_key, address]``.
       Use for Stripe-multichain merchants who mint per-order deposit addresses.
       When omitted, every rail's recipient is taken from its ``*RailSpec``.
-    * ``mint_reference_id`` — async/sync function ``(ctx) -> str``. Default is
+    * ``mint_reference_id``; async/sync function ``(ctx) -> str``. Default is
       :func:`uuid.uuid4`. Goods merchants typically mint an order id here.
-    * ``on_settled`` — async/sync function ``(ctx, outcome) -> dict | None``. Runs
+    * ``on_settled``; async/sync function ``(ctx, outcome) -> dict | None``. Runs
       after the payment settles successfully. Goods merchants persist the order
-      here. API merchants can return the inline API response body — when the hook
+      here. API merchants can return the inline API response body; when the hook
       returns a dict, it becomes the 200 response body (with ``reference_id``
       auto-merged).
-    * ``is_cached_address`` — pass when the merchant mints per-order addresses
+    * ``is_cached_address``; pass when the merchant mints per-order addresses
       so :func:`verify_x402_request` can confirm the ``payTo`` was minted by
       this merchant. Default permissive (accepts any payTo) for static-treasury
       merchants.
+    * ``zero_settle_carve_out``; when ``True`` and ``compute_pricing`` returns
+      ``amount_usd=0`` with a payment header attached, Checkout verifies the
+      credential, lifts the signer, and fires ``on_settled`` with
+      ``tx_hash=None`` instead of attempting an on-chain settle. Coinbase's
+      CDP facilitator and pympp's tempo intents both reject $0 settles outright;
+      this carve-out makes free-redemption flows work uniformly across rails.
+      Default ``False`` (every payment header attempts a real settle).
     """
 
     def __init__(
@@ -282,44 +436,180 @@ class Checkout:
         rails: dict[str, CheckoutRailSpec],
         url: str,
         compute_pricing: PricingFn,
+        pre_validate: PreValidateFn | None = None,
+        # Explicit handler overrides; pass these when the merchant has custom
+        # x402 / MPP wiring. When omitted, Checkout auto-derives from the
+        # flat-config kwargs below (the common case).
         x402_server: Any = None,
         compose_mppx: ComposeMppxFn | None = None,
+        # Flat-config kwargs; Checkout auto-builds x402_server + compose_mppx
+        # from these so merchants don't write the lazy-init / hook boilerplate.
+        cdp_api_key_id: str | None = None,
+        cdp_api_key_secret: str | None = None,
+        mppx_secret_key: str | None = None,
         mint_recipients: RecipientsFn | None = None,
         mint_reference_id: ReferenceIdFn | None = None,
         on_settled: OnSettledFn | None = None,
         is_cached_address: IsCachedAddressFn | None = None,
+        zero_settle_carve_out: bool = False,
+        gate: CheckoutGateConfig | None = None,
     ) -> None:
-        if x402_server is not None:
-            base_spec = rails.get("x402_base")
-            if not isinstance(base_spec, X402BaseRailSpec):
-                msg = (
-                    "Checkout: x402_server requires an X402BaseRailSpec in "
-                    "rails['x402_base'] (the rail's `network` field supplies the CAIP-2)."
+        # Auto-derive x402_server when not supplied: rails has an X402BaseRailSpec
+        # → lazy-init via SDK helper. Merchants only pass CDP creds (or omit
+        # them for the public facilitator); no manual server wiring needed.
+        if x402_server is None:
+            base_spec = next(
+                (spec for spec in rails.values() if isinstance(spec, X402BaseRailSpec)),
+                None,
+            )
+            if base_spec is not None:
+                from agentscore_commerce.payment.lazy import lazy_x402_server
+
+                x402_server_getter = lazy_x402_server(
+                    spec=base_spec,
+                    cdp_api_key_id=cdp_api_key_id,
+                    cdp_api_key_secret=cdp_api_key_secret,
                 )
-                raise ValueError(msg)
+                # Cache the getter; Checkout awaits it on first settle path use.
+                self._x402_server_getter: Callable[[], Awaitable[Any]] | None = x402_server_getter
+            else:
+                self._x402_server_getter = None
+        else:
+            self._x402_server_getter = None
+        if x402_server is not None and not any(isinstance(spec, X402BaseRailSpec) for spec in rails.values()):
+            msg = (
+                "Checkout: x402_server requires an X402BaseRailSpec in `rails` "
+                "(the rail's `network` field supplies the CAIP-2)."
+            )
+            raise ValueError(msg)
+
+        # Auto-derive compose_mppx when not supplied: any MPP rail + secret_key
+        # → wire make_mppx_compose_hook + lazy_mppx_server internally.
+        if compose_mppx is None and mppx_secret_key is not None:
+            mpp_rails = {
+                k: v
+                for k, v in rails.items()
+                if isinstance(v, (TempoRailSpec, SolanaMppRailSpec, TempoSessionRailSpec, StripeRailSpec))
+            }
+            if mpp_rails:
+                from agentscore_commerce.checkout_hooks import make_mppx_compose_hook
+                from agentscore_commerce.payment.lazy import lazy_mppx_server
+
+                getter = lazy_mppx_server(
+                    rails=mpp_rails,
+                    secret_key=mppx_secret_key,
+                    realm=url,
+                )
+                compose_mppx = make_mppx_compose_hook(server_getter=getter)
+
         self.rails = rails
         self.url = url
+        self.merchant_name = gate.merchant_name if gate is not None else None
         self.compute_pricing = compute_pricing
+        self.pre_validate = pre_validate
         self.x402_server = x402_server
         self.compose_mppx = compose_mppx
         self.mint_recipients = mint_recipients
         self.mint_reference_id = mint_reference_id
         self.on_settled = on_settled
         self.is_cached_address = is_cached_address
+        self.zero_settle_carve_out = zero_settle_carve_out
+        self.gate = gate
+
+    async def _get_x402_server(self) -> Any:
+        """Resolve the x402 server.
+
+        Explicit ``x402_server`` wins; otherwise the auto-derived lazy getter
+        is awaited once and cached.
+        """
+        if self.x402_server is not None:
+            return self.x402_server
+        if self._x402_server_getter is None:
+            return None
+        self.x402_server = await self._x402_server_getter()
+        return self.x402_server
+
+    def _x402_server_available(self) -> bool:
+        """Whether Checkout can resolve an x402 server.
+
+        True when either an explicit ``x402_server`` was supplied or an
+        auto-derived lazy getter is available.
+        """
+        return self.x402_server is not None or self._x402_server_getter is not None
+
+    @property
+    def accepted_rails(self) -> list[RailKey]:
+        """Canonical ``RailKey`` list derived from the configured rails dict.
+
+        Each ``*RailSpec`` type maps to one ``RailKey`` (Tempo & TempoSession
+        both fold to ``"tempo_mpp"``). Dedupes so listing per protocol, not
+        per recipient address. Use in /.well-known/mpp.json,
+        skill.md / llms.txt discovery responses.
+        """
+        out: list[RailKey] = []
+        seen: set[str] = set()
+        for spec in self.rails.values():
+            key = _spec_rail_key(spec)
+            if key is None or key in seen:
+                continue
+            seen.add(key)
+            out.append(key)
+        return out
+
+    @property
+    def accepted_method_names(self) -> list[str]:
+        """Protocol-shaped method-name list (``"tempo/charge"``, ``"x402/exact (base)"``).
+
+        Suitable for the ``methods: [...]`` array of
+        ``/.well-known/mpp.json``'s ``PaymentMethodConfig``.
+        """
+        out: list[str] = []
+        seen: set[str] = set()
+        for spec in self.rails.values():
+            name = _spec_method_name(spec)
+            if name is None or name in seen:
+                continue
+            seen.add(name)
+            out.append(name)
+        return out
+
+    def _x402_rail_key(self) -> str:
+        """Return the merchant's rails-dict key for the X402BaseRailSpec entry.
+
+        Defaults to ``"x402_base"`` when no match is found.
+        """
+        for key, spec in self.rails.items():
+            if isinstance(spec, X402BaseRailSpec):
+                return key
+        return "x402_base"
+
+    def _mpp_rail_key(self) -> str:
+        """Return the merchant's rails-dict key for the primary MPP rail.
+
+        Prefers ``tempo`` (most common MPP rail today). Used by the zero-settle
+        carve-out path when the merchant hasn't otherwise specified rail_key.
+        """
+        for key, spec in self.rails.items():
+            if isinstance(spec, TempoRailSpec):
+                return key
+        for key, spec in self.rails.items():
+            if isinstance(spec, (SolanaMppRailSpec, TempoSessionRailSpec, StripeRailSpec)):
+                return key
+        return "tempo"
 
     @property
     def _x402_base_network(self) -> str | None:
         """CAIP-2 read from ``rails['x402_base'].network`` (or its default).
 
-        Defined only when ``x402_server`` is configured + an ``X402BaseRailSpec`` is
-        present in rails; otherwise ``None``.
+        Defined only when an ``X402BaseRailSpec`` is present in rails AND a
+        server is configured (explicit or auto-derived); otherwise ``None``.
         """
-        if self.x402_server is None:
+        if not self._x402_server_available():
             return None
-        spec = self.rails.get("x402_base")
-        if not isinstance(spec, X402BaseRailSpec):
-            return None
-        return spec.network
+        for spec in self.rails.values():
+            if isinstance(spec, X402BaseRailSpec):
+                return spec.network
+        return None
 
     async def handle(self, request: CheckoutRequest) -> CheckoutResult:
         """One-call agent-commerce flow.
@@ -333,15 +623,374 @@ class Checkout:
         """
         reference_id = await self._mint_reference_id(request)
         ctx = CheckoutContext(request=request, reference_id=reference_id)
+
+        # Pre-validate (optional): resolve merchant-specific per-request state
+        # (product lookup, code resolution, shipping checks, ...). May raise
+        # CheckoutValidationError to short-circuit with a 4xx; otherwise return
+        # a dict that's stashed on ``ctx.state`` for downstream hooks to read.
+        if self.pre_validate is not None:
+            try:
+                state = await _maybe_await(self.pre_validate(ctx))
+            except CheckoutValidationError as err:
+                return CheckoutResult(
+                    status=err.status,
+                    body=build_validation_error(
+                        code=err.code,
+                        message=err.message,
+                        next_steps={"action": err.action, "user_message": err.message},
+                        extra=err.extra,
+                    ),
+                    headers={},
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase="pre_validate_failed",
+                )
+            if isinstance(state, dict):
+                ctx.state = state
+
         ctx.pricing = await _maybe_await(self.compute_pricing(ctx))
 
-        if _has_x402_header(request.headers) and self.x402_server is not None and self._x402_base_network:
+        # Per-request gate: runs on the settle leg only (anonymous discovery
+        # passes through to 402). Sets ctx.assess["identity_status"]; 403s
+        # short-circuit. Merchant-supplied per_request_policy resolves the
+        # policy block (read from the product row, tier, etc.).
+        has_payment_header = _has_x402_header(request.headers) or _has_mppx_header(request.headers)
+        if self.gate is not None and has_payment_header:
+            gate_result = await self._run_gate(ctx)
+            if gate_result is not None:
+                return gate_result
+
+        # Zero-amount carve-out: CDP rejects EIP-3009 with value=0 and pympp's
+        # tempo intents reject ``proof`` payloads. When pricing is $0 AND a
+        # payment header is present, verify the credential to lift the signer
+        # then short-circuit to ``on_settled`` with tx_hash=None.
+        if (
+            self.zero_settle_carve_out
+            and ctx.pricing is not None
+            and ctx.pricing.amount_usd == 0
+            and (_has_x402_header(request.headers) or _has_mppx_header(request.headers))
+        ):
+            return await self._handle_zero_settle(ctx)
+
+        if _has_x402_header(request.headers) and self._x402_server_available() and self._x402_base_network:
             return await self._handle_x402(ctx)
 
         if _has_mppx_header(request.headers) and self.compose_mppx is not None:
             return await self._handle_mppx(ctx)
 
-        return await self._emit_402(ctx)
+        # Discovery leg: if an MPP rail is configured (compose_mppx supplied), call
+        # it to mint a fresh ``WWW-Authenticate`` challenge that the agent needs to
+        # sign on the retry. The hook is contracted to return status=402 with the
+        # mppx-issued headers in this case; we propagate those into the rich 402.
+        mppx_headers: dict[str, str] = {}
+        if self.compose_mppx is not None:
+            try:
+                pre_composed = await _maybe_await(self.compose_mppx(ctx))
+                if pre_composed.status == 402:
+                    mppx_headers = dict(pre_composed.headers or {})
+            except Exception:  # noqa: S110
+                # Hook errors here only affect the optional MPP challenge; the 402
+                # still goes out with whatever rails resolved. Merchants log
+                # internally inside the hook itself, so we intentionally swallow.
+                pass
+        return await self._emit_402(ctx, mppx_headers=mppx_headers)
+
+    def _invalid_body_envelope(self) -> dict[str, Any]:
+        """Canonical 400 ``invalid_body`` body.
+
+        Framework-agnostic dict so per-framework adapters wrap it in their
+        native Response type.
+        """
+        msg = "Request body must be valid JSON."
+        return build_validation_error(
+            code="invalid_body",
+            message=msg,
+            next_steps={"action": "fix_request", "user_message": msg},
+        )
+
+    @staticmethod
+    def _extra_headers(headers: dict[str, str]) -> dict[str, str]:
+        """Strip ``Content-Type`` (case-insensitive); framework JSON helpers set it themselves."""
+        return {k: v for k, v in headers.items() if k.lower() != "content-type"}
+
+    async def handle_fastapi(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
+        """FastAPI / Starlette adapter; returns a ``JSONResponse``.
+
+        Saves merchants from constructing :class:`CheckoutRequest` by hand and
+        wrapping the :class:`CheckoutResult` in a response. When ``body`` is not
+        provided, the adapter calls ``await request.json()``; pass a pre-parsed
+        pydantic dump when the route already validated the body shape.
+
+        Compatible with ``Checkout(gate=...)``; the request is passed through
+        as ``CheckoutRequest.raw`` so the gate operates on it.
+        """
+        from fastapi.responses import JSONResponse
+
+        if body is None:
+            try:
+                parsed_body = await request.json()
+            except (ValueError, TypeError):
+                return JSONResponse(status_code=400, content=self._invalid_body_envelope())
+        else:
+            parsed_body = body
+        result = await self.handle(
+            CheckoutRequest(
+                method=request.method,
+                url=str(request.url),
+                headers=dict(request.headers),
+                body=parsed_body,
+                assess=None,
+                raw=request,
+            ),
+        )
+        return JSONResponse(
+            content=result.body,
+            status_code=result.status,
+            headers=self._extra_headers(result.headers),
+        )
+
+    # Alias: FastAPI's Request inherits from Starlette's; one adapter covers both.
+    handle_starlette = handle_fastapi
+
+    async def handle_aiohttp(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
+        """Aiohttp adapter; returns ``aiohttp.web.Response``.
+
+        Uses ``await request.json()`` for body parsing when ``body`` isn't supplied;
+        passes the native ``aiohttp.web.Request`` through as ``CheckoutRequest.raw``.
+        """
+        from aiohttp import web
+
+        if body is None:
+            try:
+                parsed_body = await request.json()
+            except (ValueError, TypeError):
+                return web.json_response(self._invalid_body_envelope(), status=400)
+        else:
+            parsed_body = body
+        result = await self.handle(
+            CheckoutRequest(
+                method=request.method,
+                url=str(request.url),
+                headers=dict(request.headers),
+                body=parsed_body,
+                assess=None,
+                raw=request,
+            ),
+        )
+        return web.json_response(result.body, status=result.status, headers=self._extra_headers(result.headers))
+
+    async def handle_sanic(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
+        """Sanic adapter; returns ``sanic.response.HTTPResponse``.
+
+        Sanic exposes ``request.json`` as a sync property (already-parsed). Pass
+        ``body=`` to skip the property read.
+        """
+        from sanic.response import json as sanic_json
+
+        if body is None:
+            try:
+                parsed_body = request.json or {}
+            except Exception:
+                return sanic_json(self._invalid_body_envelope(), status=400)
+        else:
+            parsed_body = body
+        result = await self.handle(
+            CheckoutRequest(
+                method=request.method,
+                url=str(request.url),
+                headers=dict(request.headers),
+                body=parsed_body,
+                assess=None,
+                raw=request,
+            ),
+        )
+        return sanic_json(result.body, status=result.status, headers=self._extra_headers(result.headers))
+
+    def handle_flask(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
+        """Flask adapter; returns a ``flask.Response``.
+
+        Flask is sync; this method bridges into the async :meth:`handle` via
+        :func:`asgiref.sync.async_to_sync`. Use inside a sync ``@app.route``
+        handler, or call from an ``async def`` view in Flask 2.2+ (which uses
+        the same bridge internally).
+        """
+        from asgiref.sync import async_to_sync
+        from flask import jsonify
+
+        if body is None:
+            parsed_body = request.get_json(silent=True)
+            if parsed_body is None:
+                resp = jsonify(self._invalid_body_envelope())
+                resp.status_code = 400
+                return resp
+        else:
+            parsed_body = body
+        checkout_request = CheckoutRequest(
+            method=request.method,
+            url=request.url,
+            headers=dict(request.headers),
+            body=parsed_body,
+            assess=None,
+            raw=request,
+        )
+        result = async_to_sync(self.handle)(checkout_request)
+        resp = jsonify(result.body)
+        resp.status_code = result.status
+        for k, v in self._extra_headers(result.headers).items():
+            resp.headers[k] = v
+        return resp
+
+    def handle_django(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
+        """Django adapter; returns a ``django.http.JsonResponse``.
+
+        Django is sync (async views are supported but not assumed here); this
+        method bridges into the async :meth:`handle` via
+        :func:`asgiref.sync.async_to_sync`.
+        """
+        import json as _json
+
+        from asgiref.sync import async_to_sync
+        from django.http import JsonResponse
+
+        if body is None:
+            try:
+                parsed_body = _json.loads(request.body) if request.body else {}
+            except (ValueError, TypeError):
+                return JsonResponse(self._invalid_body_envelope(), status=400)
+        else:
+            parsed_body = body
+        checkout_request = CheckoutRequest(
+            method=request.method,
+            url=request.build_absolute_uri(),
+            headers=dict(request.headers.items()),
+            body=parsed_body,
+            assess=None,
+            raw=request,
+        )
+        result = async_to_sync(self.handle)(checkout_request)
+        return JsonResponse(result.body, status=result.status, headers=self._extra_headers(result.headers))
+
+    async def _run_gate(self, ctx: CheckoutContext) -> CheckoutResult | None:
+        """Run the per-request gate.
+
+        Returns a denial CheckoutResult on hard denial; ``None`` on accept /
+        soft-unverified / anonymous (in which case ``ctx.assess`` is populated
+        with ``identity_status``).
+        """
+        if self.gate is None:
+            return None
+        from agentscore_commerce.identity.policy import (
+            build_gate_from_policy,
+            run_gate_with_enforcement,
+        )
+        from agentscore_commerce.identity.sessions import CreateSessionOnMissing
+
+        policy: Any = None
+        if self.gate.per_request_policy is not None:
+            policy = await _maybe_await(self.gate.per_request_policy(ctx))
+        session = CreateSessionOnMissing(
+            api_key=self.gate.api_key,
+            base_url=self.gate.base_url,
+            product_name=self.gate.merchant_name,
+            context=self.gate.context,
+        )
+        gate_instance = build_gate_from_policy(
+            policy,
+            api_key=self.gate.api_key,
+            base_url=self.gate.base_url,
+            create_session_on_missing=session,
+        )
+        enforcement = (policy or {}).get("enforcement") if isinstance(policy, dict) else None
+        if ctx.request.raw is None:
+            msg = (
+                "Checkout: gate=... requires CheckoutRequest.raw to be set to the "
+                "framework's native request object (today: FastAPI Request)."
+            )
+            raise RuntimeError(msg)
+        result = await run_gate_with_enforcement(
+            ctx.request.raw,
+            gate_instance,
+            enforcement=enforcement,
+        )
+        if result.status == "denied":
+            return CheckoutResult(
+                status=result.denial_status or 403,
+                body=result.denial_body or {},
+                headers={},
+                reference_id=ctx.reference_id,
+                settled=False,
+                settle_phase="gate_denied",
+            )
+        assess = dict(ctx.request.assess or {})
+        assess["identity_status"] = result.status
+        ctx.request = CheckoutRequest(
+            method=ctx.request.method,
+            url=ctx.request.url,
+            headers=ctx.request.headers,
+            body=ctx.request.body,
+            assess=assess,
+            raw=ctx.request.raw,
+        )
+        return None
+
+    async def _handle_zero_settle(self, ctx: CheckoutContext) -> CheckoutResult:
+        """Zero-amount carve-out: verify the credential, lift the signer, skip settle.
+
+        CDP rejects EIP-3009 with value=0 (``invalid_payload``) and pympp's tempo
+        intents reject ``proof`` payloads; both refuse $0 settles outright. For
+        redemption flows that drop the amount to $0, we still want to:
+
+        * authenticate the credential the agent submitted,
+        * capture the signer wallet so cross-merchant identity attaches,
+        * fire ``on_settled`` so the merchant can persist the order.
+
+        Returns a 200 success path identical to a real settle, except
+        ``tx_hash`` is ``None``.
+        """
+        if _has_x402_header(ctx.request.headers):
+            verified = await verify_x402_request(
+                headers=ctx.request.headers,
+                is_cached_address=self._async_is_cached_address,
+                accepted_network=self._x402_base_network or "",
+            )
+            if not isinstance(verified, VerifyX402RequestSuccess):
+                return CheckoutResult(
+                    status=verified.status,
+                    body=verified.body,
+                    headers={},
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase="verify_failed",
+                )
+            carve = zero_amount_carve_out(
+                rail="x402-base",
+                payload=verified.payload if isinstance(verified.payload, dict) else None,
+            )
+            outcome = SettleOutcome(
+                rail="x402",
+                rail_key=self._x402_rail_key(),
+                tx_hash=None,
+                signer_address=carve.signer_address,
+                signer_network="evm" if carve.signer_address else None,
+                payment_response_header=None,
+                raw=verified,
+            )
+            return await self._build_success(ctx, outcome)
+        # MPP $0 carve-out: parse the Authorization header to lift the signer.
+        carve = zero_amount_carve_out(
+            rail="tempo",
+            authorization_header=ctx.request.headers.get("authorization"),
+        )
+        outcome = SettleOutcome(
+            rail="mpp",
+            rail_key=self._mpp_rail_key(),
+            tx_hash=None,
+            signer_address=carve.signer_address,
+            signer_network="evm" if carve.signer_address else None,
+            payment_response_header=None,
+            raw=None,
+        )
+        return await self._build_success(ctx, outcome)
 
     async def _async_is_cached_address(self, addr: str) -> bool:
         if self.is_cached_address is None:
@@ -381,13 +1030,14 @@ class Checkout:
                 settled=False,
                 settle_phase="verify_failed",
             )
+        x402_srv = await self._get_x402_server()
         settle = await process_x402_settle(
-            x402_server=self.x402_server,
+            x402_server=x402_srv,
             payload=verified.payload,
             resource_config={
                 "scheme": "exact",
                 "network": verified.signed_network,
-                "price": f"${ctx.pricing.amount_usd}",
+                "price": f"${ctx.pricing.amount_usd:.2f}",
                 "payTo": verified.signed_pay_to,
                 "maxTimeoutSeconds": 300,
             },
@@ -398,6 +1048,25 @@ class Checkout:
             },
         )
         if not isinstance(settle, ProcessX402SettleSuccess):
+            # Map each failure phase to its canonical merchant-facing response:
+            # verify_failed → 400 payment_proof_invalid, facilitator_error /
+            # settle_failed → 503 payment_provider_unavailable, etc.
+            classified = classify_x402_settle_result(settle)
+            response_headers = (
+                {"Cache-Control": "no-store"} if classified is not None and classified.status >= 500 else {}
+            )
+            if classified is not None:
+                return CheckoutResult(
+                    status=classified.status,
+                    body={
+                        "error": {"code": classified.code, "message": classified.message},
+                        "next_steps": classified.next_steps,
+                    },
+                    headers=response_headers,
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase=settle.phase or "settle_failed",
+                )
             return CheckoutResult(
                 status=400,
                 body=build_validation_error(
@@ -411,8 +1080,25 @@ class Checkout:
                 settled=False,
                 settle_phase=settle.phase or "settle_failed",
             )
+        # Lift the on-chain tx hash from x402 2.9's typed SettleResponse so
+        # merchants don't have to dig into raw.settle_result.transaction.
+        x402_tx_hash: str | None = None
+        settle_obj = getattr(settle, "settle_result", None)
+        if settle_obj is not None:
+            x402_tx_hash = getattr(settle_obj, "transaction", None) or getattr(settle_obj, "tx_hash", None)
+        # The signer is the EIP-3009 ``payload.authorization.from``; extract
+        # via the SDK helper so address normalization is consistent.
+        from agentscore_commerce.payment.signer import extract_payment_signer, read_x402_payment_header
+
+        x402_signer = extract_payment_signer(
+            read_x402_payment_header(ctx.request.headers),
+        )
         outcome = SettleOutcome(
             rail="x402",
+            rail_key=self._x402_rail_key(),
+            tx_hash=x402_tx_hash,
+            signer_address=x402_signer.address if x402_signer else None,
+            signer_network=x402_signer.network if x402_signer else None,
             payment_response_header=settle.payment_response_header,
             raw=settle,
         )
@@ -426,11 +1112,31 @@ class Checkout:
         if composed.status == 200:
             outcome = SettleOutcome(
                 rail="mpp",
+                rail_key=composed.rail_key,
+                tx_hash=composed.tx_hash,
+                signer_address=composed.signer_address,
+                signer_network=composed.signer_network,
                 payment_response_header=composed.payment_response_header,
                 raw=composed.raw,
             )
             return await self._build_success(ctx, outcome)
-        return await self._emit_402(ctx, mppx_headers=composed.headers)
+        # _handle_mppx is only invoked when an ``Authorization: Payment`` header
+        # was present, so a 402 here means mppx REJECTED the credential. Surface
+        # as 400 ``payment_proof_invalid`` (the canonical "regenerate the
+        # credential" denial), echoing mppx's fresh WWW-Authenticate so the
+        # agent's retry signs against the new directive id.
+        return CheckoutResult(
+            status=400,
+            body=build_validation_error(
+                code="payment_proof_invalid",
+                message="MPP credential rejected; regenerate from a fresh 402 challenge.",
+                next_steps={"action": "regenerate_payment_credential"},
+            ),
+            headers=dict(composed.headers or {}),
+            reference_id=ctx.reference_id,
+            settled=False,
+            settle_phase="verify_failed",
+        )
 
     async def _emit_402(
         self,
@@ -457,41 +1163,63 @@ class Checkout:
         how_to_pay = await build_how_to_pay(
             url=self.url,
             retry_body_json=str(ctx.request.body),
-            total_usd=str(ctx.pricing.amount_usd),
+            total_usd=f"{ctx.pricing.amount_usd:.2f}",
             rails=how_to_pay_rails,
         )
         pricing_block = ctx.pricing.block or build_pricing_block(
             subtotal_cents=round(ctx.pricing.amount_usd * 100),
             currency=ctx.pricing.currency,
         )
+        # Build x402 accepts BEFORE the body so they appear both in the rich body
+        # (agents read JSON) AND in the PAYMENT-REQUIRED header (x402-spec clients).
+        x402_accepts: list[Any] = []
+        x402_resource: dict[str, str] | None = None
+        x402_network = self._x402_base_network
+        if self._x402_server_available() and x402_network:
+            from agentscore_commerce.payment.x402_server import build_x402_accepts_for_402
+
+            base_spec = next(
+                (spec for spec in emit_rails.values() if isinstance(spec, X402BaseRailSpec)),
+                None,
+            )
+            if base_spec is not None:
+                recipient = await _resolve_recipient_value(base_spec.recipient)
+                try:
+                    x402_srv = await self._get_x402_server()
+                    x402_accepts = list(
+                        build_x402_accepts_for_402(
+                            x402_srv,
+                            network=x402_network,
+                            price=f"${ctx.pricing.amount_usd:.2f}",
+                            pay_to=recipient,
+                            max_timeout_seconds=300,
+                        )
+                    )
+                    x402_resource = {"url": ctx.request.url, "mimeType": "application/json"}
+                except Exception:
+                    # Facilitator/scheme build failure: drop x402 from accepts but
+                    # keep other rails in the body. Merchant logs internally.
+                    x402_accepts = []
+
         body = build_402_body(
             accepted_methods=accepted,
             agent_instructions=build_agent_instructions(how_to_pay=how_to_pay),
             pricing=pricing_block,
-            amount_usd=str(ctx.pricing.amount_usd),
+            amount_usd=f"{ctx.pricing.amount_usd:.2f}",
             retry_body=ctx.request.body,
             agent_memory=first_encounter_agent_memory(first_encounter=True),
+            product=ctx.pricing.product,
+            extra=ctx.pricing.body_extras,
+            x402=X402PaymentRequired(version=2, accepts=x402_accepts) if x402_accepts else None,
         )
 
         x402_kwargs: dict[str, Any] | None = None
-        x402_network = self._x402_base_network
-        if self.x402_server is not None and x402_network:
-            from agentscore_commerce.payment.x402_server import build_x402_accepts_for_402
-
-            base_spec = emit_rails.get("x402_base")
-            if isinstance(base_spec, X402BaseRailSpec):
-                recipient = await _resolve_recipient_value(base_spec.recipient)
-                x402_kwargs = {
-                    "x402_version": 2,
-                    "accepts": build_x402_accepts_for_402(
-                        self.x402_server,
-                        network=x402_network,
-                        price=f"${ctx.pricing.amount_usd}",
-                        pay_to=recipient,
-                        max_timeout_seconds=300,
-                    ),
-                    "resource": {"url": ctx.request.url, "mimeType": "application/json"},
-                }
+        if x402_accepts:
+            x402_kwargs = {
+                "x402_version": 2,
+                "accepts": x402_accepts,
+                "resource": x402_resource,
+            }
 
         respond = respond_402(
             mppx_challenge_headers=mppx_headers or {},
@@ -526,6 +1254,128 @@ class Checkout:
         )
 
 
+def format_pydantic_errors(err: Any) -> str:
+    """Render a pydantic ``ValidationError`` as a clean agent-readable summary.
+
+    Default ``str(err)`` leaks pydantic.dev URLs and library version into the
+    response, which agents shouldn't see. Returns ``"<loc>: <msg>; ..."`` joined
+    with semicolons. Accepts any object with a callable ``.errors()`` method
+    returning ``[{"loc": (...), "msg": ...}, ...]``.
+    """
+    errors_fn = getattr(err, "errors", None)
+    if not callable(errors_fn):
+        return str(err)
+    parts: list[str] = []
+    for e in errors_fn():
+        loc = ".".join(str(p) for p in e.get("loc", ())) or "body"
+        parts.append(f"{loc}: {e.get('msg', '')}")
+    return "; ".join(parts)
+
+
+def validation_envelope(
+    *,
+    code: str,
+    message: str,
+    action: str = "fix_request",
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Framework-neutral 4xx envelope (``{error, next_steps, agent_instructions}``).
+
+    Returns the body dict; merchants wrap in their framework's JSON response.
+    The per-framework :func:`validation_response_*` helpers do this for you.
+    """
+    return build_validation_error(
+        code=code,
+        message=message,
+        next_steps={"action": action, "user_message": message},
+        extra=extra,
+    )
+
+
+def validation_response_fastapi(
+    *,
+    code: str,
+    message: str,
+    action: str = "fix_request",
+    status: int = 400,
+    extra: dict[str, Any] | None = None,
+) -> Any:
+    """FastAPI / Starlette one-liner for the canonical 4xx envelope."""
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        content=validation_envelope(code=code, message=message, action=action, extra=extra),
+        status_code=status,
+    )
+
+
+def validation_response_flask(
+    *,
+    code: str,
+    message: str,
+    action: str = "fix_request",
+    status: int = 400,
+    extra: dict[str, Any] | None = None,
+) -> Any:
+    """Flask one-liner; returns a ``flask.Response``."""
+    from flask import jsonify
+
+    resp = jsonify(validation_envelope(code=code, message=message, action=action, extra=extra))
+    resp.status_code = status
+    return resp
+
+
+def validation_response_django(
+    *,
+    code: str,
+    message: str,
+    action: str = "fix_request",
+    status: int = 400,
+    extra: dict[str, Any] | None = None,
+) -> Any:
+    """Django one-liner; returns a ``django.http.JsonResponse``."""
+    from django.http import JsonResponse
+
+    return JsonResponse(
+        validation_envelope(code=code, message=message, action=action, extra=extra),
+        status=status,
+    )
+
+
+def validation_response_aiohttp(
+    *,
+    code: str,
+    message: str,
+    action: str = "fix_request",
+    status: int = 400,
+    extra: dict[str, Any] | None = None,
+) -> Any:
+    """Aiohttp one-liner; returns an ``aiohttp.web.Response``."""
+    from aiohttp import web
+
+    return web.json_response(
+        validation_envelope(code=code, message=message, action=action, extra=extra),
+        status=status,
+    )
+
+
+def validation_response_sanic(
+    *,
+    code: str,
+    message: str,
+    action: str = "fix_request",
+    status: int = 400,
+    extra: dict[str, Any] | None = None,
+) -> Any:
+    """Sanic one-liner; returns a ``sanic.response.HTTPResponse``."""
+    from sanic.response import json as sanic_json
+
+    return sanic_json(
+        validation_envelope(code=code, message=message, action=action, extra=extra),
+        status=status,
+    )
+
+
 async def _resolve_recipient_value(r: RecipientLike) -> str:
     from agentscore_commerce.payment.rail_spec import resolve_recipient
 
@@ -545,7 +1395,7 @@ def _apply_recipient_overrides(
     """Apply per-call recipient overrides (from ``mint_recipients``) to rail specs.
 
     Returns a new dict; original rails dict is not mutated. Stripe rails are
-    passed through unchanged (no on-chain recipient — they use ``profile_id``).
+    passed through unchanged (no on-chain recipient; they use ``profile_id``).
     """
     if not overrides:
         return rails

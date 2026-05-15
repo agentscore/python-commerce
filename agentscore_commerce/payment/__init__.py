@@ -1,6 +1,6 @@
 """Payment helpers — networks/usdc/rails registries, paymentauth.org directive builders, dispatch, headers."""
 
-from agentscore_commerce.payment.amounts import usd_to_atomic
+from agentscore_commerce.payment.amounts import format_usd_cents, usd_to_atomic
 from agentscore_commerce.payment.directive import (
     build_payment_directive,
     build_payment_request_blob,
@@ -14,6 +14,7 @@ from agentscore_commerce.payment.headers import (
     build_payment_headers,
 )
 from agentscore_commerce.payment.idempotency import build_idempotency_key
+from agentscore_commerce.payment.lazy import lazy_mppx_server, lazy_x402_server
 from agentscore_commerce.payment.mppx_server import MppxRailSpec, create_mppx_server
 from agentscore_commerce.payment.networks import NetworkFamily, network_family, networks
 from agentscore_commerce.payment.rail_spec import (
@@ -34,6 +35,7 @@ from agentscore_commerce.payment.signer import (
     PaymentSigner,
     SignerNetwork,
     extract_payment_signer,
+    extract_signer_for_precheck,
     extract_x402_signer,
     read_x402_payment_header,
 )
@@ -122,7 +124,11 @@ __all__ = [
     "detect_rail_from_headers",
     "dispatch_settlement_by_network",
     "extract_payment_signer",
+    "extract_signer_for_precheck",
     "extract_x402_signer",
+    "format_usd_cents",
+    "lazy_mppx_server",
+    "lazy_x402_server",
     "lookup_rail",
     "network_family",
     "networks",

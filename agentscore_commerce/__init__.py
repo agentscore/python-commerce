@@ -16,13 +16,23 @@ from importlib.metadata import version as _pkg_version
 from agentscore_commerce.checkout import (
     Checkout,
     CheckoutContext,
+    CheckoutGateConfig,
     CheckoutRailSpec,
     CheckoutRequest,
     CheckoutResult,
+    CheckoutValidationError,
     MppxComposeOutcome,
     PricingResult,
     SettleOutcome,
+    format_pydantic_errors,
+    validation_envelope,
+    validation_response_aiohttp,
+    validation_response_django,
+    validation_response_fastapi,
+    validation_response_flask,
+    validation_response_sanic,
 )
+from agentscore_commerce.checkout_hooks import make_mppx_compose_hook
 
 try:
     __version__ = _pkg_version("agentscore-commerce")
@@ -35,11 +45,21 @@ except PackageNotFoundError:
 __all__ = [
     "Checkout",
     "CheckoutContext",
+    "CheckoutGateConfig",
     "CheckoutRailSpec",
     "CheckoutRequest",
     "CheckoutResult",
+    "CheckoutValidationError",
     "MppxComposeOutcome",
     "PricingResult",
     "SettleOutcome",
     "__version__",
+    "format_pydantic_errors",
+    "make_mppx_compose_hook",
+    "validation_envelope",
+    "validation_response_aiohttp",
+    "validation_response_django",
+    "validation_response_fastapi",
+    "validation_response_flask",
+    "validation_response_sanic",
 ]

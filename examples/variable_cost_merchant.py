@@ -185,6 +185,8 @@ async def stream(request: Request) -> JSONResponse:
     return JSONResponse({"error": "stream-not-implemented"}, status_code=501)
 
 
-# Hold a reference to the boot coro so the linter doesn't drop the import.
-_X402_SERVER_BOOT = _boot_x402_server
-_ = create_mppx_server  # exported for vendors wiring session rails
+# `_boot_x402_server` + `create_mppx_server` are imported as references for
+# vendors wiring real x402/MPP servers; the example handlers above don't call
+# them directly. Vendors call `await _boot_x402_server()` in their lifespan and
+# bind `await create_mppx_server(...)` to a module-level singleton.
+__all__ = ["_boot_x402_server", "app", "create_mppx_server"]

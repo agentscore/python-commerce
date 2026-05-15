@@ -798,6 +798,117 @@ async def test_gate_allow_attaches_capture_wallet(monkeypatch: pytest.MonkeyPatc
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Checkout discovery_probe (Tier 2 lift D)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_checkout_discovery_probe_emits_sample_402_on_empty_body() -> None:
+    from agentscore_commerce import (
+        Checkout,
+        CheckoutRequest,
+        DiscoveryProbeConfig,
+        PricingResult,
+    )
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.01)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE")},
+        url="https://api.example/search",
+        compute_pricing=_pricing,
+        discovery_probe=DiscoveryProbeConfig(
+            realm="api.example",
+            sample_rail="tempo-mainnet",
+            sample_amount_usd=0.01,
+            sample_recipient="0xRecipient",
+        ),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(method="POST", url="https://api.example/search", headers={}, body={}),
+    )
+    assert result.status == 402
+    assert result.settle_phase == "discovery_probe"
+    # Probe body carries the discovery marker + a payment-required error
+    assert result.body.get("discovery") is True
+    assert result.body.get("error", {}).get("code") == "payment_required"
+
+
+@pytest.mark.asyncio
+async def test_checkout_discovery_probe_skipped_when_payment_header_present() -> None:
+    from agentscore_commerce import (
+        Checkout,
+        CheckoutRequest,
+        DiscoveryProbeConfig,
+        PricingResult,
+    )
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.01)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE")},
+        url="https://api.example/search",
+        compute_pricing=_pricing,
+        discovery_probe=DiscoveryProbeConfig(
+            realm="api.example",
+            sample_rail="tempo-mainnet",
+            sample_amount_usd=0.01,
+            sample_recipient="0xRecipient",
+        ),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/search",
+            headers={"authorization": "Payment <cred>"},
+            body={},
+        ),
+    )
+    # With a payment header, falls through to regular handling (not the probe path).
+    assert result.settle_phase != "discovery_probe"
+
+
+@pytest.mark.asyncio
+async def test_checkout_discovery_probe_skipped_when_body_nonempty() -> None:
+    from agentscore_commerce import (
+        Checkout,
+        CheckoutRequest,
+        DiscoveryProbeConfig,
+        PricingResult,
+    )
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.01)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE")},
+        url="https://api.example/search",
+        compute_pricing=_pricing,
+        discovery_probe=DiscoveryProbeConfig(
+            realm="api.example",
+            sample_rail="tempo-mainnet",
+            sample_amount_usd=0.01,
+            sample_recipient="0xRecipient",
+        ),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/search",
+            headers={},
+            body={"query": "test"},
+        ),
+    )
+    # Real business body → not a probe; falls through to regular 402 emit.
+    assert result.settle_phase != "discovery_probe"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # pricing_result factory (Tier 1 lift C)
 # ─────────────────────────────────────────────────────────────────────────────
 

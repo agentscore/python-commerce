@@ -67,6 +67,7 @@ merchant wraps it in their framework's response shape.
 from __future__ import annotations
 
 import inspect
+import json
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -181,6 +182,31 @@ class CheckoutRequest:
     your ``compose_mppx`` hook needs to call ``mppx.compose(...)(raw_request)`` ;
     pympp's compose binds to the raw HTTP request, so the orchestrator forwards
     this through unchanged."""
+
+
+@dataclass
+class DiscoveryProbeConfig:
+    """Auto-route discovery probes inside :meth:`Checkout.handle`.
+
+    When set on the Checkout, an empty-body POST without any payment header
+    short-circuits to a sample 402 advertising the merchant's discovery shape
+    for crawlers (``awal x402 details``, x402-proxy, x402scan, ...). The
+    probe DOES NOT settle anything; it's an SEO-shaped advertisement.
+
+    Per-rail real-recipient discovery still happens via the regular 402 emit
+    path on a non-probe request. Sample data here is intentionally minimal
+    (single rail, single recipient) since crawlers only need the shape.
+    """
+
+    realm: str
+    sample_rail: str
+    sample_amount_usd: float
+    sample_recipient: str
+    intent: str = "charge"
+    ttl_seconds: int = 300
+    docs_url: str | None = None
+    message: str | None = None
+    x402_sample: Any = None  # X402SampleProbe, optional
 
 
 @dataclass
@@ -577,6 +603,7 @@ class Checkout:
         zero_settle_carve_out: bool = False,
         gate: CheckoutGateConfig | None = None,
         discovery_extensions: dict[str, Any] | None = None,
+        discovery_probe: DiscoveryProbeConfig | None = None,
     ) -> None:
         # Auto-derive x402_server when not supplied: rails has an X402BaseRailSpec
         # → lazy-init via SDK helper. Merchants only pass CDP creds (or omit
@@ -640,6 +667,7 @@ class Checkout:
         self.zero_settle_carve_out = zero_settle_carve_out
         self.gate = gate
         self.discovery_extensions = discovery_extensions
+        self.discovery_probe = discovery_probe
         """Per-endpoint x402 ``extensions`` block emitted on the 402 body. Merge
         outputs of ``build_bazaar_discovery_payload({...})`` (or other extension
         declarers) here — Checkout forwards verbatim into the 402 response
@@ -753,6 +781,40 @@ class Checkout:
         """
         reference_id = await self._mint_reference_id(request)
         ctx = CheckoutContext(request=request, reference_id=reference_id)
+
+        # Discovery probe (optional): empty-body POST without a payment header
+        # → sample 402 advertising the merchant's shape for crawlers. Routes
+        # AHEAD of pre_validate so probe responses don't trip on body-validation
+        # rules (probes carry no business body).
+        if self.discovery_probe is not None:
+            from agentscore_commerce.discovery import (
+                build_discovery_probe_response,
+                is_discovery_probe_request,
+            )
+
+            auth = request.headers.get("authorization") or request.headers.get("Authorization")
+            body_text = json.dumps(request.body) if request.body else ""
+            if await is_discovery_probe_request(request.method, auth, body_text):
+                cfg = self.discovery_probe
+                probe = build_discovery_probe_response(
+                    realm=cfg.realm,
+                    sample_rail=cfg.sample_rail,
+                    sample_amount_usd=cfg.sample_amount_usd,
+                    sample_recipient=cfg.sample_recipient,
+                    intent=cfg.intent,
+                    ttl_seconds=cfg.ttl_seconds,
+                    docs_url=cfg.docs_url,
+                    message=cfg.message,
+                    x402_sample=cfg.x402_sample,
+                )
+                return CheckoutResult(
+                    status=probe.status,
+                    body=json.loads(probe.body),
+                    headers=probe.headers,
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase="discovery_probe",
+                )
 
         # Pre-validate (optional): resolve merchant-specific per-request state
         # (product lookup, code resolution, shipping checks, ...). May raise

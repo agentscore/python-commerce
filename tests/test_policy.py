@@ -15,6 +15,7 @@ from agentscore_commerce.identity.policy import (
     run_gate_with_enforcement,
     shipping_country_allowed,
     shipping_state_allowed,
+    validate_shipping_against_policy,
 )
 
 # ── shipping helpers ─────────────────────────────────────────────────────────
@@ -158,3 +159,87 @@ def test_module_exports_public_surface() -> None:
         "shipping_state_allowed",
     ):
         assert hasattr(policy_mod, name), name
+
+
+# ── validate_shipping_against_policy ─────────────────────────────────────────
+
+
+def test_validate_shipping_no_op_on_null_policy() -> None:
+    # No raise — ship anywhere when policy is None.
+    validate_shipping_against_policy(country="AQ", state="", policy=None)
+
+
+def test_validate_shipping_no_op_when_allowlist_empty() -> None:
+    # Empty allowlist == no restriction; policy with other fields is fine.
+    validate_shipping_against_policy(country="JP", state="", policy={"require_kyc": True})
+
+
+def test_validate_shipping_raises_on_disallowed_country() -> None:
+    from agentscore_commerce.checkout import CheckoutValidationError
+
+    with pytest.raises(CheckoutValidationError) as exc:
+        validate_shipping_against_policy(country="JP", state="", policy={"allowed_shipping_countries": ["US"]})
+    assert exc.value.code == "unsupported_jurisdiction"
+    assert "JP" in exc.value.message
+    assert exc.value.action == "change_shipping_state"
+
+
+def test_validate_shipping_raises_on_disallowed_state() -> None:
+    from agentscore_commerce.checkout import CheckoutValidationError
+
+    policy = {"allowed_shipping_countries": ["US"], "allowed_shipping_states": ["CA", "NY"]}
+    with pytest.raises(CheckoutValidationError) as exc:
+        validate_shipping_against_policy(country="US", state="UT", policy=policy)
+    assert exc.value.code == "unsupported_jurisdiction"
+    assert "UT" in exc.value.message
+
+
+def test_validate_shipping_product_name_appears_in_message() -> None:
+    from agentscore_commerce.checkout import CheckoutValidationError
+
+    with pytest.raises(CheckoutValidationError) as exc:
+        validate_shipping_against_policy(
+            country="JP",
+            state="",
+            policy={"allowed_shipping_countries": ["US"]},
+            product_name="Reserve Cabernet",
+        )
+    assert "Reserve Cabernet" in exc.value.message
+
+
+def test_validate_shipping_custom_messages_override_defaults() -> None:
+    from agentscore_commerce.checkout import CheckoutValidationError
+
+    with pytest.raises(CheckoutValidationError) as exc_country:
+        validate_shipping_against_policy(
+            country="JP",
+            state="",
+            policy={"allowed_shipping_countries": ["US"]},
+            country_message="Sorry, regulations.",
+        )
+    assert exc_country.value.message == "Sorry, regulations."
+
+    policy = {"allowed_shipping_countries": ["US"], "allowed_shipping_states": ["CA"]}
+    with pytest.raises(CheckoutValidationError) as exc_state:
+        validate_shipping_against_policy(
+            country="US",
+            state="UT",
+            policy=policy,
+            state_message="Fulfillment partner doesn't cover that area.",
+        )
+    assert exc_state.value.message == "Fulfillment partner doesn't cover that area."
+
+
+def test_validate_shipping_custom_code_and_action() -> None:
+    from agentscore_commerce.checkout import CheckoutValidationError
+
+    with pytest.raises(CheckoutValidationError) as exc:
+        validate_shipping_against_policy(
+            country="JP",
+            state="",
+            policy={"allowed_shipping_countries": ["US"]},
+            error_code="ships_us_only",
+            error_action="contact_support",
+        )
+    assert exc.value.code == "ships_us_only"
+    assert exc.value.action == "contact_support"

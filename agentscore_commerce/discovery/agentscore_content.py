@@ -270,7 +270,7 @@ def build_success_next_steps(
     out: dict[str, str] = {
         "action": "done",
         "user_message": user_message
-        or ("Order complete. Your AgentScore Passport is now active across every AgentScore-gated merchant."),
+        or ("Payment complete. Your AgentScore Passport is now active across every AgentScore-gated merchant."),
     }
     if order_status_url:
         out["order_status_url"] = order_status_url

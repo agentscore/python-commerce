@@ -138,7 +138,10 @@ def build_contact_support_next_steps(support_email: str, message: str | None = N
         "action": "contact_support",
         "support_email": support_email,
         "user_message": message
-        or f"If you believe this denial is in error, contact support at {support_email} with your order details.",
+        or (
+            f"If you believe this denial is in error, contact support at "
+            f"{support_email} with the details of your request."
+        ),
     }
 
 

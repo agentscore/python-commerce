@@ -5,12 +5,12 @@ from typing import Any, Literal
 
 _TEMPO_WARNING = (
     "Do NOT use `tempo wallet transfer` to pay to the address above. That moves USDC on-chain but does not "
-    "notify this server, so the order will not complete. Use `tempo request` instead; it performs the full MPP "
+    "notify this server, so the request will not complete. Use `tempo request` instead; it performs the full MPP "
     "handshake (signs, submits Authorization: Payment, waits for server confirmation)."
 )
 _X402_WARNING = (
     "Do NOT send USDC manually to the x402 deposit addresses (e.g. via a bare wallet `transfer`). Use "
-    "`agentscore-pay pay` so the X-Payment credential is signed and submitted; otherwise the order will not "
+    "`agentscore-pay pay` so the X-Payment credential is signed and submitted; otherwise the request will not "
     "complete even though the deposit lands."
 )
 _TEMPO_TOOL = "`tempo request` for Tempo USDC (installs via `tempo add request`)"

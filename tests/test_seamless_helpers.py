@@ -367,7 +367,7 @@ def test_build_success_next_steps_omits_eta_when_missing() -> None:
         "action": "done",
         "order_status_url": "https://x/orders/1",
         "user_message": (
-            "Order complete. Your AgentScore Passport is now active across every AgentScore-gated merchant."
+            "Payment complete. Your AgentScore Passport is now active across every AgentScore-gated merchant."
         ),
     }
 

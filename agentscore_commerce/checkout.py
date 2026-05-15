@@ -941,9 +941,6 @@ class Checkout:
             headers=self._extra_headers(result.headers),
         )
 
-    # Alias: FastAPI's Request inherits from Starlette's; one adapter covers both.
-    handle_starlette = handle_fastapi
-
     async def handle_aiohttp(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
         """Aiohttp adapter; returns ``aiohttp.web.Response``.
 

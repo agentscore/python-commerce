@@ -235,6 +235,7 @@ def pricing_result(
     subtotal_cents: int | None = None,
     tax_cents: int | None = None,
     shipping_cents: int | None = None,
+    discount_cents: int | None = None,
     tax_rate: float | None = None,
     tax_state: str | None = None,
     currency: str = "USD",
@@ -247,10 +248,14 @@ def pricing_result(
     Saves the ``PricingResult(amount_usd=..., block=build_pricing_block(...))``
     dance every US-commerce merchant repeats. When ``subtotal_cents`` is set:
 
-    * ``amount_usd`` is derived from ``(subtotal + tax + shipping) / 100``
-      unless explicitly provided.
+    * ``subtotal_cents`` is the list price (pre-discount). ``discount_cents``
+      is the deduction applied (redemption code / coupon / promo).
+    * ``amount_usd`` is derived from
+      ``(subtotal + tax + shipping - discount) / 100`` (floored at 0) unless
+      explicitly provided.
     * A :class:`PricingBlock` is built via :func:`build_pricing_block` and
-      attached to the result's ``block`` field.
+      attached to the result's ``block`` field. ``discount`` is surfaced as a
+      dollar-string when ``discount_cents`` is supplied.
 
     When ``subtotal_cents`` is omitted, the function passes through to the
     raw :class:`PricingResult` constructor; ``amount_usd`` is then required.
@@ -264,16 +269,21 @@ def pricing_result(
                 tax_rate=0.08,
                 tax_state="CA",
             )
+
+        # Redemption-code applied (free order, agent sees the savings line):
+        return pricing_result(subtotal_cents=7500, discount_cents=7500)
     """
     from agentscore_commerce.challenge import build_pricing_block
 
     if subtotal_cents is not None:
-        total_cents = subtotal_cents + (tax_cents or 0) + (shipping_cents or 0)
+        gross_cents = subtotal_cents + (tax_cents or 0) + (shipping_cents or 0) - (discount_cents or 0)
+        total_cents = max(0, gross_cents)
         derived_amount = total_cents / 100 if amount_usd is None else amount_usd
         block = build_pricing_block(
             subtotal_cents=subtotal_cents,
             tax_cents=tax_cents or 0,
             shipping_cents=shipping_cents,
+            discount_cents=discount_cents,
             tax_rate=tax_rate,
             tax_state=tax_state,
             currency=currency,

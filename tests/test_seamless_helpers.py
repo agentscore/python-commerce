@@ -982,6 +982,38 @@ def test_pricing_result_propagates_product_and_body_extras() -> None:
     assert pr.body_extras == extras
 
 
+def test_pricing_result_full_discount_zeros_amount_and_surfaces_savings() -> None:
+    # Redemption-code applied: subtotal stays list, discount equals list, total/amount are 0.
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=7500, discount_cents=7500)
+    assert pr.amount_usd == 0.0
+    assert pr.block is not None
+    assert pr.block.subtotal == "75.00"
+    assert pr.block.discount == "75.00"
+    assert pr.block.total == "0.00"
+
+
+def test_pricing_result_partial_discount_settle_floor() -> None:
+    # 74.99 discount against 75.00 list leaves a 1-cent settle floor.
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=7500, discount_cents=7499)
+    assert pr.amount_usd == 0.01
+    assert pr.block is not None
+    assert pr.block.discount == "74.99"
+    assert pr.block.total == "0.01"
+
+
+def test_pricing_result_discount_floors_amount_at_zero() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=1000, discount_cents=5000)
+    assert pr.amount_usd == 0.0
+    assert pr.block is not None
+    assert pr.block.total == "0.00"
+
+
 @pytest.mark.asyncio
 async def test_checkout_accepted_rails_dedupes_per_protocol() -> None:
     """`Checkout.accepted_rails` folds tempo+tempo_session into one and emits per-protocol slugs."""

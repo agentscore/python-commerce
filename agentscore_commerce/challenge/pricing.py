@@ -25,16 +25,21 @@ class PricingBlock:
     """
 
     subtotal: str
-    """Pre-tax, pre-shipping subtotal."""
+    """List-price subtotal, pre-tax, pre-shipping, pre-discount."""
 
     tax: str
     """Tax amount. Always present even if ``"0.00"``."""
 
     total: str
-    """Final total = subtotal + tax + shipping."""
+    """Final total = subtotal + tax + shipping - discount. Floored at 0."""
 
     shipping: str | None = None
     """Shipping cost. Omit for digital goods / services."""
+
+    discount: str | None = None
+    """Discount deducted from subtotal (redemption code, coupon, promo). Omit when
+    no discount applied; agents reading the 402 see ``subtotal``/``discount``/``total``
+    and can render the savings line."""
 
     tax_rate: float | None = None
     """Tax rate as a decimal fraction (e.g. ``0.0775`` for 7.75%). Omit for tax-free merchants."""
@@ -54,6 +59,8 @@ class PricingBlock:
         }
         if self.shipping is not None:
             out["shipping"] = self.shipping
+        if self.discount is not None:
+            out["discount"] = self.discount
         if self.tax_rate is not None:
             out["tax_rate"] = self.tax_rate
         if self.tax_state is not None:
@@ -67,6 +74,7 @@ def build_pricing_block(
     subtotal_cents: int,
     tax_cents: int = 0,
     shipping_cents: int | None = None,
+    discount_cents: int | None = None,
     total_cents: int | None = None,
     tax_rate: float | None = None,
     tax_state: str | None = None,
@@ -75,7 +83,8 @@ def build_pricing_block(
     """Compose a :class:`PricingBlock` from cents-denominated inputs.
 
     Handles the cents → dollar-string conversion (always 2 decimals) and computes the total
-    when not explicitly provided.
+    when not explicitly provided. ``subtotal_cents`` is the list price, pre-discount;
+    ``discount_cents`` is the deduction applied (redemption code, coupon).
 
     Example::
 
@@ -88,18 +97,31 @@ def build_pricing_block(
         )
         # → PricingBlock(subtotal="250.00", tax="18.75", shipping="9.99", total="278.74", ...)
 
+        # Redemption-code applied:
+        pricing = build_pricing_block(
+            subtotal_cents=7500,
+            discount_cents=7500,
+        )
+        # → PricingBlock(subtotal="75.00", discount="75.00", tax="0.00", total="0.00")
+
     Pass ``shipping_cents=0`` for digital goods if you want the field present (it's then
     ``"0.00"``); pass ``None`` (or omit) if you don't want shipping in the response shape
-    at all.
+    at all. Total floors at 0 when discount exceeds subtotal + tax + shipping.
     """
     shipping = shipping_cents if shipping_cents is not None else 0
-    total = total_cents if total_cents is not None else subtotal_cents + tax_cents + shipping
+    discount = discount_cents if discount_cents is not None else 0
+    if total_cents is None:
+        gross = subtotal_cents + tax_cents + shipping - discount
+        total = max(0, gross)
+    else:
+        total = total_cents
 
     return PricingBlock(
         subtotal=_format_cents(subtotal_cents),
         tax=_format_cents(tax_cents),
         total=_format_cents(total),
         shipping=_format_cents(shipping) if shipping_cents is not None else None,
+        discount=_format_cents(discount) if discount_cents is not None else None,
         tax_rate=tax_rate,
         tax_state=tax_state,
         currency=currency,

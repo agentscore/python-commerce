@@ -275,6 +275,81 @@ async def test_make_mppx_compose_hook_lifts_signer_from_did_pkh_eip155() -> None
 
 
 @pytest.mark.asyncio
+async def test_make_mppx_compose_hook_serializes_receipt_to_payment_receipt_header() -> None:
+    """When the pympp ``Receipt`` exposes ``to_payment_receipt()``, the compose
+    hook lifts the serialized header onto ``MppxComposeOutcome.payment_receipt_header``
+    so Checkout can echo it as the response's ``Payment-Receipt`` header."""
+
+    class _Credential:
+        source = "did:pkh:eip155:8453:0xABCD000000000000000000000000000000000003"
+
+    class _Receipt:
+        reference = "0xtx_hash"
+        transaction = None
+
+        @staticmethod
+        def to_payment_receipt() -> str:
+            return "eyJzdGF0dXMiOiJzdWNjZXNzIn0"
+
+    class _Mpp:
+        realm = "r"
+
+        async def charge(self, *, authorization: str | None, amount: str) -> tuple:
+            return (_Credential(), _Receipt())
+
+    async def _getter() -> _Mpp:
+        return _Mpp()
+
+    hook = make_mppx_compose_hook(server_getter=_getter)
+
+    class _Pricing:
+        amount_usd = 0.1
+
+    class _Ctx:
+        request = _req({"authorization": "Payment somevalidcred"})
+        pricing = _Pricing()
+
+    out = await hook(_Ctx())
+    assert out.status == 200
+    assert out.payment_receipt_header == "eyJzdGF0dXMiOiJzdWNjZXNzIn0"
+
+
+@pytest.mark.asyncio
+async def test_make_mppx_compose_hook_omits_receipt_header_when_unavailable() -> None:
+    """Older pympp Receipts without ``to_payment_receipt()`` leave the header
+    field None rather than raising or fabricating."""
+
+    class _Credential:
+        source = "did:pkh:eip155:8453:0xABCD000000000000000000000000000000000003"
+
+    class _Receipt:
+        reference = "0xtx_hash"
+        transaction = None
+
+    class _Mpp:
+        realm = "r"
+
+        async def charge(self, *, authorization: str | None, amount: str) -> tuple:
+            return (_Credential(), _Receipt())
+
+    async def _getter() -> _Mpp:
+        return _Mpp()
+
+    hook = make_mppx_compose_hook(server_getter=_getter)
+
+    class _Pricing:
+        amount_usd = 0.1
+
+    class _Ctx:
+        request = _req({"authorization": "Payment somevalidcred"})
+        pricing = _Pricing()
+
+    out = await hook(_Ctx())
+    assert out.status == 200
+    assert out.payment_receipt_header is None
+
+
+@pytest.mark.asyncio
 async def test_make_mppx_compose_hook_returns_402_when_charge_raises() -> None:
     class _Mpp:
         realm = "r"

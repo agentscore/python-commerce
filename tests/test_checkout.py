@@ -301,6 +301,42 @@ async def test_compose_mppx_returns_200_runs_on_settled() -> None:
 
 
 @pytest.mark.asyncio
+async def test_compose_mppx_payment_receipt_header_surfaces_on_response() -> None:
+    """When ``compose_mppx`` populates ``payment_receipt_header``, Checkout echoes
+    it as a ``payment-receipt`` HTTP header on the success response — symmetric
+    to the existing ``payment_response_header`` (x402) behavior."""
+    receipt_header = "eyJzdGF0dXMiOiJzdWNjZXNzIn0"
+    compose_mppx = AsyncMock(
+        return_value=MppxComposeOutcome(status=200, payment_receipt_header=receipt_header),
+    )
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    assert result.headers["payment-receipt"] == receipt_header
+
+
+@pytest.mark.asyncio
+async def test_compose_mppx_omitted_payment_receipt_header_emits_no_header() -> None:
+    """Default ``payment_receipt_header=None`` on the compose outcome must NOT
+    emit an empty ``payment-receipt`` header on the response."""
+    compose_mppx = AsyncMock(return_value=MppxComposeOutcome(status=200))
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    assert "payment-receipt" not in result.headers
+
+
+@pytest.mark.asyncio
 async def test_compose_mppx_returns_402_on_settle_leg_rejects_credential() -> None:
     """When the agent sends Authorization: Payment and mppx returns 402 (credential
     rejected), Checkout maps that to 400 payment_proof_invalid + the fresh

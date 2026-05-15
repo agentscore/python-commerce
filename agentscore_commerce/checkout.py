@@ -548,6 +548,41 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+def _extract_mppx_receipt_header_from_raw(raw: Any) -> str | None:
+    """Best-effort ``Payment-Receipt`` extraction from a custom hook's ``raw``.
+
+    Handles the three shapes hand-rolled hooks commonly return on a 200:
+
+    * The raw object itself exposes ``to_payment_receipt()`` (pympp Receipt
+      handed back directly).
+    * ``raw`` is a tuple ``(credential, receipt)`` (the pympp ``Mpp.charge``
+      return shape, unpacked but not re-wrapped).
+    * ``raw`` is a dict with ``receipt`` key, or an object with ``.receipt``
+      attribute (the auto-built hook's ``{"credential", "receipt"}`` dict).
+
+    Returns ``None`` when none of the shapes match, or the receipt's
+    ``to_payment_receipt`` raises: the response then omits the header rather
+    than emitting a malformed value.
+    """
+    candidates: list[Any] = [raw]
+    if isinstance(raw, tuple | list) and len(raw) >= 2:
+        candidates.append(raw[1])
+    if isinstance(raw, dict) and "receipt" in raw:
+        candidates.append(raw["receipt"])
+    if hasattr(raw, "receipt"):
+        candidates.append(raw.receipt)
+    for candidate in candidates:
+        to_header = getattr(candidate, "to_payment_receipt", None)
+        if callable(to_header):
+            try:
+                value = to_header()
+            except Exception:  # noqa: S112
+                continue
+            if isinstance(value, str) and value:
+                return value
+    return None
+
+
 def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
     """Compose the identity_metadata block from request + assess state.
 
@@ -1733,7 +1768,8 @@ class Checkout:
                 signer_address=composed.signer_address,
                 signer_network=composed.signer_network,
                 payment_response_header=composed.payment_response_header,
-                payment_receipt_header=composed.payment_receipt_header,
+                payment_receipt_header=composed.payment_receipt_header
+                or _extract_mppx_receipt_header_from_raw(composed.raw),
                 raw=composed.raw,
             )
             return await self._build_success(ctx, outcome)

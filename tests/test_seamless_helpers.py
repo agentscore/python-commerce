@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib as _contextlib
 import json
+import os
 from typing import Any
 from unittest.mock import patch
 
@@ -595,6 +597,202 @@ def test_handle_django_returns_402_on_discovery_leg(monkeypatch: pytest.MonkeyPa
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# buildSignedUcpResponse / buildSignedJwksResponse / bootstrapUcpSigningKey
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@_contextlib.contextmanager
+def _env_key(jwk_dict: dict[str, Any]) -> Any:
+    """Yield with UCP_SIGNING_KEY_JWK_PRIVATE set to ``jwk_dict``, restoring on exit."""
+    from agentscore_commerce.identity.ucp_jwks import _reset_ucp_signing_key_cache
+
+    _reset_ucp_signing_key_cache()
+    prev = os.environ.get("UCP_SIGNING_KEY_JWK_PRIVATE")
+    os.environ["UCP_SIGNING_KEY_JWK_PRIVATE"] = json.dumps(jwk_dict)
+    try:
+        yield
+    finally:
+        if prev is None:
+            os.environ.pop("UCP_SIGNING_KEY_JWK_PRIVATE", None)
+        else:
+            os.environ["UCP_SIGNING_KEY_JWK_PRIVATE"] = prev
+        _reset_ucp_signing_key_cache()
+
+
+def test_bootstrap_ucp_signing_key_throws_on_malformed_env() -> None:
+    from agentscore_commerce.discovery import bootstrap_ucp_signing_key
+    from agentscore_commerce.identity.ucp_jwks import _reset_ucp_signing_key_cache
+
+    _reset_ucp_signing_key_cache()
+    prev = os.environ.get("UCP_SIGNING_KEY_JWK_PRIVATE")
+    os.environ["UCP_SIGNING_KEY_JWK_PRIVATE"] = "not-json"
+    try:
+        with pytest.raises((ValueError, Exception)):
+            bootstrap_ucp_signing_key()
+    finally:
+        if prev is None:
+            os.environ.pop("UCP_SIGNING_KEY_JWK_PRIVATE", None)
+        else:
+            os.environ["UCP_SIGNING_KEY_JWK_PRIVATE"] = prev
+        _reset_ucp_signing_key_cache()
+
+
+def test_bootstrap_ucp_signing_key_succeeds_with_valid_env() -> None:
+    from agentscore_commerce.discovery import bootstrap_ucp_signing_key
+    from agentscore_commerce.identity.ucp_jwks import generate_ucp_signing_key
+
+    key = generate_ucp_signing_key(kid="bootstrap-test")
+    private_jwk = key.private_key.as_dict(private=True)
+    with _env_key(private_jwk):
+        bootstrap_ucp_signing_key()  # should not raise
+
+
+def test_build_signed_jwks_response_emits_jwk_set_json() -> None:
+    from agentscore_commerce.discovery import build_signed_jwks_response
+    from agentscore_commerce.identity.ucp_jwks import generate_ucp_signing_key
+
+    key = generate_ucp_signing_key(kid="jwks-test")
+    private_jwk = key.private_key.as_dict(private=True)
+    with _env_key(private_jwk):
+        resp = build_signed_jwks_response(request_headers={"X-Request-Id": "req-jwks"})
+    assert resp.status == 200
+    assert resp.media_type == "application/jwk-set+json"
+    assert "max-age=300" in resp.headers["Cache-Control"]
+    assert resp.headers["X-Request-ID"] == "req-jwks"
+    body = json.loads(resp.content)
+    assert len(body["keys"]) == 1
+
+
+def test_build_signed_ucp_response_misconfigured_when_no_rails() -> None:
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.discovery import build_signed_ucp_response
+
+    async def _pricing(ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    checkout = Checkout(rails={}, url="https://x/purchase", compute_pricing=_pricing)
+    resp = build_signed_ucp_response(
+        checkout=checkout,
+        name="X",
+        well_known_ucp_url="https://x/.well-known/ucp",
+        services={},
+        request_headers={"X-Request-Id": "req-misc"},
+    )
+    assert resp.status == 503
+    assert "max-age=60" in resp.headers["Cache-Control"]
+    assert resp.headers["X-Request-ID"] == "req-misc"
+    body = json.loads(resp.content)
+    assert body["error"]["code"] == "ucp_misconfigured"
+
+
+def test_build_signed_ucp_response_happy_path_signs_profile() -> None:
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.discovery import build_signed_ucp_response
+    from agentscore_commerce.identity.ucp_jwks import generate_ucp_signing_key
+
+    async def _pricing(ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    key = generate_ucp_signing_key(kid="ucp-test")
+    private_jwk = key.private_key.as_dict(private=True)
+    checkout = Checkout(
+        rails={
+            "tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD"),
+            "base": X402BaseRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD"),
+        },
+        url="https://x/purchase",
+        compute_pricing=_pricing,
+    )
+    with _env_key(private_jwk):
+        resp = build_signed_ucp_response(
+            checkout=checkout,
+            name="AgentScore Store",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={"dev.ucp.shopping": []},
+            signing_kid="ucp-test",
+            request_headers={"X-Request-Id": "req-ucp"},
+        )
+    assert resp.status == 200
+    assert resp.headers["X-Request-ID"] == "req-ucp"
+    assert "max-age=60" in resp.headers["Cache-Control"]
+    body = json.loads(resp.content)
+    assert body["ucp"]["name"] == "AgentScore Store"
+    assert "signature" in body
+    assert body["ucp"]["payment_handlers"]
+
+
+def test_build_signed_ucp_response_includes_solana_stripe_tempo_session() -> None:
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.discovery import build_signed_ucp_response
+    from agentscore_commerce.identity.ucp_jwks import generate_ucp_signing_key
+    from agentscore_commerce.payment import SolanaMppRailSpec, StripeRailSpec, TempoSessionRailSpec
+
+    async def _pricing(ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    key = generate_ucp_signing_key(kid="ucp-multi")
+    private_jwk = key.private_key.as_dict(private=True)
+    checkout = Checkout(
+        rails={
+            "solana": SolanaMppRailSpec(recipient="SoLaNaReCiPiEnT"),
+            "stripe": StripeRailSpec(profile_id="profile_abc"),
+            "tempo_session": TempoSessionRailSpec(
+                recipient="0x" + "00" * 20,
+                escrow_contract="0x" + "11" * 20,
+                store=object(),
+            ),
+        },
+        url="https://x/purchase",
+        compute_pricing=_pricing,
+    )
+    with _env_key(private_jwk):
+        resp = build_signed_ucp_response(
+            checkout=checkout,
+            name="Multi-Rail",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="ucp-multi",
+        )
+    assert resp.status == 200
+    body = json.loads(resp.content)
+    keys = list(body["ucp"]["payment_handlers"].keys())
+    assert any("mpp" in k or "stripe" in k for k in keys)
+
+
+def test_default_a2a_services_returns_canonical_a2a_binding() -> None:
+    from agentscore_commerce.discovery.well_known import default_a2a_services
+
+    services = default_a2a_services(agent_card_url="https://x/.well-known/agent-card.json")
+    assert "dev.ucp.shopping" in services
+    binding = services["dev.ucp.shopping"][0]
+    assert binding.transport == "a2a"
+    assert binding.endpoint == "https://x/.well-known/agent-card.json"
+
+
+def test_well_known_cors_preflight_headers_without_request() -> None:
+    from agentscore_commerce.discovery import well_known_cors_preflight_headers
+
+    headers = well_known_cors_preflight_headers()
+    assert headers["Access-Control-Allow-Origin"] == "*"
+    assert "GET" in headers["Access-Control-Allow-Methods"]
+    assert "Access-Control-Allow-Headers" not in headers
+
+
+def test_well_known_cors_preflight_headers_echoes_acrh() -> None:
+    from agentscore_commerce.discovery import well_known_cors_preflight_headers
+
+    headers = well_known_cors_preflight_headers(
+        {"Access-Control-Request-Headers": "x-foo, x-bar"},
+    )
+    assert headers["Access-Control-Allow-Headers"] == "x-foo, x-bar"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# load_solana_fee_payer
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def test_load_solana_fee_payer_returns_none_on_empty() -> None:
     from agentscore_commerce.payment.solana import load_solana_fee_payer
 
@@ -799,6 +997,42 @@ def test_x_payment_info_from_checkout_lists_protocols_per_rail() -> None:
     assert block["description"] == "Per-call fee."
     # _minimal_checkout has a tempo rail; protocol entry is `{"mpp": {"method": "tempo", "intent": "charge", ...}}`.
     assert any(p.get("mpp", {}).get("method") == "tempo" for p in block["protocols"])
+
+
+def test_x_payment_info_from_checkout_covers_all_rail_types() -> None:
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.discovery import (
+        XPaymentInfoFixedPrice,
+        x_payment_info_from_checkout,
+    )
+    from agentscore_commerce.payment import SolanaMppRailSpec, StripeRailSpec
+
+    async def _pricing(ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    checkout = Checkout(
+        rails={
+            "tempo": TempoRailSpec(recipient="0x" + "00" * 20),
+            "base": X402BaseRailSpec(recipient="0x" + "00" * 20),
+            "stripe": StripeRailSpec(profile_id="profile_abc"),
+            "solana": SolanaMppRailSpec(recipient="SoLaNaReCiPiEnT", token="EPjFWdd5..."),
+        },
+        url="https://x/purchase",
+        compute_pricing=_pricing,
+    )
+    ext = x_payment_info_from_checkout(
+        checkout=checkout,
+        price=XPaymentInfoFixedPrice(currency="USD", amount="1.00"),
+    )
+    protos = ext["x-payment-info"]["protocols"]
+    methods = [p.get("mpp", {}).get("method") or "x402" for p in protos]
+    assert "stripe" in methods
+    assert "tempo" in methods
+    assert "solana" in methods
+    assert "x402" in methods
+    # Solana entry should include the `currency` from token
+    solana_entry = next(p["mpp"] for p in protos if p.get("mpp", {}).get("method") == "solana")
+    assert solana_entry["currency"] == "EPjFWdd5..."
 
 
 def test_x_payment_info_from_checkout_merges_protocol_extras() -> None:

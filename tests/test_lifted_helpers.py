@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import time
 from collections.abc import Awaitable
@@ -81,6 +82,104 @@ async def test_pi_cache_no_redis_url_falls_back_to_memory_only():
     await cache.cache_address("0xnoredis")
     assert await cache.has_address("0xnoredis") is True
     cache.stop()
+
+
+# Fake redis.asyncio module so the Redis-backed branches of pi_cache run
+# without requiring the optional `redis` peer dep in the test env.
+class _FakeRedisAsync:
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+        self.get_raises: bool = False
+
+    async def set(self, key: str, value: str, *, ex: int) -> None:
+        self.store[key] = value
+
+    async def get(self, key: str) -> str | None:
+        if self.get_raises:
+            raise RuntimeError("simulated redis transient")
+        return self.store.get(key)
+
+
+class _FakeRedisAsyncioModule:
+    def __init__(self) -> None:
+        self.instance = _FakeRedisAsync()
+
+    def from_url(self, _url: str) -> _FakeRedisAsync:
+        return self.instance
+
+
+@pytest.fixture
+def _fake_redis(monkeypatch: pytest.MonkeyPatch) -> _FakeRedisAsync:
+    import sys
+
+    module = _FakeRedisAsyncioModule()
+    # Inject under `redis.asyncio` so `import_module("redis.asyncio")` returns our stub.
+    monkeypatch.setitem(sys.modules, "redis.asyncio", module)
+    return module.instance
+
+
+@pytest.mark.asyncio
+async def test_pi_cache_redis_backed_cache_address_round_trip(_fake_redis: _FakeRedisAsync) -> None:
+    cache = create_pi_cache(redis_url="redis://localhost:6379", ttl_seconds=10)
+    await cache.cache_address("0xredis-test")
+    # set hits the Redis stub
+    assert any("0xredis-test" in k for k in _fake_redis.store)
+    # has_address hits the Redis stub and returns True
+    assert await cache.has_address("0xredis-test") is True
+    cache.stop()
+
+
+@pytest.mark.asyncio
+async def test_pi_cache_redis_get_error_falls_back_to_memory(_fake_redis: _FakeRedisAsync) -> None:
+    cache = create_pi_cache(redis_url="redis://localhost:6379", ttl_seconds=10)
+    await cache.cache_address("0xfallback")  # writes to memory mirror + redis stub
+    _fake_redis.get_raises = True
+    # The redis-get raises, so the function falls back to the in-memory mirror.
+    assert await cache.has_address("0xfallback") is True
+    cache.stop()
+
+
+@pytest.mark.asyncio
+async def test_pi_cache_redis_url_set_but_module_missing_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    # Force `import redis.asyncio` to raise even if a real redis lib is installed.
+    monkeypatch.setitem(sys.modules, "redis.asyncio", None)
+    cache = create_pi_cache(redis_url="redis://localhost:6379", ttl_seconds=10)
+    await cache.cache_address("0xnoredis-pkg")
+    assert await cache.has_address("0xnoredis-pkg") is True
+    cache.stop()
+
+
+@pytest.mark.asyncio
+async def test_pi_cache_eviction_loop_clears_expired_entries() -> None:
+    """Drive _evict_loop manually by zeroing the sleep delay so the eviction body runs."""
+    import agentscore_commerce.stripe_multichain.pi_cache as pi_cache_mod
+
+    real_sleep = asyncio.sleep
+    sleep_calls: list[float] = []
+
+    async def _no_sleep(delay: float) -> None:
+        sleep_calls.append(delay)
+        if len(sleep_calls) >= 2:
+            raise asyncio.CancelledError
+        # Let the loop yield once so other tasks (e.g. test polling) can interleave.
+        await real_sleep(0)
+
+    pi_cache_mod.asyncio.sleep = _no_sleep  # type: ignore[assignment]
+    try:
+        cache = create_pi_cache(ttl_seconds=0)
+        cache.cache_payment_intent("0xexp", "pi_exp")
+        cache.cache_network_addresses("pi_exp", {"base": "0xb"})
+        await cache.cache_address("0xexp-addr")
+        # Wait for the eviction loop to fire (raises CancelledError after 2 iterations).
+        with contextlib.suppress(asyncio.CancelledError):
+            await real_sleep(0.05)
+        # After one tick, expired entries should be evicted.
+        assert cache.get_payment_intent_id("0xexp") is None
+        cache.stop()
+    finally:
+        pi_cache_mod.asyncio.sleep = real_sleep  # type: ignore[assignment]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

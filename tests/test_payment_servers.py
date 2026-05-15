@@ -267,9 +267,6 @@ async def test_create_x402_server_bazaar_registers_extension(monkeypatch: pytest
 
     registered: list[Any] = []
 
-    class _FacilitatorStub:
-        async def get_supported(self) -> Any: ...
-
     # Patch register_extension on the class BEFORE creating the server so the
     # bazaar branch records its extension call.
     import x402
@@ -282,7 +279,7 @@ async def test_create_x402_server_bazaar_registers_extension(monkeypatch: pytest
 
     monkeypatch.setattr(x402.x402ResourceServer, "__init__", patched_init)
     await create_x402_server(
-        facilitator=_FacilitatorStub(),
+        facilitator=object(),  # opaque facilitator; never called with initialize=False
         bazaar=True,
         initialize=False,
     )

@@ -797,6 +797,72 @@ async def test_gate_allow_attaches_capture_wallet(monkeypatch: pytest.MonkeyPatc
     assert capture_calls == [{"available": True, "tx": "0xtest"}]
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# pricing_result factory (Tier 1 lift C)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_pricing_result_derives_amount_from_cents() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=25000, tax_cents=2000)
+    assert pr.amount_usd == 270.0
+    assert pr.currency == "USD"
+    assert pr.block is not None
+    assert pr.block.subtotal == "250.00"
+    assert pr.block.tax == "20.00"
+
+
+def test_pricing_result_includes_shipping_when_set() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=25000, tax_cents=2000, shipping_cents=999)
+    assert pr.amount_usd == 279.99
+
+
+def test_pricing_result_tax_rate_and_state_attach_to_block() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=25000, tax_cents=2000, tax_rate=0.08, tax_state="CA")
+    assert pr.block is not None
+    assert pr.block.tax_rate == 0.08
+    assert pr.block.tax_state == "CA"
+
+
+def test_pricing_result_passthrough_amount_usd() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(amount_usd=0.01)
+    assert pr.amount_usd == 0.01
+    assert pr.block is None
+
+
+def test_pricing_result_explicit_amount_overrides_subtotal_derivation() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=25000, tax_cents=2000, amount_usd=999.99)
+    assert pr.amount_usd == 999.99
+    assert pr.block is not None
+    assert pr.block.subtotal == "250.00"
+
+
+def test_pricing_result_raises_when_no_amount_source() -> None:
+    from agentscore_commerce import pricing_result
+
+    with pytest.raises(ValueError, match=r"subtotal_cents.*amount_usd"):
+        pricing_result(currency="USD")
+
+
+def test_pricing_result_propagates_product_and_body_extras() -> None:
+    from agentscore_commerce import pricing_result
+
+    product = {"id": "sku_1", "name": "Test"}
+    extras = {"redemption_code_applied": "WELCOME"}
+    pr = pricing_result(subtotal_cents=100, product=product, body_extras=extras)
+    assert pr.product == product
+    assert pr.body_extras == extras
+
+
 @pytest.mark.asyncio
 async def test_checkout_accepted_rails_dedupes_per_protocol() -> None:
     """`Checkout.accepted_rails` folds tempo+tempo_session into one and emits per-protocol slugs."""

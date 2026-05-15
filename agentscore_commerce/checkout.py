@@ -204,6 +204,72 @@ class PricingResult:
     merchant wants the agent to see in the challenge body."""
 
 
+def pricing_result(
+    *,
+    subtotal_cents: int | None = None,
+    tax_cents: int | None = None,
+    shipping_cents: int | None = None,
+    tax_rate: float | None = None,
+    tax_state: str | None = None,
+    currency: str = "USD",
+    amount_usd: float | None = None,
+    product: dict[str, str] | None = None,
+    body_extras: dict[str, Any] | None = None,
+) -> PricingResult:
+    """Build a :class:`PricingResult` from cents-denominated inputs.
+
+    Saves the ``PricingResult(amount_usd=..., block=build_pricing_block(...))``
+    dance every US-commerce merchant repeats. When ``subtotal_cents`` is set:
+
+    * ``amount_usd`` is derived from ``(subtotal + tax + shipping) / 100``
+      unless explicitly provided.
+    * A :class:`PricingBlock` is built via :func:`build_pricing_block` and
+      attached to the result's ``block`` field.
+
+    When ``subtotal_cents`` is omitted, the function passes through to the
+    raw :class:`PricingResult` constructor; ``amount_usd`` is then required.
+
+    Use this in ``compute_pricing`` hooks instead of hand-rolling::
+
+        async def _compute_pricing(ctx: CheckoutContext) -> PricingResult:
+            return pricing_result(
+                subtotal_cents=25000,
+                tax_cents=2000,
+                tax_rate=0.08,
+                tax_state="CA",
+            )
+    """
+    from agentscore_commerce.challenge import build_pricing_block
+
+    if subtotal_cents is not None:
+        total_cents = subtotal_cents + (tax_cents or 0) + (shipping_cents or 0)
+        derived_amount = total_cents / 100 if amount_usd is None else amount_usd
+        block = build_pricing_block(
+            subtotal_cents=subtotal_cents,
+            tax_cents=tax_cents or 0,
+            shipping_cents=shipping_cents,
+            tax_rate=tax_rate,
+            tax_state=tax_state,
+            currency=currency,
+        )
+        return PricingResult(
+            amount_usd=derived_amount,
+            currency=currency,
+            block=block,
+            product=product,
+            body_extras=body_extras,
+        )
+    if amount_usd is None:
+        msg = "pricing_result requires either `subtotal_cents` or `amount_usd`."
+        raise ValueError(msg)
+    return PricingResult(
+        amount_usd=amount_usd,
+        currency=currency,
+        product=product,
+        body_extras=body_extras,
+    )
+
+
 @dataclass
 class CheckoutContext:
     """In-flight state passed to every hook in the Checkout flow."""

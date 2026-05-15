@@ -70,8 +70,9 @@ from agentscore_commerce.payment import (
 APP_URL = os.environ.get("APP_URL", "http://localhost:3000")
 TEMPO_RECIPIENT = os.environ.get("TEMPO_RECIPIENT", "0xfeedface")
 X402_BASE_RECIPIENT = os.environ.get("X402_BASE_RECIPIENT", "0xfeedface")
-MPP_SECRET_KEY = os.environ.get("MPP_SECRET_KEY", "")
-TEMPO_ESCROW = os.environ.get("TEMPO_ESCROW", "")
+# MPP_SECRET_KEY + TEMPO_ESCROW would be read here in a full streaming
+# implementation; the SSE handler below stubs to 501. See the docstring at
+# the top of the file for the wire-shape and production wiring sketch.
 
 REALM = urlparse(APP_URL).hostname or "llm.example.com"
 MAX_USDC = 0.5  # upper bound vendor advertises; actual bill <= this.

@@ -84,10 +84,10 @@ async def purchase(request: Request, assess=Depends(get_agentscore_data)):
 from fastapi import FastAPI, Request
 from agentscore_commerce import (
     Checkout, CheckoutGateConfig, DiscoveryProbeConfig, PricingResult, pricing_result,
+    SolanaMppRailSpec, StripeRailSpec, TempoRailSpec, X402BaseRailSpec,
+    validate_shipping_against_policy,
 )
 from agentscore_commerce.discovery import default_a2a_services
-from agentscore_commerce.identity.policy import validate_shipping_against_policy
-from agentscore_commerce.payment import TempoRailSpec, X402BaseRailSpec, SolanaMppRailSpec, StripeRailSpec
 
 app = FastAPI()
 
@@ -161,11 +161,11 @@ The 402 body Checkout emits auto-attaches `identity_mode` + `required_signer` + 
 ## Payment helpers
 
 ```python
+from agentscore_commerce import extract_payment_signer
 from agentscore_commerce.payment import (
     BuildPaymentDirectiveInput,
     PaymentDirectiveInput,
     build_payment_directive,
-    extract_payment_signer,
     networks,
     payment_directive,
     www_authenticate_header,

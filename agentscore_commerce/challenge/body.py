@@ -11,6 +11,10 @@ from agentscore_commerce.payment.wwwauthenticate import alias_amount_fields
 class X402PaymentRequired:
     accepts: list[Any]
     version: Literal[1, 2] = 2
+    extensions: dict[str, Any] | None = None
+    """Per-endpoint x402 ``extensions`` block (e.g. Bazaar discovery declared
+    via ``build_bazaar_discovery_payload``). Emitted on the 402 body as
+    ``body.extensions`` per x402 spec when non-empty."""
 
 
 def build_402_body(
@@ -34,6 +38,8 @@ def build_402_body(
     if x402:
         body["x402Version"] = x402.version
         body["accepts"] = alias_amount_fields(x402.accepts)
+        if x402.extensions:
+            body["extensions"] = x402.extensions
     if amount_usd is not None:
         body["amount_usd"] = amount_usd
     if currency:

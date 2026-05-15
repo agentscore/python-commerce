@@ -520,11 +520,6 @@ class AgentScoreCore:
         return "evm" if signer.startswith("0x") else "solana"
 
 
-# Re-export the timeout error class so adapters can recognize SDK-side timeouts
-# without having to import it from the underlying SDK directly.
-__all_sdk_timeout__ = SdkTimeoutError
-
-
 class PaymentRequiredError(Exception):
     """Raised when the AgentScore API returns 402."""
 
@@ -555,8 +550,6 @@ class TokenDeniedError(Exception):
         super().__init__("token_expired")
         self.code: Literal["token_expired"] = "token_expired"
         self.body: dict[str, Any] = body
-        # Legacy accessor for callers that read .next_steps directly.
-        self.next_steps = body.get("next_steps") if isinstance(body, dict) else None
 
 
 def build_token_denied_reason(err: TokenDeniedError) -> DenialReason:
@@ -573,7 +566,7 @@ def build_token_denied_reason(err: TokenDeniedError) -> DenialReason:
         session_id=body.get("session_id") if isinstance(body.get("session_id"), str) else None,
         poll_secret=body.get("poll_secret") if isinstance(body.get("poll_secret"), str) else None,
         poll_url=body.get("poll_url") if isinstance(body.get("poll_url"), str) else None,
-        agent_instructions=json.dumps(err.next_steps) if err.next_steps else None,
+        agent_instructions=(json.dumps(body["next_steps"]) if isinstance(body.get("next_steps"), dict) else None),
     )
 
 

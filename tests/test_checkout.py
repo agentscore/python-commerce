@@ -223,10 +223,12 @@ async def test_x402_settle_failure_returns_4xx_with_phase() -> None:
         x402_server=_StubX402Server(settle_success=False),
     )
     result = await checkout.handle(_req(headers=_x402_headers_with_payload()))
-    assert result.status == 400
+    # settle_failed phase classifies to 503 payment_provider_unavailable
+    # (transient on-chain settle outage; agent should retry or pick another rail).
+    assert result.status == 503
     assert result.settled is False
-    assert result.settle_phase is not None
-    assert result.body["error"]["code"] == "payment_proof_invalid"
+    assert result.settle_phase == "settle_failed"
+    assert result.body["error"]["code"] == "payment_provider_unavailable"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -256,8 +258,10 @@ async def test_compose_mppx_returns_200_runs_on_settled() -> None:
 
 
 @pytest.mark.asyncio
-async def test_compose_mppx_returns_402_composes_rich_body() -> None:
-    """When pympp re-emits 402, Checkout layers the rich body on top of pympp's WWW-Auth."""
+async def test_compose_mppx_returns_402_on_settle_leg_rejects_credential() -> None:
+    """When the agent sends Authorization: Payment and mppx returns 402 (credential
+    rejected), Checkout maps that to 400 payment_proof_invalid + the fresh
+    WWW-Authenticate from mppx so the agent's retry signs against the new directive."""
     compose_mppx = AsyncMock(
         return_value=MppxComposeOutcome(
             status=402,
@@ -271,8 +275,31 @@ async def test_compose_mppx_returns_402_composes_rich_body() -> None:
         compose_mppx=compose_mppx,
     )
     result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
-    assert result.status == 402
+    assert result.status == 400
     assert result.headers["www-authenticate"] == 'Payment id="ord_x"'
+    assert result.body["error"]["code"] == "payment_proof_invalid"
+    assert result.settle_phase == "verify_failed"
+
+
+@pytest.mark.asyncio
+async def test_compose_mppx_on_discovery_leg_layers_challenge_in_402() -> None:
+    """On the discovery leg (no Authorization header), Checkout calls compose_mppx
+    proactively to mint a fresh WWW-Authenticate, then composes it into the 402."""
+    compose_mppx = AsyncMock(
+        return_value=MppxComposeOutcome(
+            status=402,
+            headers={"www-authenticate": 'Payment id="ord_y"'},
+        ),
+    )
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req())
+    assert result.status == 402
+    assert result.headers["www-authenticate"] == 'Payment id="ord_y"'
     assert "accepted_methods" in result.body
 
 
@@ -297,7 +324,7 @@ async def test_compute_pricing_can_branch_on_identity() -> None:
     )
     # Anonymous
     anon = await checkout.handle(_req())
-    assert anon.body["amount_usd"] == "10.0"
+    assert anon.body["amount_usd"] == "10.00"
     # KYC'd
     verified = await checkout.handle(
         CheckoutRequest(
@@ -308,7 +335,7 @@ async def test_compute_pricing_can_branch_on_identity() -> None:
             assess={"identity_status": "verified"},
         ),
     )
-    assert verified.body["amount_usd"] == "8.0"
+    assert verified.body["amount_usd"] == "8.00"
 
 
 @pytest.mark.asyncio

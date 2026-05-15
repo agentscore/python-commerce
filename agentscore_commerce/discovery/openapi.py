@@ -82,18 +82,24 @@ def x_payment_info_extension(
     *,
     price: XPaymentInfoPrice,
     protocols: list[dict[str, Any]],
+    description: str | None = None,
 ) -> dict[str, Any]:
     """Wrap a price + protocols block under ``x-payment-info``.
 
     For spreading into an OpenAPI operation object. ``protocols`` is a list of
     single-key dicts: ``{"x402": {}}`` for x402, ``{"mpp": {"method": ...,
     "intent": ..., "currency": ...}}`` for MPP. Order is preserved.
+
+    Emits ``authMode: "payment"`` by default per the x402scan convention.
     """
     if isinstance(price, XPaymentInfoFixedPrice):
         price_dict: dict[str, Any] = {"mode": "fixed", "currency": price.currency, "amount": price.amount}
     else:
         price_dict = {"mode": "dynamic", "currency": price.currency, "min": price.min, "max": price.max}
-    return {"x-payment-info": {"price": price_dict, "protocols": protocols}}
+    block: dict[str, Any] = {"authMode": "payment", "price": price_dict, "protocols": protocols}
+    if description is not None:
+        block["description"] = description
+    return {"x-payment-info": block}
 
 
 def x_guidance_extension(text: str) -> dict[str, str]:
@@ -103,6 +109,87 @@ def x_guidance_extension(text: str) -> dict[str, str]:
     how to use the API at a high level. Discovery crawlers surface this on listings.
     """
     return {"x-guidance": text}
+
+
+def x_service_info_extension(
+    *,
+    categories: list[str],
+    docs: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Wrap a service-info block under ``x-service-info``.
+
+    Spread into the OpenAPI document's root alongside ``paths``, ``info``, etc.
+    Discovery crawlers (x402scan, agent CLIs) read this to categorize the
+    service and follow links to human-side docs.
+    """
+    block: dict[str, Any] = {"categories": categories}
+    if docs is not None:
+        block["docs"] = docs
+    return {"x-service-info": block}
+
+
+def x_payment_info_from_checkout(
+    *,
+    checkout: Any,
+    price: XPaymentInfoPrice,
+    description: str | None = None,
+    protocol_extras: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Derive an ``x-payment-info`` extension from a configured ``Checkout``.
+
+    Walks ``checkout.rails`` and emits one entry in ``protocols[]`` per rail —
+    Tempo MPP, x402 (Base), Solana MPP, Stripe SPT. Saves merchants from
+    enumerating protocols by hand and keeps the OpenAPI doc in sync with the
+    actual rails the Checkout serves.
+
+    ``price`` is merchant-supplied (the rail registry doesn't carry per-merchant
+    pricing). Per-rail extras (client commands) can be merged via
+    ``protocol_extras`` keyed by rail slug (``tempo``, ``base``, ``solana``,
+    ``stripe``).
+
+    For Solana MPP, ``currency`` is the SPL mint address per the official
+    spec (paymentauth.org/draft-solana-charge-00) — read from ``spec.token``.
+    """
+    from agentscore_commerce.payment.rail_spec import (
+        SolanaMppRailSpec,
+        StripeRailSpec,
+        TempoRailSpec,
+        TempoSessionRailSpec,
+        X402BaseRailSpec,
+    )
+
+    protocols: list[dict[str, Any]] = []
+    extras = protocol_extras or {}
+    for spec in checkout.rails.values():
+        if isinstance(spec, StripeRailSpec):
+            entry = {"method": "stripe", "intent": "charge", "currency": "usd"}
+            entry.update(extras.get("stripe", {}))
+            protocols.append({"mpp": entry})
+        elif isinstance(spec, X402BaseRailSpec):
+            entry = {"scheme": "exact", "network": "base", "asset": "USDC"}
+            entry.update(extras.get("base", {}))
+            protocols.append({"x402": entry})
+        elif isinstance(spec, SolanaMppRailSpec):
+            token = getattr(spec, "token", None)
+            entry = {"method": "solana", "intent": "charge"}
+            if isinstance(token, str) and token:
+                entry["currency"] = token
+            entry.update(extras.get("solana", {}))
+            protocols.append({"mpp": entry})
+        elif isinstance(spec, (TempoRailSpec, TempoSessionRailSpec)):
+            token = getattr(spec, "token", None)
+            currency = getattr(spec, "currency", None)
+            entry = {"method": "tempo", "intent": "charge"}
+            value = currency if isinstance(currency, str) and currency else token
+            if isinstance(value, str) and value:
+                entry["currency"] = value
+            entry.update(extras.get("tempo", {}))
+            protocols.append({"mpp": entry})
+    return x_payment_info_extension(
+        price=price,
+        protocols=protocols,
+        description=description,
+    )
 
 
 def agentscore_denial_schemas() -> dict[str, Any]:

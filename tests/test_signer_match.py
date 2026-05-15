@@ -196,7 +196,7 @@ def test_check_raises_token_denied_on_401_expired() -> None:
             client.check(operator_token="opc_expired")
         except TokenDeniedError as err:
             assert err.code == "token_expired"
-            assert err.next_steps == {"action": "deliver_verify_url_and_poll"}
+            assert err.body.get("next_steps") == {"action": "deliver_verify_url_and_poll"}
         else:
             pytest.fail("expected TokenDeniedError")
 
@@ -210,7 +210,7 @@ def test_check_raises_token_denied_on_401_revoked() -> None:
             client.check(operator_token="opc_revoked")
         except TokenDeniedError as err:
             assert err.code == "token_expired"
-            assert err.next_steps is None
+            assert "next_steps" not in err.body
         else:
             pytest.fail("expected TokenDeniedError")
 

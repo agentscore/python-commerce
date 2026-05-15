@@ -55,3 +55,14 @@ def usd_to_atomic(usd: str | float | int | Decimal, *, decimals: int) -> int:
 
     scaled = (amount * (Decimal(10) ** decimals)).to_integral_value(rounding=ROUND_HALF_UP)
     return int(scaled)
+
+
+def format_usd_cents(cents: int) -> str:
+    """Format an integer cent amount as a fixed-2-decimal USD string.
+
+    ``500`` → ``"5.00"``. Negative values are formatted with a leading minus.
+    Use everywhere a merchant emits ``f"{cents / 100:.2f}"`` today; consistent
+    formatting across catalog rows, order responses, and 402 bodies prevents
+    agent-side string-comparison flakiness.
+    """
+    return f"{cents / 100:.2f}"

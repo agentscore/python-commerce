@@ -497,13 +497,13 @@ def _ucp_network_name(caip2_or_ucp: str) -> str:
 
 
 def _static_recipient(r: RecipientLike) -> str | None:
-    """Return the recipient as a string when it's already concrete; `None` for factories.
+    """Return the recipient as a non-empty string when it's concrete.
 
-    Per-order factory recipients (e.g. Stripe-multichain mints fresh deposits per
-    PaymentIntent) cannot be advertised in the static UCP profile — the authoritative
-    recipient ships in the 402 body at request time instead.
+    Returns ``None`` for factory callables OR empty-string sentinels (both
+    signal per-order minting; the authoritative recipient ships in the 402
+    body at request time, not in the static UCP profile).
     """
-    return r if isinstance(r, str) else None
+    return r if isinstance(r, str) and r else None
 
 
 def _tempo_to_network_entry(spec: TempoRailSpec) -> dict[str, Any]:

@@ -11,12 +11,13 @@ Rails advertised:
 
 The 402 lists all rails neutrally; the agent picks based on what their wallet supports.
 
-Python merchants on Solana implement MPP `solana/charge` server-side themselves;
-there is no `@solana/mpp` Python equivalent today. This example only advertises the
-Solana rail in the 402 directives; settle the credential via your facilitator API.
+`Checkout(...)` collapses the ~150 lines of hand-rolled 402 envelope + header
+parsing + rail dispatch in pre-2.0 examples to a single `compute_pricing` +
+`on_settled` configuration. Discovery probes are still handled inline because
+they advertise SAMPLE rails for crawlers (not the merchant's real rails).
 
 Peer deps:
-    pip install agentscore-commerce[fastapi]
+    pip install 'agentscore-commerce[fastapi,x402,mppx]'
 
 Env vars:
     TEMPO_RECIPIENT       your Tempo wallet for receiving USDC.e
@@ -26,17 +27,22 @@ Env vars:
                           override to eip155:84532 for Sepolia testnet)
     SOLANA_NETWORK_CAIP2  CAIP-2 (default solana mainnet; override to
                           solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1 for devnet)
+    MPP_SECRET_KEY        secret_key for create_mppx_server (auto-wired)
+    CDP_API_KEY_ID        Coinbase CDP key id; when set, the x402 facilitator
+                          auto-promotes from public x402.org to Coinbase
+    CDP_API_KEY_SECRET    Coinbase CDP key secret
 
 Run: uvicorn examples.api_provider:app --port 3000
 """
 
 import json
 import os
-from base64 import b64encode
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from agentscore_commerce import Checkout, PricingResult, SettleOutcome
 from agentscore_commerce.discovery import (
     NoindexNonDiscoveryMiddleware,
     X402SampleProbe,
@@ -44,113 +50,87 @@ from agentscore_commerce.discovery import (
     is_discovery_probe_request,
 )
 from agentscore_commerce.payment import (
-    USDC,
+    SolanaMppRailSpec,
+    TempoRailSpec,
+    X402BaseRailSpec,
     networks,
-    payment_directive,
-    www_authenticate_header,
 )
 
 PRICE_USDC = 0.01  # per-call price in USD
 REALM = "api.example.com"
 
-# Read network selection from env so the same example serves mainnet + testnet.
 X402_BASE_NETWORK = os.environ.get("X402_BASE_NETWORK", networks.base.mainnet.caip2)
 SOLANA_NETWORK_CAIP2 = os.environ.get("SOLANA_NETWORK_CAIP2", networks.solana.mainnet.caip2)
-_BASE_USDC = (
-    USDC.base.sepolia.address if networks.base.sepolia.caip2 == X402_BASE_NETWORK else USDC.base.mainnet.address
-)
-_TEMPO_RAIL = "tempo-testnet" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "tempo-mainnet"
+_TEMPO_RAIL_NAME = "tempo-testnet" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "tempo-mainnet"
 
 app = FastAPI()
 
 # noindex non-discovery paths so /search doesn't end up in human-shaped SERPs.
-# Defaults cover /openapi.json, /llms.txt, /.well-known/{mpp.json,agent-card.json,ucp},
-# /favicon.{png,ico} — pass `custom_paths={"/sitemap.xml"}` to extend or
-# `replace_paths=True` to swap the set entirely.
 app.add_middleware(NoindexNonDiscoveryMiddleware)
 
 
+async def _run_your_search(_query: str) -> list[Any]:
+    """Vendor's actual search implementation."""
+    return []
+
+
+async def _compute_pricing(_ctx: Any) -> PricingResult:
+    return PricingResult(amount_usd=PRICE_USDC)
+
+
+async def _on_settled(ctx: Any, _outcome: SettleOutcome) -> dict[str, Any]:
+    body = ctx.request.body if isinstance(ctx.request.body, dict) else {}
+    results = await _run_your_search(body.get("query", ""))
+    return {"results": results}
+
+
+checkout = Checkout(
+    rails={
+        # Static treasury recipients; fail-fast at import time on missing env so
+        # misconfigured deploys never reach the 402 emit path with empty rails.
+        "tempo": TempoRailSpec(
+            recipient=os.environ["TEMPO_RECIPIENT"],
+            testnet=networks.base.sepolia.caip2 == X402_BASE_NETWORK,
+        ),
+        "x402_base": X402BaseRailSpec(
+            recipient=os.environ["X402_BASE_RECIPIENT"],
+            network=X402_BASE_NETWORK,
+        ),
+        "solana": SolanaMppRailSpec(
+            recipient=os.environ["SOLANA_RECIPIENT"],
+            network=SOLANA_NETWORK_CAIP2,
+        ),
+    },
+    url=f"https://{REALM}/search",
+    compute_pricing=_compute_pricing,
+    on_settled=_on_settled,
+    cdp_api_key_id=os.environ.get("CDP_API_KEY_ID"),
+    cdp_api_key_secret=os.environ.get("CDP_API_KEY_SECRET"),
+    mppx_secret_key=os.environ.get("MPP_SECRET_KEY"),
+)
+
+
 @app.post("/search")
-async def search(request: Request):
-    body = await request.body()
-    body_text = body.decode() if body else ""
-
+async def search(request: Request) -> JSONResponse:
+    body_bytes = await request.body()
+    body_text = body_bytes.decode() if body_bytes else ""
     auth = request.headers.get("authorization")
-    x402_header = request.headers.get("payment-signature") or request.headers.get("x-payment")
 
-    # Discovery probe — empty-body POST without any payment header → return sample 402.
+    # Discovery probe: empty-body POST without any payment header. Return sample
+    # 402 so crawlers (`awal x402 details`, x402-proxy, ...) can find this surface
+    # without committing to a real charge. Handle inline because the probe
+    # advertises SAMPLE accepts (not the merchant's real settle rails).
     if await is_discovery_probe_request(request.method, auth, body_text):
         probe = build_discovery_probe_response(
             realm=REALM,
-            sample_rail=_TEMPO_RAIL,
+            sample_rail=_TEMPO_RAIL_NAME,
             sample_amount_usd=PRICE_USDC,
             sample_recipient=os.environ["TEMPO_RECIPIENT"],
-            # Advertise x402 support so crawlers (e.g. ``awal x402 details``)
-            # can find it on an empty-body POST. Commerce synthesizes USDC
-            # sample accepts from the registry per CAIP-2 network passed.
             x402_sample=X402SampleProbe(
                 networks=[X402_BASE_NETWORK, SOLANA_NETWORK_CAIP2],
-                resource_url=f"{REALM}/search",
+                resource_url=f"https://{REALM}/search",
             ),
         )
         return JSONResponse(json.loads(probe.body), status_code=probe.status, headers=probe.headers)
 
-    # No payment? Return a 402 with directives for all accepted rails.
-    if not (auth and auth.startswith("Payment ")) and not x402_header:
-        challenge_id = f"chg_{os.urandom(8).hex()}"
-        x402_base_rail = (
-            "x402-base-sepolia" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "x402-base-mainnet"
-        )
-        solana_mpp_rail = (
-            "mpp-solana-devnet" if networks.solana.devnet.caip2 == SOLANA_NETWORK_CAIP2 else "mpp-solana-mainnet"
-        )
-        directives = [
-            payment_directive(rail=_TEMPO_RAIL, id=f"{challenge_id}_tempo", realm=REALM, request=""),
-            payment_directive(rail=x402_base_rail, id=f"{challenge_id}_base", realm=REALM, request=""),
-            payment_directive(rail=solana_mpp_rail, id=f"{challenge_id}_solana", realm=REALM, request=""),
-        ]
-        accepts = [
-            {
-                "scheme": "exact",
-                "network": X402_BASE_NETWORK,
-                "amount": str(int(PRICE_USDC * 1_000_000)),
-                "asset": _BASE_USDC,
-                "payTo": os.environ["X402_BASE_RECIPIENT"],
-                "maxTimeoutSeconds": 300,
-                # EIP-712 domain required by every x402 EVM client to sign
-                # EIP-3009 TransferWithAuthorization. ``name`` MUST match the
-                # on-chain USDC contract's ``name()`` — base mainnet returns
-                # "USD Coin", base sepolia returns "USDC". Wrong value silently
-                # breaks signature verify at the facilitator. Production code
-                # should use ``build_x402_accepts_for_402(server, ...)`` which
-                # derives ``extra`` from the registered scheme metadata.
-                "extra": {
-                    "name": "USD Coin" if X402_BASE_NETWORK.split(":")[-1] == "8453" else "USDC",
-                    "version": "2",
-                },
-            },
-        ]
-        return JSONResponse(
-            {"payment_required": True, "x402Version": 2, "accepts": accepts},
-            status_code=402,
-            headers={
-                "www-authenticate": www_authenticate_header(directives),
-                "PAYMENT-REQUIRED": b64encode(
-                    json.dumps({"x402Version": 2, "accepts": accepts, "resource": {"url": str(request.url)}}).encode()
-                ).decode(),
-            },
-        )
-
-    # Payment present; branch on which header arrived:
-    #   Authorization: Payment ... → MPP (tempo or solana); validate via your facilitator's MPP API
-    #   payment-signature / x-payment → x402 base; validate via x402 facilitator
-    # Both shapes settle through the configured facilitator HTTP API, then run your operation.
-
-    body_json = json.loads(body_text)
-    results = await run_your_search(body_json.get("query", ""))
-    return {"results": results}
-
-
-async def run_your_search(_query: str) -> list:
-    # Vendor's actual search implementation
-    return []
+    return await checkout.handle_fastapi(request)

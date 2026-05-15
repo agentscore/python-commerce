@@ -806,7 +806,7 @@ async def test_gate_allow_attaches_capture_wallet(monkeypatch: pytest.MonkeyPatc
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Checkout discovery_probe (Tier 2 lift D)
+# Checkout discovery_probe auto-routing
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -917,7 +917,7 @@ async def test_checkout_discovery_probe_skipped_when_body_nonempty() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# pricing_result factory (Tier 1 lift C)
+# pricing_result factory
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -1513,7 +1513,7 @@ def test_well_known_preflight_response_echoes_request_headers() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# signed_response_<framework> wrappers (Tier 2 lift A)
+# signed_response_<framework> wrappers
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -1597,7 +1597,7 @@ def test_signed_response_sanic_wraps_neutral_payload() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Checkout.mount_ucp_routes_<framework> (Tier 2 lift E)
+# Checkout.mount_ucp_routes_<framework>
 # ─────────────────────────────────────────────────────────────────────────────
 
 

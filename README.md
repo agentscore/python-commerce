@@ -233,7 +233,7 @@ body = build_402_body(Build402BodyInput(
 ))
 ```
 
-`build_pricing_block` handles cents → dollar-string (with optional shipping). `first_encounter_agent_memory` returns the canonical hint or `None` based on a per-merchant first-seen flag. `Receipt` (plus `ReceiptNextSteps`, `ProductInfo`, `ShippingAddress`) is a universal dataclass for the post-settlement 200 response shape — goods merchants populate the shipping/fulfillment/tracking slots, API merchants fill only the universal fields (id, created_at, pricing, payment_status, next_steps).
+`build_pricing_block` handles cents → dollar-string (with optional shipping). Pass `discount_cents` for redemption codes / coupons: `subtotal` stays the list price, the block surfaces `discount` as a dollar-string, and `total` becomes `subtotal + tax + shipping - discount` (floored at 0). `pricing_result` accepts the same `discount_cents` and propagates it to `block.discount` so agents reading the 402 see the savings line. `first_encounter_agent_memory` returns the canonical hint or `None` based on a per-merchant first-seen flag. `Receipt` (plus `ReceiptNextSteps`, `ProductInfo`, `ShippingAddress`) is a universal dataclass for the post-settlement 200 response shape — goods merchants populate the shipping/fulfillment/tracking slots, API merchants fill only the universal fields (id, created_at, pricing, payment_status, next_steps).
 
 ### Idempotency-key + multi-rail header bundle
 

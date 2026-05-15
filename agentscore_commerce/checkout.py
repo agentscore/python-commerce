@@ -69,7 +69,7 @@ from __future__ import annotations
 import inspect
 import json
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeAlias
 
@@ -1061,6 +1061,268 @@ class Checkout:
         )
         result = async_to_sync(self.handle)(checkout_request)
         return JsonResponse(result.body, status=result.status, headers=self._extra_headers(result.headers))
+
+    # ─────────────────────────────────────────────────────────────────────
+    # mount_ucp_routes_<framework> — register `/.well-known/ucp` + `/jwks.json`
+    # + OPTIONS preflights on the app in one call. Saves merchants the ~40-line
+    # 3-route registration block every UCP-publishing merchant otherwise
+    # hand-rolls. Equivalent across all five Python framework adapters.
+    # ─────────────────────────────────────────────────────────────────────
+
+    def _build_ucp_resp(
+        self,
+        request_headers: Mapping[str, str],
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str,
+        agentscore_gate: Any,
+    ) -> Any:
+        from agentscore_commerce.discovery.well_known import build_signed_ucp_response
+
+        return build_signed_ucp_response(
+            checkout=self,
+            name=name,
+            well_known_ucp_url=well_known_ucp_url,
+            services=services,
+            request_headers=request_headers,
+            signing_kid=signing_kid,
+            agentscore_gate=agentscore_gate,
+        )
+
+    def _build_jwks_resp(self, request_headers: Mapping[str, str], *, signing_kid: str) -> Any:
+        from agentscore_commerce.discovery.well_known import build_signed_jwks_response
+
+        return build_signed_jwks_response(request_headers=request_headers, signing_kid=signing_kid)
+
+    def _build_preflight(self, request_headers: Mapping[str, str]) -> Any:
+        from agentscore_commerce.discovery.well_known import well_known_preflight_response
+
+        return well_known_preflight_response(request_headers)
+
+    def mount_ucp_routes_fastapi(
+        self,
+        app: Any,
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = "/.well-known/ucp",
+        jwks_path: str = "/.well-known/jwks.json",
+    ) -> None:
+        """Register signed UCP + JWKS + preflight routes on a FastAPI app."""
+        from fastapi import Request
+
+        from agentscore_commerce.discovery.well_known import (
+            signed_response_fastapi,
+        )
+
+        async def _ucp(request):  # type: ignore[no-untyped-def]
+            return signed_response_fastapi(
+                self._build_ucp_resp(
+                    dict(request.headers),
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        async def _jwks(request):  # type: ignore[no-untyped-def]
+            return signed_response_fastapi(self._build_jwks_resp(dict(request.headers), signing_kid=signing_kid))
+
+        async def _preflight(request):  # type: ignore[no-untyped-def]
+            return signed_response_fastapi(self._build_preflight(dict(request.headers)))
+
+        # Patch annotations so FastAPI's signature inspection sees the real
+        # Request class (PEP 563 / `from __future__ import annotations` would
+        # otherwise stringify the annotation and break Request injection).
+        for fn in (_ucp, _jwks, _preflight):
+            fn.__annotations__ = {"request": Request}
+
+        app.get(ucp_path)(_ucp)
+        app.get(jwks_path)(_jwks)
+        app.options(ucp_path)(_preflight)
+        app.options(jwks_path)(_preflight)
+
+    def mount_ucp_routes_flask(
+        self,
+        app: Any,
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = "/.well-known/ucp",
+        jwks_path: str = "/.well-known/jwks.json",
+    ) -> None:
+        """Register signed UCP + JWKS + preflight routes on a Flask app."""
+        from flask import request as flask_request
+
+        from agentscore_commerce.discovery.well_known import signed_response_flask
+
+        def _ucp() -> Any:
+            headers = dict(flask_request.headers)
+            if flask_request.method == "OPTIONS":
+                return signed_response_flask(self._build_preflight(headers))
+            return signed_response_flask(
+                self._build_ucp_resp(
+                    headers,
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        def _jwks() -> Any:
+            headers = dict(flask_request.headers)
+            if flask_request.method == "OPTIONS":
+                return signed_response_flask(self._build_preflight(headers))
+            return signed_response_flask(self._build_jwks_resp(headers, signing_kid=signing_kid))
+
+        app.add_url_rule(
+            ucp_path,
+            "agentscore_ucp",
+            _ucp,
+            methods=["GET", "OPTIONS"],
+            provide_automatic_options=False,
+        )
+        app.add_url_rule(
+            jwks_path,
+            "agentscore_jwks",
+            _jwks,
+            methods=["GET", "OPTIONS"],
+            provide_automatic_options=False,
+        )
+
+    def mount_ucp_routes_django(
+        self,
+        urlpatterns: list[Any],
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = ".well-known/ucp",
+        jwks_path: str = ".well-known/jwks.json",
+    ) -> None:
+        """Append signed UCP + JWKS + preflight URL patterns to a Django urlpatterns list.
+
+        Django routes don't take leading slashes; the defaults already omit them.
+        Each path serves GET + OPTIONS through the same view; the view dispatches
+        on ``request.method``.
+        """
+        from django.urls import path
+
+        from agentscore_commerce.discovery.well_known import signed_response_django
+
+        def _ucp_view(request: Any) -> Any:
+            headers = dict(request.headers.items())
+            if request.method == "OPTIONS":
+                return signed_response_django(self._build_preflight(headers))
+            return signed_response_django(
+                self._build_ucp_resp(
+                    headers,
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        def _jwks_view(request: Any) -> Any:
+            headers = dict(request.headers.items())
+            if request.method == "OPTIONS":
+                return signed_response_django(self._build_preflight(headers))
+            return signed_response_django(self._build_jwks_resp(headers, signing_kid=signing_kid))
+
+        urlpatterns.append(path(ucp_path, _ucp_view))
+        urlpatterns.append(path(jwks_path, _jwks_view))
+
+    def mount_ucp_routes_aiohttp(
+        self,
+        app: Any,
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = "/.well-known/ucp",
+        jwks_path: str = "/.well-known/jwks.json",
+    ) -> None:
+        """Register signed UCP + JWKS + preflight routes on an aiohttp app."""
+        from agentscore_commerce.discovery.well_known import signed_response_aiohttp
+
+        async def _ucp(request: Any) -> Any:
+            return signed_response_aiohttp(
+                self._build_ucp_resp(
+                    dict(request.headers),
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        async def _jwks(request: Any) -> Any:
+            return signed_response_aiohttp(self._build_jwks_resp(dict(request.headers), signing_kid=signing_kid))
+
+        async def _preflight(request: Any) -> Any:
+            return signed_response_aiohttp(self._build_preflight(dict(request.headers)))
+
+        app.router.add_get(ucp_path, _ucp)
+        app.router.add_get(jwks_path, _jwks)
+        app.router.add_options(ucp_path, _preflight)
+        app.router.add_options(jwks_path, _preflight)
+
+    def mount_ucp_routes_sanic(
+        self,
+        app: Any,
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = "/.well-known/ucp",
+        jwks_path: str = "/.well-known/jwks.json",
+    ) -> None:
+        """Register signed UCP + JWKS + preflight routes on a Sanic app."""
+        from agentscore_commerce.discovery.well_known import signed_response_sanic
+
+        async def _ucp(request: Any) -> Any:
+            return signed_response_sanic(
+                self._build_ucp_resp(
+                    dict(request.headers),
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        async def _jwks(request: Any) -> Any:
+            return signed_response_sanic(self._build_jwks_resp(dict(request.headers), signing_kid=signing_kid))
+
+        async def _preflight(request: Any) -> Any:
+            return signed_response_sanic(self._build_preflight(dict(request.headers)))
+
+        app.add_route(_ucp, ucp_path, methods=["GET"], name="agentscore_ucp")
+        app.add_route(_jwks, jwks_path, methods=["GET"], name="agentscore_jwks")
+        app.add_route(_preflight, ucp_path, methods=["OPTIONS"], name="agentscore_ucp_options")
+        app.add_route(_preflight, jwks_path, methods=["OPTIONS"], name="agentscore_jwks_options")
 
     async def _run_gate(self, ctx: CheckoutContext) -> CheckoutResult | None:
         """Run the per-request gate.

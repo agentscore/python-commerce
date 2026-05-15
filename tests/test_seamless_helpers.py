@@ -1557,6 +1557,165 @@ def test_signed_response_sanic_wraps_neutral_payload() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Checkout.mount_ucp_routes_<framework> (Tier 2 lift E)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _mounted_checkout_with_key() -> tuple[Any, dict[str, Any]]:
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.identity.ucp_jwks import generate_ucp_signing_key
+    from agentscore_commerce.payment import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xfeedface")},
+        url="https://x/purchase",
+        compute_pricing=_pricing,
+    )
+    key = generate_ucp_signing_key(kid="mount-test")
+    return checkout, key.private_key.as_dict(private=True)
+
+
+def test_mount_ucp_routes_fastapi_registers_three_routes() -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    checkout, jwk = _mounted_checkout_with_key()
+    app = FastAPI()
+    with _env_key(jwk):
+        checkout.mount_ucp_routes_fastapi(
+            app,
+            name="Mount-FastAPI",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        client = TestClient(app)
+        ucp = client.get("/.well-known/ucp")
+        jwks = client.get("/.well-known/jwks.json")
+        preflight = client.options("/.well-known/ucp")
+
+    assert ucp.status_code == 200
+    assert ucp.json()["ucp"]["name"] == "Mount-FastAPI"
+    assert jwks.status_code == 200
+    assert "keys" in jwks.json()
+    assert preflight.status_code == 204
+    assert preflight.headers["access-control-allow-origin"] == "*"
+
+
+def test_mount_ucp_routes_flask_registers_three_routes() -> None:
+    from flask import Flask
+
+    checkout, jwk = _mounted_checkout_with_key()
+    app = Flask(__name__)
+    with _env_key(jwk):
+        checkout.mount_ucp_routes_flask(
+            app,
+            name="Mount-Flask",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        client = app.test_client()
+        ucp = client.get("/.well-known/ucp")
+        jwks = client.get("/.well-known/jwks.json")
+        preflight = client.options("/.well-known/ucp")
+
+    assert ucp.status_code == 200
+    assert ucp.get_json()["ucp"]["name"] == "Mount-Flask"
+    assert jwks.status_code == 200
+    assert preflight.status_code == 204
+
+
+def test_mount_ucp_routes_django_appends_urlpatterns() -> None:
+    import django
+    from django.conf import settings
+    from django.test import RequestFactory
+
+    if not settings.configured:
+        settings.configure(DEBUG=False, ALLOWED_HOSTS=["*"], DEFAULT_CHARSET="utf-8", ROOT_URLCONF=__name__)
+        django.setup()
+
+    checkout, jwk = _mounted_checkout_with_key()
+    patterns: list[Any] = []
+    with _env_key(jwk):
+        checkout.mount_ucp_routes_django(
+            patterns,
+            name="Mount-Django",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        rf = RequestFactory()
+        ucp_view = patterns[0].callback
+        jwks_view = patterns[1].callback
+        ucp_resp = ucp_view(rf.get("/.well-known/ucp"))
+        jwks_resp = jwks_view(rf.get("/.well-known/jwks.json"))
+        preflight_resp = ucp_view(rf.options("/.well-known/ucp"))
+
+    assert ucp_resp.status_code == 200
+    assert json.loads(ucp_resp.content)["ucp"]["name"] == "Mount-Django"
+    assert jwks_resp.status_code == 200
+    assert preflight_resp.status_code == 204
+
+
+def test_mount_ucp_routes_aiohttp_registers_three_routes() -> None:
+    import asyncio
+
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient, TestServer
+
+    checkout, jwk = _mounted_checkout_with_key()
+
+    async def _run() -> None:
+        app = web.Application()
+        checkout.mount_ucp_routes_aiohttp(
+            app,
+            name="Mount-Aiohttp",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        async with TestClient(TestServer(app)) as client:
+            ucp_resp = await client.get("/.well-known/ucp")
+            jwks_resp = await client.get("/.well-known/jwks.json")
+            preflight_resp = await client.options("/.well-known/ucp")
+            assert ucp_resp.status == 200
+            ucp_body = await ucp_resp.json()
+            assert ucp_body["ucp"]["name"] == "Mount-Aiohttp"
+            assert jwks_resp.status == 200
+            assert preflight_resp.status == 204
+
+    with _env_key(jwk):
+        asyncio.run(_run())
+
+
+def test_mount_ucp_routes_sanic_registers_three_routes() -> None:
+    from sanic import Sanic
+
+    Sanic._app_registry.clear()
+    checkout, jwk = _mounted_checkout_with_key()
+    app: Any = Sanic("agentscore-mount-test")
+    with _env_key(jwk):
+        checkout.mount_ucp_routes_sanic(
+            app,
+            name="Mount-Sanic",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        _, ucp_resp = app.test_client.get("/.well-known/ucp")
+        _, jwks_resp = app.test_client.get("/.well-known/jwks.json")
+        _, preflight_resp = app.test_client.options("/.well-known/ucp")
+    assert ucp_resp.status == 200
+    assert ucp_resp.json["ucp"]["name"] == "Mount-Sanic"
+    assert jwks_resp.status == 200
+    assert preflight_resp.status == 204
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # build_merchant_index_json
 # ─────────────────────────────────────────────────────────────────────────────
 

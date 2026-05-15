@@ -25,7 +25,6 @@ from fastapi import FastAPI
 from agentscore_commerce.stripe_multichain import (
     STRIPE_TEST_TX_HASH_SUCCESS,
     create_multichain_payment_intent,
-    get_deposit_address,
     simulate_crypto_deposit,
 )
 
@@ -45,13 +44,13 @@ async def buy(body: dict):
         idempotency_key=body.get("order_id"),
     )
 
-    base_addr = get_deposit_address(result, "base")
-    tempo_addr = get_deposit_address(result, "tempo")
-
     return {
         "payment_intent_id": result.payment_intent_id,
         "deposit_addresses": result.deposit_addresses,
-        "pay_to": {"base": base_addr, "tempo": tempo_addr},
+        "pay_to": {
+            "base": result.deposit_addresses.get("base"),
+            "tempo": result.deposit_addresses.get("tempo"),
+        },
     }
 
 

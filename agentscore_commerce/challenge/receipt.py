@@ -53,11 +53,15 @@ class ProductInfo:
 class ReceiptNextSteps:
     """Next-steps block guiding the agent post-settlement.
 
+    Matches the shape returned by :func:`build_success_next_steps` so vendors
+    can spread that helper's output verbatim into a ``Receipt``.
+
     ``order_status_url`` works for both: goods merchants point at their order
     detail route, API merchants can point at a usage / billing dashboard.
     ``fulfillment_eta`` is goods-only; omit for API or digital receipts.
     """
 
+    action: str = "done"
     user_message: str | None = None
     order_status_url: str | None = None
     fulfillment_eta: str | None = None

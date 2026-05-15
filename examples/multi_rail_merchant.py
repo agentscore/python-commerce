@@ -39,6 +39,8 @@ Run: uvicorn examples.multi_rail_merchant:app --port 3000
 """
 
 import os
+from dataclasses import asdict
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -52,6 +54,8 @@ from agentscore_commerce import (
     SettleOutcome,
     pricing_result,
 )
+from agentscore_commerce.challenge import ProductInfo, Receipt, ReceiptNextSteps
+from agentscore_commerce.discovery import build_success_next_steps
 from agentscore_commerce.payment import (
     SolanaMppRailSpec,
     StripeRailSpec,
@@ -125,12 +129,26 @@ async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
             network="base",
             stripe_secret_key=STRIPE_SECRET_KEY,
         )
-    return {
-        "ok": True,
-        "reference_id": ctx.reference_id,
-        "tx_hash": outcome.tx_hash,
-        "identity_status": ctx.identity_status,
-    }
+    # Compose the canonical Receipt shape returned on 200. Goods merchants
+    # populate the goods-only slots (shipping, fulfillment_status, tracking)
+    # at fulfillment time; this example wires the universal fields.
+    receipt = Receipt(
+        id=ctx.reference_id,
+        created_at=datetime.now(timezone.utc).isoformat(),
+        pricing=ctx.pricing.block,
+        product=ProductInfo(name="Regulated Goods Cart"),
+        payment_status="completed",
+        next_steps=ReceiptNextSteps(
+            **build_success_next_steps(
+                order_status_url=f"{APP_URL}/orders/{ctx.reference_id}",
+            ),
+        ),
+        extras={
+            "tx_hash": outcome.tx_hash,
+            "identity_status": ctx.identity_status,
+        },
+    )
+    return asdict(receipt)
 
 
 checkout = Checkout(

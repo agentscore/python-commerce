@@ -41,7 +41,15 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from agentscore_commerce import Checkout, DiscoveryProbeConfig, PricingResult, SettleOutcome
+from agentscore_commerce import (
+    Checkout,
+    DiscoveryProbeConfig,
+    PricingResult,
+    SettleOutcome,
+    SolanaMppRailSpec,
+    TempoRailSpec,
+    X402BaseRailSpec,
+)
 from agentscore_commerce.discovery import (
     NoindexNonDiscoveryMiddleware,
     X402SampleProbe,
@@ -49,12 +57,7 @@ from agentscore_commerce.discovery import (
     build_redemption_skill_md,
     standard_endpoint_descriptions,
 )
-from agentscore_commerce.payment import (
-    SolanaMppRailSpec,
-    TempoRailSpec,
-    X402BaseRailSpec,
-    networks,
-)
+from agentscore_commerce.payment import networks
 
 PRICE_USDC = 0.01  # per-call price in USD
 REALM = "api.example.com"

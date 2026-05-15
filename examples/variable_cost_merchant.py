@@ -49,6 +49,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from agentscore_commerce import TempoRailSpec, X402BaseRailSpec
 from agentscore_commerce.challenge import (
     build_402_body,
     build_accepted_methods,
@@ -57,8 +58,6 @@ from agentscore_commerce.challenge import (
     build_pricing_block,
 )
 from agentscore_commerce.payment import (
-    TempoRailSpec,
-    X402BaseRailSpec,
     create_mppx_server,
     create_x402_server,
     payment_directive,

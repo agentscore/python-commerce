@@ -41,9 +41,9 @@ from agentscore_commerce import (
     PolicyBlock,
     PricingResult,
     SettleOutcome,
+    TempoRailSpec,
+    validate_shipping_against_policy,
 )
-from agentscore_commerce.identity.policy import validate_shipping_against_policy
-from agentscore_commerce.payment import TempoRailSpec
 
 API_KEY = os.environ.get("AGENTSCORE_API_KEY", "ask_test_dummy")
 

@@ -18,7 +18,6 @@ a custom `on_denied` can compose them without copy-paste.
 """
 
 from collections.abc import Iterable
-from dataclasses import asdict
 from typing import Any
 
 from agentscore_commerce.identity.types import DenialReason, VerifyWalletSignerResult
@@ -203,9 +202,3 @@ __all__ = [
     "is_fixable_denial",
     "verification_agent_instructions",
 ]
-
-
-# asdict re-exported for convenience when vendors need to serialize DenialReason directly
-# (the gate adapters do this internally, but vendors writing custom on_denied handlers may
-# need it for nested dataclass fields).
-_ = asdict

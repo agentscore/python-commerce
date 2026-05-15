@@ -605,8 +605,8 @@ async def test_process_x402_settle_serializes_pydantic_settle_result_to_payment_
 
 
 @pytest.mark.asyncio
-async def test_process_x402_settle_serializes_dict_settle_result_for_legacy_stubs():
-    """Plain-dict settle results (from older x402 / test stubs) still serialize."""
+async def test_process_x402_settle_serializes_dict_settle_result():
+    """Plain-dict settle results (test stubs) still serialize."""
 
     class _DictSettleServer:
         def build_payment_requirements(self, _cfg: object, _ext: object = None) -> list:

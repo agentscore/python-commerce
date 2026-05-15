@@ -4,7 +4,7 @@
 * ``extract_signer_for_precheck``; one-call signer across x402 + mpp headers
 * ``make_mppx_compose_hook``; canonical ``compose_mppx`` factory
 * ``purchase_mode_note`` / ``build_agentscore_onboarding_steps`` /
-  ``standard_endpoint_descriptions`` / ``build_order_success_next_steps``
+  ``standard_endpoint_descriptions`` / ``build_success_next_steps``
 * ``build_redemption_skill_md``
 * The new validation_response_* framework variants + ``validation_envelope``
 * Checkout framework adapters (handle_flask / handle_django / handle_aiohttp /
@@ -37,8 +37,8 @@ from agentscore_commerce.checkout_hooks import make_mppx_compose_hook
 from agentscore_commerce.discovery import (
     PURCHASE_MODE_NOTES,
     build_agentscore_onboarding_steps,
-    build_order_success_next_steps,
     build_redemption_skill_md,
+    build_success_next_steps,
     purchase_mode_note,
     standard_endpoint_descriptions,
 )
@@ -349,14 +349,18 @@ def test_build_agentscore_onboarding_steps_unknown_rails_passed_through() -> Non
 
 
 def test_standard_endpoint_descriptions_mentions_all_routes() -> None:
-    desc = standard_endpoint_descriptions(app_url="https://x.example")
+    desc = standard_endpoint_descriptions()
     assert "GET /catalog" in desc
     assert "POST /purchase" in desc
     assert "GET /orders/{id}" in desc
+    assert "GET /orders/{id}/status" not in desc
+
+    with_status = standard_endpoint_descriptions(include_order_status_route=True)
+    assert "GET /orders/{id}/status" in with_status
 
 
-def test_build_order_success_next_steps_omits_eta_when_missing() -> None:
-    out = build_order_success_next_steps(order_status_url="https://x/orders/1")
+def test_build_success_next_steps_omits_eta_when_missing() -> None:
+    out = build_success_next_steps(order_status_url="https://x/orders/1")
     assert out == {
         "action": "done",
         "order_status_url": "https://x/orders/1",
@@ -366,8 +370,8 @@ def test_build_order_success_next_steps_omits_eta_when_missing() -> None:
     }
 
 
-def test_build_order_success_next_steps_includes_eta_when_provided() -> None:
-    out = build_order_success_next_steps(
+def test_build_success_next_steps_includes_eta_when_provided() -> None:
+    out = build_success_next_steps(
         order_status_url="https://x/orders/1",
         fulfillment_eta="ships in 3-5 business days",
     )
@@ -393,7 +397,9 @@ def test_build_redemption_skill_md_with_peer_pointer_emits_section() -> None:
         sku_intro="a custom SKU intro.",
     )
     assert "Don't have a code?" in md
-    assert "https://martin.example" in md
+    # `see: ` prefix anchors the substring inside the rendered markdown section
+    # rather than appearing as a bare URL match (CodeQL py/incomplete-url-substring-sanitization).
+    assert "see: https://martin.example\n" in md
     assert "a custom SKU intro." in md
 
 
@@ -582,3 +588,232 @@ def test_handle_django_returns_402_on_discovery_leg(monkeypatch: pytest.MonkeyPa
     )
     resp = checkout.handle_django(req)
     assert resp.status_code == 402
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# load_solana_fee_payer
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_load_solana_fee_payer_returns_none_on_empty() -> None:
+    from agentscore_commerce.payment.solana import load_solana_fee_payer
+
+    assert load_solana_fee_payer(None) is None
+    assert load_solana_fee_payer("") is None
+
+
+def test_load_solana_fee_payer_hex_input() -> None:
+    pytest.importorskip("solders")
+    from solders.keypair import Keypair
+
+    from agentscore_commerce.payment.solana import load_solana_fee_payer
+
+    # 64-byte hex: 32-byte secret + 32-byte public (we discard the public half).
+    hex_key = "01" * 64
+    signer = load_solana_fee_payer(hex_key)
+    assert signer is not None
+    expected = Keypair.from_seed(bytes.fromhex(hex_key)[:32])
+    assert bytes(signer) == bytes(expected)
+
+
+def test_load_solana_fee_payer_base58_64_bytes() -> None:
+    pytest.importorskip("solders")
+    pytest.importorskip("base58")
+    import base58
+    from solders.keypair import Keypair
+
+    from agentscore_commerce.payment.solana import load_solana_fee_payer
+
+    kp = Keypair()
+    full_bytes = bytes(kp)  # solders Keypair serializes to 64 bytes (secret+public)
+    encoded = base58.b58encode(full_bytes).decode()
+    signer = load_solana_fee_payer(encoded)
+    assert signer is not None
+    assert bytes(signer) == full_bytes
+
+
+def test_load_solana_fee_payer_base58_32_bytes_seed() -> None:
+    pytest.importorskip("solders")
+    pytest.importorskip("base58")
+    import base58
+    from solders.keypair import Keypair
+
+    from agentscore_commerce.payment.solana import load_solana_fee_payer
+
+    seed = bytes(range(32))
+    encoded = base58.b58encode(seed).decode()
+    signer = load_solana_fee_payer(encoded)
+    assert signer is not None
+    expected = Keypair.from_seed(seed)
+    assert bytes(signer) == bytes(expected)
+
+
+def test_load_solana_fee_payer_base58_wrong_length_raises() -> None:
+    pytest.importorskip("solders")
+    pytest.importorskip("base58")
+    import base58
+
+    from agentscore_commerce.payment.solana import load_solana_fee_payer
+
+    encoded = base58.b58encode(b"\x00" * 16).decode()  # 16 bytes; invalid
+    with pytest.raises(ValueError, match="must decode to 32 or 64 bytes"):
+        load_solana_fee_payer(encoded)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# well_known_preflight_response
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_well_known_preflight_response_204_with_cors_headers() -> None:
+    from agentscore_commerce.discovery import (
+        WellKnownPreflightResponse,
+        well_known_preflight_response,
+    )
+
+    resp = well_known_preflight_response()
+    assert isinstance(resp, WellKnownPreflightResponse)
+    assert resp.status == 204
+    assert resp.content == b""
+    assert resp.headers["Access-Control-Allow-Origin"] == "*"
+    assert "GET" in resp.headers["Access-Control-Allow-Methods"]
+    assert "OPTIONS" in resp.headers["Access-Control-Allow-Methods"]
+
+
+def test_well_known_preflight_response_echoes_request_headers() -> None:
+    from agentscore_commerce.discovery import well_known_preflight_response
+
+    resp = well_known_preflight_response({"Access-Control-Request-Headers": "x-foo, x-bar"})
+    assert resp.headers["Access-Control-Allow-Headers"] == "x-foo, x-bar"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# build_merchant_index_json
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_build_merchant_index_json_core_fields() -> None:
+    from agentscore_commerce.discovery import build_merchant_index_json
+
+    body = build_merchant_index_json(
+        name="AgentScore Store",
+        description="Wine and merch for agents.",
+        docs={"llms": "https://x/llms.txt", "openapi": "https://x/openapi.json"},
+        endpoints={"GET /catalog": "List products."},
+        supported_rails=["tempo", "x402-base"],
+    )
+    assert body["name"] == "AgentScore Store"
+    assert body["audience"] == "agents"
+    assert body["supported_rails"] == ["tempo", "x402-base"]
+    assert body["docs"]["llms"] == "https://x/llms.txt"
+    assert body["endpoints"]["GET /catalog"] == "List products."
+
+
+def test_build_merchant_index_json_extra_merges() -> None:
+    from agentscore_commerce.discovery import build_merchant_index_json
+
+    body = build_merchant_index_json(
+        name="X",
+        description="Y",
+        docs={},
+        endpoints={},
+        supported_rails=[],
+        extra={"compliance": {"min_age": 21}, "website": "https://x.example"},
+    )
+    assert body["compliance"] == {"min_age": 21}
+    assert body["website"] == "https://x.example"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# x_service_info_extension + x_payment_info_from_checkout (new openapi helpers)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_x_service_info_extension_minimal() -> None:
+    from agentscore_commerce.discovery import x_service_info_extension
+
+    ext = x_service_info_extension(categories=["commerce", "wine"])
+    assert ext == {"x-service-info": {"categories": ["commerce", "wine"]}}
+
+
+def test_x_service_info_extension_with_docs() -> None:
+    from agentscore_commerce.discovery import x_service_info_extension
+
+    ext = x_service_info_extension(
+        categories=["commerce"],
+        docs={"human": "https://x.example/about"},
+    )
+    assert ext["x-service-info"]["docs"] == {"human": "https://x.example/about"}
+
+
+def test_x_payment_info_extension_emits_auth_mode_payment_and_description() -> None:
+    from agentscore_commerce.discovery import (
+        XPaymentInfoFixedPrice,
+        x_payment_info_extension,
+    )
+
+    ext = x_payment_info_extension(
+        price=XPaymentInfoFixedPrice(currency="USD", amount="5.00"),
+        protocols=[{"x402": {}}],
+        description="Per-purchase fee.",
+    )
+    block = ext["x-payment-info"]
+    assert block["authMode"] == "payment"
+    assert block["description"] == "Per-purchase fee."
+    assert block["price"] == {"mode": "fixed", "currency": "USD", "amount": "5.00"}
+
+
+def test_x_payment_info_extension_dynamic_price() -> None:
+    from agentscore_commerce.discovery import (
+        XPaymentInfoDynamicPrice,
+        x_payment_info_extension,
+    )
+
+    ext = x_payment_info_extension(
+        price=XPaymentInfoDynamicPrice(currency="USD", min="0.01", max="5.00"),
+        protocols=[],
+    )
+    assert ext["x-payment-info"]["price"] == {
+        "mode": "dynamic",
+        "currency": "USD",
+        "min": "0.01",
+        "max": "5.00",
+    }
+
+
+def test_x_payment_info_from_checkout_lists_protocols_per_rail() -> None:
+    from agentscore_commerce.discovery import (
+        XPaymentInfoFixedPrice,
+        x_payment_info_from_checkout,
+    )
+
+    # Reuse _minimal_checkout from the file so the rails dict matches the test fixture.
+    checkout = _minimal_checkout()
+    ext = x_payment_info_from_checkout(
+        checkout=checkout,
+        price=XPaymentInfoFixedPrice(currency="USD", amount="1.00"),
+        description="Per-call fee.",
+    )
+    block = ext["x-payment-info"]
+    assert block["authMode"] == "payment"
+    assert block["description"] == "Per-call fee."
+    # _minimal_checkout has a tempo rail; protocol entry is `{"mpp": {"method": "tempo", "intent": "charge", ...}}`.
+    assert any(p.get("mpp", {}).get("method") == "tempo" for p in block["protocols"])
+
+
+def test_x_payment_info_from_checkout_merges_protocol_extras() -> None:
+    from agentscore_commerce.discovery import (
+        XPaymentInfoFixedPrice,
+        x_payment_info_from_checkout,
+    )
+
+    checkout = _minimal_checkout()
+    ext = x_payment_info_from_checkout(
+        checkout=checkout,
+        price=XPaymentInfoFixedPrice(currency="USD", amount="1.00"),
+        protocol_extras={"tempo": {"client_command": "agentscore-pay pay --chain tempo"}},
+    )
+    tempo_entry = next(
+        p["mpp"] for p in ext["x-payment-info"]["protocols"] if p.get("mpp", {}).get("method") == "tempo"
+    )
+    assert tempo_entry["client_command"] == "agentscore-pay pay --chain tempo"

@@ -159,6 +159,14 @@ async def create_x402_server(
         msg = "x402 not installed — run `pip install 'x402[evm,fastapi]>=2.9,<3'` to use create_x402_server."
         raise ImportError(msg)
 
+    # Auto-select the Coinbase CDP facilitator when both env vars are present.
+    # Lets merchants drop the `facilitator: 'coinbase' if env else 'http'` ternary.
+    # Explicit `facilitator=` arg still wins.
+    import os
+
+    if facilitator == "http" and os.environ.get("CDP_API_KEY_ID") and os.environ.get("CDP_API_KEY_SECRET"):
+        facilitator = "coinbase"
+
     facilitator_instance: Any
     if facilitator == "coinbase":
         # Coinbase's x402 facilitator at api.cdp.coinbase.com requires a JWT

@@ -10,6 +10,7 @@ when the deps aren't present so the suite still runs in minimal envs.
 from __future__ import annotations
 
 import importlib.util
+from typing import Any
 
 import pytest
 
@@ -196,3 +197,170 @@ async def test_create_mppx_server_unknown_rail_spec_raises() -> None:
             secret_key="X" * 32,
             rails={"weird": "not-a-spec"},  # type: ignore[dict-item]
         )
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_auto_promotes_to_coinbase_when_env_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When facilitator='http' but CDP env vars are present, auto-promote to Coinbase."""
+    cdp_installed = importlib.util.find_spec("cdp.auth.utils.jwt") is not None
+    if not cdp_installed:
+        pytest.skip("cdp-sdk not installed")
+    monkeypatch.setenv("CDP_API_KEY_ID", "test-key-id")
+    monkeypatch.setenv("CDP_API_KEY_SECRET", "test-key-secret")
+
+    server = await create_x402_server(facilitator="http", initialize=False)
+    facilitator = server._facilitator_clients[0]
+    assert facilitator.url == "https://api.cdp.coinbase.com/platform/v2/x402"
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_passthrough_prebuilt_facilitator() -> None:
+    """A non-string facilitator argument is passed through verbatim."""
+    sentinel = object()
+    server = await create_x402_server(facilitator=sentinel, initialize=False)
+    assert server._facilitator_clients[0] is sentinel
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_upto_rail_registers_upto_scheme() -> None:
+    server = await create_x402_server(
+        facilitator="http",
+        rails=["x402-base-sepolia-upto"],
+        initialize=False,
+    )
+    assert "eip155:84532" in server._schemes
+    # upto schemes register under their canonical scheme name in pympp 0.6+.
+    sepolia_schemes = server._schemes["eip155:84532"]
+    assert len(sepolia_schemes) >= 1
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_custom_scheme_registered() -> None:
+    """A CustomScheme entry is registered alongside symbolic rails."""
+    from x402.mechanisms.evm.exact.server import ExactEvmScheme
+
+    from agentscore_commerce.payment import CustomScheme
+
+    custom = CustomScheme(network="eip155:8453", scheme=ExactEvmScheme())
+    server = await create_x402_server(
+        facilitator="http",
+        schemes=[custom],
+        initialize=False,
+    )
+    assert "eip155:8453" in server._schemes
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_bazaar_registers_extension(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`bazaar=True` looks up the extension and calls server.register_extension."""
+    # `find_spec` triggers a real import via x402's __init__, so guard against
+    # transitive ImportError (jsonschema / idna are part of `x402[extensions]`).
+    try:
+        import x402.extensions.bazaar
+    except ImportError:
+        pytest.skip("x402[extensions] not installed (jsonschema/idna unavailable)")
+
+    registered: list[Any] = []
+
+    class _FacilitatorStub:
+        async def get_supported(self) -> Any: ...
+
+    # Patch register_extension on the class BEFORE creating the server so the
+    # bazaar branch records its extension call.
+    import x402
+
+    orig_init = x402.x402ResourceServer.__init__
+
+    def patched_init(self: Any, **kw: Any) -> None:
+        orig_init(self, **kw)
+        self.register_extension = registered.append  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(x402.x402ResourceServer, "__init__", patched_init)
+    await create_x402_server(
+        facilitator=_FacilitatorStub(),
+        bazaar=True,
+        initialize=False,
+    )
+    assert len(registered) == 1
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+def test_build_x402_accepts_for_402_accepts_dict_requirements() -> None:
+    """`build_payment_requirements` may return plain dicts (older versions / stubs)."""
+    from agentscore_commerce.payment import build_x402_accepts_for_402
+
+    class _DictServer:
+        def build_payment_requirements(self, _config: Any, _ext: Any = None) -> list[dict[str, Any]]:
+            return [{"scheme": "exact", "network": "eip155:8453", "payTo": "0xDEAD"}]
+
+    accepts = build_x402_accepts_for_402(
+        _DictServer(),
+        network="eip155:8453",
+        price="$0.10",
+        pay_to="0x000000000000000000000000000000000000dEaD",
+    )
+    assert accepts == [{"scheme": "exact", "network": "eip155:8453", "payTo": "0xDEAD"}]
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+def test_build_x402_accepts_for_402_rejects_unknown_requirement_type() -> None:
+    """Anything other than a Pydantic model or dict raises TypeError."""
+    from agentscore_commerce.payment import build_x402_accepts_for_402
+
+    class _BadServer:
+        def build_payment_requirements(self, _config: Any, _ext: Any = None) -> list[object]:
+            return [object()]
+
+    with pytest.raises(TypeError, match="expected a Pydantic PaymentRequirements or a dict"):
+        build_x402_accepts_for_402(
+            _BadServer(),
+            network="eip155:8453",
+            price="$0.10",
+            pay_to="0x000000000000000000000000000000000000dEaD",
+        )
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_coinbase_facilitator_emits_per_endpoint_bearer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Coinbase auth provider mints a per-endpoint JWT via cdp-sdk's generate_jwt.
+
+    Exercises `_mint_bearer` + `_create_headers` so they show up in coverage.
+    Mocks the real cdp JWT signer so the test doesn't need a valid EC private key.
+    """
+    cdp_installed = importlib.util.find_spec("cdp.auth.utils.jwt") is not None
+    if not cdp_installed:
+        pytest.skip("cdp-sdk not installed")
+    monkeypatch.setenv("CDP_API_KEY_ID", "test-key-id")
+    monkeypatch.setenv("CDP_API_KEY_SECRET", "test-secret")
+    import cdp.auth.utils.jwt as cdp_jwt
+
+    captured: list[tuple[str, str]] = []
+
+    def _fake_generate_jwt(options: Any) -> str:
+        captured.append((options.request_method, options.request_path))
+        return "fake-jwt-token"
+
+    monkeypatch.setattr(cdp_jwt, "generate_jwt", _fake_generate_jwt)
+
+    server = await create_x402_server(
+        facilitator="coinbase",
+        rails=["x402-base-mainnet"],
+        initialize=False,
+    )
+    facilitator = server._facilitator_clients[0]
+    auth_provider = facilitator._auth_provider
+    headers = auth_provider.get_auth_headers()
+    assert headers.verify["Authorization"] == "Bearer fake-jwt-token"
+    assert headers.settle["Authorization"] == "Bearer fake-jwt-token"
+    assert headers.supported["Authorization"] == "Bearer fake-jwt-token"
+    # All three endpoints were minted distinct JWTs.
+    assert len(captured) == 3
+    methods = [c[0] for c in captured]
+    assert "POST" in methods  # verify + settle
+    assert "GET" in methods  # supported

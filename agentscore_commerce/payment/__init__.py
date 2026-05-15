@@ -39,6 +39,7 @@ from agentscore_commerce.payment.signer import (
     extract_x402_signer,
     read_x402_payment_header,
 )
+from agentscore_commerce.payment.solana import load_solana_fee_payer
 from agentscore_commerce.payment.usdc import USDC
 from agentscore_commerce.payment.wwwauthenticate import (
     alias_amount_fields,
@@ -129,6 +130,7 @@ __all__ = [
     "format_usd_cents",
     "lazy_mppx_server",
     "lazy_x402_server",
+    "load_solana_fee_payer",
     "lookup_rail",
     "network_family",
     "networks",

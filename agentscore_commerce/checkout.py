@@ -225,6 +225,14 @@ class CheckoutContext:
     """Merchant-supplied per-request state, populated by :attr:`Checkout.pre_validate`.
     Other hooks read from here (e.g. ``ctx.state["product"]`` after pre_validate
     resolved it). Stays empty when no pre_validate is configured."""
+    capture_wallet: Callable[..., Any] | None = None
+    """Capture the signer wallet under the operator credential the gate resolved
+    for this request. Set by Checkout's internal gate after a successful allow when
+    an ``operator_token`` is present; ``None`` for wallet-authenticated requests
+    (no operator_token to associate) or anonymous discovery legs.
+    Fire-and-forget — invoke from ``on_settled`` with the recovered signer:
+    ``await ctx.capture_wallet(wallet_address=..., network=..., idempotency_key=...)``.
+    """
 
     @property
     def identity_status(self) -> str:
@@ -242,25 +250,78 @@ class CheckoutContext:
 class CheckoutGateConfig:
     """Optional gate configuration for :class:`Checkout`.
 
-    When set, Checkout runs :class:`AgentScoreGate` on the settle leg (no
+    When set, Checkout runs the AgentScore identity gate on the settle leg (no
     header → 402 emit only) and surfaces ``identity_status`` to hooks via
     ``ctx.assess``.
 
-    ``per_request_policy`` resolves the per-product / per-tier compliance fields
-    (``enforcement``, ``require_kyc``, ``min_age``, ``allowed_jurisdictions``)
-    at request time; merchants typically read these from a product row.
-    Return ``None`` to skip the gate entirely for that request.
+    The gate flow has three customization seams:
 
-    Note: today this assumes a FastAPI request (the gate machinery raises
-    ``HTTPException``). Pass ``CheckoutRequest.raw=request`` so the gate has
-    something to operate on. Future framework adapters will lift this constraint.
+    1. ``run_gate`` — full escape hatch. Replaces the SDK's gate flow entirely.
+       Used by merchants with custom auth (e.g. enterprise SSO bridges) who
+       need full control. Other fields are ignored when set.
+    2. ``per_request_policy`` — reads ``ctx.state`` (populated by pre_validate)
+       and returns a dict that overrides static gate policy fields per request.
+       Goods merchants resolve per-product compliance from this.
+    3. ``on_denied`` — invoked AFTER the SDK builds the canonical DenialReason.
+       Returns a custom denial body shape, or ``None`` to keep the canonical body.
+
+    ``create_session_on_missing`` auto-mints a verification session when no
+    identity is present and returns 403 with verify_url + poll instructions
+    instead of a bare ``missing_identity`` denial. Pass an explicit
+    :class:`CreateSessionOnMissing` to customize ``get_session_options`` /
+    ``on_before_session`` hooks; omit and Checkout auto-builds one from
+    ``api_key`` + ``base_url`` + ``context`` + ``merchant_name``.
     """
 
     api_key: str
+    """AgentScore API key. Required when ``run_gate`` is omitted."""
     base_url: str = "https://api.agentscore.sh"
+    """AgentScore API base URL. Override for self-hosted / staging deployments."""
     merchant_name: str | None = None
+    """Surfaced on auto-minted verification sessions (``product_name`` field) so
+    agents see the merchant they were paying when they hit the verify URL."""
+    user_agent: str | None = None
+    """Optional User-Agent string prepended to the SDK's default. Useful for
+    per-merchant telemetry."""
     context: str = "checkout"
+    """Session context label minted on auto-session creation."""
+    require_kyc: bool | None = None
+    """Require ``kyc_status == 'verified'`` on the resolved account."""
+    require_sanctions_clear: bool | None = None
+    """Require ``sanctions_status == 'clear'`` on the resolved account."""
+    min_age: int | None = None
+    """Minimum age in years; reads ``age_bracket`` from account verification."""
+    blocked_jurisdictions: list[str] | None = None
+    """ISO-3166 alpha-2 list. Deny when the resolved jurisdiction matches."""
+    allowed_jurisdictions: list[str] | None = None
+    """ISO-3166 alpha-2 list. Deny when the resolved jurisdiction is NOT in the list."""
+    fail_open: bool = False
+    """When True, 429 / 5xx / timeouts pass through as ``allow`` (with
+    ``degraded=True`` on ctx.assess); compliance denials still deny."""
+    cache_seconds: int = 300
+    """TTL for the per-identity assess cache. Default 5 minutes."""
+    chain: str | None = None
+    """Default chain hint passed to /v1/assess (CAIP-2)."""
+    create_session_on_missing: Any | None = None
+    """Optional :class:`CreateSessionOnMissing`. When set, missing-identity denials
+    auto-mint a session and return 403 with ``verify_url`` + poll instructions.
+    When omitted, Checkout builds a default config from ``api_key`` + ``base_url``
+    + ``context`` + ``merchant_name``."""
     per_request_policy: Callable[[CheckoutContext], Any] | None = None
+    """Per-request policy override hook. Receives the CheckoutContext (with
+    ``ctx.state`` populated by pre_validate); returns a dict merged over the
+    static policy fields. Return ``None`` to skip the gate entirely for that
+    request."""
+    on_denied: Callable[[CheckoutContext, Any], Any] | None = None
+    """Optional callback invoked AFTER the SDK builds the canonical DenialReason.
+    Receives ``(ctx, denial_reason)``; returns a dict with ``{status, body,
+    headers?}`` to override the canonical body, or ``None`` to keep it. Use this
+    to map gate denial codes to merchant-specific body shapes."""
+    run_gate: Callable[[CheckoutContext], Any] | None = None
+    """Full escape hatch. When set, replaces the SDK's gate flow entirely. Other
+    fields above are ignored. Returns ``None`` on allow, or a dict with
+    ``{status, body, headers?}`` on denial. Used by merchants with custom auth
+    bridges (enterprise SSO) who need full control."""
 
 
 @dataclass
@@ -453,6 +514,7 @@ class Checkout:
         is_cached_address: IsCachedAddressFn | None = None,
         zero_settle_carve_out: bool = False,
         gate: CheckoutGateConfig | None = None,
+        discovery_extensions: dict[str, Any] | None = None,
     ) -> None:
         # Auto-derive x402_server when not supplied: rails has an X402BaseRailSpec
         # → lazy-init via SDK helper. Merchants only pass CDP creds (or omit
@@ -515,6 +577,12 @@ class Checkout:
         self.is_cached_address = is_cached_address
         self.zero_settle_carve_out = zero_settle_carve_out
         self.gate = gate
+        self.discovery_extensions = discovery_extensions
+        """Per-endpoint x402 ``extensions`` block emitted on the 402 body. Merge
+        outputs of ``build_bazaar_discovery_payload({...})`` (or other extension
+        declarers) here — Checkout forwards verbatim into the 402 response
+        body's ``extensions`` field so Bazaar crawlers and other spec-compliant
+        clients read the route's declared input/output schema."""
 
     async def _get_x402_server(self) -> Any:
         """Resolve the x402 server.
@@ -876,31 +944,75 @@ class Checkout:
         Returns a denial CheckoutResult on hard denial; ``None`` on accept /
         soft-unverified / anonymous (in which case ``ctx.assess`` is populated
         with ``identity_status``).
+
+        Three customization seams (in order of precedence):
+
+        1. ``gate.run_gate`` — when set, replaces the SDK's gate flow entirely.
+        2. ``gate.per_request_policy`` — per-request policy override merged over
+           static gate fields. Return ``None`` to skip the gate.
+        3. ``gate.on_denied`` — invoked after canonical DenialReason is built to
+           reshape the body for the merchant's response contract.
         """
         if self.gate is None:
             return None
+
+        gate = self.gate
+        # 1. run_gate escape hatch — replaces everything else.
+        if gate.run_gate is not None:
+            result = await _maybe_await(gate.run_gate(ctx))
+            return self._coerce_run_gate_result(ctx, result)
+
+        # 2. per_request_policy resolves per-product compliance (e.g. wine vs
+        # generic merch). Return None to skip the gate entirely for this request.
+        policy: Any = None
+        if gate.per_request_policy is not None:
+            policy = await _maybe_await(gate.per_request_policy(ctx))
+            if policy is None:
+                return None
+
         from agentscore_commerce.identity.policy import (
             build_gate_from_policy,
             run_gate_with_enforcement,
         )
         from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
-        policy: Any = None
-        if self.gate.per_request_policy is not None:
-            policy = await _maybe_await(self.gate.per_request_policy(ctx))
-        session = CreateSessionOnMissing(
-            api_key=self.gate.api_key,
-            base_url=self.gate.base_url,
-            product_name=self.gate.merchant_name,
-            context=self.gate.context,
+        # Static gate fields land as the "base" policy; per_request_policy result
+        # merges over them so per-product hooks can refine compliance per call.
+        merged_policy: dict[str, Any] = {}
+        if gate.require_kyc is not None:
+            merged_policy["require_kyc"] = gate.require_kyc
+        if gate.require_sanctions_clear is not None:
+            merged_policy["require_sanctions_clear"] = gate.require_sanctions_clear
+        if gate.min_age is not None:
+            merged_policy["min_age"] = gate.min_age
+        if gate.blocked_jurisdictions is not None:
+            merged_policy["blocked_jurisdictions"] = gate.blocked_jurisdictions
+        if gate.allowed_jurisdictions is not None:
+            merged_policy["allowed_jurisdictions"] = gate.allowed_jurisdictions
+        if isinstance(policy, dict):
+            merged_policy.update(policy)
+        if not merged_policy:
+            merged_policy = {}
+        # `enforcement` is per-product (soft/hard); pull from the merged dict
+        # (per_request_policy is the only source) and remove before passing to
+        # build_gate_from_policy so it isn't treated as a policy field.
+        enforcement = merged_policy.pop("enforcement", None) if isinstance(merged_policy, dict) else None
+
+        # Use the merchant-supplied CreateSessionOnMissing when provided; else
+        # auto-build one from the gate config so missing-identity denials still
+        # auto-mint a verify session.
+        session = gate.create_session_on_missing or CreateSessionOnMissing(
+            api_key=gate.api_key,
+            base_url=gate.base_url,
+            product_name=gate.merchant_name,
+            context=gate.context,
         )
         gate_instance = build_gate_from_policy(
-            policy,
-            api_key=self.gate.api_key,
-            base_url=self.gate.base_url,
+            merged_policy or None,
+            api_key=gate.api_key,
+            base_url=gate.base_url,
             create_session_on_missing=session,
         )
-        enforcement = (policy or {}).get("enforcement") if isinstance(policy, dict) else None
         if ctx.request.raw is None:
             msg = (
                 "Checkout: gate=... requires CheckoutRequest.raw to be set to the "
@@ -913,14 +1025,29 @@ class Checkout:
             enforcement=enforcement,
         )
         if result.status == "denied":
+            denial_body = result.denial_body or {}
+            denial_status = result.denial_status or 403
+            # 3. on_denied callback — let merchants reshape the canonical body.
+            if gate.on_denied is not None:
+                custom = await _maybe_await(gate.on_denied(ctx, denial_body))
+                if isinstance(custom, dict) and "body" in custom:
+                    denial_body = custom.get("body") or denial_body
+                    denial_status = custom.get("status", denial_status)
             return CheckoutResult(
-                status=result.denial_status or 403,
-                body=result.denial_body or {},
+                status=denial_status,
+                body=denial_body,
                 headers={},
                 reference_id=ctx.reference_id,
                 settled=False,
                 settle_phase="gate_denied",
             )
+        # Stash ctx.capture_wallet so on_settled can bind the signer wallet to
+        # the operator credential without needing a framework-specific context.
+        # No-op when the request was wallet-authenticated (no operator_token).
+        operator_token = ctx.request.headers.get("x-operator-token") or ctx.request.headers.get("X-Operator-Token")
+        if operator_token:
+            self._set_capture_wallet(ctx, operator_token=operator_token, gate=gate)
+
         assess = dict(ctx.request.assess or {})
         assess["identity_status"] = result.status
         ctx.request = CheckoutRequest(
@@ -932,6 +1059,61 @@ class Checkout:
             raw=ctx.request.raw,
         )
         return None
+
+    def _coerce_run_gate_result(
+        self,
+        ctx: CheckoutContext,
+        result: Any,
+    ) -> CheckoutResult | None:
+        """Map a `gate.run_gate` callback's return into a CheckoutResult or pass-through."""
+        if result is None:
+            return None
+        if isinstance(result, dict):
+            return CheckoutResult(
+                status=int(result.get("status", 403)),
+                body=result.get("body", {}) or {},
+                headers=result.get("headers") or {},
+                reference_id=ctx.reference_id,
+                settled=False,
+                settle_phase="gate_denied",
+            )
+        msg = "gate.run_gate must return None (allow) or a dict {status, body, headers?} (deny)"
+        raise TypeError(msg)
+
+    def _set_capture_wallet(
+        self,
+        ctx: CheckoutContext,
+        *,
+        operator_token: str,
+        gate: CheckoutGateConfig,
+    ) -> None:
+        """Stash ``ctx.capture_wallet`` after a successful gate allow.
+
+        Closes over the resolved operator_token + an AgentScoreCore-backed
+        client so ``on_settled`` can link the signer wallet without needing the
+        framework-specific request context.
+        """
+        from agentscore_commerce.identity.core import AgentScoreCore
+
+        async def _capture(
+            *,
+            wallet_address: str,
+            network: Literal["evm", "solana"],
+            idempotency_key: str | None = None,
+        ) -> None:
+            client = AgentScoreCore(
+                api_key=gate.api_key,
+                base_url=gate.base_url,
+                user_agent=gate.user_agent,
+            )
+            await client.acapture_wallet(
+                operator_token=operator_token,
+                wallet_address=wallet_address,
+                network=network,
+                idempotency_key=idempotency_key,
+            )
+
+        ctx.capture_wallet = _capture
 
     async def _handle_zero_settle(self, ctx: CheckoutContext) -> CheckoutResult:
         """Zero-amount carve-out: verify the credential, lift the signer, skip settle.
@@ -1008,7 +1190,11 @@ class Checkout:
 
     async def _resolve_recipients(self, ctx: CheckoutContext) -> dict[str, str]:
         if self.mint_recipients is None:
-            return {}
+            return ctx.recipients
+        # Idempotent: if a prior call (e.g. pre-compose on the discovery leg)
+        # already minted, skip — re-running would mint fresh Stripe PIs / etc.
+        if ctx.recipients:
+            return ctx.recipients
         ctx.recipients = dict(await _maybe_await(self.mint_recipients(ctx)))
         return ctx.recipients
 
@@ -1210,7 +1396,13 @@ class Checkout:
             agent_memory=first_encounter_agent_memory(first_encounter=True),
             product=ctx.pricing.product,
             extra=ctx.pricing.body_extras,
-            x402=X402PaymentRequired(version=2, accepts=x402_accepts) if x402_accepts else None,
+            x402=X402PaymentRequired(
+                version=2,
+                accepts=x402_accepts,
+                extensions=self.discovery_extensions or None,
+            )
+            if x402_accepts
+            else None,
         )
 
         x402_kwargs: dict[str, Any] | None = None
@@ -1396,18 +1588,30 @@ def _apply_recipient_overrides(
 
     Returns a new dict; original rails dict is not mutated. Stripe rails are
     passed through unchanged (no on-chain recipient; they use ``profile_id``).
+
+    Drop-empty: when a merchant declares rails with sentinel empty-string
+    recipients (the per-order-mint pattern — e.g. Stripe-multichain merchants
+    that mint a fresh deposit address per request) and ``mint_recipients`` only
+    returns addresses for some rails, drop rails that resolve to an empty
+    recipient — those weren't actually minted for this request and shouldn't be
+    advertised in the 402.
     """
-    if not overrides:
-        return rails
+    from dataclasses import replace
+
     out: dict[str, CheckoutRailSpec] = {}
     for key, spec in rails.items():
-        override = overrides.get(key)
-        if override is None or isinstance(spec, StripeRailSpec):
+        if isinstance(spec, StripeRailSpec):
             out[key] = spec
             continue
-        from dataclasses import replace
-
-        out[key] = replace(spec, recipient=override)
+        override = overrides.get(key)
+        spec_recipient = getattr(spec, "recipient", None)
+        final_recipient = override if override is not None else spec_recipient
+        if final_recipient is None or final_recipient == "":
+            continue
+        if override is not None:
+            out[key] = replace(spec, recipient=override)
+        else:
+            out[key] = spec
     return out
 
 

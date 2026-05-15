@@ -4,7 +4,8 @@ from agentscore_commerce.discovery.agentscore_content import (
     PURCHASE_MODE_NOTES,
     PurchaseMode,
     build_agentscore_onboarding_steps,
-    build_order_success_next_steps,
+    build_merchant_index_json,
+    build_success_next_steps,
     purchase_mode_note,
     standard_endpoint_descriptions,
 )
@@ -26,6 +27,8 @@ from agentscore_commerce.discovery.openapi import (
     siwx_security_scheme,
     x_guidance_extension,
     x_payment_info_extension,
+    x_payment_info_from_checkout,
+    x_service_info_extension,
 )
 from agentscore_commerce.discovery.probe import (
     DiscoveryProbeResponse,
@@ -54,11 +57,13 @@ from agentscore_commerce.discovery.skill_md import (
 )
 from agentscore_commerce.discovery.well_known import (
     SignedDiscoveryResponse,
+    WellKnownPreflightResponse,
     bootstrap_ucp_signing_key,
     build_signed_jwks_response,
     build_signed_ucp_response,
     default_a2a_services,
     well_known_cors_preflight_headers,
+    well_known_preflight_response,
 )
 from agentscore_commerce.discovery.well_known_mpp import (
     PaymentMethodConfig,
@@ -85,6 +90,7 @@ __all__ = [
     "SkillMdIdentityRequirements",
     "SkillMdLink",
     "SkillMdShippingPolicy",
+    "WellKnownPreflightResponse",
     "WellKnownX402Resource",
     "X402SampleProbe",
     "XPaymentInfoDynamicPrice",
@@ -99,11 +105,12 @@ __all__ = [
     "build_bazaar_discovery_payload",
     "build_discovery_probe_response",
     "build_llms_txt",
-    "build_order_success_next_steps",
+    "build_merchant_index_json",
     "build_redemption_skill_md",
     "build_signed_jwks_response",
     "build_signed_ucp_response",
     "build_skill_md",
+    "build_success_next_steps",
     "build_well_known_mpp",
     "build_well_known_x402",
     "compatible_clients_by_rails",
@@ -118,6 +125,9 @@ __all__ = [
     "siwx_security_scheme",
     "standard_endpoint_descriptions",
     "well_known_cors_preflight_headers",
+    "well_known_preflight_response",
     "x_guidance_extension",
     "x_payment_info_extension",
+    "x_payment_info_from_checkout",
+    "x_service_info_extension",
 ]

@@ -84,17 +84,24 @@ def _attach_request_id(headers: dict[str, str], request_headers: Mapping[str, st
 
 
 def _compose_handlers(checkout: Checkout) -> dict[str, list[Any]]:
-    """Map rails on the Checkout to a UCP ``payment_handlers`` block."""
+    """Map rails on the Checkout to a UCP ``payment_handlers`` block.
+
+    Includes rails with empty-string-sentinel recipients (per-order-mint
+    pattern) — the static UCP profile drops the recipient field from those
+    entries, and the authoritative per-order recipient ships in the 402 body
+    at request time. Only rails missing the ``recipient`` attribute entirely
+    are excluded.
+    """
     handlers: dict[str, list[Any]] = {}
     mpp: list[TempoRailSpec | SolanaMppRailSpec | TempoSessionRailSpec] = []
     x402: list[X402BaseRailSpec] = []
     stripe: list[StripeRailSpec] = []
     for spec in checkout.rails.values():
         if isinstance(spec, (TempoRailSpec, TempoSessionRailSpec, SolanaMppRailSpec)):
-            if spec.recipient:
+            if hasattr(spec, "recipient"):
                 mpp.append(spec)
         elif isinstance(spec, X402BaseRailSpec):
-            if spec.recipient:
+            if hasattr(spec, "recipient"):
                 x402.append(spec)
         elif isinstance(spec, StripeRailSpec):
             stripe.append(spec)
@@ -246,6 +253,34 @@ def well_known_cors_preflight_headers(
     return headers
 
 
+@dataclass
+class WellKnownPreflightResponse:
+    """Framework-neutral 204 preflight result.
+
+    Merchants wrap into their framework's response shape (FastAPI ``Response``,
+    Flask ``Response``, etc.).
+    """
+
+    status: int
+    headers: dict[str, str]
+    content: bytes = b""
+
+
+def well_known_preflight_response(
+    request_headers: Mapping[str, str] | None = None,
+) -> WellKnownPreflightResponse:
+    """Build a 204 CORS preflight response for ``/.well-known/*`` endpoints.
+
+    Wraps :func:`well_known_cors_preflight_headers`. Universal across every
+    UCP-publishing merchant; saves the 3-line ``Response(status_code=204,
+    headers=...)`` wrapper every consumer otherwise hand-rolls.
+    """
+    return WellKnownPreflightResponse(
+        status=204,
+        headers=well_known_cors_preflight_headers(request_headers),
+    )
+
+
 _UCP_SHOPPING_SPEC_2026_04_08 = "https://ucp.dev/2026-04-08/specification/overview"
 
 
@@ -290,9 +325,11 @@ def bootstrap_ucp_signing_key(*, default_kid: str = "merchant-default") -> None:
 
 __all__ = [
     "SignedDiscoveryResponse",
+    "WellKnownPreflightResponse",
     "bootstrap_ucp_signing_key",
     "build_signed_jwks_response",
     "build_signed_ucp_response",
     "default_a2a_services",
     "well_known_cors_preflight_headers",
+    "well_known_preflight_response",
 ]

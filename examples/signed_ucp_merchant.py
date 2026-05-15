@@ -85,7 +85,7 @@ async def selftest(request: Request) -> JSONResponse:
 
     from starlette.testclient import TestClient
 
-    from agentscore_commerce.identity import UCPVerificationError, verify_ucp_profile
+    from agentscore_commerce import UCPVerificationError, verify_ucp_profile
 
     client = TestClient(app)
     profile = client.get("/.well-known/ucp").json()

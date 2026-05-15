@@ -1473,6 +1473,90 @@ def test_well_known_preflight_response_echoes_request_headers() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# signed_response_<framework> wrappers (Tier 2 lift A)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _neutral_signed() -> object:
+    from agentscore_commerce.discovery import SignedDiscoveryResponse
+
+    return SignedDiscoveryResponse(
+        content=b'{"ok": true}',
+        media_type="application/json",
+        headers={"Cache-Control": "public, max-age=60"},
+        status=200,
+    )
+
+
+def test_signed_response_fastapi_wraps_neutral_payload() -> None:
+    from agentscore_commerce.discovery import signed_response_fastapi
+
+    out = signed_response_fastapi(_neutral_signed())
+    assert out.status_code == 200
+    assert out.headers["cache-control"] == "public, max-age=60"
+    assert out.media_type == "application/json"
+    assert out.body == b'{"ok": true}'
+
+
+def test_signed_response_fastapi_handles_preflight() -> None:
+    from agentscore_commerce.discovery import (
+        signed_response_fastapi,
+        well_known_preflight_response,
+    )
+
+    out = signed_response_fastapi(well_known_preflight_response())
+    assert out.status_code == 204
+    assert out.body == b""
+    assert out.headers["access-control-allow-origin"] == "*"
+
+
+def test_signed_response_flask_wraps_neutral_payload() -> None:
+    from agentscore_commerce.discovery import signed_response_flask
+
+    out = signed_response_flask(_neutral_signed())
+    assert out.status_code == 200
+    assert out.mimetype == "application/json"
+    assert out.get_data() == b'{"ok": true}'
+    assert out.headers.get("Cache-Control") == "public, max-age=60"
+
+
+def test_signed_response_django_wraps_neutral_payload() -> None:
+    import django
+    from django.conf import settings
+
+    if not settings.configured:
+        settings.configure(DEBUG=False, ALLOWED_HOSTS=["*"], DEFAULT_CHARSET="utf-8")
+        django.setup()
+
+    from agentscore_commerce.discovery import signed_response_django
+
+    out = signed_response_django(_neutral_signed())
+    assert out.status_code == 200
+    assert out["Content-Type"].startswith("application/json")
+    assert out.content == b'{"ok": true}'
+    assert out["Cache-Control"] == "public, max-age=60"
+
+
+def test_signed_response_aiohttp_wraps_neutral_payload() -> None:
+    from agentscore_commerce.discovery import signed_response_aiohttp
+
+    out = signed_response_aiohttp(_neutral_signed())
+    assert out.status == 200
+    assert out.body == b'{"ok": true}'
+    assert out.content_type == "application/json"
+    assert out.headers["Cache-Control"] == "public, max-age=60"
+
+
+def test_signed_response_sanic_wraps_neutral_payload() -> None:
+    from agentscore_commerce.discovery import signed_response_sanic
+
+    out = signed_response_sanic(_neutral_signed())
+    assert out.status == 200
+    assert out.body == b'{"ok": true}'
+    assert out.content_type == "application/json"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # build_merchant_index_json
 # ─────────────────────────────────────────────────────────────────────────────
 

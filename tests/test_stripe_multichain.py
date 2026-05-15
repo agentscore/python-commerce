@@ -4,7 +4,6 @@ import respx
 
 from agentscore_commerce.stripe_multichain import (
     create_multichain_payment_intent,
-    get_deposit_address,
     simulate_crypto_deposit,
 )
 
@@ -65,14 +64,6 @@ def test_create_multichain_payment_intent_forwards_metadata():
         metadata={"order_id": "order_42"},
     )
     assert api.last_params["metadata"] == {"order_id": "order_42"}
-
-
-def test_get_deposit_address_returns_per_network():
-    from agentscore_commerce.stripe_multichain.payment_intent import MultichainPaymentIntentResult
-
-    r = MultichainPaymentIntentResult(payment_intent_id="pi", deposit_addresses={"tempo": "0xT"})
-    assert get_deposit_address(r, "tempo") == "0xT"
-    assert get_deposit_address(r, "base") is None
 
 
 @respx.mock

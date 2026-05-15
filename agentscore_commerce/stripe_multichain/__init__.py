@@ -8,7 +8,6 @@ from agentscore_commerce.stripe_multichain.payment_intent import (
     MultichainPaymentIntentResult,
     StripeClientLike,
     create_multichain_payment_intent,
-    get_deposit_address,
 )
 from agentscore_commerce.stripe_multichain.pi_cache import PiCache, create_pi_cache
 from agentscore_commerce.stripe_multichain.simulate_deposit import (
@@ -30,7 +29,6 @@ __all__ = [
     "create_mppx_stripe",
     "create_multichain_payment_intent",
     "create_pi_cache",
-    "get_deposit_address",
     "simulate_crypto_deposit",
     "simulate_deposit_if_test_mode",
 ]

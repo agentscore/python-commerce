@@ -361,13 +361,21 @@ def test_standard_endpoint_descriptions_mentions_all_routes() -> None:
     assert "GET /orders/{id}/status" in with_status
 
 
+def test_standard_endpoint_descriptions_api_kind_drops_catalog_routes() -> None:
+    desc = standard_endpoint_descriptions(kind="api")
+    assert "POST /<endpoint>" in desc
+    assert "GET /usage" in desc
+    assert "GET /catalog" not in desc
+    assert "GET /orders/{id}" not in desc
+
+
 def test_build_success_next_steps_omits_eta_when_missing() -> None:
     out = build_success_next_steps(order_status_url="https://x/orders/1")
     assert out == {
         "action": "done",
         "order_status_url": "https://x/orders/1",
         "user_message": (
-            "Order complete. Your AgentScore Passport is now active across every AgentScore-gated merchant."
+            "Payment complete. Your AgentScore Passport is now active across every AgentScore-gated merchant."
         ),
     }
 
@@ -795,6 +803,215 @@ async def test_gate_allow_attaches_capture_wallet(monkeypatch: pytest.MonkeyPatc
     )
     assert result.status == 200
     assert capture_calls == [{"available": True, "tx": "0xtest"}]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Checkout discovery_probe auto-routing
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_checkout_discovery_probe_emits_sample_402_on_empty_body() -> None:
+    from agentscore_commerce import (
+        Checkout,
+        CheckoutRequest,
+        DiscoveryProbeConfig,
+        PricingResult,
+    )
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.01)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE")},
+        url="https://api.example/search",
+        compute_pricing=_pricing,
+        discovery_probe=DiscoveryProbeConfig(
+            realm="api.example",
+            sample_rail="tempo-mainnet",
+            sample_amount_usd=0.01,
+            sample_recipient="0xRecipient",
+        ),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(method="POST", url="https://api.example/search", headers={}, body={}),
+    )
+    assert result.status == 402
+    assert result.settle_phase == "discovery_probe"
+    # Probe body carries the discovery marker + a payment-required error
+    assert result.body.get("discovery") is True
+    assert result.body.get("error", {}).get("code") == "payment_required"
+
+
+@pytest.mark.asyncio
+async def test_checkout_discovery_probe_skipped_when_payment_header_present() -> None:
+    from agentscore_commerce import (
+        Checkout,
+        CheckoutRequest,
+        DiscoveryProbeConfig,
+        PricingResult,
+    )
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.01)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE")},
+        url="https://api.example/search",
+        compute_pricing=_pricing,
+        discovery_probe=DiscoveryProbeConfig(
+            realm="api.example",
+            sample_rail="tempo-mainnet",
+            sample_amount_usd=0.01,
+            sample_recipient="0xRecipient",
+        ),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/search",
+            headers={"authorization": "Payment <cred>"},
+            body={},
+        ),
+    )
+    # With a payment header, falls through to regular handling (not the probe path).
+    assert result.settle_phase != "discovery_probe"
+
+
+@pytest.mark.asyncio
+async def test_checkout_discovery_probe_skipped_when_body_nonempty() -> None:
+    from agentscore_commerce import (
+        Checkout,
+        CheckoutRequest,
+        DiscoveryProbeConfig,
+        PricingResult,
+    )
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.01)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE")},
+        url="https://api.example/search",
+        compute_pricing=_pricing,
+        discovery_probe=DiscoveryProbeConfig(
+            realm="api.example",
+            sample_rail="tempo-mainnet",
+            sample_amount_usd=0.01,
+            sample_recipient="0xRecipient",
+        ),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/search",
+            headers={},
+            body={"query": "test"},
+        ),
+    )
+    # Real business body → not a probe; falls through to regular 402 emit.
+    assert result.settle_phase != "discovery_probe"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# pricing_result factory
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_pricing_result_derives_amount_from_cents() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=25000, tax_cents=2000)
+    assert pr.amount_usd == 270.0
+    assert pr.currency == "USD"
+    assert pr.block is not None
+    assert pr.block.subtotal == "250.00"
+    assert pr.block.tax == "20.00"
+
+
+def test_pricing_result_includes_shipping_when_set() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=25000, tax_cents=2000, shipping_cents=999)
+    assert pr.amount_usd == 279.99
+
+
+def test_pricing_result_tax_rate_and_state_attach_to_block() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=25000, tax_cents=2000, tax_rate=0.08, tax_state="CA")
+    assert pr.block is not None
+    assert pr.block.tax_rate == 0.08
+    assert pr.block.tax_state == "CA"
+
+
+def test_pricing_result_passthrough_amount_usd() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(amount_usd=0.01)
+    assert pr.amount_usd == 0.01
+    assert pr.block is None
+
+
+def test_pricing_result_explicit_amount_overrides_subtotal_derivation() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=25000, tax_cents=2000, amount_usd=999.99)
+    assert pr.amount_usd == 999.99
+    assert pr.block is not None
+    assert pr.block.subtotal == "250.00"
+
+
+def test_pricing_result_raises_when_no_amount_source() -> None:
+    from agentscore_commerce import pricing_result
+
+    with pytest.raises(ValueError, match=r"subtotal_cents.*amount_usd"):
+        pricing_result(currency="USD")
+
+
+def test_pricing_result_propagates_product_and_body_extras() -> None:
+    from agentscore_commerce import pricing_result
+
+    product = {"id": "sku_1", "name": "Test"}
+    extras = {"redemption_code_applied": "WELCOME"}
+    pr = pricing_result(subtotal_cents=100, product=product, body_extras=extras)
+    assert pr.product == product
+    assert pr.body_extras == extras
+
+
+def test_pricing_result_full_discount_zeros_amount_and_surfaces_savings() -> None:
+    # Redemption-code applied: subtotal stays list, discount equals list, total/amount are 0.
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=7500, discount_cents=7500)
+    assert pr.amount_usd == 0.0
+    assert pr.block is not None
+    assert pr.block.subtotal == "75.00"
+    assert pr.block.discount == "75.00"
+    assert pr.block.total == "0.00"
+
+
+def test_pricing_result_partial_discount_settle_floor() -> None:
+    # 74.99 discount against 75.00 list leaves a 1-cent settle floor.
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=7500, discount_cents=7499)
+    assert pr.amount_usd == 0.01
+    assert pr.block is not None
+    assert pr.block.discount == "74.99"
+    assert pr.block.total == "0.01"
+
+
+def test_pricing_result_discount_floors_amount_at_zero() -> None:
+    from agentscore_commerce import pricing_result
+
+    pr = pricing_result(subtotal_cents=1000, discount_cents=5000)
+    assert pr.amount_usd == 0.0
+    assert pr.block is not None
+    assert pr.block.total == "0.00"
 
 
 @pytest.mark.asyncio
@@ -1293,6 +1510,247 @@ def test_well_known_preflight_response_echoes_request_headers() -> None:
 
     resp = well_known_preflight_response({"Access-Control-Request-Headers": "x-foo, x-bar"})
     assert resp.headers["Access-Control-Allow-Headers"] == "x-foo, x-bar"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# signed_response_<framework> wrappers
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _neutral_signed() -> object:
+    from agentscore_commerce.discovery import SignedDiscoveryResponse
+
+    return SignedDiscoveryResponse(
+        content=b'{"ok": true}',
+        media_type="application/json",
+        headers={"Cache-Control": "public, max-age=60"},
+        status=200,
+    )
+
+
+def test_signed_response_fastapi_wraps_neutral_payload() -> None:
+    from agentscore_commerce.discovery import signed_response_fastapi
+
+    out = signed_response_fastapi(_neutral_signed())
+    assert out.status_code == 200
+    assert out.headers["cache-control"] == "public, max-age=60"
+    assert out.media_type == "application/json"
+    assert out.body == b'{"ok": true}'
+
+
+def test_signed_response_fastapi_handles_preflight() -> None:
+    from agentscore_commerce.discovery import (
+        signed_response_fastapi,
+        well_known_preflight_response,
+    )
+
+    out = signed_response_fastapi(well_known_preflight_response())
+    assert out.status_code == 204
+    assert out.body == b""
+    assert out.headers["access-control-allow-origin"] == "*"
+
+
+def test_signed_response_flask_wraps_neutral_payload() -> None:
+    from agentscore_commerce.discovery import signed_response_flask
+
+    out = signed_response_flask(_neutral_signed())
+    assert out.status_code == 200
+    assert out.mimetype == "application/json"
+    assert out.get_data() == b'{"ok": true}'
+    assert out.headers.get("Cache-Control") == "public, max-age=60"
+
+
+def test_signed_response_django_wraps_neutral_payload() -> None:
+    import django
+    from django.conf import settings
+
+    if not settings.configured:
+        settings.configure(DEBUG=False, ALLOWED_HOSTS=["*"], DEFAULT_CHARSET="utf-8")
+        django.setup()
+
+    from agentscore_commerce.discovery import signed_response_django
+
+    out = signed_response_django(_neutral_signed())
+    assert out.status_code == 200
+    assert out["Content-Type"].startswith("application/json")
+    assert out.content == b'{"ok": true}'
+    assert out["Cache-Control"] == "public, max-age=60"
+
+
+def test_signed_response_aiohttp_wraps_neutral_payload() -> None:
+    from agentscore_commerce.discovery import signed_response_aiohttp
+
+    out = signed_response_aiohttp(_neutral_signed())
+    assert out.status == 200
+    assert out.body == b'{"ok": true}'
+    assert out.content_type == "application/json"
+    assert out.headers["Cache-Control"] == "public, max-age=60"
+
+
+def test_signed_response_sanic_wraps_neutral_payload() -> None:
+    from agentscore_commerce.discovery import signed_response_sanic
+
+    out = signed_response_sanic(_neutral_signed())
+    assert out.status == 200
+    assert out.body == b'{"ok": true}'
+    assert out.content_type == "application/json"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Checkout.mount_ucp_routes_<framework>
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _mounted_checkout_with_key() -> tuple[Any, dict[str, Any]]:
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.identity.ucp_jwks import generate_ucp_signing_key
+    from agentscore_commerce.payment import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xfeedface")},
+        url="https://x/purchase",
+        compute_pricing=_pricing,
+    )
+    key = generate_ucp_signing_key(kid="mount-test")
+    return checkout, key.private_key.as_dict(private=True)
+
+
+def test_mount_ucp_routes_fastapi_registers_three_routes() -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    checkout, jwk = _mounted_checkout_with_key()
+    app = FastAPI()
+    with _env_key(jwk):
+        checkout.mount_ucp_routes_fastapi(
+            app,
+            name="Mount-FastAPI",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        client = TestClient(app)
+        ucp = client.get("/.well-known/ucp")
+        jwks = client.get("/.well-known/jwks.json")
+        preflight = client.options("/.well-known/ucp")
+
+    assert ucp.status_code == 200
+    assert ucp.json()["ucp"]["name"] == "Mount-FastAPI"
+    assert jwks.status_code == 200
+    assert "keys" in jwks.json()
+    assert preflight.status_code == 204
+    assert preflight.headers["access-control-allow-origin"] == "*"
+
+
+def test_mount_ucp_routes_flask_registers_three_routes() -> None:
+    from flask import Flask
+
+    checkout, jwk = _mounted_checkout_with_key()
+    app = Flask(__name__)
+    with _env_key(jwk):
+        checkout.mount_ucp_routes_flask(
+            app,
+            name="Mount-Flask",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        client = app.test_client()
+        ucp = client.get("/.well-known/ucp")
+        jwks = client.get("/.well-known/jwks.json")
+        preflight = client.options("/.well-known/ucp")
+
+    assert ucp.status_code == 200
+    assert ucp.get_json()["ucp"]["name"] == "Mount-Flask"
+    assert jwks.status_code == 200
+    assert preflight.status_code == 204
+
+
+def test_mount_ucp_routes_django_appends_urlpatterns() -> None:
+    import django
+    from django.conf import settings
+    from django.test import RequestFactory
+
+    if not settings.configured:
+        settings.configure(DEBUG=False, ALLOWED_HOSTS=["*"], DEFAULT_CHARSET="utf-8", ROOT_URLCONF=__name__)
+        django.setup()
+
+    checkout, jwk = _mounted_checkout_with_key()
+    patterns: list[Any] = []
+    with _env_key(jwk):
+        checkout.mount_ucp_routes_django(
+            patterns,
+            name="Mount-Django",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        rf = RequestFactory()
+        ucp_view = patterns[0].callback
+        jwks_view = patterns[1].callback
+        ucp_resp = ucp_view(rf.get("/.well-known/ucp"))
+        jwks_resp = jwks_view(rf.get("/.well-known/jwks.json"))
+        preflight_resp = ucp_view(rf.options("/.well-known/ucp"))
+
+    assert ucp_resp.status_code == 200
+    assert json.loads(ucp_resp.content)["ucp"]["name"] == "Mount-Django"
+    assert jwks_resp.status_code == 200
+    assert preflight_resp.status_code == 204
+
+
+def test_mount_ucp_routes_aiohttp_registers_three_routes() -> None:
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient, TestServer
+
+    checkout, jwk = _mounted_checkout_with_key()
+
+    async def _run() -> None:
+        app = web.Application()
+        checkout.mount_ucp_routes_aiohttp(
+            app,
+            name="Mount-Aiohttp",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        async with TestClient(TestServer(app)) as client:
+            ucp_resp = await client.get("/.well-known/ucp")
+            jwks_resp = await client.get("/.well-known/jwks.json")
+            preflight_resp = await client.options("/.well-known/ucp")
+            assert ucp_resp.status == 200
+            ucp_body = await ucp_resp.json()
+            assert ucp_body["ucp"]["name"] == "Mount-Aiohttp"
+            assert jwks_resp.status == 200
+            assert preflight_resp.status == 204
+
+    with _env_key(jwk):
+        asyncio.run(_run())
+
+
+def test_mount_ucp_routes_sanic_registers_three_routes() -> None:
+    from sanic import Sanic
+
+    Sanic._app_registry.clear()
+    checkout, jwk = _mounted_checkout_with_key()
+    app: Any = Sanic("agentscore-mount-test")
+    with _env_key(jwk):
+        checkout.mount_ucp_routes_sanic(
+            app,
+            name="Mount-Sanic",
+            well_known_ucp_url="https://x/.well-known/ucp",
+            services={},
+            signing_kid="mount-test",
+        )
+        _, ucp_resp = app.test_client.get("/.well-known/ucp")
+        _, jwks_resp = app.test_client.get("/.well-known/jwks.json")
+        _, preflight_resp = app.test_client.options("/.well-known/ucp")
+    assert ucp_resp.status == 200
+    assert ucp_resp.json["ucp"]["name"] == "Mount-Sanic"
+    assert jwks_resp.status == 200
+    assert preflight_resp.status == 204
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -33,6 +33,7 @@ from agentscore_commerce.identity.policy import (
     run_gate_with_enforcement,
     shipping_country_allowed,
     shipping_state_allowed,
+    validate_shipping_against_policy,
 )
 from agentscore_commerce.identity.signer import extract_x402_signer
 from agentscore_commerce.identity.tokens import hash_operator_token
@@ -150,6 +151,7 @@ __all__ = [
     "sign_ucp_profile",
     "stripe_spt_payment_handler",
     "ucp_a2a_extension",
+    "validate_shipping_against_policy",
     "verification_agent_instructions",
     "verify_ucp_profile",
     "x402_payment_handler",

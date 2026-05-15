@@ -85,8 +85,3 @@ def create_multichain_payment_intent(
     if not isinstance(pi_id, str):
         raise RuntimeError("Stripe PaymentIntent missing id field")
     return MultichainPaymentIntentResult(payment_intent_id=pi_id, deposit_addresses=deposit_addresses)
-
-
-def get_deposit_address(result: MultichainPaymentIntentResult, network: str) -> str | None:
-    """Return the deposit address for a specific network from a create_multichain_payment_intent result."""
-    return result.deposit_addresses.get(network)

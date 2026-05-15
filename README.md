@@ -24,12 +24,13 @@ pip install 'agentscore-commerce[fastapi,x402,coinbase]'
 
 | Submodule | What it provides |
 |---|---|
+| `agentscore_commerce` (top-level) | `Checkout` orchestrator + `CheckoutContext` + `CheckoutGateConfig` + `CheckoutValidationError` + `DiscoveryProbeConfig` + `SettleOutcome` + `MppxComposeOutcome` + `PricingResult` (the 2.0 high-level surface: one config object, hooks for pre_validate/compute_pricing/on_settled/mint_recipients/compose_mppx, auto-derived x402+mppx servers, per-framework adapters `handle_fastapi`/`handle_flask`/`handle_django`/`handle_aiohttp`/`handle_sanic`, signed UCP routes via `mount_ucp_routes_{fastapi,flask,django,aiohttp,sanic}`); `pricing_result` (factory: cents-denominated → typed `PricingResult` with embedded `PricingBlock`); `validation_response_{fastapi,flask,django,aiohttp,sanic}` (per-framework 4xx envelope wrappers); `make_mppx_compose_hook` (canonical pympp compose adapter). |
 | `agentscore_commerce.identity.{fastapi,flask,django,aiohttp,sanic,middleware}` | Trust gate middleware: KYC, sanctions (account name + signer wallet), age, jurisdiction. `AgentScoreGate(...)` (or `agentscore_gate(app, ...)` on Flask/Sanic), `get_agentscore_data(...)`, `capture_wallet(...)`, `get_signer_verdict(...)`. The gate extracts the payment signer pre-evaluate and passes it to `/v1/assess`, so the API composes both wallet-binding (`signer_match`) and OFAC SDN wallet-address (`signer_sanctions`) verdicts on one round trip. |
-| `agentscore_commerce.identity` (package level) | Re-exports the denial helpers: `denial_reason_status`, `denial_reason_to_body`, `build_signer_mismatch_body`, `build_contact_support_next_steps`, `verification_agent_instructions`, `is_fixable_denial`, `FIXABLE_DENIAL_REASONS`. The per-framework adapter modules also expose `get_gate_quota_info(request)` for surfacing X-RateLimit info from gate state. Also re-exports the per-product policy helpers: `PolicyBlock`, `GateResult`, `EnforcementMode`, `IdentityStatus`, `build_gate_from_policy`, `run_gate_with_enforcement`, `shipping_country_allowed`, `shipping_state_allowed` (for multi-product merchants where each product carries its own compliance config: hard gate vs soft vs none, per-product shipping allowlists). Key + token helpers: `load_ucp_signing_key_from_env` (cached env-driven loader for the UCP signing key — reads `UCP_SIGNING_KEY_JWK_PRIVATE` JSON JWK, detects alg from shape, falls back to ephemeral when unset, sanitizes errors so key bytes never reach logs, concurrent-safe via `threading.Lock`; env-var names and `default_kid` / `default_alg` are overridable as kwargs); `hash_operator_token` (sha256 hex of plaintext `opc_...` — for merchants persisting `operator_token_id` to their own DB without ever storing the plaintext). |
+| `agentscore_commerce.identity` (package level) | Re-exports the denial helpers: `denial_reason_status`, `denial_reason_to_body`, `build_signer_mismatch_body`, `build_contact_support_next_steps`, `verification_agent_instructions`, `is_fixable_denial`, `FIXABLE_DENIAL_REASONS`. The per-framework adapter modules also expose `get_gate_quota_info(request)` for surfacing X-RateLimit info from gate state. Also re-exports the per-product policy helpers: `PolicyBlock`, `GateResult`, `EnforcementMode`, `IdentityStatus`, `build_gate_from_policy`, `run_gate_with_enforcement`, `shipping_country_allowed`, `shipping_state_allowed`, `validate_shipping_against_policy` (one-call country+state validator that raises `CheckoutValidationError` with the canonical envelope on miss) — for multi-product merchants where each product carries its own compliance config: hard gate vs soft vs none, per-product shipping allowlists. Key + token helpers: `load_ucp_signing_key_from_env` (cached env-driven loader for the UCP signing key — reads `UCP_SIGNING_KEY_JWK_PRIVATE` JSON JWK, detects alg from shape, falls back to ephemeral when unset, sanitizes errors so key bytes never reach logs, concurrent-safe via `threading.Lock`; env-var names and `default_kid` / `default_alg` are overridable as kwargs); `hash_operator_token` (sha256 hex of plaintext `opc_...` — for merchants persisting `operator_token_id` to their own DB without ever storing the plaintext). |
 | `agentscore_commerce.payment` | `networks`, `USDC`, `rails` registries; `payment_directive`, `build_payment_directive`, `www_authenticate_header`, `payment_required_header`, `alias_amount_fields` (v1↔v2 amount field shim that emits both `amount` and `maxAmountRequired` so v1-only x402 parsers like Coinbase awal can read v2 bodies), `settlement_override_header`, `dispatch_settlement_by_network`, `extract_payment_signer` (accepts positional `x402_payment_header` AND/OR `authorization_header=` kwarg; recovers signer from x402 EIP-3009 `payload.authorization.from` OR MPP `Authorization: Payment <base64>` `did:pkh:eip155:<chain>:<addr>` / `did:pkh:solana:<genesis>:<addr>` source DID), `detect_rail_from_headers` (returns `"x402"` / `"mpp"` / `None` from inbound headers), `register_x402_schemes_v1_v2`; drop-in x402 helpers: `validate_x402_network_config` (boot-time guard), `verify_x402_request` (parse + validate inbound X-Payment), `process_x402_settle` (verify-then-settle with one call), `classify_x402_settle_result` (maps the tagged settle result to a recommended HTTP status / code / next_steps so merchants get a controlled envelope without coupling to facilitator-specific error text), `classify_orchestration_error` (same `ClassifiedX402Error` shape but for uncaught exceptions thrown elsewhere in the orchestration; returns `None` for unknown errors so merchants rethrow instead of swallowing); `zero_amount_carve_out` (skip CDP / pympp upstream verify+settle for $0 settles where the upstream rejects value=0 payloads; parses the credential, lifts signer + network, returns a `ZeroSettleResult` shaped identically to the success path so callers branch on rail, not on result shape); `usd_to_atomic` (Decimal-based USD → atomic int, ROUND_HALF_UP — for Tempo / Solana / Base USDC amount construction). |
-| `agentscore_commerce.discovery` | `is_discovery_probe_request`, `build_discovery_probe_response` (with optional `x402_sample` for x402-aware crawlers like `awal x402 details`), `sample_x402_accept_for_network` (USDC sample-accept builder for known CAIP-2 networks), `build_well_known_mpp`, `build_llms_txt` + `llms_txt_identity_section` + `llms_txt_payment_section` (compact + verbose modes), `build_skill_md` (Claude-Skill-compatible `/skill.md` agent-discovery manifest; strictly agent-facing data only, no internal posture), `agentscore_openapi_snippets`, `build_bazaar_discovery_payload`, `NoindexNonDiscoveryMiddleware` (ASGI middleware that emits `X-Robots-Tag: noindex` on every path except the agent-discovery surfaces; defaults cover `/openapi.json`, `/llms.txt`, `/skill.md`, `/.well-known/{mpp.json,agent-card.json,ucp,jwks.json}`, `/favicon.{png,ico}`; pure helpers `is_discovery_path` + `DEFAULT_DISCOVERY_PATHS` for non-ASGI frameworks). |
-| `agentscore_commerce.challenge` | `build_402_body`, `build_accepted_methods`, `build_identity_metadata`, `build_how_to_pay`, `build_agent_instructions` (auto-emits per-rail `compatible_clients`: smoke-verified CLIs the agent should use; vendor override supported; pure helper `compatible_clients_by_rails(rails)` returns the same map for vendors building custom 402s), `build_pricing_block` (cents to dollar-string with optional shipping/tax), `first_encounter_agent_memory` (cross-merchant hint, returns the canonical block or `None` based on a per-merchant first-seen flag), `OrderReceipt` (dataclass for the post-settlement 200 response shape); `respond_402`, a drop-in 402 emit that preserves pympp's `WWW-Authenticate` and layers x402's `PAYMENT-REQUIRED`. `build_validation_error`: structured 4xx body builder (`{error: {code, message}, required_fields?, example_body?, next_steps?, ...extra}`) so vendors compose body shapes by name instead of inlining at every validation site. |
-| `agentscore_commerce.stripe_multichain` | `create_multichain_payment_intent`, `get_deposit_address`, `simulate_crypto_deposit`; `create_pi_cache` (TTL'd PI / deposit-address cache, Redis-backed when `redis_url` set, in-memory otherwise), `simulate_deposit_if_test_mode` (gates on `sk_test_` and looks up the PI for you), `STRIPE_TEST_TX_HASH_SUCCESS` / `STRIPE_TEST_TX_HASH_FAILED` constants. Peer dep on `stripe`. |
+| `agentscore_commerce.discovery` | `is_discovery_probe_request`, `build_discovery_probe_response` (with optional `x402_sample` for x402-aware crawlers like `awal x402 details`), `sample_x402_accept_for_network` (USDC sample-accept builder for known CAIP-2 networks), `build_well_known_mpp`, `build_llms_txt` + `llms_txt_identity_section` + `llms_txt_payment_section` (compact + verbose modes), `build_skill_md` (Claude-Skill-compatible `/skill.md` agent-discovery manifest; strictly agent-facing data only, no internal posture), `build_redemption_skill_md` (delivery-neutral redemption-code template — printed mailers, emailed codes, API trial credits all covered; `endpoint_path`/`delivery_intro`/`body_shape`/`body_rules`/`extra_recovery_rows` overrides for non-goods shapes), `build_merchant_index_json` (canonical `/` discovery body), `standard_endpoint_descriptions(kind=)` (canonical method+path → description map for goods vs api merchants; optional `include_order_status_route` for goods), `build_success_next_steps` (universal Passport-active success block), `build_agentscore_onboarding_steps` (canonical skill.md onboarding for goods or API merchants), `agentscore_openapi_snippets`, `build_bazaar_discovery_payload`, `NoindexNonDiscoveryMiddleware` (ASGI middleware emitting `X-Robots-Tag: noindex` on every path except the agent-discovery surfaces; pure helpers `is_discovery_path` + `DEFAULT_DISCOVERY_PATHS` for non-ASGI frameworks). Plus the UCP/JWKS publish surface: `build_signed_ucp_response`, `build_signed_jwks_response`, `well_known_preflight_response`, `default_a2a_services`, `bootstrap_ucp_signing_key`, framework-neutral `SignedDiscoveryResponse` + per-framework wrappers `signed_response_{fastapi,flask,django,aiohttp,sanic}`. |
+| `agentscore_commerce.challenge` | `build_402_body`, `build_accepted_methods`, `build_identity_metadata` (auto-attached by `Checkout` when an inbound `X-Wallet-Address` header is present), `build_how_to_pay`, `build_agent_instructions` (auto-emits per-rail `compatible_clients`: smoke-verified CLIs the agent should use; vendor override supported; pure helper `compatible_clients_by_rails(rails)` returns the same map for vendors building custom 402s), `build_pricing_block` (cents to dollar-string with optional shipping/tax), `first_encounter_agent_memory` (cross-merchant hint, returns the canonical block or `None` based on a per-merchant first-seen flag), `Receipt` + `ReceiptNextSteps` + `ProductInfo` + `ShippingAddress` (canonical 200-receipt dataclasses — universal across goods + API merchants); `respond_402`, a drop-in 402 emit that preserves pympp's `WWW-Authenticate` and layers x402's `PAYMENT-REQUIRED`. `build_validation_error`: structured 4xx body builder (`{error: {code, message}, required_fields?, example_body?, next_steps?, ...extra}`) so vendors compose body shapes by name instead of inlining at every validation site. |
+| `agentscore_commerce.stripe_multichain` | `create_multichain_payment_intent` (returns `MultichainPaymentIntentResult(payment_intent_id, deposit_addresses)`; read `result.deposit_addresses[network]` directly), `simulate_crypto_deposit`; `create_pi_cache` (TTL'd PI / deposit-address cache, Redis-backed when `redis_url` set, in-memory otherwise), `simulate_deposit_if_test_mode` (gates on `sk_test_` and looks up the PI for you), `STRIPE_TEST_TX_HASH_SUCCESS` / `STRIPE_TEST_TX_HASH_FAILED` constants. Peer dep on `stripe`. |
 | `agentscore_commerce.api` | Everything from `agentscore-py` re-exported in one place: `AgentScore` + `AgentScoreError`, `AGENTSCORE_TEST_ADDRESSES` + `is_agentscore_test_address`. **Don't add `agentscore-py` as a separate dep**: the two can drift versions and cause subtle type mismatches. |
 
 ## Quick start (FastAPI)
@@ -75,14 +76,96 @@ async def purchase(request: Request, assess=Depends(get_agentscore_data)):
     return {"ok": True}
 ```
 
+## Checkout orchestrator (the 2.0 high-level surface)
+
+`Checkout` is the canonical merchant surface: one config object, hooks for the merchant-specific pieces, and the SDK handles 402 emit, identity gating, x402 verify+settle, mppx compose, $0 carve-out, and the per-framework adapter. Most merchants reach for `Checkout` first and drop to lower-level helpers only when they need custom flows.
+
+```python
+from fastapi import FastAPI, Request
+from agentscore_commerce import (
+    Checkout, CheckoutGateConfig, DiscoveryProbeConfig, PricingResult, pricing_result,
+    SolanaMppRailSpec, StripeRailSpec, TempoRailSpec, X402BaseRailSpec,
+    validate_shipping_against_policy,
+)
+from agentscore_commerce.discovery import default_a2a_services
+
+app = FastAPI()
+
+async def _pre_validate(ctx):
+    body = ctx.request.body or {}
+    product = await lookup_product(body.get("product_slug"))
+    validate_shipping_against_policy(
+        country=body.get("shipping", {}).get("country", ""),
+        state=body.get("shipping", {}).get("state", ""),
+        policy=product,
+        product_name=product["name"],
+    )
+    return {"product": product}
+
+async def _compute_pricing(ctx) -> PricingResult:
+    return pricing_result(
+        subtotal_cents=ctx.state["product"]["price_cents"],
+        tax_cents=ctx.state["product"]["tax_cents"],
+        tax_rate=ctx.state["product"]["tax_rate"],
+        tax_state=ctx.state["product"]["tax_state"],
+    )
+
+async def _on_settled(ctx, outcome):
+    return {"ok": True, "order_id": ctx.reference_id, "tx_hash": outcome.tx_hash}
+
+checkout = Checkout(
+    rails={
+        "tempo":     TempoRailSpec(recipient=os.environ["TEMPO_RECIPIENT"]),
+        "x402_base": X402BaseRailSpec(recipient=os.environ["X402_BASE_RECIPIENT"], network="eip155:8453"),
+        "solana_mpp":SolanaMppRailSpec(recipient=os.environ["SOLANA_RECIPIENT"], network="solana:mainnet"),
+        "stripe":    StripeRailSpec(profile_id=os.environ["STRIPE_PROFILE_ID"]),
+    },
+    url="https://merchant.example/purchase",
+    pre_validate=_pre_validate,
+    compute_pricing=_compute_pricing,
+    on_settled=_on_settled,
+    cdp_api_key_id=os.environ.get("CDP_API_KEY_ID"),
+    cdp_api_key_secret=os.environ.get("CDP_API_KEY_SECRET"),
+    mppx_secret_key=os.environ.get("MPP_SECRET_KEY"),
+    gate=CheckoutGateConfig(
+        api_key=os.environ["AGENTSCORE_API_KEY"],
+        merchant_name="Merchant",
+        require_kyc=True, require_sanctions_clear=True, min_age=21, allowed_jurisdictions=["US"],
+    ),
+    # Optional: empty-body POSTs without a payment header auto-route to a sample 402
+    # so x402 crawlers (awal x402 details, x402-proxy, ...) can discover the surface.
+    discovery_probe=DiscoveryProbeConfig(
+        realm="merchant.example",
+        sample_rail="tempo-mainnet",
+        sample_amount_usd=1.0,
+        sample_recipient=os.environ["TEMPO_RECIPIENT"],
+    ),
+)
+
+# Mount signed UCP profile + JWKS + OPTIONS preflights in one call.
+checkout.mount_ucp_routes_fastapi(
+    app,
+    name="Merchant",
+    well_known_ucp_url="https://merchant.example/.well-known/ucp",
+    services=default_a2a_services(agent_card_url="https://merchant.example/.well-known/agent-card.json"),
+    signing_kid="merchant-2026-05",
+)
+
+@app.post("/purchase")
+async def purchase(request: Request):
+    return await checkout.handle_fastapi(request)
+```
+
+The 402 body Checkout emits auto-attaches `identity_mode` + `required_signer` + `signer_constraint` (and `linked_wallets` when the gate populated them) when an inbound `X-Wallet-Address` header is present — so agents self-correct at discovery instead of at the 403 retry.
+
 ## Payment helpers
 
 ```python
+from agentscore_commerce import extract_payment_signer
 from agentscore_commerce.payment import (
     BuildPaymentDirectiveInput,
     PaymentDirectiveInput,
     build_payment_directive,
-    extract_payment_signer,
     networks,
     payment_directive,
     www_authenticate_header,
@@ -150,7 +233,7 @@ body = build_402_body(Build402BodyInput(
 ))
 ```
 
-`build_pricing_block` handles cents → dollar-string (with optional shipping). `first_encounter_agent_memory` returns the canonical hint or `None` based on a per-merchant first-seen flag. `OrderReceipt` is a dataclass for the post-settlement 200 response shape.
+`build_pricing_block` handles cents → dollar-string (with optional shipping). Pass `discount_cents` for redemption codes / coupons: `subtotal` stays the list price, the block surfaces `discount` as a dollar-string, and `total` becomes `subtotal + tax + shipping - discount` (floored at 0). `pricing_result` accepts the same `discount_cents` and propagates it to `block.discount` so agents reading the 402 see the savings line. `first_encounter_agent_memory` returns the canonical hint or `None` based on a per-merchant first-seen flag. `Receipt` (plus `ReceiptNextSteps`, `ProductInfo`, `ShippingAddress`) is a universal dataclass for the post-settlement 200 response shape — goods merchants populate the shipping/fulfillment/tracking slots, API merchants fill only the universal fields (id, created_at, pricing, payment_status, next_steps).
 
 ### Idempotency-key + multi-rail header bundle
 
@@ -297,7 +380,6 @@ from agentscore_commerce.stripe_multichain import (
     SimulateDepositIfTestModeInput,
     create_multichain_payment_intent,
     create_pi_cache,
-    get_deposit_address,
     simulate_deposit_if_test_mode,
 )
 
@@ -309,8 +391,8 @@ result = create_multichain_payment_intent(CreateMultichainPaymentIntentInput(
     metadata={"order_id": order_id},
     idempotency_key=order_id,
 ))
-base_address = get_deposit_address(result, "base")
-solana_address = get_deposit_address(result, "solana")
+base_address = result.deposit_addresses.get("base")
+solana_address = result.deposit_addresses.get("solana")
 
 # PI / deposit-address cache. Redis-backed when REDIS_URL is set, in-memory otherwise.
 # Multi-instance deployments need Redis so a deposit lands on whichever instance settles it.

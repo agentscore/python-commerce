@@ -323,6 +323,69 @@ def bootstrap_ucp_signing_key(*, default_kid: str = "merchant-default") -> None:
     load_ucp_signing_key_from_env(default_kid=default_kid)
 
 
+def signed_response_fastapi(resp: SignedDiscoveryResponse | WellKnownPreflightResponse) -> Any:
+    """Wrap a neutral discovery response in a FastAPI / Starlette ``Response``."""
+    from starlette.responses import Response
+
+    media_type = resp.media_type if isinstance(resp, SignedDiscoveryResponse) else "application/json"
+    return Response(
+        content=resp.content,
+        media_type=media_type,
+        headers=resp.headers,
+        status_code=resp.status,
+    )
+
+
+def signed_response_flask(resp: SignedDiscoveryResponse | WellKnownPreflightResponse) -> Any:
+    """Wrap a neutral discovery response in a Flask ``Response``."""
+    from flask import Response
+
+    media_type = resp.media_type if isinstance(resp, SignedDiscoveryResponse) else "application/json"
+    return Response(
+        response=resp.content,
+        status=resp.status,
+        headers=resp.headers,
+        mimetype=media_type,
+    )
+
+
+def signed_response_django(resp: SignedDiscoveryResponse | WellKnownPreflightResponse) -> Any:
+    """Wrap a neutral discovery response in a Django ``HttpResponse``."""
+    from django.http import HttpResponse
+
+    media_type = resp.media_type if isinstance(resp, SignedDiscoveryResponse) else "application/json"
+    out = HttpResponse(content=resp.content, content_type=media_type, status=resp.status)
+    for k, v in resp.headers.items():
+        out[k] = v
+    return out
+
+
+def signed_response_aiohttp(resp: SignedDiscoveryResponse | WellKnownPreflightResponse) -> Any:
+    """Wrap a neutral discovery response in an aiohttp ``web.Response``."""
+    from aiohttp import web
+
+    media_type = resp.media_type if isinstance(resp, SignedDiscoveryResponse) else "application/json"
+    return web.Response(
+        body=resp.content,
+        status=resp.status,
+        headers=resp.headers,
+        content_type=media_type,
+    )
+
+
+def signed_response_sanic(resp: SignedDiscoveryResponse | WellKnownPreflightResponse) -> Any:
+    """Wrap a neutral discovery response in a Sanic ``HTTPResponse``."""
+    from sanic.response import HTTPResponse
+
+    media_type = resp.media_type if isinstance(resp, SignedDiscoveryResponse) else "application/json"
+    return HTTPResponse(
+        body=resp.content,
+        status=resp.status,
+        headers=resp.headers,
+        content_type=media_type,
+    )
+
+
 __all__ = [
     "SignedDiscoveryResponse",
     "WellKnownPreflightResponse",
@@ -330,6 +393,11 @@ __all__ = [
     "build_signed_jwks_response",
     "build_signed_ucp_response",
     "default_a2a_services",
+    "signed_response_aiohttp",
+    "signed_response_django",
+    "signed_response_fastapi",
+    "signed_response_flask",
+    "signed_response_sanic",
     "well_known_cors_preflight_headers",
     "well_known_preflight_response",
 ]

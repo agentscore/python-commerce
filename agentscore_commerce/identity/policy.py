@@ -168,6 +168,59 @@ def shipping_state_allowed(state: str, country: str, policy: Mapping[str, Any] |
     return state.upper() in {s.upper() for s in states}
 
 
+def validate_shipping_against_policy(
+    *,
+    country: str,
+    state: str,
+    policy: Mapping[str, Any] | None,
+    product_name: str | None = None,
+    error_code: str = "unsupported_jurisdiction",
+    error_action: str = "change_shipping_state",
+    country_message: str | None = None,
+    state_message: str | None = None,
+) -> None:
+    """Raise :class:`CheckoutValidationError` when shipping isn't allowed by the policy.
+
+    One-call replacement for the ``if not shipping_country_allowed(...): raise``
+    + ``if not shipping_state_allowed(...): raise`` boilerplate every goods
+    merchant writes in their ``pre_validate`` hook.
+
+    ``policy`` is a :class:`PolicyBlock`-shaped mapping (or ``None``); NULL
+    policy means "ship anywhere" and the function is a no-op. The reason a
+    location is excluded is **merchant-defined**: it might be regulatory
+    (regulated goods + state allowlist), operational (no fulfillment partner),
+    or commercial (fragility, fraud-rate-by-region, etc.) — the helper
+    doesn't assume.
+
+    ``product_name`` is the user-facing item name surfaced in the error
+    message ("Cannot ship 'Wine 2020' to NY ..."). Omit for a generic message.
+
+    ``error_code`` and ``error_action`` let merchants override the canonical
+    denial codes if their consumer agents expect different shapes.
+
+    ``country_message`` / ``state_message`` override the default messages
+    verbatim (use these when the default phrasing isn't right for your
+    consumer agents — e.g. you want to surface the regulatory reason
+    explicitly, or you want the message in a different language).
+    """
+    # Local import dodges the circular: checkout depends on identity.policy.
+    from agentscore_commerce.checkout import CheckoutValidationError
+
+    item = f"'{product_name}'" if product_name else "this item"
+    if not shipping_country_allowed(country, policy):
+        raise CheckoutValidationError(
+            code=error_code,
+            message=country_message or f"We can't ship {item} to {country.upper() or '<unset>'}.",
+            action=error_action,
+        )
+    if not shipping_state_allowed(state, country, policy):
+        raise CheckoutValidationError(
+            code=error_code,
+            message=state_message or f"We can't ship {item} to {state.upper() or '<unset>'}.",
+            action=error_action,
+        )
+
+
 __all__ = [
     "EnforcementMode",
     "GateResult",
@@ -177,4 +230,5 @@ __all__ = [
     "run_gate_with_enforcement",
     "shipping_country_allowed",
     "shipping_state_allowed",
+    "validate_shipping_against_policy",
 ]

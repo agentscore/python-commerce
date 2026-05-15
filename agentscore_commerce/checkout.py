@@ -67,8 +67,9 @@ merchant wraps it in their framework's response shape.
 from __future__ import annotations
 
 import inspect
+import json
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeAlias
 
@@ -184,6 +185,31 @@ class CheckoutRequest:
 
 
 @dataclass
+class DiscoveryProbeConfig:
+    """Auto-route discovery probes inside :meth:`Checkout.handle`.
+
+    When set on the Checkout, an empty-body POST without any payment header
+    short-circuits to a sample 402 advertising the merchant's discovery shape
+    for crawlers (``awal x402 details``, x402-proxy, x402scan, ...). The
+    probe DOES NOT settle anything; it's an SEO-shaped advertisement.
+
+    Per-rail real-recipient discovery still happens via the regular 402 emit
+    path on a non-probe request. Sample data here is intentionally minimal
+    (single rail, single recipient) since crawlers only need the shape.
+    """
+
+    realm: str
+    sample_rail: str
+    sample_amount_usd: float
+    sample_recipient: str
+    intent: str = "charge"
+    ttl_seconds: int = 300
+    docs_url: str | None = None
+    message: str | None = None
+    x402_sample: Any = None  # X402SampleProbe, optional
+
+
+@dataclass
 class PricingResult:
     """Output of :attr:`Checkout.compute_pricing`; per-request pricing."""
 
@@ -202,6 +228,82 @@ class PricingResult:
     standard ``accepted_methods`` / ``agent_instructions`` / ``pricing`` blocks.
     Useful for ``redemption_code_applied``, coupon hints, or any other field the
     merchant wants the agent to see in the challenge body."""
+
+
+def pricing_result(
+    *,
+    subtotal_cents: int | None = None,
+    tax_cents: int | None = None,
+    shipping_cents: int | None = None,
+    discount_cents: int | None = None,
+    tax_rate: float | None = None,
+    tax_state: str | None = None,
+    currency: str = "USD",
+    amount_usd: float | None = None,
+    product: dict[str, str] | None = None,
+    body_extras: dict[str, Any] | None = None,
+) -> PricingResult:
+    """Build a :class:`PricingResult` from cents-denominated inputs.
+
+    Saves the ``PricingResult(amount_usd=..., block=build_pricing_block(...))``
+    dance every US-commerce merchant repeats. When ``subtotal_cents`` is set:
+
+    * ``subtotal_cents`` is the list price (pre-discount). ``discount_cents``
+      is the deduction applied (redemption code / coupon / promo).
+    * ``amount_usd`` is derived from
+      ``(subtotal + tax + shipping - discount) / 100`` (floored at 0) unless
+      explicitly provided.
+    * A :class:`PricingBlock` is built via :func:`build_pricing_block` and
+      attached to the result's ``block`` field. ``discount`` is surfaced as a
+      dollar-string when ``discount_cents`` is supplied.
+
+    When ``subtotal_cents`` is omitted, the function passes through to the
+    raw :class:`PricingResult` constructor; ``amount_usd`` is then required.
+
+    Use this in ``compute_pricing`` hooks instead of hand-rolling::
+
+        async def _compute_pricing(ctx: CheckoutContext) -> PricingResult:
+            return pricing_result(
+                subtotal_cents=25000,
+                tax_cents=2000,
+                tax_rate=0.08,
+                tax_state="CA",
+            )
+
+        # Redemption-code applied (free order, agent sees the savings line):
+        return pricing_result(subtotal_cents=7500, discount_cents=7500)
+    """
+    from agentscore_commerce.challenge import build_pricing_block
+
+    if subtotal_cents is not None:
+        gross_cents = subtotal_cents + (tax_cents or 0) + (shipping_cents or 0) - (discount_cents or 0)
+        total_cents = max(0, gross_cents)
+        derived_amount = total_cents / 100 if amount_usd is None else amount_usd
+        block = build_pricing_block(
+            subtotal_cents=subtotal_cents,
+            tax_cents=tax_cents or 0,
+            shipping_cents=shipping_cents,
+            discount_cents=discount_cents,
+            tax_rate=tax_rate,
+            tax_state=tax_state,
+            currency=currency,
+        )
+        return PricingResult(
+            amount_usd=derived_amount,
+            currency=currency,
+            block=block,
+            product=product,
+            body_extras=body_extras,
+        )
+    if amount_usd is None:
+        msg = "pricing_result requires either `subtotal_cents` or `amount_usd`."
+        raise ValueError(msg)
+    return PricingResult(
+        amount_usd=amount_usd,
+        currency=currency,
+        product=product,
+        body_extras=body_extras,
+    )
 
 
 @dataclass
@@ -438,6 +540,32 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
+    """Compose the identity_metadata block from request + assess state.
+
+    Wallet-mode merchants get ``required_signer`` + ``linked_wallets`` +
+    ``signer_constraint`` pre-advertised on the 402, so agents self-correct at
+    discovery instead of at the 403 retry. Returns ``None`` when the request
+    shows no wallet intent (operator-token only); the 402 then omits the block
+    entirely.
+    """
+    from agentscore_commerce.challenge.identity import build_identity_metadata
+
+    lower = {k.lower(): v for k, v in ctx.request.headers.items()}
+    wallet = lower.get("x-wallet-address")
+    if not wallet:
+        return None
+    linked_wallets: list[str] | None = None
+    assess = ctx.request.assess
+    if isinstance(assess, dict):
+        identity = assess.get("identity")
+        if isinstance(identity, dict):
+            lw = identity.get("linked_wallets")
+            if isinstance(lw, list) and all(isinstance(x, str) for x in lw):
+                linked_wallets = lw
+    return build_identity_metadata(mode="wallet", wallet=wallet, linked_wallets=linked_wallets)
+
+
 class Checkout:
     """High-level agent-commerce orchestrator.
 
@@ -511,6 +639,7 @@ class Checkout:
         zero_settle_carve_out: bool = False,
         gate: CheckoutGateConfig | None = None,
         discovery_extensions: dict[str, Any] | None = None,
+        discovery_probe: DiscoveryProbeConfig | None = None,
     ) -> None:
         # Auto-derive x402_server when not supplied: rails has an X402BaseRailSpec
         # → lazy-init via SDK helper. Merchants only pass CDP creds (or omit
@@ -574,6 +703,7 @@ class Checkout:
         self.zero_settle_carve_out = zero_settle_carve_out
         self.gate = gate
         self.discovery_extensions = discovery_extensions
+        self.discovery_probe = discovery_probe
         """Per-endpoint x402 ``extensions`` block emitted on the 402 body. Merge
         outputs of ``build_bazaar_discovery_payload({...})`` (or other extension
         declarers) here — Checkout forwards verbatim into the 402 response
@@ -687,6 +817,40 @@ class Checkout:
         """
         reference_id = await self._mint_reference_id(request)
         ctx = CheckoutContext(request=request, reference_id=reference_id)
+
+        # Discovery probe (optional): empty-body POST without a payment header
+        # → sample 402 advertising the merchant's shape for crawlers. Routes
+        # AHEAD of pre_validate so probe responses don't trip on body-validation
+        # rules (probes carry no business body).
+        if self.discovery_probe is not None:
+            from agentscore_commerce.discovery import (
+                build_discovery_probe_response,
+                is_discovery_probe_request,
+            )
+
+            auth = request.headers.get("authorization") or request.headers.get("Authorization")
+            body_text = json.dumps(request.body) if request.body else ""
+            if await is_discovery_probe_request(request.method, auth, body_text):
+                cfg = self.discovery_probe
+                probe = build_discovery_probe_response(
+                    realm=cfg.realm,
+                    sample_rail=cfg.sample_rail,
+                    sample_amount_usd=cfg.sample_amount_usd,
+                    sample_recipient=cfg.sample_recipient,
+                    intent=cfg.intent,
+                    ttl_seconds=cfg.ttl_seconds,
+                    docs_url=cfg.docs_url,
+                    message=cfg.message,
+                    x402_sample=cfg.x402_sample,
+                )
+                return CheckoutResult(
+                    status=probe.status,
+                    body=json.loads(probe.body),
+                    headers=probe.headers,
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase="discovery_probe",
+                )
 
         # Pre-validate (optional): resolve merchant-specific per-request state
         # (product lookup, code resolution, shipping checks, ...). May raise
@@ -813,9 +977,6 @@ class Checkout:
             headers=self._extra_headers(result.headers),
         )
 
-    # Alias: FastAPI's Request inherits from Starlette's; one adapter covers both.
-    handle_starlette = handle_fastapi
-
     async def handle_aiohttp(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
         """Aiohttp adapter; returns ``aiohttp.web.Response``.
 
@@ -933,6 +1094,268 @@ class Checkout:
         )
         result = async_to_sync(self.handle)(checkout_request)
         return JsonResponse(result.body, status=result.status, headers=self._extra_headers(result.headers))
+
+    # ─────────────────────────────────────────────────────────────────────
+    # mount_ucp_routes_<framework> — register `/.well-known/ucp` + `/jwks.json`
+    # + OPTIONS preflights on the app in one call. Saves merchants the ~40-line
+    # 3-route registration block every UCP-publishing merchant otherwise
+    # hand-rolls. Equivalent across all five Python framework adapters.
+    # ─────────────────────────────────────────────────────────────────────
+
+    def _build_ucp_resp(
+        self,
+        request_headers: Mapping[str, str],
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str,
+        agentscore_gate: Any,
+    ) -> Any:
+        from agentscore_commerce.discovery.well_known import build_signed_ucp_response
+
+        return build_signed_ucp_response(
+            checkout=self,
+            name=name,
+            well_known_ucp_url=well_known_ucp_url,
+            services=services,
+            request_headers=request_headers,
+            signing_kid=signing_kid,
+            agentscore_gate=agentscore_gate,
+        )
+
+    def _build_jwks_resp(self, request_headers: Mapping[str, str], *, signing_kid: str) -> Any:
+        from agentscore_commerce.discovery.well_known import build_signed_jwks_response
+
+        return build_signed_jwks_response(request_headers=request_headers, signing_kid=signing_kid)
+
+    def _build_preflight(self, request_headers: Mapping[str, str]) -> Any:
+        from agentscore_commerce.discovery.well_known import well_known_preflight_response
+
+        return well_known_preflight_response(request_headers)
+
+    def mount_ucp_routes_fastapi(
+        self,
+        app: Any,
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = "/.well-known/ucp",
+        jwks_path: str = "/.well-known/jwks.json",
+    ) -> None:
+        """Register signed UCP + JWKS + preflight routes on a FastAPI app."""
+        from fastapi import Request
+
+        from agentscore_commerce.discovery.well_known import (
+            signed_response_fastapi,
+        )
+
+        async def _ucp(request):  # type: ignore[no-untyped-def]
+            return signed_response_fastapi(
+                self._build_ucp_resp(
+                    dict(request.headers),
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        async def _jwks(request):  # type: ignore[no-untyped-def]
+            return signed_response_fastapi(self._build_jwks_resp(dict(request.headers), signing_kid=signing_kid))
+
+        async def _preflight(request):  # type: ignore[no-untyped-def]
+            return signed_response_fastapi(self._build_preflight(dict(request.headers)))
+
+        # Patch annotations so FastAPI's signature inspection sees the real
+        # Request class (PEP 563 / `from __future__ import annotations` would
+        # otherwise stringify the annotation and break Request injection).
+        for fn in (_ucp, _jwks, _preflight):
+            fn.__annotations__ = {"request": Request}
+
+        app.get(ucp_path)(_ucp)
+        app.get(jwks_path)(_jwks)
+        app.options(ucp_path)(_preflight)
+        app.options(jwks_path)(_preflight)
+
+    def mount_ucp_routes_flask(
+        self,
+        app: Any,
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = "/.well-known/ucp",
+        jwks_path: str = "/.well-known/jwks.json",
+    ) -> None:
+        """Register signed UCP + JWKS + preflight routes on a Flask app."""
+        from flask import request as flask_request
+
+        from agentscore_commerce.discovery.well_known import signed_response_flask
+
+        def _ucp() -> Any:
+            headers = dict(flask_request.headers)
+            if flask_request.method == "OPTIONS":
+                return signed_response_flask(self._build_preflight(headers))
+            return signed_response_flask(
+                self._build_ucp_resp(
+                    headers,
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        def _jwks() -> Any:
+            headers = dict(flask_request.headers)
+            if flask_request.method == "OPTIONS":
+                return signed_response_flask(self._build_preflight(headers))
+            return signed_response_flask(self._build_jwks_resp(headers, signing_kid=signing_kid))
+
+        app.add_url_rule(
+            ucp_path,
+            "agentscore_ucp",
+            _ucp,
+            methods=["GET", "OPTIONS"],
+            provide_automatic_options=False,
+        )
+        app.add_url_rule(
+            jwks_path,
+            "agentscore_jwks",
+            _jwks,
+            methods=["GET", "OPTIONS"],
+            provide_automatic_options=False,
+        )
+
+    def mount_ucp_routes_django(
+        self,
+        urlpatterns: list[Any],
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = ".well-known/ucp",
+        jwks_path: str = ".well-known/jwks.json",
+    ) -> None:
+        """Append signed UCP + JWKS + preflight URL patterns to a Django urlpatterns list.
+
+        Django routes don't take leading slashes; the defaults already omit them.
+        Each path serves GET + OPTIONS through the same view; the view dispatches
+        on ``request.method``.
+        """
+        from django.urls import path
+
+        from agentscore_commerce.discovery.well_known import signed_response_django
+
+        def _ucp_view(request: Any) -> Any:
+            headers = dict(request.headers.items())
+            if request.method == "OPTIONS":
+                return signed_response_django(self._build_preflight(headers))
+            return signed_response_django(
+                self._build_ucp_resp(
+                    headers,
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        def _jwks_view(request: Any) -> Any:
+            headers = dict(request.headers.items())
+            if request.method == "OPTIONS":
+                return signed_response_django(self._build_preflight(headers))
+            return signed_response_django(self._build_jwks_resp(headers, signing_kid=signing_kid))
+
+        urlpatterns.append(path(ucp_path, _ucp_view))
+        urlpatterns.append(path(jwks_path, _jwks_view))
+
+    def mount_ucp_routes_aiohttp(
+        self,
+        app: Any,
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = "/.well-known/ucp",
+        jwks_path: str = "/.well-known/jwks.json",
+    ) -> None:
+        """Register signed UCP + JWKS + preflight routes on an aiohttp app."""
+        from agentscore_commerce.discovery.well_known import signed_response_aiohttp
+
+        async def _ucp(request: Any) -> Any:
+            return signed_response_aiohttp(
+                self._build_ucp_resp(
+                    dict(request.headers),
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        async def _jwks(request: Any) -> Any:
+            return signed_response_aiohttp(self._build_jwks_resp(dict(request.headers), signing_kid=signing_kid))
+
+        async def _preflight(request: Any) -> Any:
+            return signed_response_aiohttp(self._build_preflight(dict(request.headers)))
+
+        app.router.add_get(ucp_path, _ucp)
+        app.router.add_get(jwks_path, _jwks)
+        app.router.add_options(ucp_path, _preflight)
+        app.router.add_options(jwks_path, _preflight)
+
+    def mount_ucp_routes_sanic(
+        self,
+        app: Any,
+        *,
+        name: str,
+        well_known_ucp_url: str,
+        services: dict[str, Any],
+        signing_kid: str = "merchant-default",
+        agentscore_gate: Any = None,
+        ucp_path: str = "/.well-known/ucp",
+        jwks_path: str = "/.well-known/jwks.json",
+    ) -> None:
+        """Register signed UCP + JWKS + preflight routes on a Sanic app."""
+        from agentscore_commerce.discovery.well_known import signed_response_sanic
+
+        async def _ucp(request: Any) -> Any:
+            return signed_response_sanic(
+                self._build_ucp_resp(
+                    dict(request.headers),
+                    name=name,
+                    well_known_ucp_url=well_known_ucp_url,
+                    services=services,
+                    signing_kid=signing_kid,
+                    agentscore_gate=agentscore_gate,
+                )
+            )
+
+        async def _jwks(request: Any) -> Any:
+            return signed_response_sanic(self._build_jwks_resp(dict(request.headers), signing_kid=signing_kid))
+
+        async def _preflight(request: Any) -> Any:
+            return signed_response_sanic(self._build_preflight(dict(request.headers)))
+
+        app.add_route(_ucp, ucp_path, methods=["GET"], name="agentscore_ucp")
+        app.add_route(_jwks, jwks_path, methods=["GET"], name="agentscore_jwks")
+        app.add_route(_preflight, ucp_path, methods=["OPTIONS"], name="agentscore_ucp_options")
+        app.add_route(_preflight, jwks_path, methods=["OPTIONS"], name="agentscore_jwks_options")
 
     async def _run_gate(self, ctx: CheckoutContext) -> CheckoutResult | None:
         """Run the per-request gate.
@@ -1383,9 +1806,15 @@ class Checkout:
                     # keep other rails in the body. Merchant logs internally.
                     x402_accepts = []
 
+        # Pre-advertise wallet-mode signer constraint when the request shows
+        # wallet intent. Saves agents a round trip: they learn required_signer
+        # + linked_wallets at discovery instead of at the 403 on retry.
+        identity_metadata = _resolve_identity_metadata(ctx)
+
         body = build_402_body(
             accepted_methods=accepted,
             agent_instructions=build_agent_instructions(how_to_pay=how_to_pay),
+            identity_metadata=identity_metadata,
             pricing=pricing_block,
             amount_usd=f"{ctx.pricing.amount_usd:.2f}",
             retry_body=ctx.request.body,

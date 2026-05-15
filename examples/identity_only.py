@@ -1,42 +1,88 @@
-"""Example: compliance gate without payment
+"""Example: identity gate without payment
 
-Scenario: you sell something where the gating is the whole product — your service handles
-its own billing (Stripe, invoice, prepaid credit, etc.) but you need to verify the agent
-operator is KYC'd, age-verified, sanctions-clear, and in an allowed jurisdiction before
-delivering.
+Scenario: you have an existing checkout / payment flow you don't want to change,
+but you want to verify the agent is KYC'd before letting them transact. Use the
+commerce/identity middleware as a thin wrapper over your existing endpoints.
 
-This is the smallest possible commerce integration. Mount the gate, write your route,
-done. No 402 logic, no payment plumbing — just identity gating.
+Common cases:
+    * Compliance-required content (age-gated, sanctioned-restricted)
+    * High-value transactions where you want extra identity assurance
+    * Adding agent KYC to an existing human-only Stripe checkout
+
+This is the smallest possible commerce integration. Mount the gate, write your
+route, done. No 402 logic, no payment plumbing; just identity gating.
 
 Peer deps:
     pip install agentscore-commerce[fastapi]
 
 Env vars:
-    AGENTSCORE_API_KEY — get one at agentscore.sh/dashboard
+    AGENTSCORE_API_KEY — your AgentScore API key
 
 Run: uvicorn examples.identity_only:app --port 3000
 """
 
-from fastapi import Depends, FastAPI
+from __future__ import annotations
 
-from agentscore_commerce.identity.fastapi import AgentScoreGate, get_agentscore_data
+import os
+from typing import Any
+
+from fastapi import Depends, FastAPI, Request
+
+from agentscore_commerce import CreateSessionOnMissing
+from agentscore_commerce.identity.fastapi import (
+    AgentScoreGate,
+    capture_wallet,
+    get_agentscore_data,
+)
 
 app = FastAPI()
 
+API_KEY = os.environ.get("AGENTSCORE_API_KEY", "ask_test_dummy")
+
+# ── Apply identity gate to specific routes ──────────────────────────────────
 gate = AgentScoreGate(
-    api_key="ask_...",  # use os.environ["AGENTSCORE_API_KEY"] in prod
+    api_key=API_KEY,
     require_kyc=True,
     require_sanctions_clear=True,
     min_age=21,
     allowed_jurisdictions=["US"],
+    # When the agent has no identity header, auto-create a verification session
+    # so the 403 body carries verify_url + poll_secret + agent_instructions.
+    create_session_on_missing=CreateSessionOnMissing(
+        api_key=API_KEY,
+        context="restricted-access",
+    ),
 )
 
 
-@app.post("/deliver", dependencies=[Depends(gate)])
-async def deliver(assess: dict = Depends(get_agentscore_data)):
+@app.post("/restricted", dependencies=[Depends(gate)])
+async def restricted(assess: dict[str, Any] = Depends(get_agentscore_data)) -> dict[str, Any]:
     """Gated route — only reached when the agent passes the compliance policy.
 
-    `assess` is the raw `/v1/assess` response. Use it for downstream business logic that
-    depends on the verified identity (audit trail, per-operator pricing, etc.).
+    `assess` is the raw `/v1/assess` response: ``{ decision, operator,
+    kyc_verified, age_bracket, jurisdiction, ... }``. Run your own business
+    logic here; buy something via your existing Stripe flow, grant access to
+    gated content, write to your DB, whatever. AgentScore's job ends at "this
+    agent is verified, here's their operator id."
     """
-    return {"status": "delivered", "operator": assess.get("resolved_operator")}
+    return {"ok": True, "operator": assess.get("resolved_operator")}
+
+
+# ── Optional: capture an agent's wallet after payment lands ────────────────
+# (only relevant if your downstream payment flow exposes the signer wallet)
+@app.post("/restricted/capture-wallet-example", dependencies=[Depends(gate)])
+async def capture_wallet_example(request: Request) -> dict[str, Any]:
+    body = await request.json()
+    await capture_wallet(
+        request,
+        wallet_address=body["signer_address"],
+        network="evm",
+        idempotency_key=body.get("payment_intent_id"),
+    )
+    return {"ok": True}
+
+
+# ── Public routes (no gate) ────────────────────────────────────────────────
+@app.get("/public-info")
+async def public_info() -> dict[str, str]:
+    return {"message": "open access — no identity required"}

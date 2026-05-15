@@ -35,26 +35,29 @@ Env vars:
 Run: uvicorn examples.api_provider:app --port 3000
 """
 
-import json
 import os
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
-from agentscore_commerce import Checkout, PricingResult, SettleOutcome
-from agentscore_commerce.discovery import (
-    NoindexNonDiscoveryMiddleware,
-    X402SampleProbe,
-    build_discovery_probe_response,
-    is_discovery_probe_request,
-)
-from agentscore_commerce.payment import (
+from agentscore_commerce import (
+    Checkout,
+    DiscoveryProbeConfig,
+    PricingResult,
+    SettleOutcome,
     SolanaMppRailSpec,
     TempoRailSpec,
     X402BaseRailSpec,
-    networks,
 )
+from agentscore_commerce.discovery import (
+    NoindexNonDiscoveryMiddleware,
+    X402SampleProbe,
+    build_merchant_index_json,
+    build_redemption_skill_md,
+    standard_endpoint_descriptions,
+)
+from agentscore_commerce.payment import networks
 
 PRICE_USDC = 0.01  # per-call price in USD
 REALM = "api.example.com"
@@ -107,30 +110,86 @@ checkout = Checkout(
     cdp_api_key_id=os.environ.get("CDP_API_KEY_ID"),
     cdp_api_key_secret=os.environ.get("CDP_API_KEY_SECRET"),
     mppx_secret_key=os.environ.get("MPP_SECRET_KEY"),
+    # Auto-route empty-body POSTs without a payment header to a sample 402 so
+    # crawlers (`awal x402 details`, x402-proxy, ...) can find this surface
+    # without committing to a real charge. The probe advertises SAMPLE accepts;
+    # real rails fire only when the agent retries with a credential.
+    discovery_probe=DiscoveryProbeConfig(
+        realm=REALM,
+        sample_rail=_TEMPO_RAIL_NAME,
+        sample_amount_usd=PRICE_USDC,
+        sample_recipient=os.environ["TEMPO_RECIPIENT"],
+        x402_sample=X402SampleProbe(
+            networks=[X402_BASE_NETWORK, SOLANA_NETWORK_CAIP2],
+            resource_url=f"https://{REALM}/search",
+        ),
+    ),
 )
 
 
 @app.post("/search")
 async def search(request: Request) -> JSONResponse:
-    body_bytes = await request.body()
-    body_text = body_bytes.decode() if body_bytes else ""
-    auth = request.headers.get("authorization")
-
-    # Discovery probe: empty-body POST without any payment header. Return sample
-    # 402 so crawlers (`awal x402 details`, x402-proxy, ...) can find this surface
-    # without committing to a real charge. Handle inline because the probe
-    # advertises SAMPLE accepts (not the merchant's real settle rails).
-    if await is_discovery_probe_request(request.method, auth, body_text):
-        probe = build_discovery_probe_response(
-            realm=REALM,
-            sample_rail=_TEMPO_RAIL_NAME,
-            sample_amount_usd=PRICE_USDC,
-            sample_recipient=os.environ["TEMPO_RECIPIENT"],
-            x402_sample=X402SampleProbe(
-                networks=[X402_BASE_NETWORK, SOLANA_NETWORK_CAIP2],
-                resource_url=f"https://{REALM}/search",
-            ),
-        )
-        return JSONResponse(json.loads(probe.body), status_code=probe.status, headers=probe.headers)
-
     return await checkout.handle_fastapi(request)
+
+
+@app.get("/")
+async def root() -> JSONResponse:
+    """Discovery root for API merchants. Mirror of the goods-merchant `/` pattern.
+
+    Lists endpoints, supported rails, docs, and per-call pricing so agents can
+    discover this merchant from a Bazaar listing or a llms.txt cross-link.
+    """
+    return JSONResponse(
+        build_merchant_index_json(
+            name="Example Search API",
+            description=(
+                "Agent-native search API. Per-call billing on Tempo, x402 Base, and "
+                "Solana. Trial credit codes (single-use) settle a fixed number of free "
+                "calls before the wallet starts paying."
+            ),
+            docs={
+                "redemption": f"https://{REALM}/redemption.md",
+            },
+            endpoints=standard_endpoint_descriptions(kind="api"),
+            supported_rails=["tempo", "x402-base", "solana-mpp"],
+            extra={
+                "pricing": {
+                    "per_call_usd": f"{PRICE_USDC:.2f}",
+                    "trial_credit_codes": "single-use; settle one paid call for free",
+                },
+            },
+        )
+    )
+
+
+@app.get("/redemption.md", response_class=PlainTextResponse)
+async def redemption_md() -> str:
+    """Agent-facing skill.md for trial-credit codes.
+
+    The pattern is delivery-neutral; whether codes are emailed in a developer
+    onboarding email, surfaced in a dashboard, or distributed via partner
+    promotions, the redemption flow is the same: submit the code in the body
+    next to the regular call shape, the server burns it single-use, and the
+    402 either skips entirely ($0 settle) or charges the discounted amount.
+    """
+    return build_redemption_skill_md(
+        merchant_name="Example Search API",
+        app_url=f"https://{REALM}",
+        endpoint_path="/search",
+        sku_intro=(
+            "The code unlocks one free `POST /search` call. After that, the "
+            "endpoint reverts to standard per-call billing."
+        ),
+        delivery_intro=(
+            "You're reading this because the developer you're working for received "
+            "a single-use trial credit code from Example Search API (typically via "
+            "the developer onboarding email or dashboard). This page tells you, the "
+            "agent, exactly how to turn that code into a successful call."
+        ),
+        body_shape="""{
+     "query": "<search query>",
+     "redemption_code": "<code>"
+   }""",
+        # API endpoint takes only query + redemption_code; no shipping rules apply.
+        body_rules="",
+    )

@@ -39,6 +39,8 @@ Run: uvicorn examples.multi_rail_merchant:app --port 3000
 """
 
 import os
+from dataclasses import asdict
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -50,17 +52,17 @@ from agentscore_commerce import (
     CheckoutValidationError,
     PricingResult,
     SettleOutcome,
-)
-from agentscore_commerce.challenge import build_pricing_block
-from agentscore_commerce.payment import (
     SolanaMppRailSpec,
     StripeRailSpec,
     TempoRailSpec,
     X402BaseRailSpec,
-    networks,
-    validate_x402_network_config,
+    pricing_result,
 )
+from agentscore_commerce.challenge import ProductInfo, Receipt, ReceiptNextSteps
+from agentscore_commerce.discovery import build_success_next_steps
+from agentscore_commerce.payment import networks, validate_x402_network_config
 from agentscore_commerce.stripe_multichain import (
+    create_multichain_payment_intent,
     create_pi_cache,
     simulate_deposit_if_test_mode,
 )
@@ -71,19 +73,15 @@ X402_BASE_NETWORK = os.environ.get("X402_BASE_NETWORK", networks.base.mainnet.ca
 SOLANA_NETWORK_CAIP2 = os.environ.get("SOLANA_NETWORK_CAIP2", networks.solana.mainnet.caip2)
 validate_x402_network_config(base_network=X402_BASE_NETWORK)
 
+# Singleton Stripe client + PI / deposit-address cache. Redis-backed when
+# REDIS_URL is set (multi-task deployments need this so a deposit lands on
+# whichever task settles it).
+import stripe  # noqa: E402  optional peer dep installed by the example user
+
+stripe_client = stripe.StripeClient(STRIPE_SECRET_KEY)
 pi_cache = create_pi_cache(redis_url=os.environ.get("REDIS_URL"))
 
 app = FastAPI()
-
-
-async def _create_multichain_payment_intent(_total_usd: str) -> dict[str, str]:
-    """Vendor's actual Stripe multichain PI mint call.
-
-    Returns deposit addresses for {tempo, base, solana}. In production this
-    calls `stripe.PaymentIntent.create(...)` with `payment_method_types` set
-    + reads back the per-network deposit addresses Stripe minted.
-    """
-    return {"tempo": "0x...", "base": "0x...", "solana": "..."}
 
 
 async def _validate_purchase(ctx: Any) -> dict[str, Any]:
@@ -95,27 +93,30 @@ async def _validate_purchase(ctx: Any) -> dict[str, Any]:
 
 
 async def _compute_pricing(ctx: Any) -> PricingResult:
-    subtotal_cents = 25000  # $250.00; vendor pricing logic goes here.
-    tax_cents = 2000
-    total_cents = subtotal_cents + tax_cents
-    pricing = build_pricing_block(
-        subtotal_cents=subtotal_cents,
-        tax_cents=tax_cents,
+    return pricing_result(
+        subtotal_cents=25000,  # $250.00; vendor pricing logic goes here.
+        tax_cents=2000,
         tax_rate=0.08,
         tax_state=ctx.state.get("shipping_state", "CA"),
-        currency="USD",
     )
-    return PricingResult(amount_usd=total_cents / 100, body_extras={"pricing": pricing})
 
 
 async def _mint_recipients(ctx: Any) -> dict[str, str]:
     """Per-order recipient mint: Stripe multichain PI → per-network deposit addresses."""
-    total_usd = f"{ctx.pricing.amount_usd:.2f}"
-    addresses = await _create_multichain_payment_intent(total_usd)
+    total_cents = round(ctx.pricing.amount_usd * 100)
+    result = create_multichain_payment_intent(
+        stripe=stripe_client,
+        amount=total_cents,
+        networks=["tempo", "base", "solana"],
+    )
+    for addr in result.deposit_addresses.values():
+        await pi_cache.cache_address(addr)
+        pi_cache.cache_payment_intent(addr, result.payment_intent_id)
+    pi_cache.cache_network_addresses(result.payment_intent_id, result.deposit_addresses)
     return {
-        "tempo": addresses["tempo"],
-        "x402_base": addresses["base"],
-        "solana_mpp": addresses["solana"],
+        "tempo": result.deposit_addresses["tempo"],
+        "x402_base": result.deposit_addresses["base"],
+        "solana_mpp": result.deposit_addresses["solana"],
     }
 
 
@@ -130,12 +131,26 @@ async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
             network="base",
             stripe_secret_key=STRIPE_SECRET_KEY,
         )
-    return {
-        "ok": True,
-        "reference_id": ctx.reference_id,
-        "tx_hash": outcome.tx_hash,
-        "identity_status": ctx.identity_status,
-    }
+    # Compose the canonical Receipt shape returned on 200. Goods merchants
+    # populate the goods-only slots (shipping, fulfillment_status, tracking)
+    # at fulfillment time; this example wires the universal fields.
+    receipt = Receipt(
+        id=ctx.reference_id,
+        created_at=datetime.now(timezone.utc).isoformat(),
+        pricing=ctx.pricing.block,
+        product=ProductInfo(name="Regulated Goods Cart"),
+        payment_status="completed",
+        next_steps=ReceiptNextSteps(
+            **build_success_next_steps(
+                order_status_url=f"{APP_URL}/orders/{ctx.reference_id}",
+            ),
+        ),
+        extras={
+            "tx_hash": outcome.tx_hash,
+            "identity_status": ctx.identity_status,
+        },
+    )
+    return asdict(receipt)
 
 
 checkout = Checkout(

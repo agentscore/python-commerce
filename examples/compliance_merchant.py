@@ -45,13 +45,13 @@ from agentscore_commerce import (
     DenialReason,
     PricingResult,
     SettleOutcome,
+    TempoRailSpec,
     build_contact_support_next_steps,
     denial_reason_status,
     denial_reason_to_body,
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.payment import TempoRailSpec
 
 SUPPORT_EMAIL = "support@example.com"
 

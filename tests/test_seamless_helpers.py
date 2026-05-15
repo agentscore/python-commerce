@@ -1702,8 +1702,6 @@ def test_mount_ucp_routes_django_appends_urlpatterns() -> None:
 
 
 def test_mount_ucp_routes_aiohttp_registers_three_routes() -> None:
-    import asyncio
-
     from aiohttp import web
     from aiohttp.test_utils import TestClient, TestServer
 

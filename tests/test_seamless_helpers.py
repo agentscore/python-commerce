@@ -361,6 +361,14 @@ def test_standard_endpoint_descriptions_mentions_all_routes() -> None:
     assert "GET /orders/{id}/status" in with_status
 
 
+def test_standard_endpoint_descriptions_api_kind_drops_catalog_routes() -> None:
+    desc = standard_endpoint_descriptions(kind="api")
+    assert "POST /<endpoint>" in desc
+    assert "GET /usage" in desc
+    assert "GET /catalog" not in desc
+    assert "GET /orders/{id}" not in desc
+
+
 def test_build_success_next_steps_omits_eta_when_missing() -> None:
     out = build_success_next_steps(order_status_url="https://x/orders/1")
     assert out == {

@@ -219,20 +219,35 @@ def build_merchant_index_json(
     return body
 
 
-def standard_endpoint_descriptions(*, include_order_status_route: bool = False) -> dict[str, str]:
+def standard_endpoint_descriptions(
+    *,
+    kind: Literal["goods", "api"] = "goods",
+    include_order_status_route: bool = False,
+) -> dict[str, str]:
     """Canonical descriptions for the standard AgentScore commerce endpoints.
 
     Use in ``/`` discovery JSON, OpenAPI summaries, or anywhere the merchant
     needs to describe what each endpoint does in agent-readable language.
 
-    Descriptions are merchant-agnostic — they describe the response semantics
+    Descriptions are merchant-agnostic; they describe the response semantics
     (402 on discovery, 400 on validation, 403 on identity, 200 on success), not
     the body schema (which varies per merchant; surface that in OpenAPI).
 
-    Pass ``include_order_status_route=True`` for merchants that ship the
-    lightweight ``/orders/{id}/status`` PII-free variant alongside the full
-    ``/orders/{id}``.
+    Pass ``kind="api"`` for per-call API providers; the bundle drops catalog +
+    orders routes and surfaces ``POST /<endpoint>`` + ``GET /usage`` instead.
+
+    ``include_order_status_route=True`` (goods only) adds the lightweight
+    ``/orders/{id}/status`` PII-free variant alongside the full ``/orders/{id}``.
     """
+    if kind == "api":
+        return {
+            "POST /<endpoint>": (
+                "Per-call paid endpoint. Returns 402 on the discovery leg with "
+                "payment rails; 400 on body rejection; 403 + recovery payload "
+                "when identity is required; 200 with the call result on success."
+            ),
+            "GET /usage": "Per-credential usage / billing summary. Identity-scoped.",
+        }
     out: dict[str, str] = {
         "GET /catalog": "List purchasable products.",
         "GET /catalog/{slug}": "Single product detail.",

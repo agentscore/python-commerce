@@ -117,6 +117,49 @@ async def test_emit_402_all_rails_with_x402_payment_required() -> None:
 
 
 @pytest.mark.asyncio
+async def test_emit_402_advertises_identity_metadata_when_wallet_header_present() -> None:
+    """Wallet-mode 402 pre-advertises required_signer + signer_constraint.
+
+    Without an X-Wallet-Address header the block is omitted entirely; with one
+    it appears so agents self-correct at discovery instead of at the 403 retry.
+    """
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+    )
+    # No wallet header → no identity_metadata block on the 402 body.
+    result_no_wallet = await checkout.handle(_req())
+    assert "identity_mode" not in result_no_wallet.body
+
+    # Wallet header present → required_signer is advertised.
+    result_wallet = await checkout.handle(_req(headers={"X-Wallet-Address": "0xCAFEBEEF"}))
+    assert result_wallet.body["identity_mode"] == "wallet"
+    assert result_wallet.body["required_signer"] == "0xCAFEBEEF"
+    assert "signer_constraint" in result_wallet.body
+
+
+@pytest.mark.asyncio
+async def test_emit_402_identity_metadata_lifts_linked_wallets_from_assess() -> None:
+    """When the gate populated request.assess with linked_wallets, the 402 echoes them."""
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+    )
+    req = CheckoutRequest(
+        method="POST",
+        url="https://api.example/purchase",
+        headers={"X-Wallet-Address": "0xCAFEBEEF"},
+        body={"item": "wine"},
+        assess={"identity": {"linked_wallets": ["0xSIBLING1", "0xSIBLING2"]}},
+    )
+    result = await checkout.handle(req)
+    assert result.body["required_signer"] == "0xCAFEBEEF"
+    assert result.body["linked_wallets"] == ["0xSIBLING1", "0xSIBLING2"]
+
+
+@pytest.mark.asyncio
 async def test_emit_402_custodial_only_stripe() -> None:
     """Custodial-only merchant: Stripe SPT only, no chain rails."""
     checkout = Checkout(

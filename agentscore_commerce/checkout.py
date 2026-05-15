@@ -530,6 +530,32 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
+    """Compose the identity_metadata block from request + assess state.
+
+    Wallet-mode merchants get ``required_signer`` + ``linked_wallets`` +
+    ``signer_constraint`` pre-advertised on the 402, so agents self-correct at
+    discovery instead of at the 403 retry. Returns ``None`` when the request
+    shows no wallet intent (operator-token only); the 402 then omits the block
+    entirely.
+    """
+    from agentscore_commerce.challenge.identity import build_identity_metadata
+
+    lower = {k.lower(): v for k, v in ctx.request.headers.items()}
+    wallet = lower.get("x-wallet-address")
+    if not wallet:
+        return None
+    linked_wallets: list[str] | None = None
+    assess = ctx.request.assess
+    if isinstance(assess, dict):
+        identity = assess.get("identity")
+        if isinstance(identity, dict):
+            lw = identity.get("linked_wallets")
+            if isinstance(lw, list) and all(isinstance(x, str) for x in lw):
+                linked_wallets = lw
+    return build_identity_metadata(mode="wallet", wallet=wallet, linked_wallets=linked_wallets)
+
+
 class Checkout:
     """High-level agent-commerce orchestrator.
 
@@ -1770,9 +1796,15 @@ class Checkout:
                     # keep other rails in the body. Merchant logs internally.
                     x402_accepts = []
 
+        # Pre-advertise wallet-mode signer constraint when the request shows
+        # wallet intent. Saves agents a round trip: they learn required_signer
+        # + linked_wallets at discovery instead of at the 403 on retry.
+        identity_metadata = _resolve_identity_metadata(ctx)
+
         body = build_402_body(
             accepted_methods=accepted,
             agent_instructions=build_agent_instructions(how_to_pay=how_to_pay),
+            identity_metadata=identity_metadata,
             pricing=pricing_block,
             amount_usd=f"{ctx.pricing.amount_usd:.2f}",
             retry_body=ctx.request.body,

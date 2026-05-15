@@ -571,6 +571,416 @@ def test_handle_flask_returns_402_on_discovery_leg() -> None:
         assert resp.status_code == 402
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Checkout gate hooks (CheckoutGateConfig)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _checkout_with_gate(gate: Any) -> Checkout:
+    """Build a Checkout configured with `gate=...` whose settle path returns inline."""
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    async def _compose_mppx(ctx: Any) -> MppxComposeOutcome:
+        if not ctx.request.headers.get("authorization"):
+            return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment realm="test"'})
+        return MppxComposeOutcome(
+            status=200,
+            rail_key="tempo",
+            tx_hash="0xtest",
+            signer_address="0x" + "00" * 19 + "dE",
+            signer_network="evm",
+        )
+
+    async def _on_settled(_ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
+        return {"order_id": "o-1", "tx_hash": outcome.tx_hash}
+
+    return Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD")},
+        url="https://api.example/purchase",
+        compute_pricing=_pricing,
+        compose_mppx=_compose_mppx,
+        on_settled=_on_settled,
+        gate=gate,
+    )
+
+
+@pytest.mark.asyncio
+async def test_gate_run_gate_escape_hatch_allow_pass_through() -> None:
+    """`gate.run_gate` returning None means allow → request continues to settle."""
+    from agentscore_commerce.checkout import CheckoutGateConfig
+
+    seen: list[Any] = []
+
+    async def _run_gate(ctx: Any) -> None:
+        seen.append(ctx)
+        return
+
+    gate = CheckoutGateConfig(api_key="k", run_gate=_run_gate)
+    checkout = _checkout_with_gate(gate)
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={"authorization": "Payment <opaque>"},
+            body={"item": "wine"},
+        ),
+    )
+    assert result.status == 200
+    assert seen  # run_gate was actually invoked
+
+
+@pytest.mark.asyncio
+async def test_gate_run_gate_escape_hatch_deny_returns_canonical_envelope() -> None:
+    """`gate.run_gate` returning a dict → denial; status + body propagate."""
+    from agentscore_commerce.checkout import CheckoutGateConfig
+
+    async def _run_gate(_ctx: Any) -> dict[str, Any]:
+        return {"status": 403, "body": {"error": {"code": "custom_denied"}}, "headers": {"X-Custom": "v"}}
+
+    gate = CheckoutGateConfig(api_key="k", run_gate=_run_gate)
+    checkout = _checkout_with_gate(gate)
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={"authorization": "Payment <opaque>"},
+            body={},
+        ),
+    )
+    assert result.status == 403
+    assert result.body["error"]["code"] == "custom_denied"
+    assert result.headers["X-Custom"] == "v"
+    assert result.settled is False
+    assert result.settle_phase == "gate_denied"
+
+
+@pytest.mark.asyncio
+async def test_gate_run_gate_returning_unexpected_type_raises() -> None:
+    """`gate.run_gate` returning something other than None/dict raises TypeError."""
+    from agentscore_commerce.checkout import CheckoutGateConfig
+
+    async def _run_gate(_ctx: Any) -> str:
+        return "not-allowed-shape"
+
+    gate = CheckoutGateConfig(api_key="k", run_gate=_run_gate)
+    checkout = _checkout_with_gate(gate)
+    with pytest.raises(TypeError, match="must return None"):
+        await checkout.handle(
+            CheckoutRequest(
+                method="POST",
+                url="https://api.example/purchase",
+                headers={"authorization": "Payment <opaque>"},
+                body={},
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_gate_per_request_policy_none_skips_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`per_request_policy(ctx) → None` skips the gate entirely → settle proceeds."""
+    from agentscore_commerce.checkout import CheckoutGateConfig
+
+    async def _policy(_ctx: Any) -> None:
+        return None
+
+    gate = CheckoutGateConfig(api_key="k", per_request_policy=_policy)
+    checkout = _checkout_with_gate(gate)
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={"authorization": "Payment <opaque>"},
+            body={},
+        ),
+    )
+    assert result.status == 200
+
+
+@pytest.mark.asyncio
+async def test_gate_on_denied_callback_reshapes_denial(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`gate.on_denied` returning `{body, status}` overrides the canonical body."""
+    from agentscore_commerce.checkout import CheckoutGateConfig
+    from agentscore_commerce.identity.policy import GateResult
+
+    async def _mock_run_gate(_raw: Any, _gate_instance: Any, *, enforcement: Any = None) -> GateResult:
+        return GateResult(
+            status="denied",
+            denial_body={"error": {"code": "kyc_required"}},
+            denial_status=403,
+        )
+
+    monkeypatch.setattr(
+        "agentscore_commerce.identity.policy.run_gate_with_enforcement",
+        _mock_run_gate,
+    )
+
+    async def _on_denied(_ctx: Any, body: dict[str, Any]) -> dict[str, Any]:
+        return {"status": 402, "body": {**body, "augmented": True}}
+
+    gate = CheckoutGateConfig(api_key="k", require_kyc=True, on_denied=_on_denied)
+    checkout = _checkout_with_gate(gate)
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={"authorization": "Payment <opaque>"},
+            body={},
+            raw=object(),  # gate path requires `raw` to be set
+        ),
+    )
+    assert result.status == 402
+    assert result.body["augmented"] is True
+    assert result.body["error"]["code"] == "kyc_required"
+
+
+@pytest.mark.asyncio
+async def test_gate_allow_attaches_capture_wallet(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A successful gate allow stashes `ctx.capture_wallet` for `on_settled`."""
+    from agentscore_commerce.checkout import CheckoutGateConfig
+    from agentscore_commerce.identity.policy import GateResult
+
+    async def _mock_run_gate(_raw: Any, _gate_instance: Any, *, enforcement: Any = None) -> GateResult:
+        return GateResult(status="verified", denial_body=None, denial_status=None)
+
+    monkeypatch.setattr(
+        "agentscore_commerce.identity.policy.run_gate_with_enforcement",
+        _mock_run_gate,
+    )
+
+    capture_calls: list[dict[str, Any]] = []
+
+    async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
+        if ctx.capture_wallet is not None:
+            # Don't actually fire — would call AgentScoreCore — but mark that the closure exists.
+            capture_calls.append({"available": True, "tx": outcome.tx_hash})
+        return {"order_id": "o-1"}
+
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    async def _compose_mppx(ctx: Any) -> MppxComposeOutcome:
+        if not ctx.request.headers.get("authorization"):
+            return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment realm="test"'})
+        return MppxComposeOutcome(
+            status=200,
+            rail_key="tempo",
+            tx_hash="0xtest",
+            signer_address="0x" + "00" * 19 + "dE",
+            signer_network="evm",
+        )
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD")},
+        url="https://api.example/purchase",
+        compute_pricing=_pricing,
+        compose_mppx=_compose_mppx,
+        on_settled=_on_settled,
+        gate=CheckoutGateConfig(api_key="k", require_kyc=True),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={"authorization": "Payment <opaque>", "x-operator-token": "opc_test_token"},
+            body={},
+            raw=object(),
+        ),
+    )
+    assert result.status == 200
+    assert capture_calls == [{"available": True, "tx": "0xtest"}]
+
+
+@pytest.mark.asyncio
+async def test_checkout_accepted_rails_dedupes_per_protocol() -> None:
+    """`Checkout.accepted_rails` folds tempo+tempo_session into one and emits per-protocol slugs."""
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.payment import SolanaMppRailSpec, StripeRailSpec, TempoSessionRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    checkout = Checkout(
+        rails={
+            "tempo": TempoRailSpec(recipient="0x" + "00" * 20),
+            "tempo_session": TempoSessionRailSpec(
+                recipient="0x" + "00" * 20,
+                escrow_contract="0x" + "11" * 20,
+                store=object(),
+            ),
+            "base": X402BaseRailSpec(recipient="0x" + "00" * 20),
+            "solana": SolanaMppRailSpec(recipient="SoLa"),
+            "stripe": StripeRailSpec(profile_id="profile_abc"),
+        },
+        url="https://x/purchase",
+        compute_pricing=_pricing,
+    )
+    rails = checkout.accepted_rails
+    # tempo + tempo_session fold to "tempo_mpp"
+    assert rails.count("tempo_mpp") == 1
+    assert "x402_base" in rails
+    assert "solana_mpp" in rails
+    assert "stripe" in rails
+
+
+@pytest.mark.asyncio
+async def test_checkout_accepted_method_names_emits_protocol_methods() -> None:
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.payment import SolanaMppRailSpec, StripeRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    checkout = Checkout(
+        rails={
+            "tempo": TempoRailSpec(recipient="0x" + "00" * 20),
+            "base": X402BaseRailSpec(recipient="0x" + "00" * 20),
+            "solana": SolanaMppRailSpec(recipient="SoLa"),
+            "stripe": StripeRailSpec(profile_id="profile_abc"),
+        },
+        url="https://x/purchase",
+        compute_pricing=_pricing,
+    )
+    names = checkout.accepted_method_names
+    assert "tempo/charge" in names
+    assert "x402/exact (base)" in names
+    assert "solana/charge" in names
+    assert "stripe/spt" in names
+
+
+@pytest.mark.asyncio
+async def test_capture_wallet_closure_calls_acapture_wallet(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The closure installed on ctx.capture_wallet calls AgentScoreCore.acapture_wallet."""
+    from agentscore_commerce.checkout import (
+        Checkout,
+        CheckoutGateConfig,
+        PricingResult,
+    )
+    from agentscore_commerce.identity.policy import GateResult
+
+    async def _mock_run_gate(_raw: Any, _gate_instance: Any, *, enforcement: Any = None) -> GateResult:
+        return GateResult(status="verified", denial_body=None, denial_status=None)
+
+    monkeypatch.setattr(
+        "agentscore_commerce.identity.policy.run_gate_with_enforcement",
+        _mock_run_gate,
+    )
+
+    capture_calls: list[dict[str, Any]] = []
+
+    async def _mock_acapture_wallet(
+        self: Any, *, operator_token: str, wallet_address: str, network: str, idempotency_key: str | None = None
+    ) -> None:
+        capture_calls.append(
+            {
+                "operator_token": operator_token,
+                "wallet_address": wallet_address,
+                "network": network,
+                "idempotency_key": idempotency_key,
+            }
+        )
+
+    monkeypatch.setattr(
+        "agentscore_commerce.identity.core.AgentScoreCore.acapture_wallet",
+        _mock_acapture_wallet,
+    )
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.0)
+
+    async def _compose_mppx(ctx: Any) -> MppxComposeOutcome:
+        if not ctx.request.headers.get("authorization"):
+            return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment realm="t"'})
+        return MppxComposeOutcome(
+            status=200,
+            rail_key="tempo",
+            tx_hash="0xtest",
+            signer_address="0xabc0000000000000000000000000000000000001",
+            signer_network="evm",
+        )
+
+    async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
+        # Actually invoke the closure to drive the AgentScoreCore call path.
+        if ctx.capture_wallet is not None and outcome.signer_address is not None:
+            await ctx.capture_wallet(
+                wallet_address=outcome.signer_address,
+                network=outcome.signer_network or "evm",
+                idempotency_key=outcome.tx_hash,
+            )
+        return {"order_id": "o-1"}
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD")},
+        url="https://api.example/purchase",
+        compute_pricing=_pricing,
+        compose_mppx=_compose_mppx,
+        on_settled=_on_settled,
+        gate=CheckoutGateConfig(api_key="k", require_kyc=True),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={"authorization": "Payment <opaque>", "x-operator-token": "opc_test"},
+            body={},
+            raw=object(),
+        ),
+    )
+    assert result.status == 200
+    assert capture_calls == [
+        {
+            "operator_token": "opc_test",
+            "wallet_address": "0xabc0000000000000000000000000000000000001",
+            "network": "evm",
+            "idempotency_key": "0xtest",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_handle_zero_settle_mpp_carve_out() -> None:
+    """zero_settle_carve_out=True + 0-amount + MPP authorization → skips settle path."""
+    from agentscore_commerce.checkout import Checkout, PricingResult
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.0)
+
+    async def _on_settled(_ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
+        return {"order_id": "o-1", "tx_hash": outcome.tx_hash, "rail_key": outcome.rail_key}
+
+    async def _compose_mppx(_ctx: Any) -> MppxComposeOutcome:
+        return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment realm="t"'})
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE" + "aD")},
+        url="https://api.example/purchase",
+        compute_pricing=_pricing,
+        compose_mppx=_compose_mppx,
+        on_settled=_on_settled,
+        zero_settle_carve_out=True,
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            # MPP credential present + amount $0 → carve-out path; skips real mppx.charge.
+            headers={"authorization": "Payment <opaque-credential>"},
+            body={"item": "wine"},
+        ),
+    )
+    # Carve-out returns 200 with tx_hash=None (no on-chain settle for $0).
+    assert result.status == 200
+    assert result.body.get("tx_hash") is None
+    # The rail_key was lifted from MPP path
+    assert result.body.get("rail_key") in {"tempo", "tempo_mpp"}
+
+
 def test_handle_django_returns_402_on_discovery_leg(monkeypatch: pytest.MonkeyPatch) -> None:
     pytest.importorskip("django")
     from django.conf import settings as dj_settings

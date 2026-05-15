@@ -104,11 +104,11 @@ CheckoutRailSpec: TypeAlias = (
 )
 
 
-def _spec_rail_key(spec: CheckoutRailSpec) -> RailKey | None:
+def _spec_rail_key(spec: CheckoutRailSpec) -> RailKey:
     """Map a ``*RailSpec`` instance to its canonical :data:`RailKey` slug.
 
     Tempo charge and Tempo session both speak MPP on Tempo, so they fold to
-    ``"tempo_mpp"``. Unknown types return ``None``.
+    ``"tempo_mpp"``.
     """
     if isinstance(spec, (TempoRailSpec, TempoSessionRailSpec)):
         return "tempo_mpp"
@@ -116,12 +116,10 @@ def _spec_rail_key(spec: CheckoutRailSpec) -> RailKey | None:
         return "x402_base"
     if isinstance(spec, SolanaMppRailSpec):
         return "solana_mpp"
-    if isinstance(spec, StripeRailSpec):
-        return "stripe"
-    return None
+    return "stripe"  # StripeRailSpec is the only remaining variant in CheckoutRailSpec.
 
 
-def _spec_method_name(spec: CheckoutRailSpec) -> str | None:
+def _spec_method_name(spec: CheckoutRailSpec) -> str:
     """Protocol-shaped method name for the ``methods: [...]`` discovery array."""
     if isinstance(spec, (TempoRailSpec, TempoSessionRailSpec)):
         return "tempo/charge"
@@ -129,9 +127,7 @@ def _spec_method_name(spec: CheckoutRailSpec) -> str | None:
         return "x402/exact (base)"
     if isinstance(spec, SolanaMppRailSpec):
         return "solana/charge"
-    if isinstance(spec, StripeRailSpec):
-        return "stripe/spt"
-    return None
+    return "stripe/spt"  # StripeRailSpec is the only remaining variant in CheckoutRailSpec.
 
 
 class CheckoutValidationError(Exception):
@@ -618,7 +614,7 @@ class Checkout:
         seen: set[str] = set()
         for spec in self.rails.values():
             key = _spec_rail_key(spec)
-            if key is None or key in seen:
+            if key in seen:
                 continue
             seen.add(key)
             out.append(key)
@@ -635,7 +631,7 @@ class Checkout:
         seen: set[str] = set()
         for spec in self.rails.values():
             name = _spec_method_name(spec)
-            if name is None or name in seen:
+            if name in seen:
                 continue
             seen.add(name)
             out.append(name)

@@ -39,10 +39,16 @@ import os
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from agentscore_commerce import Checkout, DiscoveryProbeConfig, PricingResult, SettleOutcome
-from agentscore_commerce.discovery import NoindexNonDiscoveryMiddleware, X402SampleProbe
+from agentscore_commerce.discovery import (
+    NoindexNonDiscoveryMiddleware,
+    X402SampleProbe,
+    build_merchant_index_json,
+    build_redemption_skill_md,
+    standard_endpoint_descriptions,
+)
 from agentscore_commerce.payment import (
     SolanaMppRailSpec,
     TempoRailSpec,
@@ -121,3 +127,66 @@ checkout = Checkout(
 @app.post("/search")
 async def search(request: Request) -> JSONResponse:
     return await checkout.handle_fastapi(request)
+
+
+@app.get("/")
+async def root() -> JSONResponse:
+    """Discovery root for API merchants. Mirror of the goods-merchant `/` pattern.
+
+    Lists endpoints, supported rails, docs, and per-call pricing so agents can
+    discover this merchant from a Bazaar listing or a llms.txt cross-link.
+    """
+    return JSONResponse(
+        build_merchant_index_json(
+            name="Example Search API",
+            description=(
+                "Agent-native search API. Per-call billing on Tempo, x402 Base, and "
+                "Solana. Trial credit codes (single-use) settle a fixed number of free "
+                "calls before the wallet starts paying."
+            ),
+            docs={
+                "redemption": f"https://{REALM}/redemption.md",
+            },
+            endpoints=standard_endpoint_descriptions(kind="api"),
+            supported_rails=["tempo", "x402-base", "solana-mpp"],
+            extra={
+                "pricing": {
+                    "per_call_usd": f"{PRICE_USDC:.2f}",
+                    "trial_credit_codes": "single-use; settle one paid call for free",
+                },
+            },
+        )
+    )
+
+
+@app.get("/redemption.md", response_class=PlainTextResponse)
+async def redemption_md() -> str:
+    """Agent-facing skill.md for trial-credit codes.
+
+    The pattern is delivery-neutral; whether codes are emailed in a developer
+    onboarding email, surfaced in a dashboard, or distributed via partner
+    promotions, the redemption flow is the same: submit the code in the body
+    next to the regular call shape, the server burns it single-use, and the
+    402 either skips entirely ($0 settle) or charges the discounted amount.
+    """
+    return build_redemption_skill_md(
+        merchant_name="Example Search API",
+        app_url=f"https://{REALM}",
+        endpoint_path="/search",
+        sku_intro=(
+            "The code unlocks one free `POST /search` call. After that, the "
+            "endpoint reverts to standard per-call billing."
+        ),
+        delivery_intro=(
+            "You're reading this because the developer you're working for received "
+            "a single-use trial credit code from Example Search API (typically via "
+            "the developer onboarding email or dashboard). This page tells you, the "
+            "agent, exactly how to turn that code into a successful call."
+        ),
+        body_shape="""{
+     "query": "<search query>",
+     "redemption_code": "<code>"
+   }""",
+        # API endpoint takes only query + redemption_code; no shipping rules apply.
+        body_rules="",
+    )

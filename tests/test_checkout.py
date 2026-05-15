@@ -301,6 +301,142 @@ async def test_compose_mppx_returns_200_runs_on_settled() -> None:
 
 
 @pytest.mark.asyncio
+async def test_compose_mppx_payment_receipt_header_surfaces_on_response() -> None:
+    """When ``compose_mppx`` populates ``payment_receipt_header``, Checkout echoes
+    it as a ``payment-receipt`` HTTP header on the success response — symmetric
+    to the existing ``payment_response_header`` (x402) behavior."""
+    receipt_header = "eyJzdGF0dXMiOiJzdWNjZXNzIn0"
+    compose_mppx = AsyncMock(
+        return_value=MppxComposeOutcome(status=200, payment_receipt_header=receipt_header),
+    )
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    assert result.headers["payment-receipt"] == receipt_header
+
+
+@pytest.mark.asyncio
+async def test_compose_mppx_omitted_payment_receipt_header_emits_no_header() -> None:
+    """Default ``payment_receipt_header=None`` on the compose outcome must NOT
+    emit an empty ``payment-receipt`` header on the response."""
+    compose_mppx = AsyncMock(return_value=MppxComposeOutcome(status=200))
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    assert "payment-receipt" not in result.headers
+
+
+@pytest.mark.asyncio
+async def test_compose_mppx_auto_extracts_receipt_header_from_raw_dict() -> None:
+    """When a custom compose_mppx returns ``raw={'credential': c, 'receipt': r}``
+    (the auto-built hook's shape) without explicitly setting
+    ``payment_receipt_header``, Checkout lifts the header from ``r.to_payment_receipt()``."""
+
+    class _Receipt:
+        @staticmethod
+        def to_payment_receipt() -> str:
+            return "auto-from-raw-dict"
+
+    compose_mppx = AsyncMock(
+        return_value=MppxComposeOutcome(status=200, raw={"credential": object(), "receipt": _Receipt()}),
+    )
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    assert result.headers["payment-receipt"] == "auto-from-raw-dict"
+
+
+@pytest.mark.asyncio
+async def test_compose_mppx_auto_extracts_receipt_header_from_raw_tuple() -> None:
+    """``raw=(credential, receipt)`` (the pympp Mpp.charge return) is also a
+    recognized shape — the second element's ``to_payment_receipt()`` is lifted."""
+
+    class _Receipt:
+        @staticmethod
+        def to_payment_receipt() -> str:
+            return "auto-from-raw-tuple"
+
+    compose_mppx = AsyncMock(
+        return_value=MppxComposeOutcome(status=200, raw=(object(), _Receipt())),
+    )
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    assert result.headers["payment-receipt"] == "auto-from-raw-tuple"
+
+
+@pytest.mark.asyncio
+async def test_compose_mppx_explicit_payment_receipt_header_wins_over_raw() -> None:
+    """When the hook sets ``payment_receipt_header`` explicitly, the auto-extract
+    from ``raw`` is NOT consulted."""
+
+    class _Receipt:
+        @staticmethod
+        def to_payment_receipt() -> str:
+            return "auto-IGNORED"
+
+    compose_mppx = AsyncMock(
+        return_value=MppxComposeOutcome(
+            status=200,
+            payment_receipt_header="explicit-value",
+            raw={"receipt": _Receipt()},
+        ),
+    )
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    assert result.headers["payment-receipt"] == "explicit-value"
+
+
+@pytest.mark.asyncio
+async def test_compose_mppx_receipt_to_header_that_throws_falls_through() -> None:
+    """If ``to_payment_receipt()`` raises (unsupported pympp version, malformed
+    receipt), the SDK omits the header rather than emitting a malformed value."""
+
+    class _BadReceipt:
+        def to_payment_receipt(self) -> str:
+            raise RuntimeError("malformed receipt")
+
+    compose_mppx = AsyncMock(
+        return_value=MppxComposeOutcome(status=200, raw={"receipt": _BadReceipt()}),
+    )
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    assert "payment-receipt" not in result.headers
+
+
+@pytest.mark.asyncio
 async def test_compose_mppx_returns_402_on_settle_leg_rejects_credential() -> None:
     """When the agent sends Authorization: Payment and mppx returns 402 (credential
     rejected), Checkout maps that to 400 payment_proof_invalid + the fresh

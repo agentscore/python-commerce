@@ -93,11 +93,15 @@ def make_mppx_compose_hook(
                 signer_address = signer.address
                 signer_network = signer.network
 
+        to_header = getattr(receipt, "to_payment_receipt", None)
+        payment_receipt_header = to_header() if callable(to_header) else None
+
         return MppxComposeOutcome(
             status=200,
             tx_hash=tx_hash,
             signer_address=signer_address,
             signer_network=signer_network,
+            payment_receipt_header=payment_receipt_header,
             raw={"credential": credential, "receipt": receipt},
         )
 

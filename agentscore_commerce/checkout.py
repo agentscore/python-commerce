@@ -450,6 +450,9 @@ class SettleOutcome:
     """``"evm"`` / ``"solana"`` for chain signers; ``None`` otherwise."""
     payment_response_header: str | None = None
     """The ``PAYMENT-RESPONSE`` header to echo (x402 success path). ``None`` for MPP."""
+    payment_receipt_header: str | None = None
+    """The ``Payment-Receipt`` header to echo (MPP success path, paymentauth.org §5).
+    ``None`` for x402 and for the MPP zero-settle carve-out (no receipt minted)."""
     raw: Any = None
     """The underlying settle result. Inspect for power-user fields (facilitator
     diagnostics, raw receipt blobs); prefer the normalized fields above for the
@@ -490,6 +493,11 @@ class MppxComposeOutcome:
     """For ``status=200``: ``"evm"`` / ``"solana"`` depending on the rail."""
     payment_response_header: str | None = None
     """For ``status=200``: optional PAYMENT-RESPONSE header echoed to the agent."""
+    payment_receipt_header: str | None = None
+    """For ``status=200``: serialized ``Payment-Receipt`` header (base64url-encoded
+    receipt struct per pympp's ``Receipt.to_payment_receipt``). Echoed to the agent
+    so spec-strict MPP clients (tempo CLI, etc.) can lift tx_hash + source from
+    headers without parsing the JSON body."""
     raw: Any = None
     """The underlying pympp compose result for ``on_settled`` introspection."""
 
@@ -538,6 +546,41 @@ async def _maybe_await(value: Any) -> Any:
     if hasattr(value, "__await__"):
         return await value
     return value
+
+
+def _extract_mppx_receipt_header_from_raw(raw: Any) -> str | None:
+    """Best-effort ``Payment-Receipt`` extraction from a custom hook's ``raw``.
+
+    Handles the three shapes hand-rolled hooks commonly return on a 200:
+
+    * The raw object itself exposes ``to_payment_receipt()`` (pympp Receipt
+      handed back directly).
+    * ``raw`` is a tuple ``(credential, receipt)`` (the pympp ``Mpp.charge``
+      return shape, unpacked but not re-wrapped).
+    * ``raw`` is a dict with ``receipt`` key, or an object with ``.receipt``
+      attribute (the auto-built hook's ``{"credential", "receipt"}`` dict).
+
+    Returns ``None`` when none of the shapes match, or the receipt's
+    ``to_payment_receipt`` raises: the response then omits the header rather
+    than emitting a malformed value.
+    """
+    candidates: list[Any] = [raw]
+    if isinstance(raw, tuple | list) and len(raw) >= 2:
+        candidates.append(raw[1])
+    if isinstance(raw, dict) and "receipt" in raw:
+        candidates.append(raw["receipt"])
+    if hasattr(raw, "receipt"):
+        candidates.append(raw.receipt)
+    for candidate in candidates:
+        to_header = getattr(candidate, "to_payment_receipt", None)
+        if callable(to_header):
+            try:
+                value = to_header()
+            except Exception:  # noqa: S112
+                continue
+            if isinstance(value, str) and value:
+                return value
+    return None
 
 
 def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
@@ -1574,6 +1617,7 @@ class Checkout:
                 signer_address=carve.signer_address,
                 signer_network="evm" if carve.signer_address else None,
                 payment_response_header=None,
+                payment_receipt_header=None,
                 raw=verified,
             )
             return await self._build_success(ctx, outcome)
@@ -1589,6 +1633,7 @@ class Checkout:
             signer_address=carve.signer_address,
             signer_network="evm" if carve.signer_address else None,
             payment_response_header=None,
+            payment_receipt_header=None,
             raw=None,
         )
         return await self._build_success(ctx, outcome)
@@ -1705,6 +1750,7 @@ class Checkout:
             signer_address=x402_signer.address if x402_signer else None,
             signer_network=x402_signer.network if x402_signer else None,
             payment_response_header=settle.payment_response_header,
+            payment_receipt_header=None,
             raw=settle,
         )
         return await self._build_success(ctx, outcome)
@@ -1722,6 +1768,8 @@ class Checkout:
                 signer_address=composed.signer_address,
                 signer_network=composed.signer_network,
                 payment_response_header=composed.payment_response_header,
+                payment_receipt_header=composed.payment_receipt_header
+                or _extract_mppx_receipt_header_from_raw(composed.raw),
                 raw=composed.raw,
             )
             return await self._build_success(ctx, outcome)
@@ -1862,6 +1910,8 @@ class Checkout:
         headers: dict[str, str] = {}
         if outcome.payment_response_header:
             headers["payment-response"] = outcome.payment_response_header
+        if outcome.payment_receipt_header:
+            headers["payment-receipt"] = outcome.payment_receipt_header
         return CheckoutResult(
             status=200,
             body=body,

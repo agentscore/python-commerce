@@ -573,3 +573,39 @@ def test_init_requires_x402_base_railspec_when_x402_server_provided() -> None:
             compute_pricing=lambda _ctx: PricingResult(amount_usd=1.0),
             x402_server=object(),
         )
+
+
+def test_rails_key_for_mppx_method_picks_the_matching_spec() -> None:
+    """``_rails_key_for_mppx_method`` maps mppx credential methods (``tempo`` /
+    ``solana`` / ``stripe``) to the merchant's actual rails-dict key, so MPP
+    settlements distinguish Solana from Tempo (both fall under
+    ``SettleOutcome.rail="mpp"``) and from Stripe SPT.
+    """
+    checkout = Checkout(
+        rails={
+            "tempo_charge": TempoRailSpec(recipient="0xtempo"),
+            "x402_base": X402BaseRailSpec(recipient="0xbase"),
+            "sol_rail": SolanaMppRailSpec(recipient="solanaaddr"),
+            "stripe_spt": StripeRailSpec(profile_id="profile_x"),
+        },
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=1.0),
+    )
+    assert checkout._rails_key_for_mppx_method("tempo") == "tempo_charge"
+    assert checkout._rails_key_for_mppx_method("solana") == "sol_rail"
+    assert checkout._rails_key_for_mppx_method("stripe") == "stripe_spt"
+    assert checkout._rails_key_for_mppx_method("unknown") is None
+
+
+def test_rails_key_for_mppx_method_returns_none_when_rail_absent() -> None:
+    """When the merchant hasn't registered a rail for the credential method,
+    the helper returns ``None`` so the caller can fall back to
+    ``_mpp_rail_key()`` or a hard-coded default."""
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=1.0),
+    )
+    assert checkout._rails_key_for_mppx_method("solana") is None
+    assert checkout._rails_key_for_mppx_method("stripe") is None
+    assert checkout._rails_key_for_mppx_method("tempo") == "tempo"

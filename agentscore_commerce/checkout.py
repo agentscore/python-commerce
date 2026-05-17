@@ -834,6 +834,31 @@ class Checkout:
                 return key
         return "tempo"
 
+    def _rails_key_for_mppx_method(self, method: str) -> str | None:
+        """Map an mppx credential ``method`` to the merchant's rails-dict key.
+
+        Used in ``_handle_mppx`` so the settle outcome distinguishes Solana
+        from Tempo (both fall under ``rail="mpp"``) and from Stripe SPT.
+        ``method`` is one of ``tempo`` / ``solana`` / ``stripe``. Returns
+        ``None`` when the merchant has no rail registered for that method.
+        """
+        if method == "stripe":
+            for key, spec in self.rails.items():
+                if isinstance(spec, StripeRailSpec):
+                    return key
+            return None
+        if method == "solana":
+            for key, spec in self.rails.items():
+                if isinstance(spec, SolanaMppRailSpec):
+                    return key
+            return None
+        if method == "tempo":
+            for key, spec in self.rails.items():
+                if isinstance(spec, (TempoRailSpec, TempoSessionRailSpec)):
+                    return key
+            return None
+        return None
+
     @property
     def _x402_base_network(self) -> str | None:
         """CAIP-2 read from ``rails['x402_base'].network`` (or its default).
@@ -1761,9 +1786,20 @@ class Checkout:
             raise RuntimeError(msg)
         composed: MppxComposeOutcome = await _maybe_await(self.compose_mppx(ctx))
         if composed.status == 200:
+            receipt_method: str | None = None
+            raw_receipt = composed.raw.get("receipt") if isinstance(composed.raw, dict) else None
+            if isinstance(raw_receipt, dict):
+                m = raw_receipt.get("method")
+                if isinstance(m, str):
+                    receipt_method = m
+            elif raw_receipt is not None:
+                m = getattr(raw_receipt, "method", None)
+                if isinstance(m, str):
+                    receipt_method = m
+            derived_key = self._rails_key_for_mppx_method(receipt_method) if receipt_method is not None else None
             outcome = SettleOutcome(
                 rail="mpp",
-                rail_key=composed.rail_key,
+                rail_key=derived_key or composed.rail_key or self._mpp_rail_key(),
                 tx_hash=composed.tx_hash,
                 signer_address=composed.signer_address,
                 signer_network=composed.signer_network,

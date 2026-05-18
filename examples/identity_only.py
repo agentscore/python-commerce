@@ -34,8 +34,10 @@ from agentscore_commerce.identity.fastapi import (
     capture_wallet,
     get_agentscore_data,
 )
+from agentscore_commerce.middleware.fastapi import RateLimitMiddleware
 
 app = FastAPI()
+app.add_middleware(RateLimitMiddleware)
 
 API_KEY = os.environ.get("AGENTSCORE_API_KEY", "ask_test_dummy")
 

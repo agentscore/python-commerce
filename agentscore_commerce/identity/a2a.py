@@ -1,9 +1,9 @@
 """Google A2A (Agent-to-Agent) v1.0 Agent Card builder.
 
-Compose the JSON payload for an A2A v1.0 Agent Card per the canonical proto definition
-at https://github.com/a2aproject/A2A/blob/main/specification/a2a.proto. Returned object
-is the unsigned card body — wrap with an A2A AgentCardSignature (RFC 7515 JWS) to sign
-vendor-side before publishing at /.well-known/agent-card.json.
+Compose the JSON payload for an A2A v1.0 Agent Card matching the canonical
+``AgentCard`` type from ``@a2a-js/sdk``. Returned object is the unsigned card
+body — wrap with an ``A2AAgentCardSignature`` (RFC 7515 JWS) to sign vendor-side
+before publishing at /.well-known/agent-card.json.
 
 Why publish: A2A is a Linux Foundation standard. Signed Agent Cards let any
 A2A-compatible reader discover an agent's capabilities + protocol bindings without
@@ -12,6 +12,10 @@ transport MUST declare the canonical UCP extension URI in capabilities.extension
 so platforms detect UCP support without re-fetching the profile.
 
 Spec reference: https://a2a-protocol.org/latest/
+Authoritative types: https://www.npmjs.com/package/@a2a-js/sdk (interface ``AgentCard``).
+
+Python attribute names follow snake_case (PEP 8). The ``to_dict()`` output uses
+camelCase keys to match the canonical A2A wire format.
 """
 
 from __future__ import annotations
@@ -20,9 +24,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 _PROTOCOL_VERSION = "1.0"
-_DEFAULT_PROTOCOL_BINDING = "HTTP+JSON"
+_DEFAULT_TRANSPORT = "JSONRPC"
+_DEFAULT_BUILDER_TRANSPORT = "HTTP+JSON"
 _DEFAULT_INPUT_MODE = "application/json"
 _DEFAULT_OUTPUT_MODE = "application/json"
+
+A2A_PROTOCOL_VERSION = _PROTOCOL_VERSION
+A2A_DEFAULT_TRANSPORT = _DEFAULT_TRANSPORT
 
 UCP_A2A_EXTENSION_URI = "https://ucp.dev/2026-04-08/specification/reference"
 """Canonical UCP A2A extension URI — verifiers look for this exact URI in
@@ -31,45 +39,36 @@ UCP_A2A_EXTENSION_URI = "https://ucp.dev/2026-04-08/specification/reference"
 
 @dataclass
 class A2AAgentInterface:
-    """Per spec §4.4.6. Each entry advertises one protocol binding the agent supports.
+    """One transport+URL combination the agent exposes.
 
-    `supported_interfaces[0]` is the preferred binding (ordered list).
+    Lives in ``AgentCard.additional_interfaces[]`` for multi-binding agents; the
+    primary transport+URL pair lives on ``AgentCard.url`` + ``AgentCard.preferred_transport``.
     """
 
-    url: str
-    protocol_binding: str
+    transport: str
     """Open string — core values are ``JSONRPC``, ``GRPC``, ``HTTP+JSON``."""
-    protocol_version: str
-    """A2A protocol version, e.g. ``1.0``. Distinct from the agent's own version."""
-    tenant: str | None = None
+    url: str
 
     def to_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {
-            "url": self.url,
-            "protocol_binding": self.protocol_binding,
-            "protocol_version": self.protocol_version,
-        }
-        if self.tenant is not None:
-            out["tenant"] = self.tenant
-        return out
+        return {"transport": self.transport, "url": self.url}
 
 
 @dataclass
 class A2AAgentProvider:
-    """Per spec §4.4.2. The org/service that provides the agent."""
+    """Org/service that provides the agent."""
 
-    url: str
     organization: str
+    url: str
 
     def to_dict(self) -> dict[str, str]:
-        return {"url": self.url, "organization": self.organization}
+        return {"organization": self.organization, "url": self.url}
 
 
 @dataclass
 class A2AAgentSkill:
-    """Per spec §4.4.5. A distinct capability or function the agent performs.
+    """A distinct capability or function the agent performs.
 
-    Lives at the TOP LEVEL of AgentCard (not inside ``capabilities``).
+    Lives at the TOP LEVEL of ``AgentCard.skills[]`` (not inside ``capabilities``).
     """
 
     id: str
@@ -79,6 +78,8 @@ class A2AAgentSkill:
     examples: list[str] = field(default_factory=list)
     input_modes: list[str] = field(default_factory=list)
     output_modes: list[str] = field(default_factory=list)
+    security: list[dict[str, list[str]]] = field(default_factory=list)
+    """Security schemes scoped to this skill. List = OR of ANDs."""
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -90,18 +91,21 @@ class A2AAgentSkill:
         if self.examples:
             out["examples"] = self.examples
         if self.input_modes:
-            out["input_modes"] = self.input_modes
+            out["inputModes"] = self.input_modes
         if self.output_modes:
-            out["output_modes"] = self.output_modes
+            out["outputModes"] = self.output_modes
+        if self.security:
+            out["security"] = self.security
         return out
 
 
 @dataclass
 class A2AAgentCardExtension:
-    """Per spec §4.4.4. A protocol extension the agent supports.
+    """A protocol extension the agent supports.
 
-    Lives in ``capabilities.extensions[]``. ``description`` and ``required`` are
-    spec-mandated fields, not optional.
+    Lives in ``capabilities.extensions[]``. Canonical type marks ``description``
+    and ``required`` optional, but we keep them in the builder to make UCP
+    discovery deterministic.
     """
 
     uri: str
@@ -148,40 +152,32 @@ def ucp_a2a_extension(
 
 @dataclass
 class A2AAgentCardCapabilities:
-    """Per spec §4.4.3. Optional capabilities the agent supports.
+    """Optional capabilities the agent supports."""
 
-    Per the canonical proto, ``capabilities`` declares: streaming, push_notifications,
-    extensions (the protocol extensions the agent supports), and extended_agent_card.
-    REST-style endpoint metadata does NOT belong here — A2A uses ``supported_interfaces``
-    on the AgentCard for protocol bindings, and ``skills`` (top-level) for capability
-    descriptions.
-    """
-
-    streaming: bool | None = None
-    push_notifications: bool | None = None
     extensions: list[A2AAgentCardExtension] = field(default_factory=list)
-    extended_agent_card: bool | None = None
+    push_notifications: bool | None = None
+    state_transition_history: bool | None = None
+    streaming: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
-        if self.streaming is not None:
-            out["streaming"] = self.streaming
-        if self.push_notifications is not None:
-            out["push_notifications"] = self.push_notifications
         if self.extensions:
             out["extensions"] = [e.to_dict() for e in self.extensions]
-        if self.extended_agent_card is not None:
-            out["extended_agent_card"] = self.extended_agent_card
+        if self.push_notifications is not None:
+            out["pushNotifications"] = self.push_notifications
+        if self.state_transition_history is not None:
+            out["stateTransitionHistory"] = self.state_transition_history
+        if self.streaming is not None:
+            out["streaming"] = self.streaming
         return out
 
 
 @dataclass
 class A2AAgentCardSignature:
-    """Per spec §4.4.7. JWS signature embedded in an Agent Card.
+    """JWS signature embedded in an Agent Card.
 
-    Multiple signatures MAY be attached to a single card. Verifiers reconstruct the
-    card body without ``signatures`` to verify each entry. Format follows RFC 7515
-    JSON Web Signature (JWS).
+    Multiple signatures MAY be attached. Verifiers reconstruct the card body
+    without ``signatures`` to verify each entry. Format follows RFC 7515.
     """
 
     protected: str
@@ -200,62 +196,74 @@ class A2AAgentCardSignature:
 
 @dataclass
 class A2AAgentCard:
-    """Per spec §4.4.1. A2A v1.0 Agent Card body.
+    """A2A v1.0 Agent Card body, matching ``AgentCard`` from ``@a2a-js/sdk``.
 
-    Use :meth:`to_dict` to serialize for signing + publishing. Per spec §4.4.7,
-    JWS signatures may be embedded directly in the card via the ``signatures`` field;
-    verifiers reconstruct the card body without ``signatures`` and verify each entry.
-    Per-vendor identity attestation can also be expressed via a vendor extension
-    entry inside ``capabilities.extensions[]``.
+    Use :meth:`to_dict` to serialize for signing + publishing.
     """
 
     name: str
     description: str
-    supported_interfaces: list[A2AAgentInterface]
+    url: str
+    """Preferred endpoint URL — MUST support ``preferred_transport``."""
+    protocol_version: str
+    """A2A protocol version, e.g. ``"1.0"``. Distinct from the agent's own ``version``."""
     version: str
-    """Agent's own version, e.g. ``"1.0.0"``. Distinct from the A2A protocol version,
-    which lives on each ``A2AAgentInterface.protocol_version``."""
+    """Agent's own version, e.g. ``"1.0.0"``."""
     capabilities: A2AAgentCardCapabilities
     default_input_modes: list[str]
     default_output_modes: list[str]
     skills: list[A2AAgentSkill] = field(default_factory=list)
-    """Per spec §4.4.1 (proto field 12, REQUIRED): the agent must declare ≥1 skill.
-    The convenience builder :func:`build_a2a_agent_card` enforces non-empty."""
+    """REQUIRED non-empty per spec. ``build_a2a_agent_card`` enforces."""
+    preferred_transport: str | None = None
+    """Transport at the primary ``url``. Canonical default per spec is ``JSONRPC``;
+    our builder sets ``HTTP+JSON`` explicitly for REST-shaped merchants."""
+    additional_interfaces: list[A2AAgentInterface] = field(default_factory=list)
+    """Additional transport+URL bindings beyond the primary."""
     provider: A2AAgentProvider | None = None
     documentation_url: str | None = None
     icon_url: str | None = None
-    """Per spec §4.4.1 (proto field 14, optional): URL to an icon for the agent."""
+    supports_authenticated_extended_card: bool | None = None
+    """Agent can provide an extended card with additional details to authenticated users."""
     signatures: list[A2AAgentCardSignature] = field(default_factory=list)
-    """Per spec §4.4.1 (proto field 13, optional) + §4.4.7: JWS signatures embedded
-    in the card. Compute over the canonical card body MINUS this field, then attach."""
+    """JWS signatures embedded in the card."""
+    security: list[dict[str, list[str]]] = field(default_factory=list)
+    """OpenAPI 3.0 security requirement objects (OR of ANDs)."""
     security_schemes: dict[str, Any] = field(default_factory=dict)
-    security_requirements: list[Any] = field(default_factory=list)
+    """Map of security scheme definitions (key = scheme name)."""
     extras: dict[str, Any] = field(default_factory=dict)
+    """Vendor-specific extras merged at top level."""
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
             "name": self.name,
             "description": self.description,
-            "supported_interfaces": [i.to_dict() for i in self.supported_interfaces],
+            "url": self.url,
+            "protocolVersion": self.protocol_version,
             "version": self.version,
             "capabilities": self.capabilities.to_dict(),
-            "default_input_modes": self.default_input_modes,
-            "default_output_modes": self.default_output_modes,
+            "defaultInputModes": self.default_input_modes,
+            "defaultOutputModes": self.default_output_modes,
         }
+        if self.preferred_transport is not None:
+            out["preferredTransport"] = self.preferred_transport
+        if self.additional_interfaces:
+            out["additionalInterfaces"] = [i.to_dict() for i in self.additional_interfaces]
+        if self.skills:
+            out["skills"] = [s.to_dict() for s in self.skills]
         if self.provider is not None:
             out["provider"] = self.provider.to_dict()
         if self.documentation_url is not None:
-            out["documentation_url"] = self.documentation_url
+            out["documentationUrl"] = self.documentation_url
         if self.icon_url is not None:
-            out["icon_url"] = self.icon_url
-        if self.skills:
-            out["skills"] = [s.to_dict() for s in self.skills]
+            out["iconUrl"] = self.icon_url
+        if self.supports_authenticated_extended_card is not None:
+            out["supportsAuthenticatedExtendedCard"] = self.supports_authenticated_extended_card
         if self.signatures:
             out["signatures"] = [s.to_dict() for s in self.signatures]
+        if self.security:
+            out["security"] = self.security
         if self.security_schemes:
-            out["security_schemes"] = self.security_schemes
-        if self.security_requirements:
-            out["security_requirements"] = self.security_requirements
+            out["securitySchemes"] = self.security_schemes
         for k, v in self.extras.items():
             out[k] = v
         return out
@@ -268,33 +276,33 @@ def build_a2a_agent_card(
     url: str,
     skills: list[A2AAgentSkill],
     version: str = "1.0.0",
+    preferred_transport: str = _DEFAULT_BUILDER_TRANSPORT,
+    protocol_version: str = _PROTOCOL_VERSION,
+    additional_interfaces: list[A2AAgentInterface] | None = None,
     extensions: list[A2AAgentCardExtension] | None = None,
     streaming: bool | None = None,
     push_notifications: bool | None = None,
-    extended_agent_card: bool | None = None,
+    state_transition_history: bool | None = None,
+    supports_authenticated_extended_card: bool | None = None,
     provider: A2AAgentProvider | None = None,
     documentation_url: str | None = None,
     icon_url: str | None = None,
     signatures: list[A2AAgentCardSignature] | None = None,
     default_input_modes: list[str] | None = None,
     default_output_modes: list[str] | None = None,
-    protocol_binding: str = _DEFAULT_PROTOCOL_BINDING,
-    a2a_protocol_version: str = _PROTOCOL_VERSION,
+    security: list[dict[str, list[str]]] | None = None,
     security_schemes: dict[str, Any] | None = None,
-    security_requirements: list[Any] | None = None,
     extras: dict[str, Any] | None = None,
 ) -> A2AAgentCard:
-    """Compose an A2A v1.0 Agent Card body per the canonical proto.
+    """Compose an A2A v1.0 Agent Card body matching ``AgentCard`` from ``@a2a-js/sdk``.
 
     Returns the UNSIGNED card. To attach identity claims, sign the ``to_dict()``
-    output as an RFC 7515 JWS (``AgentCardSignature``). Vendors can also add an
-    identity-flavored extension to ``capabilities.extensions[]``.
+    output as an RFC 7515 JWS (``A2AAgentCardSignature``). Vendors can also add
+    an identity-flavored extension to ``capabilities.extensions[]``.
 
-    The single ``url`` argument becomes the primary ``supported_interfaces[0].url``
-    (with ``protocol_binding=HTTP+JSON``, ``protocol_version=1.0`` by default).
-    Override these via the ``protocol_binding`` and ``a2a_protocol_version`` kwargs,
-    or build ``A2AAgentInterface`` objects directly via the dataclass for multi-binding
-    agents (in which case construct the ``A2AAgentCard`` directly).
+    The ``url`` argument becomes the top-level ``AgentCard.url``;
+    ``preferred_transport`` declares the transport at that URL (default
+    ``HTTP+JSON``). For multi-binding agents, pass ``additional_interfaces``.
 
     Example::
 
@@ -329,36 +337,37 @@ def build_a2a_agent_card(
         )
         raise ValueError(msg)
     capabilities = A2AAgentCardCapabilities(
-        streaming=streaming,
-        push_notifications=push_notifications,
         extensions=extensions or [],
-        extended_agent_card=extended_agent_card,
-    )
-    interface = A2AAgentInterface(
-        url=url,
-        protocol_binding=protocol_binding,
-        protocol_version=a2a_protocol_version,
+        push_notifications=push_notifications,
+        state_transition_history=state_transition_history,
+        streaming=streaming,
     )
     return A2AAgentCard(
         name=name,
         description=description,
-        supported_interfaces=[interface],
+        url=url,
+        protocol_version=protocol_version,
         version=version,
         capabilities=capabilities,
         default_input_modes=default_input_modes or [_DEFAULT_INPUT_MODE],
         default_output_modes=default_output_modes or [_DEFAULT_OUTPUT_MODE],
         skills=skills,
+        preferred_transport=preferred_transport,
+        additional_interfaces=additional_interfaces or [],
         provider=provider,
         documentation_url=documentation_url,
         icon_url=icon_url,
+        supports_authenticated_extended_card=supports_authenticated_extended_card,
         signatures=signatures or [],
+        security=security or [],
         security_schemes=security_schemes or {},
-        security_requirements=security_requirements or [],
         extras=extras or {},
     )
 
 
 __all__ = [
+    "A2A_DEFAULT_TRANSPORT",
+    "A2A_PROTOCOL_VERSION",
     "UCP_A2A_EXTENSION_URI",
     "A2AAgentCard",
     "A2AAgentCardCapabilities",

@@ -11,6 +11,14 @@ def test_formats_cents_to_dollar_strings():
     assert block.total == "250.00"
 
 
+def test_honors_decimals_for_sub_cent_unit_pricing():
+    # $0.0005 unit * 5 results = $0.0025 total. Default 2-decimal rounds to "0.00";
+    # decimals=4 preserves the real amount.
+    block = build_pricing_block(subtotal_cents=0.25, decimals=4)
+    assert block.subtotal == "0.0025"
+    assert block.total == "0.0025"
+
+
 def test_computes_total_from_subtotal_plus_tax_plus_shipping():
     block = build_pricing_block(subtotal_cents=25000, tax_cents=1875, shipping_cents=999)
     assert block.total == "278.74"

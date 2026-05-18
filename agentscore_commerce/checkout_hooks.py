@@ -15,8 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from agentscore_commerce.checkout import MppxComposeOutcome
-from agentscore_commerce.identity.address import normalize_address
-from agentscore_commerce.payment.signer import extract_payment_signer
+from agentscore_commerce.payment.signer import extract_payment_signer, parse_did_pkh_address
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -56,7 +55,8 @@ def make_mppx_compose_hook(
             return MppxComposeOutcome(status=402)
         mpp = await server_getter()
         authorization = ctx.request.headers.get("authorization")
-        amount_str = f"{ctx.pricing.amount_usd:.2f}"
+        decimals = getattr(ctx.pricing, "decimals", 2)
+        amount_str = f"{ctx.pricing.amount_usd:.{decimals}f}"
         try:
             result = await mpp.charge(authorization=authorization, amount=amount_str)
         except Exception:
@@ -79,16 +79,10 @@ def make_mppx_compose_hook(
                 # `extract_payment_signer` expects a base64'd credential, not
                 # a raw DID; fall back to parsing the DID directly when pympp
                 # gives us the typed source string.
-                parts = cred_source.split(":")
-                if len(parts) >= 4 and parts[0] == "did" and parts[1] == "pkh":
-                    family = parts[2]
-                    addr = parts[-1]
-                    if family == "eip155":
-                        signer_address = normalize_address(addr)
-                        signer_network = "evm"
-                    elif family == "solana":
-                        signer_address = normalize_address(addr)
-                        signer_network = "solana"
+                parsed = parse_did_pkh_address(cred_source)
+                if parsed is not None:
+                    signer_address = parsed.address
+                    signer_network = parsed.network
             else:
                 signer_address = signer.address
                 signer_network = signer.network

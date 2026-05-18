@@ -41,6 +41,7 @@ from fastapi.responses import JSONResponse
 
 from agentscore_commerce import AgentScoreGatePolicy, Checkout, PricingResult, TempoRailSpec
 from agentscore_commerce.discovery import bootstrap_ucp_signing_key, default_a2a_services
+from agentscore_commerce.middleware.fastapi import RateLimitMiddleware
 
 SIGNING_KID = "merchant-2026-05"
 
@@ -63,6 +64,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(RateLimitMiddleware)
 
 checkout.mount_ucp_routes_fastapi(
     app,

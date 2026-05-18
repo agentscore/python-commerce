@@ -94,6 +94,25 @@ def _extract_from_x402(x402_payment_header: str) -> PaymentSigner | None:
     return None
 
 
+def parse_did_pkh_address(source: str) -> PaymentSigner | None:
+    """Parse a ``did:pkh:<family>:<chain>:<addr>`` DID into a :class:`PaymentSigner`.
+
+    Returns ``None`` when the DID is malformed, the family isn't recognized
+    (``eip155`` for EVM, ``solana`` for Solana), or the address fails the
+    family-specific validation.
+    """
+    parts = source.split(":")
+    if len(parts) < 4 or parts[0] != "did" or parts[1] != "pkh":
+        return None
+    family = parts[2]
+    addr = parts[-1]
+    if family == "eip155" and is_valid_evm_address(addr):
+        return PaymentSigner(address=normalize_address(addr), network="evm")
+    if family == "solana" and is_solana_address(addr):
+        return PaymentSigner(address=normalize_address(addr), network="solana")
+    return None
+
+
 def _extract_from_mpp_auth(authorization: str) -> PaymentSigner | None:
     """Recover the signer from an MPP ``Authorization: Payment <base64>`` header value.
 
@@ -120,16 +139,7 @@ def _extract_from_mpp_auth(authorization: str) -> PaymentSigner | None:
             source = challenge.get("source")
     if not isinstance(source, str):
         return None
-    parts = source.split(":")
-    if len(parts) < 4 or parts[0] != "did" or parts[1] != "pkh":
-        return None
-    family = parts[2]
-    addr = parts[-1]
-    if family == "eip155" and is_valid_evm_address(addr):
-        return PaymentSigner(address=normalize_address(addr), network="evm")
-    if family == "solana" and is_solana_address(addr):
-        return PaymentSigner(address=normalize_address(addr), network="solana")
-    return None
+    return parse_did_pkh_address(source)
 
 
 def extract_signer_for_precheck(headers: Mapping[str, str]) -> PaymentSigner | None:

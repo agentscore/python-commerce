@@ -16,7 +16,7 @@ Base, Solana USDC (MPP `solana/charge`), Stripe SPT.
 4. x402-base header → Checkout dispatches to `process_x402_settle` internally.
 5. `Authorization: Payment` header → Checkout dispatches to the auto-derived
    `compose_mppx` hook (built from `mppx_secret_key`).
-6. `on_settled` persists the order + fires `simulate_deposit_if_test_mode`
+6. `on_settled` persists the order + fires `simulate_deposit_for_outcome`
    for Stripe testnet round-trip on base settles.
 
 Peer deps::
@@ -52,19 +52,17 @@ from agentscore_commerce import (
     CheckoutValidationError,
     PricingResult,
     SettleOutcome,
-    SolanaMppRailSpec,
-    StripeRailSpec,
-    TempoRailSpec,
-    X402BaseRailSpec,
+    build_default_checkout_rails,
     pricing_result,
 )
 from agentscore_commerce.challenge import ProductInfo, Receipt, ReceiptNextSteps
 from agentscore_commerce.discovery import build_success_next_steps
+from agentscore_commerce.middleware.fastapi import RateLimitMiddleware
 from agentscore_commerce.payment import networks, validate_x402_network_config
 from agentscore_commerce.stripe_multichain import (
     create_multichain_payment_intent,
     create_pi_cache,
-    simulate_deposit_if_test_mode,
+    simulate_deposit_for_outcome,
 )
 
 APP_URL = os.environ["APP_URL"]
@@ -82,6 +80,10 @@ stripe_client = stripe.StripeClient(STRIPE_SECRET_KEY)
 pi_cache = create_pi_cache(redis_url=os.environ.get("REDIS_URL"))
 
 app = FastAPI()
+
+# Rate-limit every endpoint. Defaults: 60 req / 60 s / IP. Set REDIS_URL for
+# multi-instance deployments so the bucket is shared.
+app.add_middleware(RateLimitMiddleware)
 
 
 async def _validate_purchase(ctx: Any) -> dict[str, Any]:
@@ -121,14 +123,16 @@ async def _mint_recipients(ctx: Any) -> dict[str, str]:
 
 
 async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
-    # Fire Stripe testnet deposit simulation on real on-chain base settles
-    # (no-op on live keys). Gate on `tx_hash` so $0 zero-settle carve-outs
-    # (which have signer_address but no tx_hash) don't trigger a PI sim.
-    if outcome.rail == "x402" and outcome.tx_hash is not None:
-        await simulate_deposit_if_test_mode(
+    # Stripe testnet deposit simulation (no-op on live keys). The dispatcher
+    # picks the right network arg from the outcome's rail / rail_key, no-ops
+    # on Stripe SPT (no on-chain deposit), and gates on `tx_hash` so $0
+    # zero-settle carve-outs don't trigger a PI sim.
+    deposit_address = ctx.recipients.get("tempo") or ctx.recipients.get("x402_base") or ctx.recipients.get("solana_mpp")
+    if deposit_address and outcome.tx_hash is not None:
+        await simulate_deposit_for_outcome(
+            outcome=outcome,
+            deposit_address=deposit_address,
             get_payment_intent_id=pi_cache.get_payment_intent_id,
-            deposit_address=ctx.recipients.get("x402_base", ""),
-            network="base",
             stripe_secret_key=STRIPE_SECRET_KEY,
         )
     # Compose the canonical Receipt shape returned on 200. Goods merchants
@@ -154,14 +158,15 @@ async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
 
 
 checkout = Checkout(
-    rails={
-        # Per-order-mint pattern: empty-string `recipient` declares the rail
-        # in discovery; `mint_recipients` resolves the real per-PI address.
-        "tempo": TempoRailSpec(recipient=""),
-        "x402_base": X402BaseRailSpec(recipient="", network=X402_BASE_NETWORK),
-        "solana_mpp": SolanaMppRailSpec(recipient="", network=SOLANA_NETWORK_CAIP2),
-        "stripe": StripeRailSpec(profile_id=os.environ["STRIPE_PROFILE_ID"]),
-    },
+    # Per-order-mint pattern: defaults supply network/chain_id/token + a
+    # ``recipient=""`` sentinel; ``mint_recipients`` resolves the real per-PI
+    # address at request time.
+    rails=build_default_checkout_rails(
+        tempo={},
+        x402_base={"network": X402_BASE_NETWORK},
+        solana_mpp={"network": SOLANA_NETWORK_CAIP2},
+        stripe={"profile_id": os.environ["STRIPE_PROFILE_ID"]},
+    ),
     url=f"{APP_URL}/purchase",
     pre_validate=_validate_purchase,
     compute_pricing=_compute_pricing,

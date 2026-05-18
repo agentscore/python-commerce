@@ -92,6 +92,20 @@ def test_build_identity_metadata_token_mode_only_returns_mode():
 
 
 @pytest.mark.asyncio
+async def test_build_how_to_pay_honors_decimals_for_sub_cent_totals():
+    # $0.0005 total → default 2-decimal precision would round to "0.00";
+    # with decimals=4 the agent sees the real cap.
+    out = await build_how_to_pay(
+        url="https://ex.com/buy",
+        retry_body_json="{}",
+        total_usd=0.0005,
+        decimals=4,
+        rails={"x402_base": X402BaseRailSpec(recipient="0xB")},
+    )
+    assert "--max-spend 0.0005" in out["x402_base"]["command"]
+
+
+@pytest.mark.asyncio
 async def test_build_how_to_pay_emits_per_rail_blocks():
     out = await build_how_to_pay(
         url="https://ex.com/buy",

@@ -23,6 +23,7 @@ import os
 import stripe
 from fastapi import FastAPI
 
+from agentscore_commerce.middleware.fastapi import RateLimitMiddleware
 from agentscore_commerce.stripe_multichain import (
     STRIPE_TEST_TX_HASH_SUCCESS,
     create_multichain_payment_intent,
@@ -32,6 +33,7 @@ from agentscore_commerce.stripe_multichain import (
 stripe_client = stripe.StripeClient(os.environ["STRIPE_SECRET_KEY"])
 
 app = FastAPI()
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.post("/checkout")

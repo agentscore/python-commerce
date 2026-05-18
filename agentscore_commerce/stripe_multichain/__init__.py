@@ -4,6 +4,9 @@ from agentscore_commerce.stripe_multichain.mppx_stripe import (
     DEFAULT_PAYMENT_METHOD_TYPES,
     create_mppx_stripe,
 )
+from agentscore_commerce.stripe_multichain.pay_to_address import (
+    create_pay_to_address_from_stripe_pi,
+)
 from agentscore_commerce.stripe_multichain.payment_intent import (
     MultichainPaymentIntentResult,
     StripeClientLike,
@@ -17,6 +20,11 @@ from agentscore_commerce.stripe_multichain.simulate_deposit import (
     simulate_crypto_deposit,
     simulate_deposit_if_test_mode,
 )
+from agentscore_commerce.stripe_multichain.simulate_dispatch import (
+    SimulateNetwork,
+    network_for_outcome,
+    simulate_deposit_for_outcome,
+)
 
 __all__ = [
     "DEFAULT_BUYER_WALLET",
@@ -25,10 +33,14 @@ __all__ = [
     "STRIPE_TEST_TX_HASH_SUCCESS",
     "MultichainPaymentIntentResult",
     "PiCache",
+    "SimulateNetwork",
     "StripeClientLike",
     "create_mppx_stripe",
     "create_multichain_payment_intent",
+    "create_pay_to_address_from_stripe_pi",
     "create_pi_cache",
+    "network_for_outcome",
     "simulate_crypto_deposit",
+    "simulate_deposit_for_outcome",
     "simulate_deposit_if_test_mode",
 ]

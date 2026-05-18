@@ -565,8 +565,7 @@ class TestAdditionalHardening:
 
     def test_verify_crit_with_missing_kid_emits_unrecognized_critical_header(self) -> None:
         """JWS with both crit violation AND missing kid emits unrecognized_critical_header,
-        matching node-commerce's typ -> alg -> kid -> crit precedence (regression guard for
-        the round-17 cross-SDK parity gap)."""
+        matching node-commerce's typ -> alg -> kid -> crit precedence."""
         import base64
 
         key = generate_ucp_signing_key(kid="real")

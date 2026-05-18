@@ -47,7 +47,7 @@ jobs:
         run: uv run ty check agentscore_commerce/
 
       - name: Vulture
-        run: uv run vulture agentscore_commerce/ vulture_whitelist.py --min-confidence 80
+        run: uv run vulture agentscore_commerce/ --min-confidence 80
 
       - name: Tests
         run: uv run pytest tests/ -v --cov=agentscore_commerce --cov-report=term-missing

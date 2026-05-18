@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
@@ -175,9 +175,9 @@ def agentscore_gate_middleware(
     def _deny_response(request: web.Request, reason: DenialReason) -> web.Response:
         result = _on_denied(request, reason)
         if len(result) == 3:
-            body, status, headers = result  # type: ignore[misc]
+            body, status, headers = cast("tuple[dict, int, dict[str, str]]", result)
             return web.json_response(body, status=status, headers=headers)
-        body, status = result  # type: ignore[misc]
+        body, status = cast("tuple[dict, int]", result)
         return web.json_response(body, status=status)
 
     @web.middleware

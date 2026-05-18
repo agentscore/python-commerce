@@ -8,7 +8,7 @@ routes via ``dependencies=[Depends(gate)]`` and inject the assess result with
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 import httpx
 from starlette.requests import Request  # noqa: TC002 - runtime import required for FastAPI DI
@@ -197,9 +197,9 @@ class AgentScoreGate:
         if self._on_denied is not None:
             result = self._on_denied(request, reason)
             if len(result) == 3:
-                body, status, headers = result  # type: ignore[misc]
+                body, status, headers = cast("tuple[dict, int, dict[str, str]]", result)
             else:
-                body, status = result  # type: ignore[misc]
+                body, status = cast("tuple[dict, int]", result)
         else:
             body, status = _build_denial_body(reason), denial_reason_status(reason)
         raise HTTPException(status_code=status, detail=body, headers=headers)

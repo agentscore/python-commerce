@@ -39,7 +39,6 @@ async def _try_create_redis(
     url: str | None,
     label: str,
     socket_connect_timeout: float = 3.0,
-    retry_on_error_max_attempts: int = 1,
 ) -> Any | None:
     """Lazy-import ``redis.asyncio`` and construct a client.
 

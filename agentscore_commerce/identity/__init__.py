@@ -12,6 +12,8 @@ from agentscore_commerce.identity._denial import (
 )
 from agentscore_commerce.identity._response import denial_reason_to_body
 from agentscore_commerce.identity.a2a import (
+    A2A_DEFAULT_TRANSPORT,
+    A2A_PROTOCOL_VERSION,
     UCP_A2A_EXTENSION_URI,
     A2AAgentCard,
     A2AAgentCardCapabilities,
@@ -103,6 +105,8 @@ def _load_asgi_middleware() -> tuple[Any, Any, Any]:
 AgentScoreGate, ConditionalAgentScoreGate, CreateSessionOnMissing = _load_asgi_middleware()
 
 __all__ = [
+    "A2A_DEFAULT_TRANSPORT",
+    "A2A_PROTOCOL_VERSION",
     "AGENTSCORE_UCP_CAPABILITY",
     "FIXABLE_DENIAL_REASONS",
     "UCP_A2A_EXTENSION_URI",

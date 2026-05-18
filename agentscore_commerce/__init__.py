@@ -54,6 +54,8 @@ from agentscore_commerce.checkout_hooks import make_mppx_compose_hook
 # don't have to remember which submodule each one lives in. Mirrors node's
 # top-level `index.ts` surface; submodule imports still work for power users.
 from agentscore_commerce.identity import (
+    A2A_DEFAULT_TRANSPORT,
+    A2A_PROTOCOL_VERSION,
     AGENTSCORE_UCP_CAPABILITY,
     FIXABLE_DENIAL_REASONS,
     UCP_A2A_EXTENSION_URI,
@@ -149,6 +151,8 @@ except PackageNotFoundError:
     __version__ = "0.0.0+local"
 
 __all__ = [
+    "A2A_DEFAULT_TRANSPORT",
+    "A2A_PROTOCOL_VERSION",
     "AGENTSCORE_UCP_CAPABILITY",
     "FIXABLE_DENIAL_REASONS",
     "UCP_A2A_EXTENSION_URI",

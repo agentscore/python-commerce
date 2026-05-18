@@ -71,19 +71,20 @@ class PricingBlock:
 
 
 def build_pricing_block(
-    subtotal_cents: int,
-    tax_cents: int = 0,
-    shipping_cents: int | None = None,
-    discount_cents: int | None = None,
-    total_cents: int | None = None,
+    subtotal_cents: float,
+    tax_cents: float = 0,
+    shipping_cents: float | None = None,
+    discount_cents: float | None = None,
+    total_cents: float | None = None,
     tax_rate: float | None = None,
     tax_state: str | None = None,
     currency: str | None = None,
+    decimals: int = 2,
 ) -> PricingBlock:
     """Compose a :class:`PricingBlock` from cents-denominated inputs.
 
-    Handles the cents → dollar-string conversion (always 2 decimals) and computes the total
-    when not explicitly provided. ``subtotal_cents`` is the list price, pre-discount;
+    Handles the cents → dollar-string conversion and computes the total when not
+    explicitly provided. ``subtotal_cents`` is the list price, pre-discount;
     ``discount_cents`` is the deduction applied (redemption code, coupon).
 
     Example::
@@ -107,6 +108,11 @@ def build_pricing_block(
     Pass ``shipping_cents=0`` for digital goods if you want the field present (it's then
     ``"0.00"``); pass ``None`` (or omit) if you don't want shipping in the response shape
     at all. Total floors at 0 when discount exceeds subtotal + tax + shipping.
+
+    ``decimals`` controls dollar-precision for every emitted money field (default
+    ``2``). Raise for sub-cent unit pricing so ``subtotal`` / ``total`` show the
+    real amount instead of rounding to two decimals; subtotal/tax/total inputs
+    become fractional cents under this mode.
     """
     shipping = shipping_cents if shipping_cents is not None else 0
     discount = discount_cents if discount_cents is not None else 0
@@ -116,20 +122,19 @@ def build_pricing_block(
     else:
         total = total_cents
 
+    def fmt(cents: float) -> str:
+        return f"{cents / 100:.{decimals}f}"
+
     return PricingBlock(
-        subtotal=_format_cents(subtotal_cents),
-        tax=_format_cents(tax_cents),
-        total=_format_cents(total),
-        shipping=_format_cents(shipping) if shipping_cents is not None else None,
-        discount=_format_cents(discount) if discount_cents is not None else None,
+        subtotal=fmt(subtotal_cents),
+        tax=fmt(tax_cents),
+        total=fmt(total),
+        shipping=fmt(shipping) if shipping_cents is not None else None,
+        discount=fmt(discount) if discount_cents is not None else None,
         tax_rate=tax_rate,
         tax_state=tax_state,
         currency=currency,
     )
-
-
-def _format_cents(cents: int) -> str:
-    return f"{cents / 100:.2f}"
 
 
 __all__ = ["PricingBlock", "build_pricing_block"]

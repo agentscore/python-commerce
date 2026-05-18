@@ -145,3 +145,34 @@ def test_bool_decimals_rejected() -> None:
     """``bool`` is a subclass of ``int`` in Python; reject explicitly to avoid surprise."""
     with pytest.raises(ValueError, match="non-negative int"):
         usd_to_atomic("1.00", decimals=True)  # type: ignore[arg-type]
+
+
+# ─── format_usd_cents ───────────────────────────────────────────────────────
+
+
+def test_format_usd_cents_default_2_decimals() -> None:
+    from agentscore_commerce.payment import format_usd_cents
+
+    assert format_usd_cents(0) == "0.00"
+    assert format_usd_cents(5) == "0.05"
+    assert format_usd_cents(500) == "5.00"
+    assert format_usd_cents(7500) == "75.00"
+
+
+def test_format_usd_cents_negative() -> None:
+    from agentscore_commerce.payment import format_usd_cents
+
+    assert format_usd_cents(-50) == "-0.50"
+
+
+def test_format_usd_cents_sub_cent_precision() -> None:
+    """Sub-cent unit pricing (per-token / per-byte) needs more than 2 decimals."""
+    from agentscore_commerce.payment import format_usd_cents
+
+    # 0.05 cents = $0.0005. Default precision rounds to "0.00"; decimals=4 preserves it.
+    assert format_usd_cents(0.05) == "0.00"
+    assert format_usd_cents(0.05, 4) == "0.0005"
+    # Integer cents with raised precision pad with zeros.
+    assert format_usd_cents(5, 4) == "0.0500"
+    # Per-token pricing: $0.000002/token * 1234 tokens = $0.002468.
+    assert format_usd_cents(0.2468, 6) == "0.002468"

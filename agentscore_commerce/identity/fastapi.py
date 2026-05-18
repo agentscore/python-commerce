@@ -14,12 +14,8 @@ import httpx
 from starlette.requests import Request  # noqa: TC002 - runtime import required for FastAPI DI
 
 from agentscore_commerce.identity._denial import (
-    FIXABLE_DENIAL_REASONS,
-    build_contact_support_next_steps,
-    build_signer_mismatch_body,
     denial_reason_status,
     is_fixable_denial,
-    verification_agent_instructions,
 )
 from agentscore_commerce.identity._response import (
     QUOTA_EXCEEDED_INSTRUCTIONS,
@@ -100,22 +96,13 @@ def get_gate_quota_info(request: Request) -> GateQuotaInfo | None:
 
 
 __all__ = [
-    "FIXABLE_DENIAL_REASONS",
     "AgentScoreGate",
-    "CreateSessionOnMissing",
-    "build_contact_support_next_steps",
-    "build_signer_mismatch_body",
+    "ConditionalAgentScoreGate",
     "capture_wallet",
-    "denial_reason_status",
-    "denial_reason_to_body",
-    "extract_payment_signer",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
-    "is_fixable_denial",
-    "read_x402_payment_header",
-    "verification_agent_instructions",
 ]
 
 
@@ -178,7 +165,11 @@ class AgentScoreGate:
         user_agent: str | None = None,
         extract_identity: Callable[[Request], AgentIdentity | None] | None = None,
         extract_chain: Callable[[Request], str | None] | None = None,
-        on_denied: Callable[[Request, DenialReason], tuple[dict[str, Any], int]] | None = None,
+        on_denied: Callable[
+            [Request, DenialReason],
+            tuple[dict[str, Any], int] | tuple[dict[str, Any], int, dict[str, str]],
+        ]
+        | None = None,
         create_session_on_missing: CreateSessionOnMissing | None = None,
     ) -> None:
         self._client = AgentScoreCore(
@@ -202,11 +193,16 @@ class AgentScoreGate:
     def _deny(self, request: Request, reason: DenialReason) -> NoReturn:
         from fastapi import HTTPException
 
+        headers: dict[str, str] | None = None
         if self._on_denied is not None:
-            body, status = self._on_denied(request, reason)
+            result = self._on_denied(request, reason)
+            if len(result) == 3:
+                body, status, headers = result  # type: ignore[misc]
+            else:
+                body, status = result  # type: ignore[misc]
         else:
             body, status = _build_denial_body(reason), denial_reason_status(reason)
-        raise HTTPException(status_code=status, detail=body)
+        raise HTTPException(status_code=status, detail=body, headers=headers)
 
     async def __call__(self, request: Request) -> None:
         identity = self._extract_identity(request)
@@ -371,3 +367,34 @@ async def capture_wallet(
         network,
         idempotency_key=idempotency_key,
     )
+
+
+class ConditionalAgentScoreGate:
+    """Wrap :class:`AgentScoreGate` to fire only on settle legs.
+
+    Discovery legs (no ``payment-signature`` / ``x-payment`` /
+    ``Authorization: Payment``) flow through to the handler unauthenticated;
+    settle legs trigger the full gate.
+
+    Use this for routes that should support anonymous discovery — the 402
+    emit path advertises all rails to any x402 wallet, and identity is
+    verified at settle time on the retry leg.
+
+    Example::
+
+        gate = ConditionalAgentScoreGate(api_key=..., require_kyc=True)
+
+        @app.post("/purchase", dependencies=[Depends(gate)])
+        async def purchase(request: Request): ...
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        from agentscore_commerce.payment.payment_header import has_payment_header
+
+        self._inner = AgentScoreGate(*args, **kwargs)
+        self._has_payment_header = has_payment_header
+
+    async def __call__(self, request: Request) -> None:
+        if not self._has_payment_header(request):
+            return
+        await self._inner(request)

@@ -8,12 +8,8 @@ import httpx
 from django.http import HttpRequest, JsonResponse
 
 from agentscore_commerce.identity._denial import (
-    FIXABLE_DENIAL_REASONS,
-    build_contact_support_next_steps,
-    build_signer_mismatch_body,
     denial_reason_status,
     is_fixable_denial,
-    verification_agent_instructions,
 )
 from agentscore_commerce.identity._response import (
     QUOTA_EXCEEDED_INSTRUCTIONS,
@@ -55,21 +51,13 @@ DEFAULT_TOKEN_HEADER = "HTTP_X_OPERATOR_TOKEN"
 ASSESS_STATE_KEY = "agentscore"
 
 __all__ = [
-    "FIXABLE_DENIAL_REASONS",
     "AgentScoreMiddleware",
-    "build_contact_support_next_steps",
-    "build_signer_mismatch_body",
+    "ConditionalAgentScoreMiddleware",
     "capture_wallet",
-    "denial_reason_status",
-    "denial_reason_to_body",
-    "extract_payment_signer",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
-    "is_fixable_denial",
-    "read_x402_payment_header",
-    "verification_agent_instructions",
 ]
 
 
@@ -148,6 +136,7 @@ class AgentScoreMiddleware:
         self._create_session_on_missing: CreateSessionOnMissing | None = config.get(
             "create_session_on_missing",
         )
+        self._condition = config.get("condition")
         self.get_response = get_response
 
     @staticmethod
@@ -173,6 +162,8 @@ class AgentScoreMiddleware:
 
     def __call__(self, request: HttpRequest) -> Any:
         """Process the request."""
+        if self._condition is not None and not self._condition(request):
+            return self.get_response(request)
         identity = self._extract_identity(request)
 
         # Stash state so capture_wallet() can read operator_token + client after the view runs.
@@ -318,3 +309,20 @@ def capture_wallet(
         network,
         idempotency_key=idempotency_key,
     )
+
+
+class ConditionalAgentScoreMiddleware(AgentScoreMiddleware):
+    """Django middleware variant that only fires when payment headers are attached.
+
+    Discovery legs flow through; settle legs trigger the full gate.
+
+    Settings shape is identical to :class:`AgentScoreMiddleware` — the
+    ``AGENTSCORE_GATE`` dict's ``condition`` key is overwritten with the
+    payment-header check.
+    """
+
+    def __init__(self, get_response: Any) -> None:
+        from agentscore_commerce.payment.payment_header import has_payment_header
+
+        super().__init__(get_response)
+        self._condition = has_payment_header

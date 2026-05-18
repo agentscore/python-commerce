@@ -44,6 +44,7 @@ from agentscore_commerce import (
     TempoRailSpec,
     validate_shipping_against_policy,
 )
+from agentscore_commerce.middleware.fastapi import RateLimitMiddleware
 
 API_KEY = os.environ.get("AGENTSCORE_API_KEY", "ask_test_dummy")
 
@@ -136,6 +137,7 @@ checkout = Checkout(
 
 
 app = FastAPI()
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.post("/purchase")

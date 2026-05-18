@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from agentscore_commerce.identity._denial import (
-    FIXABLE_DENIAL_REASONS,
-    build_contact_support_next_steps,
-    build_signer_mismatch_body,
     denial_reason_status,
     is_fixable_denial,
-    verification_agent_instructions,
 )
 from agentscore_commerce.identity._response import (
     QUOTA_EXCEEDED_INSTRUCTIONS,
@@ -59,22 +55,13 @@ def _mark_degraded_sanic(request: Request, infra_reason: str) -> None:
 
 
 __all__ = [
-    "FIXABLE_DENIAL_REASONS",
-    "CreateSessionOnMissing",
     "agentscore_gate",
-    "build_contact_support_next_steps",
-    "build_signer_mismatch_body",
     "capture_wallet",
-    "denial_reason_status",
-    "denial_reason_to_body",
-    "extract_payment_signer",
+    "conditional_agentscore_gate",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
-    "is_fixable_denial",
-    "read_x402_payment_header",
-    "verification_agent_instructions",
 ]
 
 
@@ -149,8 +136,13 @@ def agentscore_gate(
     user_agent: str | None = None,
     extract_identity: Callable[[Request], AgentIdentity | None] | None = None,
     extract_chain: Callable[[Request], str | None] | None = None,
-    on_denied: Callable[[Request, DenialReason], tuple[dict[str, Any], int]] | None = None,
+    on_denied: Callable[
+        [Request, DenialReason],
+        tuple[dict[str, Any], int] | tuple[dict[str, Any], int, dict[str, str]],
+    ]
+    | None = None,
     create_session_on_missing: CreateSessionOnMissing | None = None,
+    condition: Callable[[Request], bool] | None = None,
 ) -> None:
     """Register AgentScore gate as a Sanic request middleware.
 
@@ -181,8 +173,18 @@ def agentscore_gate(
     _extract_chain = extract_chain or _default_extract_chain
     _on_denied = on_denied or _default_on_denied
 
+    def _deny_response(request: Request, reason: DenialReason) -> HTTPResponse:
+        result = _on_denied(request, reason)
+        if len(result) == 3:
+            body, status, headers = result  # type: ignore[misc]
+            return response.json(body, status=status, headers=headers)
+        body, status = result  # type: ignore[misc]
+        return response.json(body, status=status)
+
     @app.middleware("request")
     async def _agentscore_check(request: Request) -> HTTPResponse | None:
+        if condition is not None and not condition(request):
+            return None
         identity = _resolve_identity(request)
         # Stash state on request.ctx so capture_wallet() can look up operator_token + client
         # after the handler runs.
@@ -206,10 +208,8 @@ def agentscore_gate(
                     request,
                 )
                 if session_reason is not None:
-                    body, status = _on_denied(request, session_reason)
-                    return response.json(body, status=status)
-            body, status = _on_denied(request, build_missing_identity_reason())
-            return response.json(body, status=status)
+                    return _deny_response(request, session_reason)
+            return _deny_response(request, build_missing_identity_reason())
 
         chain_override = _extract_chain(request)
 
@@ -246,51 +246,44 @@ def agentscore_gate(
                     request,
                 )
                 if session_reason is not None:
-                    body, status = _on_denied(request, session_reason)
-                    return response.json(body, status=status)
+                    return _deny_response(request, session_reason)
 
-            reason = DenialReason(
-                code="wallet_not_trusted",
-                decision=result.decision,
-                reasons=result.reasons,
-                verify_url=result.verify_url,
+            return _deny_response(
+                request,
+                DenialReason(
+                    code="wallet_not_trusted",
+                    decision=result.decision,
+                    reasons=result.reasons,
+                    verify_url=result.verify_url,
+                ),
             )
-            body, status = _on_denied(request, reason)
-            return response.json(body, status=status)
         except PaymentRequiredError:
             if client.fail_open:
                 return None
-            body, status = _on_denied(request, DenialReason(code="payment_required"))
-            return response.json(body, status=status)
+            return _deny_response(request, DenialReason(code="payment_required"))
         except TokenDeniedError as err:
-            reason = build_token_denied_reason(err)
-            body, status = _on_denied(request, reason)
-            return response.json(body, status=status)
+            return _deny_response(request, build_token_denied_reason(err))
         except InvalidCredentialError:
             # Permanent — no auto-session, agent should switch tokens or restart.
-            body, status = _on_denied(request, build_invalid_credential_reason())
-            return response.json(body, status=status)
+            return _deny_response(request, build_invalid_credential_reason())
         except QuotaExceededError:
             if client.fail_open:
                 _mark_degraded_sanic(request, "quota_exceeded")
                 return None
-            body, status = _on_denied(
+            return _deny_response(
                 request,
                 DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS),
             )
-            return response.json(body, status=status)
         except httpx.TimeoutException:
             if client.fail_open:
                 _mark_degraded_sanic(request, "network_timeout")
                 return None
-            body, status = _on_denied(request, DenialReason(code="api_error"))
-            return response.json(body, status=status)
+            return _deny_response(request, DenialReason(code="api_error"))
         except Exception:
             if client.fail_open:
                 _mark_degraded_sanic(request, "api_error")
                 return None
-            body, status = _on_denied(request, DenialReason(code="api_error"))
-            return response.json(body, status=status)
+            return _deny_response(request, DenialReason(code="api_error"))
 
 
 def get_signer_verdict(request: Request) -> SignerVerdict | None:
@@ -336,3 +329,15 @@ async def capture_wallet(
         network,
         idempotency_key=idempotency_key,
     )
+
+
+def conditional_agentscore_gate(app: Sanic, **kwargs: Any) -> None:
+    """Register :func:`agentscore_gate` to fire only on settle legs.
+
+    Discovery legs flow through to the handler unauthenticated; settle legs
+    trigger the full gate.
+    """
+    from agentscore_commerce.payment.payment_header import has_payment_header
+
+    kwargs["condition"] = has_payment_header
+    agentscore_gate(app, **kwargs)

@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from agentscore_commerce.identity._denial import (
-    FIXABLE_DENIAL_REASONS,
-    build_contact_support_next_steps,
-    build_signer_mismatch_body,
     denial_reason_status,
     is_fixable_denial,
-    verification_agent_instructions,
 )
 from agentscore_commerce.identity._response import (
     QUOTA_EXCEEDED_INSTRUCTIONS,
@@ -53,21 +49,13 @@ DEFAULT_TOKEN_HEADER = "x-operator-token"
 ASSESS_STATE_KEY = "agentscore"
 
 __all__ = [
-    "FIXABLE_DENIAL_REASONS",
     "agentscore_gate",
-    "build_contact_support_next_steps",
-    "build_signer_mismatch_body",
     "capture_wallet",
-    "denial_reason_status",
-    "denial_reason_to_body",
-    "extract_payment_signer",
+    "conditional_agentscore_gate",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
-    "is_fixable_denial",
-    "read_x402_payment_header",
-    "verification_agent_instructions",
 ]
 
 
@@ -151,8 +139,13 @@ def agentscore_gate(
     user_agent: str | None = None,
     extract_identity: Callable[[Request], AgentIdentity | None] | None = None,
     extract_chain: Callable[[Request], str | None] | None = None,
-    on_denied: Callable[[Request, DenialReason], tuple[dict[str, Any], int]] | None = None,
+    on_denied: Callable[
+        [Request, DenialReason],
+        tuple[dict[str, Any], int] | tuple[dict[str, Any], int, dict[str, str]],
+    ]
+    | None = None,
     create_session_on_missing: CreateSessionOnMissing | None = None,
+    condition: Callable[[Request], bool] | None = None,
 ) -> None:
     """Register AgentScore gate as a Flask before_request handler.
 
@@ -185,12 +178,19 @@ def agentscore_gate(
     _on_denied = on_denied or _default_on_denied
 
     def _deny(reason: DenialReason) -> tuple[Response, int]:
-        try:
-            body, status = _on_denied(flask_request, reason)
-        except (TypeError, ValueError) as exc:
-            msg = "on_denied must return a (dict, int) tuple, e.g. ({'error': 'denied'}, 403)"
-            raise TypeError(msg) from exc
-        return jsonify(body), status
+        result = _on_denied(flask_request, reason)
+        if not isinstance(result, tuple) or len(result) not in (2, 3):
+            msg = "on_denied must return a (dict, int) or (dict, int, dict) tuple, e.g. ({'error': 'denied'}, 403)"
+            raise TypeError(msg)
+        headers: dict[str, str] = {}
+        if len(result) == 3:
+            body, status, headers = result  # type: ignore[misc]
+        else:
+            body, status = result  # type: ignore[misc]
+        response = jsonify(body)
+        for k, v in headers.items():
+            response.headers[k] = v
+        return response, status
 
     def _mark_degraded(infra_reason: str) -> None:
         """Stamp the gate state on ``g._agentscore_gate`` as fail-open'd."""
@@ -198,6 +198,8 @@ def agentscore_gate(
 
     @app.before_request
     def _agentscore_check() -> Response | tuple[Response, int] | None:
+        if condition is not None and not condition(flask_request):
+            return None
         identity = _resolve_identity(flask_request)
         # Stash state so capture_wallet() can look up operator_token + client after the handler.
         g._agentscore_gate = {
@@ -348,3 +350,19 @@ def capture_wallet(
         network,
         idempotency_key=idempotency_key,
     )
+
+
+def conditional_agentscore_gate(app: Flask, **kwargs: Any) -> None:
+    """Register :func:`agentscore_gate` to fire only on settle legs.
+
+    Discovery legs (no ``payment-signature`` / ``x-payment`` /
+    ``Authorization: Payment``) flow through to the route handler
+    unauthenticated; settle legs trigger the full gate.
+
+    Accepts the same kwargs as :func:`agentscore_gate`; any ``condition`` kwarg
+    passed in is replaced with the payment-header check.
+    """
+    from agentscore_commerce.payment.payment_header import has_payment_header
+
+    kwargs["condition"] = has_payment_header
+    agentscore_gate(app, **kwargs)

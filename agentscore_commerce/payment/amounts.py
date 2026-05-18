@@ -57,12 +57,18 @@ def usd_to_atomic(usd: str | float | int | Decimal, *, decimals: int) -> int:
     return int(scaled)
 
 
-def format_usd_cents(cents: int) -> str:
-    """Format an integer cent amount as a fixed-2-decimal USD string.
+def format_usd_cents(cents: float, decimals: int = 2) -> str:
+    """Format a cent amount as a fixed-precision USD string.
 
     ``500`` → ``"5.00"``. Negative values are formatted with a leading minus.
     Use everywhere a merchant emits ``f"{cents / 100:.2f}"`` today; consistent
     formatting across catalog rows, order responses, and 402 bodies prevents
     agent-side string-comparison flakiness.
+
+    ``decimals`` controls dollar-precision and defaults to ``2`` (canonical USD
+    cents). Raise it for sub-cent unit pricing — e.g. ``format_usd_cents(0.05, 4)``
+    returns ``"0.0005"`` for a half-of-one-millicent amount. ``cents`` accepts
+    a float so per-token / per-byte pricing models can compute
+    ``price_cents = unit_price_cents * n`` without rounding before formatting.
     """
-    return f"{cents / 100:.2f}"
+    return f"{cents / 100:.{decimals}f}"

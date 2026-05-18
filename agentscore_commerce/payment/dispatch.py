@@ -11,6 +11,8 @@ import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Literal, TypeVar, cast
 
+from agentscore_commerce.payment.network_kind import is_evm_network, is_solana_network
+
 T = TypeVar("T")
 Handler = Callable[[Any], T | Awaitable[T]]
 
@@ -51,11 +53,11 @@ async def dispatch_settlement_by_network(
         ValueError: if the network is unrecognized or no matching handler is registered.
     """
     network = payload.accepted["network"] if isinstance(payload.accepted, dict) else payload.accepted.network
-    if network.startswith("eip155:"):
+    if is_evm_network(network):
         if evm is None:
             raise ValueError(f"No EVM settlement handler registered (network: {network})")
         result = evm(payload)
-    elif network.startswith("solana:"):
+    elif is_solana_network(network):
         if svm is None:
             raise ValueError(f"No Solana settlement handler registered (network: {network})")
         result = svm(payload)

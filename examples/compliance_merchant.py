@@ -52,6 +52,7 @@ from agentscore_commerce import (
     is_fixable_denial,
     verification_agent_instructions,
 )
+from agentscore_commerce.middleware.fastapi import RateLimitMiddleware
 
 SUPPORT_EMAIL = "support@example.com"
 
@@ -155,6 +156,7 @@ checkout = Checkout(
 
 
 app = FastAPI()
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.post("/buy")

@@ -73,6 +73,8 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeAlias
 
+from agentscore_commerce._headers import normalize_headers_to_lowercase
+from agentscore_commerce._mppx_receipt import extract_mppx_receipt_header_from_raw
 from agentscore_commerce.challenge.accepted_methods import build_accepted_methods
 from agentscore_commerce.challenge.agent_instructions import RailKey, build_agent_instructions
 from agentscore_commerce.challenge.agent_memory import first_encounter_agent_memory
@@ -81,6 +83,7 @@ from agentscore_commerce.challenge.how_to_pay import build_how_to_pay
 from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
 from agentscore_commerce.challenge.respond_402 import Respond402Result, respond_402
 from agentscore_commerce.challenge.validation_error import build_validation_error
+from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
     SolanaMppRailSpec,
@@ -219,6 +222,11 @@ class PricingResult:
     block: PricingBlock | None = None
     """Optional pre-built :class:`PricingBlock`. When omitted, Checkout builds a minimal
     block from ``amount_usd`` so the 402 body always carries pricing metadata."""
+    decimals: int = 2
+    """Dollar-precision used to format ``amount_usd`` and the derived
+    :class:`PricingBlock` fields. Default ``2`` (canonical USD cents). Raise for
+    sub-cent unit pricing (per-token LLM, per-byte storage, etc.) so the 402
+    body advertises the real amount instead of rounding to two decimals."""
     product: dict[str, str] | None = None
     """Optional product block surfaced in the 402 body's ``product`` field. Goods
     merchants populate ``{id, name, slug, list_price_usd, ...}``; API sellers leave
@@ -232,14 +240,15 @@ class PricingResult:
 
 def pricing_result(
     *,
-    subtotal_cents: int | None = None,
-    tax_cents: int | None = None,
-    shipping_cents: int | None = None,
-    discount_cents: int | None = None,
+    subtotal_cents: float | None = None,
+    tax_cents: float | None = None,
+    shipping_cents: float | None = None,
+    discount_cents: float | None = None,
     tax_rate: float | None = None,
     tax_state: str | None = None,
     currency: str = "USD",
     amount_usd: float | None = None,
+    decimals: int = 2,
     product: dict[str, str] | None = None,
     body_extras: dict[str, Any] | None = None,
 ) -> PricingResult:
@@ -287,11 +296,13 @@ def pricing_result(
             tax_rate=tax_rate,
             tax_state=tax_state,
             currency=currency,
+            decimals=decimals,
         )
         return PricingResult(
             amount_usd=derived_amount,
             currency=currency,
             block=block,
+            decimals=decimals,
             product=product,
             body_extras=body_extras,
         )
@@ -301,6 +312,7 @@ def pricing_result(
     return PricingResult(
         amount_usd=amount_usd,
         currency=currency,
+        decimals=decimals,
         product=product,
         body_extras=body_extras,
     )
@@ -531,56 +543,10 @@ ComposeMppxFn: TypeAlias = Callable[[CheckoutContext], Awaitable[MppxComposeOutc
 IsCachedAddressFn: TypeAlias = Callable[[str], Awaitable[bool] | bool]
 
 
-def _has_x402_header(headers: dict[str, str]) -> bool:
-    lower = {k.lower(): v for k, v in headers.items()}
-    return bool(lower.get("payment-signature") or lower.get("x-payment"))
-
-
-def _has_mppx_header(headers: dict[str, str]) -> bool:
-    lower = {k.lower(): v for k, v in headers.items()}
-    auth = lower.get("authorization") or ""
-    return auth.startswith("Payment ")
-
-
 async def _maybe_await(value: Any) -> Any:
     if hasattr(value, "__await__"):
         return await value
     return value
-
-
-def _extract_mppx_receipt_header_from_raw(raw: Any) -> str | None:
-    """Best-effort ``Payment-Receipt`` extraction from a custom hook's ``raw``.
-
-    Handles the three shapes hand-rolled hooks commonly return on a 200:
-
-    * The raw object itself exposes ``to_payment_receipt()`` (pympp Receipt
-      handed back directly).
-    * ``raw`` is a tuple ``(credential, receipt)`` (the pympp ``Mpp.charge``
-      return shape, unpacked but not re-wrapped).
-    * ``raw`` is a dict with ``receipt`` key, or an object with ``.receipt``
-      attribute (the auto-built hook's ``{"credential", "receipt"}`` dict).
-
-    Returns ``None`` when none of the shapes match, or the receipt's
-    ``to_payment_receipt`` raises: the response then omits the header rather
-    than emitting a malformed value.
-    """
-    candidates: list[Any] = [raw]
-    if isinstance(raw, tuple | list) and len(raw) >= 2:
-        candidates.append(raw[1])
-    if isinstance(raw, dict) and "receipt" in raw:
-        candidates.append(raw["receipt"])
-    if hasattr(raw, "receipt"):
-        candidates.append(raw.receipt)
-    for candidate in candidates:
-        to_header = getattr(candidate, "to_payment_receipt", None)
-        if callable(to_header):
-            try:
-                value = to_header()
-            except Exception:  # noqa: S112
-                continue
-            if isinstance(value, str) and value:
-                return value
-    return None
 
 
 def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
@@ -594,7 +560,7 @@ def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
     """
     from agentscore_commerce.challenge.identity import build_identity_metadata
 
-    lower = {k.lower(): v for k, v in ctx.request.headers.items()}
+    lower = normalize_headers_to_lowercase(ctx.request.headers)
     wallet = lower.get("x-wallet-address")
     if not wallet:
         return None
@@ -950,7 +916,7 @@ class Checkout:
         # passes through to 402). Sets ctx.assess["identity_status"]; 403s
         # short-circuit. Merchant-supplied per_request_policy resolves the
         # policy block (read from the product row, tier, etc.).
-        has_payment_header = _has_x402_header(request.headers) or _has_mppx_header(request.headers)
+        has_payment_header = has_x402_header(request.headers) or has_mppx_header(request.headers)
         if self.gate is not None and has_payment_header:
             gate_result = await self._run_gate(ctx)
             if gate_result is not None:
@@ -964,14 +930,14 @@ class Checkout:
             self.zero_settle_carve_out
             and ctx.pricing is not None
             and ctx.pricing.amount_usd == 0
-            and (_has_x402_header(request.headers) or _has_mppx_header(request.headers))
+            and (has_x402_header(request.headers) or has_mppx_header(request.headers))
         ):
             return await self._handle_zero_settle(ctx)
 
-        if _has_x402_header(request.headers) and self._x402_server_available() and self._x402_base_network:
+        if has_x402_header(request.headers) and self._x402_server_available() and self._x402_base_network:
             return await self._handle_x402(ctx)
 
-        if _has_mppx_header(request.headers) and self.compose_mppx is not None:
+        if has_mppx_header(request.headers) and self.compose_mppx is not None:
             return await self._handle_mppx(ctx)
 
         # Discovery leg: if an MPP rail is configured (compose_mppx supplied), call
@@ -1616,7 +1582,7 @@ class Checkout:
         Returns a 200 success path identical to a real settle, except
         ``tx_hash`` is ``None``.
         """
-        if _has_x402_header(ctx.request.headers):
+        if has_x402_header(ctx.request.headers):
             verified = await verify_x402_request(
                 headers=ctx.request.headers,
                 is_cached_address=self._async_is_cached_address,
@@ -1712,7 +1678,7 @@ class Checkout:
             resource_config={
                 "scheme": "exact",
                 "network": verified.signed_network,
-                "price": f"${ctx.pricing.amount_usd:.2f}",
+                "price": f"${ctx.pricing.amount_usd:.{ctx.pricing.decimals}f}",
                 "payTo": verified.signed_pay_to,
                 "maxTimeoutSeconds": 300,
             },
@@ -1805,7 +1771,7 @@ class Checkout:
                 signer_network=composed.signer_network,
                 payment_response_header=composed.payment_response_header,
                 payment_receipt_header=composed.payment_receipt_header
-                or _extract_mppx_receipt_header_from_raw(composed.raw),
+                or extract_mppx_receipt_header_from_raw(composed.raw),
                 raw=composed.raw,
             )
             return await self._build_success(ctx, outcome)
@@ -1849,15 +1815,18 @@ class Checkout:
             for k, v in emit_rails.items()
             if isinstance(v, (TempoRailSpec, X402BaseRailSpec, SolanaMppRailSpec, StripeRailSpec))
         }
+        pricing_decimals = ctx.pricing.decimals
         how_to_pay = await build_how_to_pay(
             url=self.url,
             retry_body_json=str(ctx.request.body),
-            total_usd=f"{ctx.pricing.amount_usd:.2f}",
+            total_usd=f"{ctx.pricing.amount_usd:.{pricing_decimals}f}",
             rails=how_to_pay_rails,
+            decimals=pricing_decimals,
         )
         pricing_block = ctx.pricing.block or build_pricing_block(
-            subtotal_cents=round(ctx.pricing.amount_usd * 100),
+            subtotal_cents=ctx.pricing.amount_usd * 100,
             currency=ctx.pricing.currency,
+            decimals=pricing_decimals,
         )
         # Build x402 accepts BEFORE the body so they appear both in the rich body
         # (agents read JSON) AND in the PAYMENT-REQUIRED header (x402-spec clients).
@@ -1879,7 +1848,7 @@ class Checkout:
                         build_x402_accepts_for_402(
                             x402_srv,
                             network=x402_network,
-                            price=f"${ctx.pricing.amount_usd:.2f}",
+                            price=f"${ctx.pricing.amount_usd:.{pricing_decimals}f}",
                             pay_to=recipient,
                             max_timeout_seconds=300,
                         )
@@ -1900,7 +1869,7 @@ class Checkout:
             agent_instructions=build_agent_instructions(how_to_pay=how_to_pay),
             identity_metadata=identity_metadata,
             pricing=pricing_block,
-            amount_usd=f"{ctx.pricing.amount_usd:.2f}",
+            amount_usd=f"{ctx.pricing.amount_usd:.{pricing_decimals}f}",
             retry_body=ctx.request.body,
             agent_memory=first_encounter_agent_memory(first_encounter=True),
             product=ctx.pricing.product,

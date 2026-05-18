@@ -1,6 +1,8 @@
 """Payment helpers — networks/usdc/rails registries, paymentauth.org directive builders, dispatch, headers."""
 
 from agentscore_commerce.payment.amounts import format_usd_cents, usd_to_atomic
+from agentscore_commerce.payment.compose_rails import build_mppx_compose_rails
+from agentscore_commerce.payment.default_rails import build_default_checkout_rails
 from agentscore_commerce.payment.directive import (
     build_payment_directive,
     build_payment_request_blob,
@@ -16,7 +18,13 @@ from agentscore_commerce.payment.headers import (
 from agentscore_commerce.payment.idempotency import build_idempotency_key
 from agentscore_commerce.payment.lazy import lazy_mppx_server, lazy_x402_server
 from agentscore_commerce.payment.mppx_server import MppxRailSpec, create_mppx_server
+from agentscore_commerce.payment.network_kind import is_evm_network, is_solana_network
 from agentscore_commerce.payment.networks import NetworkFamily, network_family, networks
+from agentscore_commerce.payment.payment_header import (
+    has_mppx_header,
+    has_payment_header,
+    has_x402_header,
+)
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
     SolanaMppRailSpec,
@@ -111,7 +119,9 @@ __all__ = [
     "ZeroSettleRail",
     "ZeroSettleResult",
     "alias_amount_fields",
+    "build_default_checkout_rails",
     "build_idempotency_key",
+    "build_mppx_compose_rails",
     "build_payment_directive",
     "build_payment_headers",
     "build_payment_request_blob",
@@ -128,6 +138,11 @@ __all__ = [
     "extract_signer_for_precheck",
     "extract_x402_signer",
     "format_usd_cents",
+    "has_mppx_header",
+    "has_payment_header",
+    "has_x402_header",
+    "is_evm_network",
+    "is_solana_network",
     "lazy_mppx_server",
     "lazy_x402_server",
     "load_solana_fee_payer",

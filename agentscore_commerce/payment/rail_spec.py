@@ -118,12 +118,20 @@ class SolanaMppRailSpec:
 
     recipient: RecipientLike
     network: str = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-    token: str = USDC.solana.mainnet.mint
+    token: str = _DEFAULT
     symbol: str = "USDC"
     decimals: int = 6
     rpc_url: str | None = None
     signer: Any | None = None
     token_program: str | None = None
+
+    def __post_init__(self) -> None:
+        # Mirror X402BaseRailSpec: when ``network`` flips to the devnet CAIP-2 (or the
+        # raw ``'devnet'`` form @solana/mpp accepts), default ``token`` to devnet's USDC
+        # mint instead of mainnet's. Explicit overrides still win.
+        is_devnet = self.network in ("devnet", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
+        if self.token is _DEFAULT:
+            self.token = USDC.solana.devnet.mint if is_devnet else USDC.solana.mainnet.mint
 
 
 @dataclass

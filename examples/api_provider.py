@@ -57,6 +57,7 @@ from agentscore_commerce.discovery import (
     build_redemption_skill_md,
     standard_endpoint_descriptions,
 )
+from agentscore_commerce.middleware.fastapi import RateLimitMiddleware
 from agentscore_commerce.payment import networks
 
 PRICE_USDC = 0.01  # per-call price in USD
@@ -67,6 +68,7 @@ SOLANA_NETWORK_CAIP2 = os.environ.get("SOLANA_NETWORK_CAIP2", networks.solana.ma
 _TEMPO_RAIL_NAME = "tempo-testnet" if networks.base.sepolia.caip2 == X402_BASE_NETWORK else "tempo-mainnet"
 
 app = FastAPI()
+app.add_middleware(RateLimitMiddleware)
 
 # noindex non-discovery paths so /search doesn't end up in human-shaped SERPs.
 app.add_middleware(NoindexNonDiscoveryMiddleware)

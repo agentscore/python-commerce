@@ -24,6 +24,11 @@ from agentscore_commerce.identity.a2a import (
     ucp_a2a_extension,
 )
 from agentscore_commerce.identity.core import AgentScoreCore
+from agentscore_commerce.identity.default_denied import (
+    DefaultOnDeniedResult,
+    create_default_on_denied,
+    default_read_only_on_denied,
+)
 from agentscore_commerce.identity.policy import (
     EnforcementMode,
     GateResult,
@@ -36,7 +41,7 @@ from agentscore_commerce.identity.policy import (
     validate_shipping_against_policy,
 )
 from agentscore_commerce.identity.signer import extract_x402_signer
-from agentscore_commerce.identity.tokens import hash_operator_token
+from agentscore_commerce.identity.tokens import OwnerScope, extract_owner_scope, hash_operator_token
 from agentscore_commerce.identity.types import (
     AgentIdentity,
     AgentMemoryHint,
@@ -81,18 +86,21 @@ from agentscore_commerce.identity.ucp_jwks import (
 #   from agentscore_commerce.identity.django import AgentScoreMiddleware
 #   from agentscore_commerce.identity.aiohttp import agentscore_gate_middleware
 #   from agentscore_commerce.identity.sanic import agentscore_gate
-def _load_asgi_middleware() -> tuple[Any, Any]:
+def _load_asgi_middleware() -> tuple[Any, Any, Any]:
     try:
         from agentscore_commerce.identity.middleware import AgentScoreGate as _AgentScoreGate
+        from agentscore_commerce.identity.middleware import (
+            ConditionalAgentScoreGate as _ConditionalAgentScoreGate,
+        )
         from agentscore_commerce.identity.middleware import CreateSessionOnMissing as _CreateSessionOnMissing
 
-        return _AgentScoreGate, _CreateSessionOnMissing
+        return _AgentScoreGate, _ConditionalAgentScoreGate, _CreateSessionOnMissing
     except ImportError:
         # starlette not installed
-        return None, None
+        return None, None, None
 
 
-AgentScoreGate, CreateSessionOnMissing = _load_asgi_middleware()
+AgentScoreGate, ConditionalAgentScoreGate, CreateSessionOnMissing = _load_asgi_middleware()
 
 __all__ = [
     "AGENTSCORE_UCP_CAPABILITY",
@@ -111,7 +119,9 @@ __all__ = [
     "AgentScoreGate",
     "AgentScoreGatePolicy",
     "AssessResult",
+    "ConditionalAgentScoreGate",
     "CreateSessionOnMissing",
+    "DefaultOnDeniedResult",
     "DenialCode",
     "DenialReason",
     "EnforcementMode",
@@ -119,6 +129,7 @@ __all__ = [
     "GeneratedUCPKey",
     "IdentityStatus",
     "OperatorVerification",
+    "OwnerScope",
     "PolicyBlock",
     "SignerSanctions",
     "SignerVerdict",
@@ -137,8 +148,11 @@ __all__ = [
     "build_jwks_response",
     "build_signer_mismatch_body",
     "build_ucp_profile",
+    "create_default_on_denied",
+    "default_read_only_on_denied",
     "denial_reason_status",
     "denial_reason_to_body",
+    "extract_owner_scope",
     "extract_x402_signer",
     "generate_ucp_signing_key",
     "hash_operator_token",

@@ -45,6 +45,7 @@ async def build_how_to_pay(
     rails: dict[str, TempoRailSpec | X402BaseRailSpec | SolanaMppRailSpec | StripeRailSpec],
     op_token_placeholder: str = "<your_opc_token>",  # noqa: S107 — literal placeholder, not a secret
     max_spend: float | str | None = None,
+    decimals: int = 2,
 ) -> dict[str, Any]:
     """Build the agent_instructions.how_to_pay block.
 
@@ -55,9 +56,20 @@ async def build_how_to_pay(
     `recipient` resolution: only `accepted_methods` consumes the resolved address; `how_to_pay`
     surfaces commands the agent runs, none of which include the recipient string. So this builder
     does NOT resolve `RecipientLike` factories.
+
+    ``decimals`` controls fractional digits when formatting the auto-derived
+    ``max_spend`` for sub-dollar / sub-cent prices (default ``2``). For prices
+    ≥ $1 the default is still ``ceil(total) + 1`` formatted at ``decimals``; for
+    sub-dollar totals the default uses ``total.toFixed(decimals)`` so the cap
+    flag reflects the real amount instead of always being ``"1.00"``.
     """
     total_num = float(total_usd) if isinstance(total_usd, str) else total_usd
-    max_spend_str = str(max_spend) if max_spend is not None else f"{math.ceil(total_num) + 1:.2f}"
+    if max_spend is not None:
+        max_spend_str = str(max_spend)
+    elif total_num >= 1:
+        max_spend_str = f"{math.ceil(total_num) + 1:.{decimals}f}"
+    else:
+        max_spend_str = f"{total_num:.{decimals}f}"
     op_token = op_token_placeholder
     block: dict[str, Any] = {}
 

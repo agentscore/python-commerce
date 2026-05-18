@@ -9,12 +9,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from agentscore_commerce.identity._denial import (
-    FIXABLE_DENIAL_REASONS,
-    build_contact_support_next_steps,
-    build_signer_mismatch_body,
     denial_reason_status,
     is_fixable_denial,
-    verification_agent_instructions,
 )
 from agentscore_commerce.identity._response import (
     QUOTA_EXCEEDED_INSTRUCTIONS,
@@ -61,22 +57,13 @@ def _mark_degraded_asgi(scope: Scope, infra_reason: str) -> None:
 
 
 __all__ = [
-    "FIXABLE_DENIAL_REASONS",
     "AgentScoreGate",
-    "CreateSessionOnMissing",
-    "build_contact_support_next_steps",
-    "build_signer_mismatch_body",
+    "ConditionalAgentScoreGate",
     "capture_wallet",
-    "denial_reason_status",
-    "denial_reason_to_body",
-    "extract_payment_signer",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
-    "is_fixable_denial",
-    "read_x402_payment_header",
-    "verification_agent_instructions",
 ]
 
 
@@ -163,8 +150,10 @@ class AgentScoreGate:
         extract_chain: Callable[[Request], str | None] | None = None,
         on_denied: Callable[[Request, DenialReason], Awaitable[JSONResponse]] | None = None,
         create_session_on_missing: CreateSessionOnMissing | None = None,
+        condition: Callable[[Request], bool] | None = None,
     ) -> None:
         self.app = app
+        self._condition = condition
         self._client = AgentScoreCore(
             api_key=api_key,
             require_kyc=require_kyc,
@@ -190,6 +179,10 @@ class AgentScoreGate:
             return
 
         request = Request(scope, receive, send)
+
+        if self._condition is not None and not self._condition(request):
+            await self.app(scope, receive, send)
+            return
 
         identity = self._extract_identity(request)
         # Stash state for capture_wallet() helper to read after the handler runs.
@@ -372,3 +365,20 @@ async def capture_wallet(
         network,
         idempotency_key=idempotency_key,
     )
+
+
+class ConditionalAgentScoreGate(AgentScoreGate):
+    """ASGI middleware variant of :class:`AgentScoreGate` that fires only on settle legs.
+
+    Discovery legs flow through to the downstream handler unauthenticated;
+    settle legs trigger the full gate.
+
+    Accepts the same kwargs as :class:`AgentScoreGate`; any ``condition`` kwarg
+    is replaced with the payment-header check.
+    """
+
+    def __init__(self, app: Any, **kwargs: Any) -> None:
+        from agentscore_commerce.payment.payment_header import has_payment_header
+
+        kwargs["condition"] = has_payment_header
+        super().__init__(app, **kwargs)

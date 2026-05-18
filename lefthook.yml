@@ -14,4 +14,4 @@ pre-push:
     ty:
       run: uv run ty check agentscore_commerce/
     vulture:
-      run: uv run vulture . vulture_whitelist.py --min-confidence 80 --exclude .venv
+      run: uv run vulture . --min-confidence 80 --exclude .venv

@@ -79,6 +79,20 @@ dev = [
 [tool.ty.src]
 include = ["agentscore_commerce"]
 
+[tool.vulture]
+# Live symbols vulture sees as unused. ASGI signatures, Protocol method params,
+# public re-exports, TYPE_CHECKING-only imports referenced via string casts.
+# Replaces a top-level vulture_whitelist.py file (which CodeQuality flagged
+# as "statement has no effect" — accurate observation, but vulture's whitelist
+# semantics require bare identifiers, which static analyzers can't distinguish
+# from real no-op statements).
+ignore_names = [
+    "scope", "receive", "send",  # ASGI middleware __call__ signature
+    "ex", "seconds",  # _RedisLike Protocol method params
+    "AgentScoreGate", "AssessResult", "DenialReason", "OperatorVerification",
+    "DecisionPolicy", "Signer",  # TYPE_CHECKING string-cast references
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--cov=agentscore_commerce --cov-report=term-missing --cov-fail-under=95"

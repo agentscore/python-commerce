@@ -134,13 +134,15 @@ async def test_quote_cache_redis_clear_calls_flushdb(monkeypatch: pytest.MonkeyP
 @pytest.mark.asyncio
 async def test_quote_cache_in_memory_evicts_expired_entries(monkeypatch: pytest.MonkeyPatch) -> None:
     """Eviction loop in the in-memory branch (line 84): expired entry dropped."""
-    import agentscore_commerce.quote_cache as qc_mod
+    import time
 
     cache = create_quote_cache(ttl_ms=10)
     key = cache.body_hash_key("search", {"q": "evict"})
     await cache.write(key, {"v": 1}, 1)
-    # Fast-forward monotonic time so the entry is past its expiry.
-    real_monotonic = qc_mod.time.monotonic
-    monkeypatch.setattr(qc_mod.time, "monotonic", lambda: real_monotonic() + 10)
+    # Fast-forward monotonic time so the entry is past its expiry. The quote_cache
+    # module re-exports `time` from stdlib; patching `time.monotonic` globally
+    # is sufficient because both modules see the same callable identity.
+    real_monotonic = time.monotonic
+    monkeypatch.setattr(time, "monotonic", lambda: real_monotonic() + 10)
     got = await cache.read(key)
     assert got is None

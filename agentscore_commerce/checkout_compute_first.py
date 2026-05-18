@@ -699,7 +699,10 @@ class ComputeFirstCheckout:
         if quote is None:
             try:
                 outcome = await self.run_work(body, ComputeFirstWorkContext(request=request))
-            except Exception as exc:
+            except Exception:
+                # Suppress the upstream exception detail in the wire response —
+                # merchant errors may carry stack traces or internal state. The
+                # merchant's own logger is the right channel for the full exception.
                 return (
                     200,
                     {
@@ -712,7 +715,6 @@ class ComputeFirstCheckout:
                         "error": {
                             "code": "upstream_failed",
                             "message": "The wrapped endpoint failed; no charge was applied.",
-                            "detail": str(exc),
                         },
                     },
                     {"Content-Type": "application/json"},

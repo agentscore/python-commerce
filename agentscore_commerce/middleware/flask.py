@@ -56,6 +56,8 @@ def rate_limit_flask(
             if loop.is_running():  # async Flask path
                 return asyncio.run_coroutine_threadsafe(coro, loop).result()
         except RuntimeError:
+            # No current event loop on this thread (sync Flask path); fall through
+            # to asyncio.run which constructs one for this call.
             pass
         return asyncio.run(coro)
 

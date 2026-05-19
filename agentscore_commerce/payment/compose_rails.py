@@ -20,8 +20,17 @@ from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
 from agentscore_commerce.payment.usdc import USDC
 
 _SOLANA_MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-_warned_stripe_below_minimum = False
 _logger = logging.getLogger(__name__)
+
+
+class _WarnedFlags:
+    """Warn-once flags for helpers that shouldn't spam logs.
+
+    Wrapped in a class instead of a bare module-level bool so the symbol is
+    referenced at module scope rather than mutated only via ``global``.
+    """
+
+    stripe_below_minimum: bool = False
 
 
 def build_mppx_compose_rails(
@@ -104,9 +113,8 @@ def build_mppx_compose_rails(
         except (InvalidOperation, TypeError, ValueError):
             amount_decimal = None
         if amount_decimal is not None and amount_decimal < STRIPE_MIN_CHARGE_USD:
-            global _warned_stripe_below_minimum
-            if not _warned_stripe_below_minimum:
-                _warned_stripe_below_minimum = True
+            if not _WarnedFlags.stripe_below_minimum:
+                _WarnedFlags.stripe_below_minimum = True
                 _logger.warning(
                     "[build_mppx_compose_rails] Dropping stripe/charge rail: amount_usd=%s is below "
                     "Stripe's $%s USD minimum. Stripe's fixed ~$0.30 fee makes sub-50-cent charges "

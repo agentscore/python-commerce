@@ -11,12 +11,17 @@ Mirrors node-commerce ``src/payment/compose_rails.ts``.
 
 from __future__ import annotations
 
+import logging
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from agentscore_commerce.payment.amounts import usd_to_atomic
 from agentscore_commerce.payment.usdc import USDC
 
 _SOLANA_MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+_STRIPE_MIN_CHARGE_USD = Decimal("0.50")
+_warned_stripe_below_minimum = False
+_logger = logging.getLogger(__name__)
 
 
 def build_mppx_compose_rails(
@@ -51,6 +56,16 @@ def build_mppx_compose_rails(
         include_stripe: Include the ``stripe/charge`` intent (Stripe SPT
             rail). Default ``True``.
 
+            Stripe's documented USD minimum is $0.50 because the fixed
+            processing fee (~$0.30) exceeds revenue below that — sub-50-cent
+            charges that DO go through still cost the merchant money (a
+            $0.11 PI nets -$0.19 after fees). Some Stripe accounts also
+            reject PI creation under the floor with ``amount_too_small``.
+            The helper auto-drops the rail (with a one-time
+            ``logging.warning``) when ``amount_usd < 0.50`` so sub-50-cent
+            APIs don't ship an unprofitable rail. Pass
+            ``include_stripe=False`` explicitly to suppress the warning.
+
     Raises:
         ValueError: when Solana is requested but ``amount_usd`` can't convert
         to atomic — merchants should catch and return a 402 to drop the rail
@@ -84,5 +99,22 @@ def build_mppx_compose_rails(
             )
         )
     if include_stripe:
-        rails.append(("stripe/charge", {"amount": amount_usd, "currency": "usd", "decimals": 2}))
+        try:
+            amount_decimal = Decimal(amount_usd)
+        except (InvalidOperation, TypeError, ValueError):
+            amount_decimal = None
+        if amount_decimal is not None and amount_decimal < _STRIPE_MIN_CHARGE_USD:
+            global _warned_stripe_below_minimum
+            if not _warned_stripe_below_minimum:
+                _warned_stripe_below_minimum = True
+                _logger.warning(
+                    "[build_mppx_compose_rails] Dropping stripe/charge rail: amount_usd=%s is below "
+                    "Stripe's $%s USD minimum. Stripe's fixed ~$0.30 fee makes sub-50-cent charges "
+                    "unprofitable (and many accounts reject PI creation with amount_too_small below "
+                    "this floor). Pass include_stripe=False to suppress this warning.",
+                    amount_usd,
+                    _STRIPE_MIN_CHARGE_USD,
+                )
+        else:
+            rails.append(("stripe/charge", {"amount": amount_usd, "currency": "usd", "decimals": 2}))
     return rails

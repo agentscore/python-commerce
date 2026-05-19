@@ -54,3 +54,17 @@ def test_raises_when_amount_unparseable_with_solana_rail() -> None:
             tempo_recipient="0xabc",
             solana_recipient="SolAddr",
         )
+
+
+def test_auto_drops_stripe_when_amount_below_min(caplog: pytest.LogCaptureFixture) -> None:
+    import agentscore_commerce.payment.compose_rails as mod
+
+    mod._warned_stripe_below_minimum = False  # reset module-level warn-once flag
+    with caplog.at_level("WARNING"):
+        rails = build_mppx_compose_rails(amount_usd="0.01", tempo_recipient="0xabc")
+    assert all(r[0] != "stripe/charge" for r in rails)
+
+
+def test_keeps_stripe_at_50_cent_boundary() -> None:
+    rails = build_mppx_compose_rails(amount_usd="0.50", tempo_recipient="0xabc")
+    assert any(r[0] == "stripe/charge" for r in rails)

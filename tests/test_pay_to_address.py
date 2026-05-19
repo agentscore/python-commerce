@@ -111,14 +111,40 @@ async def test_reuses_credential_recipient_when_cached() -> None:
 
 @pytest.mark.asyncio
 async def test_raises_when_credential_recipient_not_in_cache() -> None:
+    from agentscore_commerce.errors import CheckoutValidationError
+
     cache = FakePiCache(has_address_result=False)
-    with patch("mpp.Credential", FakeCredential), pytest.raises(ValueError, match="not found in cache"):
+    with patch("mpp.Credential", FakeCredential), pytest.raises(CheckoutValidationError) as exc:
         await create_pay_to_address_from_stripe_pi(
             authorization_header="Payment tempo:0xUNKNOWN",
             amount_cents=100,
             stripe=_fake_stripe({}),
             pi_cache=cache,  # type: ignore[arg-type]
         )
+    assert exc.value.code == "invalid_credential"
+    assert exc.value.status == 401
+
+
+@pytest.mark.asyncio
+async def test_raises_when_authorization_header_is_malformed() -> None:
+    from agentscore_commerce.errors import CheckoutValidationError
+
+    class _ThrowingCredential:
+        @staticmethod
+        def from_authorization(_: str) -> object:
+            msg = "Invalid base64url or JSON."
+            raise ValueError(msg)
+
+    cache = FakePiCache(has_address_result=True)
+    with patch("mpp.Credential", _ThrowingCredential), pytest.raises(CheckoutValidationError) as exc:
+        await create_pay_to_address_from_stripe_pi(
+            authorization_header="Payment fake.jwt.bogus",
+            amount_cents=100,
+            stripe=_fake_stripe({}),
+            pi_cache=cache,  # type: ignore[arg-type]
+        )
+    assert exc.value.code == "invalid_credential"
+    assert exc.value.status == 401
 
 
 @pytest.mark.asyncio

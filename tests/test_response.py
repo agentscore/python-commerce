@@ -85,3 +85,45 @@ def test_api_error_with_quota_instructions_overrides_retry_default() -> None:
     instructions = json.loads(body["agent_instructions"])
     assert instructions["action"] == "contact_merchant"
     assert "merchant-side issue" in instructions["steps"][0]
+
+
+def test_build_verification_required_body_default_message() -> None:
+    from agentscore_commerce.identity._response import build_verification_required_body
+
+    body = build_verification_required_body(
+        DenialReason(
+            code="identity_verification_required",
+            verify_url="https://x.example/v",
+            session_id="sess_x",
+            poll_secret="poll_x",
+            poll_url="https://x.example/p",
+        ),
+    )
+    assert body["error"] == {
+        "code": "operator_verification_required",
+        "message": "Identity verification is required.",
+    }
+    assert body["verify_url"] == "https://x.example/v"
+    assert body["session_id"] == "sess_x"
+    assert body["poll_secret"] == "poll_x"
+    assert body["poll_url"] == "https://x.example/p"
+
+
+def test_build_verification_required_body_merchant_overrides() -> None:
+    from agentscore_commerce.identity._response import build_verification_required_body
+
+    body = build_verification_required_body(
+        DenialReason(
+            code="identity_verification_required",
+            verify_url="https://x.example/v",
+            session_id="sess_y",
+            poll_secret="poll_y",
+            poll_url="https://x.example/p",
+        ),
+        message="Identity verification is required to purchase wine.",
+        agent_instructions='{"action":"merchant_specific"}',
+        extra={"order_id": "ord_1"},
+    )
+    assert body["error"]["message"] == "Identity verification is required to purchase wine."
+    assert body["agent_instructions"] == '{"action":"merchant_specific"}'
+    assert body["order_id"] == "ord_1"

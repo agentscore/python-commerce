@@ -7,6 +7,8 @@ chains, returning the PI id + deposit addresses per network. Distinct from the S
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from agentscore_commerce.errors import CheckoutValidationError
+
 
 class StripePaymentIntentsAPI(Protocol):
     def create(self, params: dict[str, Any], idempotency_key: str | None = None) -> Any: ...
@@ -79,7 +81,15 @@ def create_multichain_payment_intent(
                     deposit_addresses[network] = addr
 
     if not deposit_addresses:
-        raise RuntimeError("No deposit addresses returned from Stripe PaymentIntent")
+        raise CheckoutValidationError(
+            code="payment_provider_unavailable",
+            message=(
+                "Stripe returned no crypto deposit addresses for this PaymentIntent. "
+                "The account may not be enrolled in the Stablecoins and Crypto preview, or the feature was revoked."
+            ),
+            action="retry_later",
+            status=503,
+        )
 
     pi_id = getattr(pi, "id", None) or (pi.get("id") if isinstance(pi, dict) else None)
     if not isinstance(pi_id, str):

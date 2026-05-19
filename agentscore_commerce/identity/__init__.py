@@ -10,7 +10,7 @@ from agentscore_commerce.identity._denial import (
     is_fixable_denial,
     verification_agent_instructions,
 )
-from agentscore_commerce.identity._response import denial_reason_to_body
+from agentscore_commerce.identity._response import build_verification_required_body, denial_reason_to_body
 from agentscore_commerce.identity.a2a import (
     A2A_DEFAULT_TRANSPORT,
     A2A_PROTOCOL_VERSION,
@@ -152,6 +152,7 @@ __all__ = [
     "build_jwks_response",
     "build_signer_mismatch_body",
     "build_ucp_profile",
+    "build_verification_required_body",
     "create_default_on_denied",
     "default_read_only_on_denied",
     "denial_reason_status",

@@ -30,6 +30,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
+from agentscore_commerce.errors import CheckoutValidationError
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -203,9 +205,6 @@ def validate_shipping_against_policy(
     consumer agents — e.g. you want to surface the regulatory reason
     explicitly, or you want the message in a different language).
     """
-    # Local import dodges the circular: checkout depends on identity.policy.
-    from agentscore_commerce.checkout import CheckoutValidationError
-
     item = f"'{product_name}'" if product_name else "this item"
     if not shipping_country_allowed(country, policy):
         raise CheckoutValidationError(

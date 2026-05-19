@@ -46,8 +46,8 @@ from agentscore_commerce.challenge import (
     build_pricing_block,
     first_encounter_agent_memory,
 )
-from agentscore_commerce.checkout import CheckoutValidationError
 from agentscore_commerce.discovery import build_success_next_steps
+from agentscore_commerce.errors import CheckoutValidationError
 from agentscore_commerce.payment.amounts import format_usd_cents
 from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
 from agentscore_commerce.payment.rail_spec import (

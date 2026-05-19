@@ -47,6 +47,7 @@ from agentscore_commerce import (
     SettleOutcome,
     TempoRailSpec,
     build_contact_support_next_steps,
+    build_verification_required_body,
     denial_reason_status,
     denial_reason_to_body,
     is_fixable_denial,
@@ -85,12 +86,17 @@ async def _on_denied(_ctx: Any, reason: DenialReason) -> dict[str, Any] | None:
         body["error"] = {"code": "identity_required", "message": "Identity verification is required for this purchase."}
         return {"status": 403, "body": body}
 
-    # identity_verification_required → gate auto-minted a session. Overlay
-    # vendor-specific agent_instructions on top of the commerce body.
+    # identity_verification_required → gate auto-minted a session. Use the
+    # canonical body builder + overlay vendor-specific agent_instructions.
     if reason.code == "identity_verification_required":
-        body = denial_reason_to_body(reason)
-        body["agent_instructions"] = VERIFICATION_INSTRUCTIONS
-        return {"status": 403, "body": body}
+        return {
+            "status": 403,
+            "body": build_verification_required_body(
+                reason,
+                message="Identity verification is required for this purchase.",
+                agent_instructions=VERIFICATION_INSTRUCTIONS,
+            ),
+        }
 
     # wallet_not_trusted = UNFIXABLE compliance fail (sanctions / age /
     # jurisdiction_restricted). The gate auto-routes fixable reasons upstream;

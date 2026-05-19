@@ -56,7 +56,7 @@ async def test_zero_result_fast_path_returns_200_no_charge() -> None:
 
 @pytest.mark.asyncio
 async def test_validate_input_raises_returns_4xx_envelope() -> None:
-    from agentscore_commerce.checkout import CheckoutValidationError
+    from agentscore_commerce.errors import CheckoutValidationError
 
     def _validate(body: dict[str, Any]) -> None:
         if "q" not in body:

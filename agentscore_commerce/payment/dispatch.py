@@ -11,6 +11,7 @@ import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Literal, TypeVar, cast
 
+from agentscore_commerce.errors import CheckoutValidationError
 from agentscore_commerce.payment.network_kind import is_evm_network, is_solana_network
 
 T = TypeVar("T")
@@ -55,14 +56,29 @@ async def dispatch_settlement_by_network(
     network = payload.accepted["network"] if isinstance(payload.accepted, dict) else payload.accepted.network
     if is_evm_network(network):
         if evm is None:
-            raise ValueError(f"No EVM settlement handler registered (network: {network})")
+            raise CheckoutValidationError(
+                code="payment_provider_unavailable",
+                message=f"No EVM settlement handler registered (network: {network})",
+                action="retry_later",
+                status=503,
+            )
         result = evm(payload)
     elif is_solana_network(network):
         if svm is None:
-            raise ValueError(f"No Solana settlement handler registered (network: {network})")
+            raise CheckoutValidationError(
+                code="payment_provider_unavailable",
+                message=f"No Solana settlement handler registered (network: {network})",
+                action="retry_later",
+                status=503,
+            )
         result = svm(payload)
     else:
-        raise ValueError(f"Unrecognized network in settlement payload: {network}")
+        raise CheckoutValidationError(
+            code="payment_provider_unavailable",
+            message=f"Unrecognized network in settlement payload: {network}",
+            action="retry_later",
+            status=503,
+        )
     if inspect.isawaitable(result):
         return await cast("Awaitable[T]", result)
     return cast("T", result)

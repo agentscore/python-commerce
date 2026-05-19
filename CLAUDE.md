@@ -80,7 +80,11 @@ Two identity types: wallet (`X-Wallet-Address`) and operator-token (`X-Operator-
 
 `DenialReason` codes (`missing_identity`, `identity_verification_required`, `token_expired`, `invalid_credential`, `wallet_signer_mismatch`, `wallet_auth_requires_wallet_signing`, `wallet_not_trusted`, `api_error`, `payment_required`) each carry a structured `agent_instructions` JSON block describing concrete recovery actions. See `agentscore_commerce/identity/_response.py` for the canned action copy.
 
-`create_session_on_missing` auto-mints a verification session when no identity is present and returns 403 with `verify_url` + poll instructions. `get_signer_verdict(request)` (per-adapter) returns the cached `signer_match` + `signer_sanctions` verdicts the gate composed on its primary `/v1/assess` call (single round trip; merchants build a 403 with `build_signer_mismatch_body(result=verdict.signer_match)` when `kind != "pass"`).
+`create_session_on_missing` auto-mints a verification session when no identity is present AND when `wallet_not_trusted` carries fixable reasons (`kyc_required` / `kyc_pending` / `kyc_failed`) — both paths rewrite the denial to `identity_verification_required` before reaching `on_denied`. When the merchant omits `create_session_on_missing` from `CheckoutGateConfig`, `Checkout` auto-defaults it from `gate.api_key` + `gate.base_url` + `gate.context` + `gate.merchant_name`. Merchants that need `on_before_session` side effects (e.g. pre-minting an order_id) supply their own config to override.
+
+`build_verification_required_body(reason, message=?, agent_instructions=?, extra=?)` — canonical body builder for the `identity_verification_required` denial. Spreads `verify_url` / `session_id` / `poll_secret` / `poll_url` / `agent_instructions` from the gate-minted reason into a 4xx envelope with merchant-specific message + optional extras. Saves the per-merchant mapping boilerplate.
+
+`get_signer_verdict(request)` (per-adapter) returns the cached `signer_match` + `signer_sanctions` verdicts the gate composed on its primary `/v1/assess` call (single round trip; merchants build a 403 with `build_signer_mismatch_body(result=verdict.signer_match)` when `kind != "pass"`).
 
 Captured wallets: `capture_wallet(...)` is fire-and-forget. Reads `operator_token` stashed during gating and POSTs to `/v1/credentials/wallets`. No-ops for wallet-authenticated requests.
 

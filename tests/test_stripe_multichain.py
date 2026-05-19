@@ -47,9 +47,13 @@ def test_create_multichain_payment_intent_extracts_addresses():
 
 
 def test_create_multichain_payment_intent_raises_when_no_addresses():
+    from agentscore_commerce.errors import CheckoutValidationError
+
     response = {"id": "pi_x", "next_action": None}
-    with pytest.raises(RuntimeError, match="No deposit addresses"):
+    with pytest.raises(CheckoutValidationError) as exc:
         create_multichain_payment_intent(stripe=_FakeClient(_FakeAPI(response)), amount=100)
+    assert exc.value.code == "payment_provider_unavailable"
+    assert exc.value.status == 503
 
 
 def test_create_multichain_payment_intent_forwards_metadata():

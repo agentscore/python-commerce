@@ -83,6 +83,7 @@ from agentscore_commerce.challenge.how_to_pay import build_how_to_pay
 from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
 from agentscore_commerce.challenge.respond_402 import Respond402Result, respond_402
 from agentscore_commerce.challenge.validation_error import build_validation_error
+from agentscore_commerce.errors import CheckoutValidationError
 from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
@@ -132,31 +133,6 @@ def _spec_method_name(spec: CheckoutRailSpec) -> str:
     if isinstance(spec, SolanaMppRailSpec):
         return "solana/charge"
     return "stripe/spt"  # StripeRailSpec is the only remaining variant in CheckoutRailSpec.
-
-
-class CheckoutValidationError(Exception):
-    """Raised from a :attr:`Checkout.pre_validate` hook to short-circuit with a 4xx.
-
-    Checkout catches this and emits the canonical ``{error, next_steps}`` envelope
-    via :func:`build_validation_error` so merchants don't have to construct
-    ``JSONResponse`` themselves in the pre-validate path.
-    """
-
-    def __init__(
-        self,
-        *,
-        code: str,
-        message: str,
-        action: str = "fix_request",
-        status: int = 400,
-        extra: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.action = action
-        self.status = status
-        self.extra = extra
 
 
 @dataclass
@@ -1801,7 +1777,22 @@ class Checkout:
         if ctx.pricing is None:
             msg = "Checkout._emit_402: pricing not computed"
             raise RuntimeError(msg)
-        await self._resolve_recipients(ctx)
+        try:
+            await self._resolve_recipients(ctx)
+        except CheckoutValidationError as err:
+            return CheckoutResult(
+                status=err.status,
+                body=build_validation_error(
+                    code=err.code,
+                    message=err.message,
+                    next_steps={"action": err.action, "user_message": err.message},
+                    extra=err.extra,
+                ),
+                headers={},
+                reference_id=ctx.reference_id,
+                settled=False,
+                settle_phase="mint_recipients_failed",
+            )
         emit_rails = _apply_recipient_overrides(self.rails, ctx.recipients)
 
         accepted = await build_accepted_methods(

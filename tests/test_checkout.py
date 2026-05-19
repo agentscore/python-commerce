@@ -461,6 +461,31 @@ async def test_compose_mppx_returns_402_on_settle_leg_rejects_credential() -> No
 
 
 @pytest.mark.asyncio
+async def test_compose_mppx_402_with_keychain_failure_surfaces_tempo_key_not_registered() -> None:
+    """When the compose hook captures a Tempo keychain rejection in failure_reason,
+    Checkout returns 401 ``tempo_key_not_registered`` instead of the generic
+    ``payment_proof_invalid`` so ``tempo request`` / ``agentscore-pay`` can route the user
+    to the WebAuthn enrollment flow."""
+    compose_mppx = AsyncMock(
+        return_value=MppxComposeOutcome(
+            status=402,
+            headers={"www-authenticate": 'Payment id="ord_x"'},
+            failure_reason="RPC Request failed. (keychain validation failed: AccountKeychainError(KeyNotFound(KeyNotFound)))",
+        ),
+    )
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=compose_mppx,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 401
+    assert result.body["error"]["code"] == "tempo_key_not_registered"
+    assert result.settle_phase == "verify_failed"
+
+
+@pytest.mark.asyncio
 async def test_compose_mppx_on_discovery_leg_layers_challenge_in_402() -> None:
     """On the discovery leg (no Authorization header), Checkout calls compose_mppx
     proactively to mint a fresh WWW-Authenticate, then composes it into the 402."""

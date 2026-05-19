@@ -86,6 +86,7 @@ from agentscore_commerce.challenge.respond_402 import Respond402Result, respond_
 from agentscore_commerce.challenge.validation_error import build_validation_error
 from agentscore_commerce.errors import CheckoutValidationError
 from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
+from agentscore_commerce.payment.mppx_failures import classify_mppx_failure
 from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
@@ -490,6 +491,14 @@ class MppxComposeOutcome:
     headers without parsing the JSON body."""
     raw: Any = None
     """The underlying pympp compose result for ``on_settled`` introspection."""
+    failure_reason: str | None = None
+    """For ``status=402``: optional reason string captured from the swallowed
+    inner verifier exception (e.g. ``"keychain validation failed: KeyNotFound"``
+    when a Tempo signer isn't enrolled). When set, ``_handle_mppx`` runs
+    :func:`classify_mppx_failure` and returns a typed envelope
+    (``tempo_key_not_registered``, etc.) instead of the generic
+    ``payment_proof_invalid``. Populated by :func:`make_mppx_compose_hook` when
+    pympp's verifier raises; custom hooks can set it explicitly to opt in."""
 
 
 @dataclass
@@ -1754,10 +1763,25 @@ class Checkout:
             )
             return await self._build_success(ctx, outcome)
         # _handle_mppx is only invoked when an ``Authorization: Payment`` header
-        # was present, so a 402 here means mppx REJECTED the credential. Surface
-        # as 400 ``payment_proof_invalid`` (the canonical "regenerate the
-        # credential" denial), echoing mppx's fresh WWW-Authenticate so the
-        # agent's retry signs against the new directive id.
+        # was present, so a 402 here means mppx REJECTED the credential. Try to
+        # classify the swallowed inner error (e.g. Tempo ``KeyNotFound``) into a
+        # typed envelope agents can route on; fall back to the generic
+        # ``payment_proof_invalid`` regenerate hint otherwise.
+        classified = classify_mppx_failure(composed.failure_reason)
+        if classified is not None:
+            return CheckoutResult(
+                status=classified.status,
+                body=build_validation_error(
+                    code=classified.code,
+                    message=classified.message,
+                    next_steps=classified.next_steps,
+                    extra=classified.extra or None,
+                ),
+                headers=dict(composed.headers or {}),
+                reference_id=ctx.reference_id,
+                settled=False,
+                settle_phase="verify_failed",
+            )
         return CheckoutResult(
             status=400,
             body=build_validation_error(

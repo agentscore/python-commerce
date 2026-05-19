@@ -59,8 +59,10 @@ def make_mppx_compose_hook(
         amount_str = f"{ctx.pricing.amount_usd:.{decimals}f}"
         try:
             result = await mpp.charge(authorization=authorization, amount=amount_str)
-        except Exception:
-            return MppxComposeOutcome(status=402)
+        except Exception as error:
+            # Capture the inner reason so Checkout can classify it into a typed
+            # envelope (e.g., Tempo `KeyNotFound` -> `tempo_key_not_registered`).
+            return MppxComposeOutcome(status=402, failure_reason=str(error))
 
         if not isinstance(result, tuple):
             to_www = getattr(result, "to_www_authenticate", None)

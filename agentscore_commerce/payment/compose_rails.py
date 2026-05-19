@@ -16,10 +16,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from agentscore_commerce.payment.amounts import usd_to_atomic
+from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
 from agentscore_commerce.payment.usdc import USDC
 
 _SOLANA_MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-_STRIPE_MIN_CHARGE_USD = Decimal("0.50")
 _warned_stripe_below_minimum = False
 _logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ def build_mppx_compose_rails(
             amount_decimal = Decimal(amount_usd)
         except (InvalidOperation, TypeError, ValueError):
             amount_decimal = None
-        if amount_decimal is not None and amount_decimal < _STRIPE_MIN_CHARGE_USD:
+        if amount_decimal is not None and amount_decimal < STRIPE_MIN_CHARGE_USD:
             global _warned_stripe_below_minimum
             if not _warned_stripe_below_minimum:
                 _warned_stripe_below_minimum = True
@@ -113,7 +113,7 @@ def build_mppx_compose_rails(
                     "unprofitable (and many accounts reject PI creation with amount_too_small below "
                     "this floor). Pass include_stripe=False to suppress this warning.",
                     amount_usd,
-                    _STRIPE_MIN_CHARGE_USD,
+                    STRIPE_MIN_CHARGE_USD,
                 )
         else:
             rails.append(("stripe/charge", {"amount": amount_usd, "currency": "usd", "decimals": 2}))

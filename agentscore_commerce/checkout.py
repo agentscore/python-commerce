@@ -71,6 +71,7 @@ import json
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Literal, TypeAlias
 
 from agentscore_commerce._headers import normalize_headers_to_lowercase
@@ -84,6 +85,7 @@ from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_bl
 from agentscore_commerce.challenge.respond_402 import Respond402Result, respond_402
 from agentscore_commerce.challenge.validation_error import build_validation_error
 from agentscore_commerce.errors import CheckoutValidationError
+from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
 from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
@@ -1794,6 +1796,16 @@ class Checkout:
                 settle_phase="mint_recipients_failed",
             )
         emit_rails = _apply_recipient_overrides(self.rails, ctx.recipients)
+
+        # Auto-drop stripe when priced below Stripe's $0.50 USD minimum so the
+        # emitted accepted_methods + how_to_pay stay consistent with what the
+        # mppx compose layer will actually accept (see build_mppx_compose_rails).
+        # Without this, the 402 body advertises a stripe rail that has no
+        # matching WWW-Authenticate challenge — agents see it offered but any
+        # SPT pay attempt fails. The compose-time auto-drop emits the
+        # user-facing warn; here we just strip the slot from the discovery body.
+        if Decimal(str(ctx.pricing.amount_usd)) < STRIPE_MIN_CHARGE_USD and "stripe" in emit_rails:
+            emit_rails = {k: v for k, v in emit_rails.items() if k != "stripe"}
 
         accepted = await build_accepted_methods(
             tempo=_pick(emit_rails, "tempo", TempoRailSpec),

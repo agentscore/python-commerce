@@ -35,6 +35,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from agentscore_commerce._mppx_receipt import derive_mppx_receipt_method
@@ -49,6 +50,7 @@ from agentscore_commerce.challenge import (
 from agentscore_commerce.discovery import build_success_next_steps
 from agentscore_commerce.errors import CheckoutValidationError
 from agentscore_commerce.payment.amounts import format_usd_cents
+from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
 from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
 from agentscore_commerce.payment.rail_spec import (
     SolanaMppRailSpec,
@@ -328,7 +330,10 @@ class ComputeFirstCheckout:
             accepted_rails["tempo"] = _replace_recipient(self.rails.tempo, tempo_recipient)
         if solana_recipient and self.rails.solana_mpp is not None:
             accepted_rails["solana_mpp"] = _replace_recipient(self.rails.solana_mpp, solana_recipient)
-        if self.rails.stripe is not None:
+        # Auto-drop stripe when the computed price is below Stripe's $0.50 USD
+        # minimum so accepted_methods stays consistent with what build_mppx_compose_rails
+        # actually composes (see agentscore_commerce.payment.constants).
+        if self.rails.stripe is not None and Decimal(total_usd) >= STRIPE_MIN_CHARGE_USD:
             accepted_rails["stripe"] = self.rails.stripe
         accepted = await build_accepted_methods(**accepted_rails)
 

@@ -71,6 +71,7 @@ import json
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Literal, TypeAlias
 
 from agentscore_commerce._headers import normalize_headers_to_lowercase
@@ -83,6 +84,9 @@ from agentscore_commerce.challenge.how_to_pay import build_how_to_pay
 from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
 from agentscore_commerce.challenge.respond_402 import Respond402Result, respond_402
 from agentscore_commerce.challenge.validation_error import build_validation_error
+from agentscore_commerce.errors import CheckoutValidationError
+from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
+from agentscore_commerce.payment.mppx_failures import classify_mppx_failure
 from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
@@ -132,31 +136,6 @@ def _spec_method_name(spec: CheckoutRailSpec) -> str:
     if isinstance(spec, SolanaMppRailSpec):
         return "solana/charge"
     return "stripe/spt"  # StripeRailSpec is the only remaining variant in CheckoutRailSpec.
-
-
-class CheckoutValidationError(Exception):
-    """Raised from a :attr:`Checkout.pre_validate` hook to short-circuit with a 4xx.
-
-    Checkout catches this and emits the canonical ``{error, next_steps}`` envelope
-    via :func:`build_validation_error` so merchants don't have to construct
-    ``JSONResponse`` themselves in the pre-validate path.
-    """
-
-    def __init__(
-        self,
-        *,
-        code: str,
-        message: str,
-        action: str = "fix_request",
-        status: int = 400,
-        extra: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.action = action
-        self.status = status
-        self.extra = extra
 
 
 @dataclass
@@ -512,6 +491,14 @@ class MppxComposeOutcome:
     headers without parsing the JSON body."""
     raw: Any = None
     """The underlying pympp compose result for ``on_settled`` introspection."""
+    failure_reason: str | None = None
+    """For ``status=402``: optional reason string captured from the swallowed
+    inner verifier exception (e.g. ``"keychain validation failed: KeyNotFound"``
+    when a Tempo signer isn't enrolled). When set, ``_handle_mppx`` runs
+    :func:`classify_mppx_failure` and returns a typed envelope
+    (``tempo_key_not_registered``, etc.) instead of the generic
+    ``payment_proof_invalid``. Populated by :func:`make_mppx_compose_hook` when
+    pympp's verifier raises; custom hooks can set it explicitly to opt in."""
 
 
 @dataclass
@@ -1776,10 +1763,25 @@ class Checkout:
             )
             return await self._build_success(ctx, outcome)
         # _handle_mppx is only invoked when an ``Authorization: Payment`` header
-        # was present, so a 402 here means mppx REJECTED the credential. Surface
-        # as 400 ``payment_proof_invalid`` (the canonical "regenerate the
-        # credential" denial), echoing mppx's fresh WWW-Authenticate so the
-        # agent's retry signs against the new directive id.
+        # was present, so a 402 here means mppx REJECTED the credential. Try to
+        # classify the swallowed inner error (e.g. Tempo ``KeyNotFound``) into a
+        # typed envelope agents can route on; fall back to the generic
+        # ``payment_proof_invalid`` regenerate hint otherwise.
+        classified = classify_mppx_failure(composed.failure_reason)
+        if classified is not None:
+            return CheckoutResult(
+                status=classified.status,
+                body=build_validation_error(
+                    code=classified.code,
+                    message=classified.message,
+                    next_steps=classified.next_steps,
+                    extra=classified.extra or None,
+                ),
+                headers=dict(composed.headers or {}),
+                reference_id=ctx.reference_id,
+                settled=False,
+                settle_phase="verify_failed",
+            )
         return CheckoutResult(
             status=400,
             body=build_validation_error(
@@ -1801,8 +1803,33 @@ class Checkout:
         if ctx.pricing is None:
             msg = "Checkout._emit_402: pricing not computed"
             raise RuntimeError(msg)
-        await self._resolve_recipients(ctx)
+        try:
+            await self._resolve_recipients(ctx)
+        except CheckoutValidationError as err:
+            return CheckoutResult(
+                status=err.status,
+                body=build_validation_error(
+                    code=err.code,
+                    message=err.message,
+                    next_steps={"action": err.action, "user_message": err.message},
+                    extra=err.extra,
+                ),
+                headers={},
+                reference_id=ctx.reference_id,
+                settled=False,
+                settle_phase="mint_recipients_failed",
+            )
         emit_rails = _apply_recipient_overrides(self.rails, ctx.recipients)
+
+        # Auto-drop stripe when priced below Stripe's $0.50 USD minimum so the
+        # emitted accepted_methods + how_to_pay stay consistent with what the
+        # mppx compose layer will actually accept (see build_mppx_compose_rails).
+        # Without this, the 402 body advertises a stripe rail that has no
+        # matching WWW-Authenticate challenge — agents see it offered but any
+        # SPT pay attempt fails. The compose-time auto-drop emits the
+        # user-facing warn; here we just strip the slot from the discovery body.
+        if Decimal(str(ctx.pricing.amount_usd)) < STRIPE_MIN_CHARGE_USD and "stripe" in emit_rails:
+            emit_rails = {k: v for k, v in emit_rails.items() if k != "stripe"}
 
         accepted = await build_accepted_methods(
             tempo=_pick(emit_rails, "tempo", TempoRailSpec),

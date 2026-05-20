@@ -23,15 +23,25 @@ async def test_dispatches_to_svm_for_solana():
 
 
 async def test_raises_when_no_handler_registered():
+    from agentscore_commerce.errors import CheckoutValidationError
+
     p = _Payload(accepted={"network": "eip155:8453"})
-    with pytest.raises(ValueError, match="No EVM"):
+    with pytest.raises(CheckoutValidationError) as exc:
         await dispatch_settlement_by_network(p, svm=lambda _: "x")
+    assert exc.value.code == "payment_provider_unavailable"
+    assert exc.value.status == 503
+    assert "No EVM" in exc.value.message
 
 
 async def test_raises_for_unrecognized_network():
+    from agentscore_commerce.errors import CheckoutValidationError
+
     p = _Payload(accepted={"network": "cosmos:foo"})
-    with pytest.raises(ValueError, match="Unrecognized"):
+    with pytest.raises(CheckoutValidationError) as exc:
         await dispatch_settlement_by_network(p, evm=lambda _: "x", svm=lambda _: "x")
+    assert exc.value.code == "payment_provider_unavailable"
+    assert exc.value.status == 503
+    assert "Unrecognized" in exc.value.message
 
 
 async def test_awaits_async_handler():

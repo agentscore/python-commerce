@@ -315,6 +315,39 @@ _DEFAULT_MESSAGES: dict[str, str] = {
 }
 
 
+def build_verification_required_body(
+    reason: DenialReason,
+    *,
+    message: str | None = None,
+    agent_instructions: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the canonical 4xx body for ``identity_verification_required``.
+
+    Every merchant maps the gate's auto-minted session fields (``verify_url``,
+    ``session_id``, ``poll_secret``, ``poll_url``, ``agent_instructions``) into
+    their own envelope with a merchant-specific message + error code. This
+    collapses that mapping into one call.
+
+    Goods merchants that surface an ``order_id`` (or similar) from
+    ``CreateSessionOnMissing.on_before_session`` get it for free via
+    ``denial_reason_to_body``'s ``reason.extra`` passthrough — but can also
+    pass ``extra=`` for fallbacks (e.g. when invoked outside the auto-mint
+    path and order_id needs to come from the validated context).
+    """
+    body = denial_reason_to_body(reason)
+    body["error"] = {
+        "code": "operator_verification_required",
+        "message": message or "Identity verification is required.",
+    }
+    if agent_instructions is not None:
+        body["agent_instructions"] = agent_instructions
+    if extra:
+        for k, v in extra.items():
+            body[k] = v
+    return body
+
+
 def denial_reason_to_body(reason: DenialReason) -> dict[str, Any]:
     """Marshal a DenialReason dataclass into a flat dict suitable for the 403 JSON body.
 

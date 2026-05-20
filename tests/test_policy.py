@@ -175,7 +175,7 @@ def test_validate_shipping_no_op_when_allowlist_empty() -> None:
 
 
 def test_validate_shipping_raises_on_disallowed_country() -> None:
-    from agentscore_commerce.checkout import CheckoutValidationError
+    from agentscore_commerce.errors import CheckoutValidationError
 
     with pytest.raises(CheckoutValidationError) as exc:
         validate_shipping_against_policy(country="JP", state="", policy={"allowed_shipping_countries": ["US"]})
@@ -185,7 +185,7 @@ def test_validate_shipping_raises_on_disallowed_country() -> None:
 
 
 def test_validate_shipping_raises_on_disallowed_state() -> None:
-    from agentscore_commerce.checkout import CheckoutValidationError
+    from agentscore_commerce.errors import CheckoutValidationError
 
     policy = {"allowed_shipping_countries": ["US"], "allowed_shipping_states": ["CA", "NY"]}
     with pytest.raises(CheckoutValidationError) as exc:
@@ -195,7 +195,7 @@ def test_validate_shipping_raises_on_disallowed_state() -> None:
 
 
 def test_validate_shipping_product_name_appears_in_message() -> None:
-    from agentscore_commerce.checkout import CheckoutValidationError
+    from agentscore_commerce.errors import CheckoutValidationError
 
     with pytest.raises(CheckoutValidationError) as exc:
         validate_shipping_against_policy(
@@ -208,7 +208,7 @@ def test_validate_shipping_product_name_appears_in_message() -> None:
 
 
 def test_validate_shipping_custom_messages_override_defaults() -> None:
-    from agentscore_commerce.checkout import CheckoutValidationError
+    from agentscore_commerce.errors import CheckoutValidationError
 
     with pytest.raises(CheckoutValidationError) as exc_country:
         validate_shipping_against_policy(
@@ -231,7 +231,7 @@ def test_validate_shipping_custom_messages_override_defaults() -> None:
 
 
 def test_validate_shipping_custom_code_and_action() -> None:
-    from agentscore_commerce.checkout import CheckoutValidationError
+    from agentscore_commerce.errors import CheckoutValidationError
 
     with pytest.raises(CheckoutValidationError) as exc:
         validate_shipping_against_policy(

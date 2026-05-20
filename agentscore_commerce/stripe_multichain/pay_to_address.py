@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
+from agentscore_commerce.errors import CheckoutValidationError
 from agentscore_commerce.stripe_multichain.payment_intent import (
     create_multichain_payment_intent,
 )
@@ -59,16 +60,36 @@ async def create_pay_to_address_from_stripe_pi(
         from mpp import Credential  # type: ignore[import-untyped]
 
         if authorization_header.startswith("Payment "):
-            credential = Credential.from_authorization(authorization_header)
+            try:
+                credential = Credential.from_authorization(authorization_header)
+            except Exception as err:
+                raise CheckoutValidationError(
+                    code="invalid_credential",
+                    message="The Authorization: Payment header is not a valid MPP credential.",
+                    action="retry_without_credential",
+                    status=401,
+                ) from err
             method = getattr(credential.challenge, "method", None)
             if method in ("tempo", "solana"):
                 recipient = getattr(credential.challenge.request, "recipient", None)
                 if not isinstance(recipient, str) or not recipient:
-                    msg = "MPP credential challenge missing recipient field"
-                    raise ValueError(msg)
+                    raise CheckoutValidationError(
+                        code="invalid_credential",
+                        message="The MPP credential is missing its recipient field.",
+                        action="retry_without_credential",
+                        status=401,
+                    )
                 if not await _maybe_await(pi_cache.has_address(recipient)):
-                    msg = "Invalid payTo address: not found in cache or expired"
-                    raise ValueError(msg)
+                    raise CheckoutValidationError(
+                        code="invalid_credential",
+                        message=(
+                            "The signed-against payTo recipient is not in this merchant's cache "
+                            "(unknown or expired). Retry without the Authorization: Payment header "
+                            "to receive a fresh 402 challenge."
+                        ),
+                        action="retry_without_credential",
+                        status=401,
+                    )
                 return recipient
 
     idempotency_key = f"pi-{order_id}-{amount_cents}" if order_id else None
@@ -91,8 +112,15 @@ async def create_pay_to_address_from_stripe_pi(
         or result.deposit_addresses.get("tempo")
     )
     if not pay_to:
-        msg = "Failed to resolve pay_to address from Stripe PaymentIntent"
-        raise RuntimeError(msg)
+        raise CheckoutValidationError(
+            code="payment_provider_unavailable",
+            message=(
+                "Stripe returned deposit addresses but none matched the requested network (tempo / base / solana). "
+                "The account may have only a subset of multichain networks enabled."
+            ),
+            action="retry_later",
+            status=503,
+        )
     return pay_to
 
 

@@ -20,7 +20,6 @@ from agentscore_commerce.checkout import (
     CheckoutRailSpec,
     CheckoutRequest,
     CheckoutResult,
-    CheckoutValidationError,
     DiscoveryProbeConfig,
     MppxComposeOutcome,
     PricingResult,
@@ -49,6 +48,7 @@ from agentscore_commerce.checkout_compute_first import (
     compute_first_checkout,
 )
 from agentscore_commerce.checkout_hooks import make_mppx_compose_hook
+from agentscore_commerce.errors import CheckoutValidationError
 
 # Re-export the most commonly used helpers at the package root so consumers
 # don't have to remember which submodule each one lives in. Mirrors node's
@@ -96,6 +96,7 @@ from agentscore_commerce.identity import (
     build_jwks_response,
     build_signer_mismatch_body,
     build_ucp_profile,
+    build_verification_required_body,
     create_default_on_denied,
     default_read_only_on_denied,
     denial_reason_status,
@@ -230,6 +231,7 @@ __all__ = [
     "build_mppx_compose_rails",
     "build_signer_mismatch_body",
     "build_ucp_profile",
+    "build_verification_required_body",
     "compute_first_checkout",
     "create_default_on_denied",
     "create_quote_cache",

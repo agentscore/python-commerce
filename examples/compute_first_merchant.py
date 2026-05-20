@@ -24,7 +24,11 @@ This example wires the x402-exact rail on Base only. To add MPP rails
 mppx intents at the exact cached price — see ``multi_rail_merchant.py``
 for the fixed-price MPP compose pattern; the compute-first variant is
 structurally identical except the helper passes the cached price +
-recipients into your callback.
+recipients into your callback. Stripe SPT requires the computed price
+to be at least $0.50 USD — below that Stripe's fixed ~$0.30 fee makes
+the charge unprofitable, so ``build_mppx_compose_rails`` auto-drops the
+stripe rail and sub-50-cent pay-per-result APIs ship Tempo + x402 +
+Solana only.
 
 Peer deps::
 

@@ -232,13 +232,6 @@ def _default_success_body(app_url: str) -> Callable[[SuccessBodyArgs], dict[str,
     return _build
 
 
-# Module-level so the missing-API-key warning fires at most once across all
-# ComputeFirstCheckout instances in a process — matches the Checkout class's
-# `_WARNED_NO_API_KEY`. Multi-endpoint apps would otherwise log the same
-# warning N times on first traffic.
-_WARNED_NO_API_KEY = False
-
-
 class ComputeFirstCheckout:
     """Variable-cost pay-per-result orchestrator.
 
@@ -457,18 +450,11 @@ class ComputeFirstCheckout:
         """
         import os
 
+        from agentscore_commerce._warnings import warn_missing_api_key_once
+
         api_key = os.environ.get("AGENTSCORE_API_KEY")
         if not api_key:
-            global _WARNED_NO_API_KEY
-            if not _WARNED_NO_API_KEY:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    f"[{self.name}.compute_first] AGENTSCORE_API_KEY is not set — wallet OFAC SDN "
-                    "sanctions are NOT being enforced. Set the env var to enable strict-liability "
-                    "protection on settle."
-                )
-                _WARNED_NO_API_KEY = True
+            warn_missing_api_key_once(f"{self.name}.compute_first")
             return None
 
         from agentscore_commerce.payment.signer import extract_payment_signer, read_x402_payment_header
@@ -491,42 +477,43 @@ class ComputeFirstCheckout:
             client_kwargs["base_url"] = base_url
         client = AgentScore(**client_kwargs)
 
+        from agentscore_commerce.identity._denial import denial_reason_status
+        from agentscore_commerce.identity._response import denial_reason_to_body
+        from agentscore_commerce.identity.types import DenialReason
+
+        denial_reason: DenialReason | None = None
         try:
             result = await client.aassess(
                 address=signer.address,
                 signer={"address": signer.address, "network": signer.network},
             )
-        except Exception:
-            # API outage or network failure — fail-closed (strict-liability).
-            return (
-                503,
-                {
-                    "id": reference_id,
-                    "endpoint": self.name,
-                    "created_at": datetime.now(UTC).isoformat(),
-                    "payment_status": "failed",
-                    "error": {
-                        "code": "api_error",
-                        "message": "AgentScore /v1/assess unavailable; settle blocked (strict-liability fail-closed).",
-                    },
-                },
-                {"Content-Type": "application/json"},
-            )
+        except Exception as err:
+            denial_reason = DenialReason(code="api_error", message=str(err))
+            result = None
 
-        decision = result.get("decision") if isinstance(result, dict) else None
-        if decision == "deny":
+        if denial_reason is None:
+            decision = result.get("decision") if isinstance(result, dict) else None
+            if decision == "deny":
+                decision_reasons = list(result.get("decision_reasons") or []) if isinstance(result, dict) else []
+                denial_reason = DenialReason(
+                    code="wallet_not_trusted",
+                    reasons=decision_reasons,
+                    decision=decision,
+                )
+
+        if denial_reason is not None:
+            # Spread denial_reason_to_body so agent_instructions / verify_url
+            # ride through (parity with node's enforceWalletSanctions which
+            # spreads denialReasonToBody into the compute-first envelope).
+            denial_body = denial_reason_to_body(denial_reason)
             return (
-                403,
+                denial_reason_status(denial_reason),
                 {
                     "id": reference_id,
                     "endpoint": self.name,
                     "created_at": datetime.now(UTC).isoformat(),
                     "payment_status": "failed",
-                    "error": {
-                        "code": "wallet_not_trusted",
-                        "message": "Payment signer wallet failed OFAC SDN screening; settle blocked.",
-                        "reasons": list(result.get("decision_reasons") or []) if isinstance(result, dict) else [],
-                    },
+                    **denial_body,
                 },
                 {"Content-Type": "application/json"},
             )

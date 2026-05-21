@@ -80,12 +80,12 @@ def _mock_assess(decision: str = "allow", reasons: list[str] | None = None) -> r
 
 
 def _reset_warned_flag() -> None:
-    """The module-level warn-once flag carries across tests; reset between
-    cases that exercise the missing-key branch so each test sees a fresh
-    'first call' state."""
-    import agentscore_commerce.checkout as checkout_mod
+    """The shared warn-once flag (in `_warnings.py`) carries across tests;
+    reset between cases that exercise the missing-key branch so each test
+    sees a fresh 'first call' state."""
+    from agentscore_commerce._warnings import _reset_warned_no_api_key
 
-    checkout_mod._WARNED_NO_API_KEY = False
+    _reset_warned_no_api_key()
 
 
 @pytest.mark.asyncio
@@ -156,6 +156,41 @@ async def test_no_signer_skips_silently(monkeypatch: pytest.MonkeyPatch) -> None
         await checkout.handle(request)
         # OFAC path must NOT have called /v1/assess (no signer to screen)
         mock_aassess.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_token_expired_maps_to_401(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Defensive: TokenExpiredError from the SDK on the wallet-OFAC path
+    maps to 401 (parity with node's denial-code → status mapping)."""
+    from agentscore.errors import TokenExpiredError
+
+    monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
+
+    async def _raise(*args: Any, **kwargs: Any) -> None:
+        raise TokenExpiredError("token expired")
+
+    with patch("agentscore_commerce.api.AgentScore.aassess", new=_raise):
+        checkout = _checkout(gate=None)
+        request = _req(headers={"x-payment": _x402_payment_header(CLEAN_WALLET)})
+        result = await checkout.handle(request)
+        assert result.status == 401
+
+
+@pytest.mark.asyncio
+async def test_invalid_credential_maps_to_401(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Defensive: InvalidCredentialError from the SDK maps to 401."""
+    from agentscore.errors import InvalidCredentialError
+
+    monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
+
+    async def _raise(*args: Any, **kwargs: Any) -> None:
+        raise InvalidCredentialError("bad credential")
+
+    with patch("agentscore_commerce.api.AgentScore.aassess", new=_raise):
+        checkout = _checkout(gate=None)
+        request = _req(headers={"x-payment": _x402_payment_header(CLEAN_WALLET)})
+        result = await checkout.handle(request)
+        assert result.status == 401
 
 
 @pytest.mark.asyncio

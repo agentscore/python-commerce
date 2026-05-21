@@ -100,9 +100,9 @@ def _checkout() -> ComputeFirstCheckout:
 
 
 def _reset_warned_flag() -> None:
-    import agentscore_commerce.checkout_compute_first as cf
+    from agentscore_commerce._warnings import _reset_warned_no_api_key
 
-    cf._WARNED_NO_API_KEY = False
+    _reset_warned_no_api_key()
 
 
 @pytest.mark.asyncio

@@ -562,13 +562,6 @@ def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
     return build_identity_metadata(mode="wallet", wallet=wallet, linked_wallets=linked_wallets)
 
 
-# Module-level so the missing-API-key warning fires at most once across all
-# Checkout instances in a process. Matches the node-commerce Checkout static
-# `warnedNoApiKey`. Multi-Checkout apps would otherwise log the warning N
-# times on first traffic.
-_WARNED_NO_API_KEY = False
-
-
 class Checkout:
     """High-level agent-commerce orchestrator.
 
@@ -1573,17 +1566,11 @@ class Checkout:
         """
         import os
 
+        from agentscore_commerce._warnings import warn_missing_api_key_once
+
         api_key = (self.gate.api_key if self.gate is not None else None) or os.environ.get("AGENTSCORE_API_KEY")
         if not api_key:
-            global _WARNED_NO_API_KEY
-            if not _WARNED_NO_API_KEY:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    "[checkout] AGENTSCORE_API_KEY is not set — wallet OFAC SDN sanctions are NOT being enforced. "
-                    "Set the env var to enable strict-liability protection on settle."
-                )
-                _WARNED_NO_API_KEY = True
+            warn_missing_api_key_once("checkout")
             return None
 
         from agentscore_commerce.payment.signer import extract_payment_signer, read_x402_payment_header
@@ -1610,18 +1597,38 @@ class Checkout:
         if base_url:
             client_kwargs["base_url"] = base_url
         client = AgentScore(**client_kwargs)
+        from agentscore.errors import (
+            AgentScoreError,
+            InvalidCredentialError,
+            TokenExpiredError,
+        )
+
         try:
             result = await client.aassess(
                 address=signer.address,
                 signer={"address": signer.address, "network": signer.network},
             )
-        except Exception as err:
-            # API outage or network failure — fail-closed (strict-liability).
-            reason = DenialReason(code="api_error", message=str(err))
-            body = denial_reason_to_body(reason)
+        except (TokenExpiredError, InvalidCredentialError) as err:
+            # 401 — credential issues map to invalid_credential. These are
+            # unusual on the wallet-OFAC-only path (no operator_token) but
+            # carried for parity with node's mapping.
+            reason = DenialReason(
+                code="invalid_credential" if isinstance(err, InvalidCredentialError) else "token_expired",
+                message=str(err),
+            )
             return CheckoutResult(
                 status=denial_reason_status(reason),
-                body=body,
+                body=denial_reason_to_body(reason),
+                headers={},
+                reference_id=ctx.reference_id,
+                settled=False,
+            )
+        except (AgentScoreError, Exception) as err:
+            # 503 — API outage or network failure. Fail-closed: strict-liability.
+            reason = DenialReason(code="api_error", message=str(err))
+            return CheckoutResult(
+                status=denial_reason_status(reason),
+                body=denial_reason_to_body(reason),
                 headers={},
                 reference_id=ctx.reference_id,
                 settled=False,
@@ -1635,10 +1642,9 @@ class Checkout:
                 reasons=list(decision_reasons),
                 decision=decision,
             )
-            body = denial_reason_to_body(reason)
             return CheckoutResult(
                 status=denial_reason_status(reason),
-                body=body,
+                body=denial_reason_to_body(reason),
                 headers={},
                 reference_id=ctx.reference_id,
                 settled=False,

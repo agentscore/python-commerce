@@ -128,10 +128,10 @@ class SignerVerdict:
     ``/v1/assess`` call (single round trip). ``signer_match`` describes the wallet-
     binding; ``signer_sanctions`` describes the OFAC SDN wallet-address check.
 
-    Under ``policy.require_sanctions_clear``, a ``signer_sanctions`` hit OR an
-    unavailable lookup already flips ``decision -> deny`` inside the gate before the
-    handler runs — merchant code typically only needs to read ``signer_match`` here
-    for the wallet-binding verdict.
+    Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the request —
+    a ``signer_sanctions`` hit OR an unavailable lookup already flips
+    ``decision -> deny`` inside the gate before the handler runs. Merchant code
+    typically only needs to read ``signer_match`` here for the wallet-binding verdict.
     """
 
     signer_match: VerifyWalletSignerResult | None = None

@@ -415,10 +415,10 @@ class AgentScoreCore:
         request — single round trip. Returns ``None`` when the gate didn't run with
         a signer (operator-token-only paths, discovery legs).
 
-        Under ``policy.require_sanctions_clear``, OFAC SDN wallet-address hits are
-        already enforced by the gate (decision -> deny before the handler runs);
-        merchant code typically only needs this for the signer_match wallet-binding
-        verdict.
+        Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the
+        request — SDN wallet-address hits are already enforced by the gate
+        (decision -> deny before the handler runs); merchant code typically only
+        needs this for the signer_match wallet-binding verdict.
         """
         claimed_norm = normalize_address(claimed_address)
         key = self._cache_key(address=claimed_norm)

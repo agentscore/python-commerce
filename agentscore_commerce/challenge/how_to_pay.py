@@ -43,7 +43,7 @@ async def build_how_to_pay(
     retry_body_json: str,
     total_usd: float | str,
     rails: dict[str, TempoRailSpec | X402BaseRailSpec | SolanaMppRailSpec | StripeRailSpec],
-    op_token_placeholder: str = "<your_opc_token>",  # noqa: S107 — literal placeholder, not a secret
+    op_token_placeholder: str | None = "<your_opc_token>",  # noqa: S107 — literal placeholder, not a secret
     max_spend: float | str | None = None,
     decimals: int = 2,
 ) -> dict[str, Any]:
@@ -62,6 +62,12 @@ async def build_how_to_pay(
     ≥ $1 the default is still ``ceil(total) + 1`` formatted at ``decimals``; for
     sub-dollar totals the default uses ``total.toFixed(decimals)`` so the cap
     flag reflects the real amount instead of always being ``"1.00"``.
+
+    ``op_token_placeholder`` defaults to ``"<your_opc_token>"``. Pass ``None``
+    (gateless merchants) to strip the ``-H 'X-Operator-Token: ...'`` snippet
+    from every rail command — appropriate when the merchant doesn't run an
+    identity gate. The wallet OFAC SDN default (TEC-311) does NOT need an
+    operator token, so gateless merchants emit cleaner commands.
     """
     total_num = float(total_usd) if isinstance(total_usd, str) else total_usd
     if max_spend is not None:
@@ -70,7 +76,9 @@ async def build_how_to_pay(
         max_spend_str = f"{math.ceil(total_num) + 1:.{decimals}f}"
     else:
         max_spend_str = f"{total_num:.{decimals}f}"
-    op_token = op_token_placeholder
+    gateless = op_token_placeholder is None
+    op_token = op_token_placeholder or "<your_opc_token>"
+    op_token_header_flag = "" if gateless else f"-H 'X-Operator-Token: {op_token}' "
     block: dict[str, Any] = {}
 
     tempo = rails.get("tempo")
@@ -79,11 +87,11 @@ async def build_how_to_pay(
         chain_id = tempo.chain_id
         recommend = tempo.recommend
         tempo_command = (
-            f"tempo request -X POST -H 'X-Operator-Token: {op_token}' -H 'Content-Type: application/json' "
+            f"tempo request -X POST {op_token_header_flag}-H 'Content-Type: application/json' "
             f"--json '{retry_body_json}' --max-spend {max_spend_str} {url}"
         )
         pay_command = (
-            f"agentscore-pay pay POST {url} --chain tempo -H 'X-Operator-Token: {op_token}' "
+            f"agentscore-pay pay POST {url} --chain tempo {op_token_header_flag}"
             f"-H 'Content-Type: application/json' -d '{retry_body_json}' --max-spend {max_spend_str}"
         )
         entry: dict[str, Any] = {
@@ -115,7 +123,7 @@ async def build_how_to_pay(
                 f"least ${max_spend_str}. If the CLI is not installed, run the setup commands above first."
             ),
             "command": (
-                f"agentscore-pay pay POST {url} --chain base -H 'X-Operator-Token: {op_token}' "
+                f"agentscore-pay pay POST {url} --chain base {op_token_header_flag}"
                 f"-H 'Content-Type: application/json' -d '{retry_body_json}' --max-spend {max_spend_str}"
             ),
             "what_it_does": (
@@ -135,7 +143,7 @@ async def build_how_to_pay(
                 f"is at least ${max_spend_str}. If the CLI is not installed, run the setup commands above first."
             ),
             "command": (
-                f"agentscore-pay pay POST {url} --chain solana -H 'X-Operator-Token: {op_token}' "
+                f"agentscore-pay pay POST {url} --chain solana {op_token_header_flag}"
                 f"-H 'Content-Type: application/json' -d '{retry_body_json}' --max-spend {max_spend_str}"
             ),
             "what_it_does": (
@@ -182,6 +190,9 @@ async def build_how_to_pay(
                 ),
                 (
                     f"link-cli mpp pay {url} --spend-request-id $SPEND_ID --method POST "
+                    f"--data '{retry_body_json}' --output-json"
+                    if gateless
+                    else f"link-cli mpp pay {url} --spend-request-id $SPEND_ID --method POST "
                     f"--data '{retry_body_json}' --header 'X-Operator-Token: {op_token}' --output-json"
                 ),
             ]

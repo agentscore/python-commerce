@@ -706,6 +706,30 @@ class Checkout:
         body's ``extensions`` field so Bazaar crawlers and other spec-compliant
         clients read the route's declared input/output schema."""
 
+    def _has_identity_gate(self) -> bool:
+        """Return True when the merchant configured an identity-bearing flag.
+
+        The identity-bearing flags are ``require_kyc``, ``require_sanctions_clear``
+        (name screening on the KYC identity), ``min_age``, or jurisdiction
+        lists. Wallet OFAC SDN enforcement (the always-on default) does NOT
+        count as an identity gate; agents don't need an AgentScore credential
+        to satisfy it.
+
+        Used to conditionally emit AgentScore identity boilerplate in 402
+        bodies (``agent_memory``, ``X-Operator-Token`` references in per-rail
+        commands).
+        """
+        g = self.gate
+        if g is None:
+            return False
+        return bool(
+            g.require_kyc
+            or g.require_sanctions_clear
+            or g.min_age is not None
+            or (g.allowed_jurisdictions and len(g.allowed_jurisdictions) > 0)
+            or (g.blocked_jurisdictions and len(g.blocked_jurisdictions) > 0)
+        )
+
     async def _get_x402_server(self) -> Any:
         """Resolve the x402 server.
 
@@ -899,13 +923,22 @@ class Checkout:
 
         ctx.pricing = await _maybe_await(self.compute_pricing(ctx))
 
-        # Per-request gate: runs on the settle leg only (anonymous discovery
-        # passes through to 402). Sets ctx.assess["identity_status"]; 403s
-        # short-circuit. Merchant-supplied per_request_policy resolves the
-        # policy block (read from the product row, tier, etc.).
+        # Per-request compliance: runs on the settle leg only (anonymous
+        # discovery passes through to 402).
+        #
+        # Two paths converge here:
+        #   - Merchants with an explicit ``gate`` config run the full identity
+        #     policy (KYC / age / sanctions / jurisdiction) via ``_run_gate``.
+        #   - Merchants WITHOUT a ``gate`` config still get wallet OFAC SDN
+        #     enforcement via ``_run_wallet_sanctions_only`` — the always-on
+        #     strict-liability default. Falls back to AGENTSCORE_API_KEY env
+        #     var when set; logs a warning and skips when no key is set
+        #     (dev/testnet pattern).
         has_payment_header = has_x402_header(request.headers) or has_mppx_header(request.headers)
-        if self.gate is not None and has_payment_header:
-            gate_result = await self._run_gate(ctx)
+        if has_payment_header:
+            gate_result = (
+                await self._run_gate(ctx) if self.gate is not None else await self._run_wallet_sanctions_only(ctx)
+            )
             if gate_result is not None:
                 return gate_result
 
@@ -1402,6 +1435,13 @@ class Checkout:
             result = await _maybe_await(gate.run_gate(ctx))
             return self._coerce_run_gate_result(ctx, result)
 
+        # Gate configured without an API key — full policy enforcement requires
+        # /v1/assess access, which we can't reach. Fall through to wallet OFAC
+        # SDN enforcement (the strict-liability default) so the merchant still
+        # gets the basic protection layer instead of silently allowing.
+        if not gate.api_key:
+            return await self._run_wallet_sanctions_only(ctx)
+
         # 2. per_request_policy resolves per-product compliance (e.g. wine vs
         # generic merch). Return None to skip the gate entirely for this request.
         policy: Any = None
@@ -1498,6 +1538,117 @@ class Checkout:
             assess=assess,
             raw=ctx.request.raw,
         )
+        return None
+
+    async def _run_wallet_sanctions_only(self, ctx: CheckoutContext) -> CheckoutResult | None:
+        """Wallet OFAC SDN enforcement.
+
+        Runs on settle (payment header present) when either ``self.gate`` is
+        None OR a gate is configured but has no ``api_key`` to reach
+        ``/v1/assess`` for full policy enforcement (fallback to the
+        strict-liability default).
+
+        Env knobs:
+          - ``AGENTSCORE_API_KEY`` — required. No key → one-time warning + skip
+            (dev/testnet pattern; production should always configure a key).
+          - ``AGENTSCORE_BASE_URL`` — optional override for staging/dev API
+            (e.g. ``https://api-dev.agentscore.sh`` or ``http://localhost:3002``).
+
+        Stripe SPT (no extractable wallet signer) → skip silently; Stripe runs
+        its own OFAC screen on the buyer's Stripe account at customer creation.
+
+        Calls ``/v1/assess`` with the signer wallet as both the primary address
+        and the signer block. The API enforces signer-sanctions unconditionally
+        when a signer is present (no policy flag needed). Denies on OFAC SDN
+        hit; fail-closed on unavailable lookup (strict liability — falsely
+        allowing a sanctioned settle is an OFAC violation, falsely denying a
+        clean buyer is just bad UX).
+        """
+        import os
+
+        from agentscore_commerce._warnings import warn_missing_api_key_once
+
+        api_key = (self.gate.api_key if self.gate is not None else None) or os.environ.get("AGENTSCORE_API_KEY")
+        if not api_key:
+            warn_missing_api_key_once("checkout")
+            return None
+
+        from agentscore_commerce.payment.signer import extract_payment_signer, read_x402_payment_header
+
+        x402_header = read_x402_payment_header(ctx.request.headers)
+        authorization_header: str | None = None
+        for header_key, header_value in ctx.request.headers.items():
+            if header_key.lower() == "authorization":
+                authorization_header = header_value
+                break
+        signer = extract_payment_signer(x402_header, authorization_header=authorization_header)
+        if signer is None:
+            # Stripe SPT path — no wallet signer, no OFAC check possible. Stripe
+            # screens its own customer accounts; we have nothing to add here.
+            return None
+
+        from agentscore_commerce.api import AgentScore
+        from agentscore_commerce.identity._denial import denial_reason_status
+        from agentscore_commerce.identity._response import denial_reason_to_body
+        from agentscore_commerce.identity.types import DenialReason
+
+        base_url = os.environ.get("AGENTSCORE_BASE_URL")
+        client_kwargs: dict[str, Any] = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = AgentScore(**client_kwargs)
+        from agentscore.errors import (
+            AgentScoreError,
+            InvalidCredentialError,
+            TokenExpiredError,
+        )
+
+        try:
+            result = await client.aassess(
+                address=signer.address,
+                signer={"address": signer.address, "network": signer.network},
+            )
+        except (TokenExpiredError, InvalidCredentialError) as err:
+            # 401 — credential issues map to invalid_credential. These are
+            # unusual on the wallet-OFAC-only path (no operator_token) but
+            # carried for parity with node's mapping.
+            reason = DenialReason(
+                code="invalid_credential" if isinstance(err, InvalidCredentialError) else "token_expired",
+                message=str(err),
+            )
+            return CheckoutResult(
+                status=denial_reason_status(reason),
+                body=denial_reason_to_body(reason),
+                headers={},
+                reference_id=ctx.reference_id,
+                settled=False,
+            )
+        except (AgentScoreError, Exception) as err:
+            # 503 — API outage or network failure. Fail-closed: strict-liability.
+            reason = DenialReason(code="api_error", message=str(err))
+            return CheckoutResult(
+                status=denial_reason_status(reason),
+                body=denial_reason_to_body(reason),
+                headers={},
+                reference_id=ctx.reference_id,
+                settled=False,
+            )
+
+        decision = result.get("decision") if isinstance(result, dict) else None
+        if decision == "deny":
+            decision_reasons = result.get("decision_reasons") or [] if isinstance(result, dict) else []
+            reason = DenialReason(
+                code="wallet_not_trusted",
+                reasons=list(decision_reasons),
+                decision=decision,
+            )
+            return CheckoutResult(
+                status=denial_reason_status(reason),
+                body=denial_reason_to_body(reason),
+                headers={},
+                reference_id=ctx.reference_id,
+                settled=False,
+            )
         return None
 
     def _coerce_run_gate_result(
@@ -1849,6 +2000,10 @@ class Checkout:
             total_usd=f"{ctx.pricing.amount_usd:.{pricing_decimals}f}",
             rails=how_to_pay_rails,
             decimals=pricing_decimals,
+            # Merchants without an identity-bearing policy flag get clean commands
+            # without an X-Operator-Token header — agents don't need one to satisfy
+            # wallet OFAC enforcement (the always-on default per TEC-311).
+            op_token_placeholder=None if not self._has_identity_gate() else "<your_opc_token>",
         )
         pricing_block = ctx.pricing.block or build_pricing_block(
             subtotal_cents=ctx.pricing.amount_usd * 100,
@@ -1898,7 +2053,10 @@ class Checkout:
             pricing=pricing_block,
             amount_usd=f"{ctx.pricing.amount_usd:.{pricing_decimals}f}",
             retry_body=ctx.request.body,
-            agent_memory=first_encounter_agent_memory(first_encounter=True),
+            # Merchants without an identity-bearing gate get a clean 402: no
+            # AgentScore-identity bootstrap describing a verification flow they
+            # don't run. Wallet OFAC (the always-on default) doesn't need it.
+            agent_memory=first_encounter_agent_memory(first_encounter=self._has_identity_gate()),
             product=ctx.pricing.product,
             extra=ctx.pricing.body_extras,
             x402=X402PaymentRequired(

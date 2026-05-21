@@ -322,10 +322,10 @@ def get_signer_verdict(request: Request) -> SignerVerdict | None:
     Returns ``None`` when the gate didn't run with a signer: operator-token-only paths,
     discovery legs that arrive without a payment credential, and fail-open pass-throughs.
 
-    Under ``policy.require_sanctions_clear``, OFAC SDN wallet-address hits already flip the
-    gate to ``decision=deny`` before the handler runs — merchant code typically only reads
-    ``signer_match`` for the wallet-binding verdict (e.g. via
-    :func:`build_signer_mismatch_body`).
+    Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the request —
+    SDN wallet-address hits already flip the gate to ``decision=deny`` before the handler
+    runs. Merchant code typically only reads ``signer_match`` for the wallet-binding
+    verdict (e.g. via :func:`build_signer_mismatch_body`).
     """
     state = request.scope.get("state", {}).get(GATE_STATE_KEY)
     if not state or not state.get("wallet_address"):

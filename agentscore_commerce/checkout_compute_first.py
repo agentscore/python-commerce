@@ -34,7 +34,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -434,6 +434,91 @@ class ComputeFirstCheckout:
         )
         return 402, body_402, headers
 
+    async def _enforce_wallet_sanctions(
+        self,
+        request: ComputeFirstRequest,
+        reference_id: str,
+    ) -> tuple[int, dict[str, Any], dict[str, str]] | None:
+        """Always-on wallet OFAC SDN enforcement for compute-first merchants.
+
+        Mirrors :meth:`Checkout._run_wallet_sanctions_only`. Resolves API key
+        from ``AGENTSCORE_API_KEY``, optional base URL from
+        ``AGENTSCORE_BASE_URL``, extracts the signer from the payment header,
+        calls ``/v1/assess`` with the signer block (no policy). Denies on SDN
+        hit or unavailable lookup. Skips silently for Stripe SPT (no wallet
+        signer) and when no API key is set (log-once warning).
+        """
+        import os
+
+        from agentscore_commerce._warnings import warn_missing_api_key_once
+
+        api_key = os.environ.get("AGENTSCORE_API_KEY")
+        if not api_key:
+            warn_missing_api_key_once(f"{self.name}.compute_first")
+            return None
+
+        from agentscore_commerce.payment.signer import extract_payment_signer, read_x402_payment_header
+
+        x402_header = read_x402_payment_header(request.headers)
+        authorization_header: str | None = None
+        for header_key, header_value in request.headers.items():
+            if header_key.lower() == "authorization":
+                authorization_header = header_value
+                break
+        signer = extract_payment_signer(x402_header, authorization_header=authorization_header)
+        if signer is None:
+            return None  # Stripe SPT — no wallet signer to screen
+
+        from agentscore_commerce.api import AgentScore
+
+        base_url = os.environ.get("AGENTSCORE_BASE_URL")
+        client_kwargs: dict[str, Any] = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = AgentScore(**client_kwargs)
+
+        from agentscore_commerce.identity._denial import denial_reason_status
+        from agentscore_commerce.identity._response import denial_reason_to_body
+        from agentscore_commerce.identity.types import DenialReason
+
+        denial_reason: DenialReason | None = None
+        try:
+            result = await client.aassess(
+                address=signer.address,
+                signer={"address": signer.address, "network": signer.network},
+            )
+        except Exception as err:
+            denial_reason = DenialReason(code="api_error", message=str(err))
+            result = None
+
+        if denial_reason is None:
+            decision = result.get("decision") if isinstance(result, dict) else None
+            if decision == "deny":
+                decision_reasons = list(result.get("decision_reasons") or []) if isinstance(result, dict) else []
+                denial_reason = DenialReason(
+                    code="wallet_not_trusted",
+                    reasons=decision_reasons,
+                    decision=decision,
+                )
+
+        if denial_reason is not None:
+            # Spread denial_reason_to_body so agent_instructions / verify_url
+            # ride through (parity with node's enforceWalletSanctions which
+            # spreads denialReasonToBody into the compute-first envelope).
+            denial_body = denial_reason_to_body(denial_reason)
+            return (
+                denial_reason_status(denial_reason),
+                {
+                    "id": reference_id,
+                    "endpoint": self.name,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "payment_status": "failed",
+                    **denial_body,
+                },
+                {"Content-Type": "application/json"},
+            )
+        return None
+
     async def _handle_x402_settle(
         self,
         request: ComputeFirstRequest,
@@ -693,6 +778,13 @@ class ComputeFirstCheckout:
                     {"Content-Type": "application/json"},
                 )
             recipients = quote.recipients if hasattr(quote, "recipients") else {}
+            # Wallet OFAC SDN enforcement (always-on default — mirrors
+            # Checkout._run_wallet_sanctions_only). Strict-liability check
+            # before the rail-specific settle so funds don't move (x402) or
+            # order doesn't fulfill (MPP) for a sanctioned wallet.
+            ofac_denial = await self._enforce_wallet_sanctions(request, reference_id)
+            if ofac_denial is not None:
+                return ofac_denial
             if has_x402_header(request.headers):
                 return await self._handle_x402_settle(
                     request, reference_id, quote.body, int(quote.price_cents), recipients

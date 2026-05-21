@@ -27,7 +27,10 @@ jobs:
           chmod +x osv-scanner
 
       - name: Scan dependencies
-        run: ./osv-scanner scan source --lockfile=uv.lock --format=table
+        # `--config osv-scanner.toml` honors the in-repo allowlist (e.g. PYSEC-2025-183;
+        # see the toml for justifications). Keep the pip-audit `--ignore-vuln` flags below
+        # in sync with the same IDs.
+        run: ./osv-scanner scan source --lockfile=uv.lock --config=osv-scanner.toml --format=table
 
   pip-audit:
     name: Python Audit
@@ -44,6 +47,9 @@ jobs:
         run: pip install pip-audit
 
       - name: Audit dependencies
+        # `--ignore-vuln` allowlist mirrors `osv-scanner.toml` (e.g. PYSEC-2025-183;
+        # see that file for justifications). Keep both lists in sync.
         run: |
           uv export --format requirements-txt --no-hashes > requirements.txt
-          pip-audit -r requirements.txt --disable-pip --no-deps
+          pip-audit -r requirements.txt --disable-pip --no-deps \
+            --ignore-vuln PYSEC-2025-183

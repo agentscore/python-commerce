@@ -1,0 +1,25 @@
+# OSV scanner allowlist
+#
+# Each entry suppresses a vulnerability that the OSV / pip-audit scanners
+# flag but that we've reviewed and determined does NOT apply to us. The
+# `pip-audit` step in `.github/workflows/security.yml` passes the same IDs
+# via `--ignore-vuln` flags; keep both in sync.
+#
+# Conventions:
+#   - `id` — the OSV / PYSEC / GHSA identifier
+#   - `ignoreUntil` — review-by date (ISO 8601). Leave empty for permanent
+#     ignores (e.g. disputed-by-upstream). Otherwise pick a date that forces
+#     us to re-evaluate when the upstream releases a fix.
+#   - `reason` — short justification
+
+[[IgnoredVulns]]
+id = "PYSEC-2025-183"
+# pyjwt 2.10.1+ flagged for "weak encryption" — disputed by upstream pyjwt
+# maintainers ("the key length is chosen by the application that uses the
+# library"). No fixed version exists in the advisory. pyjwt is a transitive
+# of cdp-sdk (Coinbase) under the optional `coinbase` extra; merchants
+# install it only when wiring the x402 Coinbase facilitator, and the JWT
+# keys used in that path are user-provided. Library is library; the dispute
+# is justified for our usage. Re-evaluate if upstream releases a fix.
+ignoreUntil = "2027-01-01"
+reason = "Disputed by pyjwt maintainers; key-length is an application-layer concern; cdp-sdk's keys are user-provided"

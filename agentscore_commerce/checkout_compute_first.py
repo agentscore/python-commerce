@@ -34,7 +34,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -230,6 +230,13 @@ def _default_success_body(app_url: str) -> Callable[[SuccessBodyArgs], dict[str,
         return out
 
     return _build
+
+
+# Module-level so the missing-API-key warning fires at most once across all
+# ComputeFirstCheckout instances in a process — matches the Checkout class's
+# `_WARNED_NO_API_KEY`. Multi-endpoint apps would otherwise log the same
+# warning N times on first traffic.
+_WARNED_NO_API_KEY = False
 
 
 class ComputeFirstCheckout:
@@ -433,6 +440,97 @@ class ComputeFirstCheckout:
             x402_version=2, accepts=accepted, resource={"url": self.url}
         )
         return 402, body_402, headers
+
+    async def _enforce_wallet_sanctions(
+        self,
+        request: ComputeFirstRequest,
+        reference_id: str,
+    ) -> tuple[int, dict[str, Any], dict[str, str]] | None:
+        """Always-on wallet OFAC SDN enforcement for compute-first merchants.
+
+        Mirrors :meth:`Checkout._run_wallet_sanctions_only`. Resolves API key
+        from ``AGENTSCORE_API_KEY``, optional base URL from
+        ``AGENTSCORE_BASE_URL``, extracts the signer from the payment header,
+        calls ``/v1/assess`` with the signer block (no policy). Denies on SDN
+        hit or unavailable lookup. Skips silently for Stripe SPT (no wallet
+        signer) and when no API key is set (log-once warning).
+        """
+        import os
+
+        api_key = os.environ.get("AGENTSCORE_API_KEY")
+        if not api_key:
+            global _WARNED_NO_API_KEY
+            if not _WARNED_NO_API_KEY:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    f"[{self.name}.compute_first] AGENTSCORE_API_KEY is not set — wallet OFAC SDN "
+                    "sanctions are NOT being enforced. Set the env var to enable strict-liability "
+                    "protection on settle."
+                )
+                _WARNED_NO_API_KEY = True
+            return None
+
+        from agentscore_commerce.payment.signer import extract_payment_signer, read_x402_payment_header
+
+        x402_header = read_x402_payment_header(request.headers)
+        authorization_header: str | None = None
+        for header_key, header_value in request.headers.items():
+            if header_key.lower() == "authorization":
+                authorization_header = header_value
+                break
+        signer = extract_payment_signer(x402_header, authorization_header=authorization_header)
+        if signer is None:
+            return None  # Stripe SPT — no wallet signer to screen
+
+        from agentscore_commerce.api import AgentScore
+
+        base_url = os.environ.get("AGENTSCORE_BASE_URL")
+        client_kwargs: dict[str, Any] = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = AgentScore(**client_kwargs)
+
+        try:
+            result = await client.aassess(
+                address=signer.address,
+                signer={"address": signer.address, "network": signer.network},
+            )
+        except Exception:
+            # API outage or network failure — fail-closed (strict-liability).
+            return (
+                503,
+                {
+                    "id": reference_id,
+                    "endpoint": self.name,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "payment_status": "failed",
+                    "error": {
+                        "code": "api_error",
+                        "message": "AgentScore /v1/assess unavailable; settle blocked (strict-liability fail-closed).",
+                    },
+                },
+                {"Content-Type": "application/json"},
+            )
+
+        decision = result.get("decision") if isinstance(result, dict) else None
+        if decision == "deny":
+            return (
+                403,
+                {
+                    "id": reference_id,
+                    "endpoint": self.name,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "payment_status": "failed",
+                    "error": {
+                        "code": "wallet_not_trusted",
+                        "message": "Payment signer wallet failed OFAC SDN screening; settle blocked.",
+                        "reasons": list(result.get("decision_reasons") or []) if isinstance(result, dict) else [],
+                    },
+                },
+                {"Content-Type": "application/json"},
+            )
+        return None
 
     async def _handle_x402_settle(
         self,
@@ -693,6 +791,13 @@ class ComputeFirstCheckout:
                     {"Content-Type": "application/json"},
                 )
             recipients = quote.recipients if hasattr(quote, "recipients") else {}
+            # Wallet OFAC SDN enforcement (always-on default — mirrors
+            # Checkout._run_wallet_sanctions_only). Strict-liability check
+            # before the rail-specific settle so funds don't move (x402) or
+            # order doesn't fulfill (MPP) for a sanctioned wallet.
+            ofac_denial = await self._enforce_wallet_sanctions(request, reference_id)
+            if ofac_denial is not None:
+                return ofac_denial
             if has_x402_header(request.headers):
                 return await self._handle_x402_settle(
                     request, reference_id, quote.body, int(quote.price_cents), recipients

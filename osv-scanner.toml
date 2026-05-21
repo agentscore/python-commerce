@@ -21,5 +21,5 @@ id = "PYSEC-2025-183"
 # install it only when wiring the x402 Coinbase facilitator, and the JWT
 # keys used in that path are user-provided. Library is library; the dispute
 # is justified for our usage. Re-evaluate if upstream releases a fix.
-ignoreUntil = "2027-01-01"
+ignoreUntil = "2027-01-01T00:00:00Z"
 reason = "Disputed by pyjwt maintainers; key-length is an application-layer concern; cdp-sdk's keys are user-provided"

@@ -9,7 +9,9 @@ from unittest.mock import patch
 import pytest
 
 from agentscore_commerce.stripe_multichain.pay_to_address import (
+    MintMultichainRecipientsResult,
     create_pay_to_address_from_stripe_pi,
+    mint_multichain_recipients,
 )
 
 
@@ -196,3 +198,121 @@ async def test_mints_fresh_when_credential_method_is_stripe() -> None:
             pi_cache=cache,  # type: ignore[arg-type]
         )
     assert result == "0xFRESH"
+
+
+# ---------------------------------------------------------------------------
+# static_recipients + mint_multichain_recipients
+# ---------------------------------------------------------------------------
+
+
+class _StripeRecordingNetworks:
+    """Stripe stub that records which networks were requested on PI creation.
+
+    Lets us assert that ``static_recipients``-covered networks are excluded
+    from the underlying ``create_multichain_payment_intent`` call.
+    """
+
+    def __init__(self, addresses: dict[str, str]) -> None:
+        self.payment_intents = self
+        self._addresses = addresses
+        self.last_networks: list[str] | None = None
+        self.last_idempotency_key: str | None = None
+
+    def create(self, params: dict[str, Any], idempotency_key: str | None = None) -> Any:
+        self.last_networks = list(params["payment_method_options"]["crypto"]["deposit_options"]["networks"])
+        self.last_idempotency_key = idempotency_key
+        deposits = {n: {"address": a} for n, a in self._addresses.items()}
+
+        class _PI:
+            id = "pi_test_456"
+            next_action = {"crypto_display_details": {"deposit_addresses": deposits}}
+
+        return _PI()
+
+
+@pytest.mark.asyncio
+async def test_static_recipients_excluded_from_stripe_pi_networks() -> None:
+    cache = FakePiCache()
+    stripe = _StripeRecordingNetworks({"tempo": "0xTEMPO", "base": "0xBASE"})
+    await create_pay_to_address_from_stripe_pi(
+        authorization_header=None,
+        amount_cents=100,
+        stripe=stripe,  # type: ignore[arg-type]
+        pi_cache=cache,  # type: ignore[arg-type]
+        static_recipients={"solana": "STATIC123"},
+    )
+    assert stripe.last_networks == ["tempo", "base"]
+
+
+@pytest.mark.asyncio
+async def test_static_recipients_registered_in_cache_and_merged_map() -> None:
+    cache = FakePiCache()
+    stripe = _fake_stripe({"tempo": "0xTEMPO", "base": "0xBASE"})
+    await create_pay_to_address_from_stripe_pi(
+        authorization_header=None,
+        amount_cents=100,
+        stripe=stripe,
+        pi_cache=cache,  # type: ignore[arg-type]
+        static_recipients={"solana": "STATIC123"},
+    )
+    assert "STATIC123" in cache.cached_addresses
+    assert cache.cached_network_addresses == [
+        ("pi_test_123", {"tempo": "0xTEMPO", "base": "0xBASE", "solana": "STATIC123"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_settle_leg_accepts_static_recipient_without_cache_check() -> None:
+    """A bound recipient that matches static_recipients is always accepted,
+    even if the local PI cache wouldn't know about it (e.g. cold start).
+    """
+    cache = FakePiCache(has_address_result=False)
+    with patch("mpp.Credential", FakeCredential):
+        result = await create_pay_to_address_from_stripe_pi(
+            authorization_header="Payment solana:STATIC123",
+            amount_cents=100,
+            stripe=_fake_stripe({}),
+            pi_cache=cache,  # type: ignore[arg-type]
+            static_recipients={"solana": "STATIC123"},
+        )
+    assert result == "STATIC123"
+    assert cache.cached_addresses == []
+
+
+@pytest.mark.asyncio
+async def test_settle_leg_rejects_attacker_recipient_when_static_configured() -> None:
+    """Attacker forges a credential bound to a different solana address;
+    static_recipients match check fails, then the cache check fails, then
+    the SDK raises invalid_credential.
+    """
+    from agentscore_commerce.errors import CheckoutValidationError
+
+    cache = FakePiCache(has_address_result=False)
+    with (
+        patch("mpp.Credential", FakeCredential),
+        pytest.raises(CheckoutValidationError) as exc,
+    ):
+        await create_pay_to_address_from_stripe_pi(
+            authorization_header="Payment solana:ATTACKER456",
+            amount_cents=100,
+            stripe=_fake_stripe({}),
+            pi_cache=cache,  # type: ignore[arg-type]
+            static_recipients={"solana": "STATIC123"},
+        )
+    assert exc.value.code == "invalid_credential"
+
+
+@pytest.mark.asyncio
+async def test_mint_multichain_recipients_returns_full_merged_map() -> None:
+    cache = FakePiCache()
+    stripe = _fake_stripe({"tempo": "0xTEMPO", "base": "0xBASE"})
+    out = await mint_multichain_recipients(
+        authorization_header=None,
+        amount_cents=100,
+        stripe=stripe,
+        pi_cache=cache,  # type: ignore[arg-type]
+        static_recipients={"solana": "STATIC123"},
+    )
+    assert isinstance(out, MintMultichainRecipientsResult)
+    assert out.recipients == {"tempo": "0xTEMPO", "base": "0xBASE", "solana": "STATIC123"}
+    assert out.reused_from_credential is False

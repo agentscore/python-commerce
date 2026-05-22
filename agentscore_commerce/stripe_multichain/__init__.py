@@ -5,7 +5,9 @@ from agentscore_commerce.stripe_multichain.mppx_stripe import (
     create_mppx_stripe,
 )
 from agentscore_commerce.stripe_multichain.pay_to_address import (
+    MintMultichainRecipientsResult,
     create_pay_to_address_from_stripe_pi,
+    mint_multichain_recipients,
 )
 from agentscore_commerce.stripe_multichain.payment_intent import (
     MultichainPaymentIntentResult,
@@ -31,6 +33,7 @@ __all__ = [
     "DEFAULT_PAYMENT_METHOD_TYPES",
     "STRIPE_TEST_TX_HASH_FAILED",
     "STRIPE_TEST_TX_HASH_SUCCESS",
+    "MintMultichainRecipientsResult",
     "MultichainPaymentIntentResult",
     "PiCache",
     "SimulateNetwork",
@@ -39,6 +42,7 @@ __all__ = [
     "create_multichain_payment_intent",
     "create_pay_to_address_from_stripe_pi",
     "create_pi_cache",
+    "mint_multichain_recipients",
     "network_for_outcome",
     "simulate_crypto_deposit",
     "simulate_deposit_for_outcome",

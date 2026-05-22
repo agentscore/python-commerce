@@ -60,8 +60,8 @@ from agentscore_commerce.discovery import build_success_next_steps
 from agentscore_commerce.middleware.fastapi import RateLimitMiddleware
 from agentscore_commerce.payment import networks, validate_x402_network_config
 from agentscore_commerce.stripe_multichain import (
-    create_multichain_payment_intent,
     create_pi_cache,
+    mint_multichain_recipients,
     simulate_deposit_for_outcome,
 )
 
@@ -104,22 +104,35 @@ async def _compute_pricing(ctx: Any) -> PricingResult:
 
 
 async def _mint_recipients(ctx: Any) -> dict[str, str]:
-    """Per-order recipient mint: Stripe multichain PI → per-network deposit addresses."""
+    """Per-order recipient mint: Stripe multichain PI → per-network deposit addresses.
+
+    ``mint_multichain_recipients`` returns the full per-rail map and registers
+    everything in the PI cache in one call. On the settle leg it short-circuits
+    to the buyer's signed-against payTo from the MPP credential; on the discovery
+    leg it mints a fresh multichain PI.
+
+    For low-margin endpoints (sub-dollar per call), pass
+    ``static_recipients={"solana": os.environ["MERCHANT_SOLANA_RECIPIENT"]}`` to
+    skip Stripe minting on Solana — at $0.01/call MPP spec §13.6's ~$0.50 per-PI
+    ATA rent dominates revenue. With a stable merchant-owned recipient + one-time
+    external pre-funding of its USDC ATA, every settle pays only the per-tx fee.
+    """
     total_cents = round(ctx.pricing.amount_usd * 100)
-    result = create_multichain_payment_intent(
+    result = await mint_multichain_recipients(
+        authorization_header=ctx.request.headers.get("authorization"),
+        amount_cents=total_cents,
         stripe=stripe_client,
-        amount=total_cents,
+        pi_cache=pi_cache,
         networks=["tempo", "base", "solana"],
     )
-    for addr in result.deposit_addresses.values():
-        await pi_cache.cache_address(addr)
-        pi_cache.cache_payment_intent(addr, result.payment_intent_id)
-    pi_cache.cache_network_addresses(result.payment_intent_id, result.deposit_addresses)
-    return {
-        "tempo": result.deposit_addresses["tempo"],
-        "x402_base": result.deposit_addresses["base"],
-        "solana_mpp": result.deposit_addresses["solana"],
-    }
+    out: dict[str, str] = {}
+    if "tempo" in result.recipients:
+        out["tempo"] = result.recipients["tempo"]
+    if "base" in result.recipients:
+        out["x402_base"] = result.recipients["base"]
+    if "solana" in result.recipients:
+        out["solana_mpp"] = result.recipients["solana"]
+    return out
 
 
 async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:

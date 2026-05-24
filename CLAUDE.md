@@ -55,7 +55,7 @@ Peer-dep pattern: payment/x402/mppx/stripe modules import lazily at runtime; ven
 The SDK ships protocol-rooted builders for the AgentScore-published payment handlers — vendors compose UCP `payment_handlers` blocks by spreading these helpers instead of hand-writing the verbose binding wrapper:
 
 ```python
-from agentscore_commerce import StripeRailSpec
+from agentscore_commerce import StripeRailSpec, TempoRailSpec, X402BaseRailSpec
 from agentscore_commerce.identity import (
     build_ucp_profile,
     mpp_payment_handler,
@@ -66,14 +66,14 @@ from agentscore_commerce.identity import (
 build_ucp_profile(
     ...,
     payment_handlers={
-        **mpp_payment_handler(networks=[{"network": "tempo-mainnet", "chain_id": 4217, "recipient": "0x..."}]),
-        **x402_payment_handler(networks=[{"network": "base-8453", "recipient": "0x..."}]),
+        **mpp_payment_handler(networks=[TempoRailSpec(recipient="0x...")]),
+        **x402_payment_handler(networks=[X402BaseRailSpec(recipient="0x...")]),
         **stripe_spt_payment_handler(spec=StripeRailSpec(profile_id="profile_...")),
     },
 )
 ```
 
-Each helper returns `{ <reverse-DNS-key>: [binding] }` so spreading composes the parent map. The handler `version`, spec URL, and schema URL are owned by the helpers (`agentscore_commerce/identity/ucp.py`) — bumping a handler spec version is a one-line change there. `mpp` + `x402` share the same `networks: [{network, recipient?, ...extras}]` config shape so consumers parse both identically. `recipient` is optional — omit when the merchant uses per-order recipients (e.g. Stripe-derived deposit addresses); the authoritative recipient still ships in the 402 body.
+Each helper returns `{ <reverse-DNS-key>: [binding] }` so spreading composes the parent map. The handler `version`, spec URL, and schema URL are owned by the helpers (`agentscore_commerce/identity/ucp.py`) — bumping a handler spec version is a one-line change there. `mpp` takes `TempoRailSpec` / `SolanaMppRailSpec` instances and `x402` takes `X402BaseRailSpec`; each carries a `recipient` — a static address string, or `""` / a factory callable to signal per-order minting (e.g. Stripe-derived deposit addresses), in which case the authoritative recipient ships in the 402 body rather than the static UCP profile.
 
 ## Identity model
 

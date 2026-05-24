@@ -76,9 +76,9 @@ class X402SampleProbe:
     """Sample x402 accepts to embed in the discovery probe's PAYMENT-REQUIRED header.
 
     Crawlers (e.g. ``awal x402 details``) can find this endpoint's x402 support
-    without a real business-shaped request. Each entry is run through
-    ``alias_amount_fields`` so v1-only parsers find ``maxAmountRequired`` and
-    v2-strict parsers find ``amount``.
+    without a real business-shaped request. Entries are emitted as-is in their
+    declared ``x402Version`` shape (v2 ``amount``); clients version-route on
+    ``x402Version``.
 
     Pass ``networks`` (shorthand) for the common case — each CAIP-2 network is
     mapped to a sample USDC accepts entry via ``sample_x402_accept_for_network``.
@@ -141,8 +141,8 @@ def build_discovery_probe_response(
                 for e in [sample_x402_accept_for_network(n, x402_sample.amount_atomic)]
                 if e is not None
             ]
-        # payment_required_header internally runs alias_amount_fields, so v1+v2
-        # parsers both find their expected field name on the header decode.
+        # Emit the sample accepts as-is (no v1<->v2 amount alias) so the probe
+        # sample matches what the real 402 emits; clients version-route on x402Version.
         header_kwargs: dict[str, Any] = {"x402_version": x402v, "accepts": sample_accepts}
         if x402_sample.resource_url:
             header_kwargs["resource"] = {
@@ -151,7 +151,7 @@ def build_discovery_probe_response(
             }
         encoded = payment_required_header(**header_kwargs)
         headers["payment-required"] = encoded
-        # Mirror the aliased accepts in the body so clients that fall back from
+        # Mirror the header's accepts in the body so clients that fall back from
         # header → body (e.g. awal's discover) can still extract requirements.
         decoded = json.loads(base64.b64decode(encoded).decode())
         body_obj["x402Version"] = x402v

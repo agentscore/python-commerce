@@ -505,3 +505,152 @@ def test_sanic_propagates_quota_from_assess_response():
     assert resp.status == 200
     assert captured["quota"] is not None
     assert captured["quota"].limit == 1500
+
+
+class TestSanicBranchGaps:
+    """Covers the remaining shared adapter branches for the Sanic gate."""
+
+    def test_on_denied_three_tuple_sets_headers(self):
+        def custom(_req, reason):
+            return ({"code": reason.code}, 418, {"X-Custom": "teapot"})
+
+        app = _make_app("sanic_gaps_3tuple", on_denied=custom)
+        _, resp = app.test_client.get("/")  # no identity -> denied
+        assert resp.status_code == 418
+        assert resp.headers["X-Custom"] == "teapot"
+        assert resp.json["code"] == "missing_identity"
+
+    def test_recovered_signer_forwarded_to_assess(self):
+        import base64
+        import json as _json
+
+        signer_addr = "0xabcdef0123456789abcdef0123456789abcdef01"
+        x402_header = base64.b64encode(
+            _json.dumps(
+                {"accepted": {"network": "eip155:8453"}, "payload": {"authorization": {"from": signer_addr}}}
+            ).encode()
+        ).decode()
+        app = _make_app("sanic_gaps_signer")
+        mock = AsyncMock(return_value=_allow_result())
+        with patch("agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity", new=mock):
+            _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xwallet", "X-Payment": x402_header})
+            assert resp.status_code == 200
+            assert mock.call_args.kwargs["signer"] == {"address": signer_addr, "network": "evm"}
+
+    def test_condition_false_short_circuits(self):
+        app = _make_app("sanic_gaps_condition", condition=lambda _req: False)
+        with patch("agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity", new=AsyncMock()) as mock:
+            _, resp = app.test_client.get("/")  # no identity, condition skips
+            assert resp.status_code == 200
+            mock.assert_not_called()
+
+    def test_invalid_credential_returns_401(self):
+        from agentscore_commerce.identity.core import InvalidCredentialError
+
+        app = _make_app("sanic_gaps_invalidcred")
+        with patch(
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
+            new=AsyncMock(side_effect=InvalidCredentialError()),
+        ):
+            _, resp = app.test_client.get("/", headers={"X-Operator-Token": "opc_bad"})
+            assert resp.status_code == 401
+            assert resp.json["error"]["code"] == "invalid_credential"
+
+    def test_timeout_fail_closed_returns_api_error(self):
+        import httpx
+
+        app = _make_app("sanic_gaps_timeout", fail_open=False)
+        with patch(
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
+            new=AsyncMock(side_effect=httpx.TimeoutException("read timeout")),
+        ):
+            _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status_code == 503
+            assert resp.json["error"]["code"] == "api_error"
+
+    def test_fixable_denial_falls_back_to_bare_when_session_returns_none(self):
+        app = _make_app(
+            "sanic_gaps_sessionnone",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        with (
+            patch(
+                "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
+                new=AsyncMock(return_value=_deny_result()),
+            ),
+            patch(
+                "agentscore_commerce.identity.sanic.try_create_session_denial_reason",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            _, resp = app.test_client.get("/", headers={"X-Wallet-Address": "0xabc"})
+            assert resp.status_code == 403
+            assert resp.json["error"]["code"] == "wallet_not_trusted"
+
+    def test_get_signer_verdict_none_when_no_client(self):
+        from types import SimpleNamespace
+
+        from agentscore_commerce.identity.sanic import GATE_STATE_ATTR, get_signer_verdict
+
+        req = SimpleNamespace(ctx=SimpleNamespace(**{GATE_STATE_ATTR: {"wallet_address": "0xabc", "client": None}}))
+        assert get_signer_verdict(req) is None
+
+    def test_conditional_gate_discovery_leg_flows_through(self):
+        from agentscore_commerce.identity.sanic import conditional_agentscore_gate
+
+        app = Sanic.get_app("sanic_gaps_cond_discovery", force_create=True)
+        conditional_agentscore_gate(app, api_key="ask_test", require_kyc=True)
+
+        @app.post("/")
+        async def _root(request):
+            return response.json({"ok": True})
+
+        with patch("agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity", new=AsyncMock()) as mock:
+            _, resp = app.test_client.post("/")  # no payment header
+            assert resp.status_code == 200
+            mock.assert_not_called()
+
+    def test_conditional_gate_settle_leg_gates(self):
+        from agentscore_commerce.identity.sanic import conditional_agentscore_gate
+
+        app = Sanic.get_app("sanic_gaps_cond_settle", force_create=True)
+        conditional_agentscore_gate(app, api_key="ask_test", require_kyc=True)
+
+        @app.post("/")
+        async def _root(request):
+            return response.json({"ok": True})
+
+        with patch(
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
+            new=AsyncMock(return_value=_deny_result()),
+        ):
+            _, resp = app.test_client.post("/", headers={"X-Wallet-Address": "0xabc", "X-Payment": "abc"})
+            assert resp.status_code == 403
+
+    def test_get_signer_verdict_none_when_no_state(self):
+        from types import SimpleNamespace
+
+        from agentscore_commerce.identity.sanic import get_signer_verdict
+
+        req = SimpleNamespace(ctx=SimpleNamespace())
+        assert get_signer_verdict(req) is None
+
+    def test_get_signer_verdict_reads_from_client(self):
+        from agentscore_commerce.identity.sanic import get_signer_verdict
+
+        app = Sanic.get_app("sanic_gaps_sv_read", force_create=True)
+        agentscore_gate(app, api_key="ask_test")
+        captured: dict = {}
+
+        @app.get("/sv")
+        async def _sv(request):
+            captured["verdict"] = get_signer_verdict(request)
+            return response.json({"ok": True})
+
+        with patch(
+            "agentscore_commerce.identity.sanic.AgentScoreCore.acheck_identity",
+            new=AsyncMock(return_value=_allow_result()),
+        ):
+            _, resp = app.test_client.get("/sv", headers={"X-Wallet-Address": "0xsvread"})
+            assert resp.status_code == 200
+        assert captured["verdict"] is None

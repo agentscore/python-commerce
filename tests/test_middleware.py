@@ -660,3 +660,179 @@ def test_middleware_propagates_quota_from_assess_response_headers():
     assert resp.status_code == 200
     assert captured["quota"] is not None
     assert captured["quota"].limit == 1500
+
+
+# ── Shared adapter branch gaps ────────────────────────────────────────────────
+
+
+async def test_non_http_scope_passes_through_untouched():
+    """A non-http scope (e.g. websocket/lifespan) is forwarded without gating."""
+    calls: list[str] = []
+
+    async def _inner_app(scope, receive, send):
+        calls.append(scope["type"])
+
+    gate = AgentScoreGate(_inner_app, api_key="ask_test_key")
+
+    async def _noop_receive():
+        return {"type": "lifespan.startup"}
+
+    async def _noop_send(_msg):
+        return None
+
+    await gate({"type": "websocket"}, _noop_receive, _noop_send)
+    assert calls == ["websocket"]
+
+
+@respx.mock
+def test_recovered_signer_forwarded_to_assess():
+    import base64
+
+    route = _mock_assess("allow")
+    signer_addr = "0xabcdef0123456789abcdef0123456789abcdef01"
+    x402_header = base64.b64encode(
+        json.dumps(
+            {"accepted": {"network": "eip155:8453"}, "payload": {"authorization": {"from": signer_addr}}}
+        ).encode()
+    ).decode()
+    client = TestClient(_make_app())
+    resp = client.get("/", headers={"X-Wallet-Address": "0xwallet", "X-Payment": x402_header})
+    assert resp.status_code == 200
+    body = json.loads(route.calls[0].request.content)
+    assert body["signer"] == {"address": signer_addr, "network": "evm"}
+
+
+@respx.mock
+def test_condition_false_passes_through():
+    """A condition returning False skips gating entirely."""
+    assess_route = respx.post(ASSESS_URL)
+    app = AgentScoreGate(
+        Starlette(routes=[Route("/", _homepage)]),
+        api_key="ask_test_key",
+        condition=lambda _req: False,
+    )
+    client = TestClient(app)
+    resp = client.get("/")  # no identity, but condition skips gating
+    assert resp.status_code == 200
+    assert assess_route.call_count == 0
+
+
+@respx.mock
+def test_invalid_credential_returns_401():
+    from agentscore_commerce.identity.core import InvalidCredentialError
+
+    respx.post(ASSESS_URL).mock(side_effect=InvalidCredentialError())
+    client = TestClient(_make_app())
+    resp = client.get("/", headers={"X-Operator-Token": "opc_bad"})
+    assert resp.status_code == 401
+    assert resp.json()["error"]["code"] == "invalid_credential"
+
+
+def test_timeout_fail_closed_returns_api_error():
+    from unittest.mock import AsyncMock, patch
+
+    with patch(
+        "agentscore_commerce.identity.core.AgentScoreCore.acheck_identity",
+        new=AsyncMock(side_effect=httpx.TimeoutException("read timeout")),
+    ):
+        client = TestClient(_make_app(fail_open=False))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xtimeoutmw"})
+        assert resp.status_code == 503
+        assert resp.json()["error"]["code"] == "api_error"
+
+
+@respx.mock
+def test_missing_identity_without_session_config_denies():
+    """No identity + no create_session_on_missing → straight to missing_identity
+    (the 200->211 fall-through)."""
+    client = TestClient(_make_app())
+    resp = client.get("/")
+    assert resp.status_code == 403
+    assert resp.json()["error"]["code"] == "missing_identity"
+
+
+@respx.mock
+def test_fixable_denial_falls_back_to_bare_when_session_returns_none():
+    from unittest.mock import AsyncMock, patch
+
+    _mock_assess("deny", reasons=["kyc_required"])
+    with patch(
+        "agentscore_commerce.identity.middleware.try_create_session_denial_reason",
+        new=AsyncMock(return_value=None),
+    ):
+        client = TestClient(_make_app(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session")))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 403
+        assert resp.json()["error"]["code"] == "wallet_not_trusted"
+
+
+def test_get_signer_verdict_none_when_no_client():
+    from types import SimpleNamespace
+
+    from agentscore_commerce.identity.middleware import GATE_STATE_KEY, get_signer_verdict
+
+    req = SimpleNamespace(scope={"state": {GATE_STATE_KEY: {"wallet_address": "0xabc", "client": None}}})
+    assert get_signer_verdict(req) is None  # type: ignore[arg-type]
+
+
+def test_get_signer_verdict_none_when_no_state():
+    from types import SimpleNamespace
+
+    from agentscore_commerce.identity.middleware import get_signer_verdict
+
+    req = SimpleNamespace(scope={"state": {}})
+    assert get_signer_verdict(req) is None  # type: ignore[arg-type]
+
+
+@respx.mock
+def test_get_signer_verdict_reads_from_client():
+    """A wallet-authenticated request reaches client.get_signer_verdict."""
+    from agentscore_commerce.identity.middleware import get_signer_verdict
+
+    _mock_assess("allow")
+    captured: dict = {}
+
+    def _handler(request):
+        captured["verdict"] = get_signer_verdict(request)
+        return JSONResponse({"ok": True})
+
+    app = AgentScoreGate(Starlette(routes=[Route("/", _handler)]), api_key="ask_test_key")
+    client = TestClient(app)
+    resp = client.get("/", headers={"X-Wallet-Address": "0xsvread"})
+    assert resp.status_code == 200
+    # No signer was extracted (no x402 header), so the verdict is None — the
+    # client.get_signer_verdict read path was still exercised.
+    assert captured["verdict"] is None
+
+
+@respx.mock
+def test_conditional_gate_discovery_leg_flows_through():
+    from agentscore_commerce.identity.middleware import ConditionalAgentScoreGate
+
+    assess_route = respx.post(ASSESS_URL)
+
+    async def _post_handler(request):
+        return JSONResponse({"ok": True})
+
+    inner = Starlette(routes=[Route("/", _post_handler, methods=["POST"])])
+    app = ConditionalAgentScoreGate(inner, api_key="ask_test_key", require_kyc=True)
+    client = TestClient(app)
+    resp = client.post("/")  # no payment header
+    assert resp.status_code == 200
+    assert assess_route.call_count == 0
+
+
+@respx.mock
+def test_conditional_gate_settle_leg_gates():
+    from agentscore_commerce.identity.middleware import ConditionalAgentScoreGate
+
+    _mock_assess("deny", reasons=["kyc_required"])
+
+    async def _post_handler(request):
+        return JSONResponse({"ok": True})
+
+    inner = Starlette(routes=[Route("/", _post_handler, methods=["POST"])])
+    app = ConditionalAgentScoreGate(inner, api_key="ask_test_key", require_kyc=True)
+    client = TestClient(app)
+    resp = client.post("/", headers={"X-Wallet-Address": "0xabc", "X-Payment": "abc"})
+    assert resp.status_code == 403

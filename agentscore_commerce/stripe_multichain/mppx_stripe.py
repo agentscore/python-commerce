@@ -1,12 +1,12 @@
 """Stripe SPT method wrapper for ``pympp`` server merchants.
 
-Wraps the ``pympp.stripe.charge(...)`` boilerplate so vendors only declare config,
+Wraps the ``mpp.methods.stripe.charge(...)`` boilerplate so vendors only declare config,
 not method instantiation. Returns the value vendors pass into ``Mppx.create(methods=[...])``.
 
 Example::
 
-    from pympp.server import Mppx
-    from pympp.methods.tempo import charge as tempo_charge
+    from mpp.server import Mppx
+    from mpp.methods.tempo import charge as tempo_charge
     from agentscore_commerce.stripe_multichain import create_mppx_stripe
 
     stripe_method = await create_mppx_stripe(
@@ -46,7 +46,7 @@ async def create_mppx_stripe(
             ``["card", "link"]``.
     """
     try:
-        stripe_module = importlib.import_module("pympp.methods.stripe")
+        stripe_module = importlib.import_module("mpp.methods.stripe")
     except ImportError as exc:
         msg = "pympp[stripe] not installed — run `pip install 'pympp[stripe]'` to use create_mppx_stripe."
         raise ImportError(msg) from exc
@@ -54,7 +54,7 @@ async def create_mppx_stripe(
     charge_factory = getattr(stripe_module, "charge", None)
     if not callable(charge_factory):
         msg = (
-            "pympp.methods.stripe.charge not found — your pympp version may not ship "
+            "mpp.methods.stripe.charge not found — your pympp version may not ship "
             "Stripe SPT support. Upgrade with `pip install -U pympp`."
         )
         raise ImportError(msg)

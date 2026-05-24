@@ -1,8 +1,7 @@
 """Internal header helpers — case-normalization for HTTP headers.
 
 Replaces hand-rolled ``{k.lower(): v for k, v in headers.items()}`` loops in
-``checkout``, ``signer`` and ``challenge.respond_402``. Mirrors node-commerce
-``src/_headers.ts``.
+``checkout``, ``signer`` and ``challenge.respond_402``.
 
 Not part of the public API; consumed by SDK internals only.
 """

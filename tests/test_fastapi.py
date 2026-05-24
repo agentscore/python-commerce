@@ -600,3 +600,185 @@ def test_fastapi_api_error_on_unexpected_exception():
     resp = client.get("/", headers={"x-wallet-address": "0xabc"})
     assert resp.status_code == 503
     assert resp.json()["detail"]["error"]["code"] == "api_error"
+
+
+class TestOnDeniedThreeTuple:
+    def test_on_denied_three_tuple_sets_headers(self):
+        """on_denied may return (body, status, headers); the gate threads headers
+        onto the HTTPException."""
+
+        def custom(_req, reason):
+            return ({"code": reason.code}, 418, {"X-Custom": "teapot"})
+
+        gate = AgentScoreGate(api_key="ask_test", on_denied=custom)
+        client = TestClient(_make_app(gate))
+        resp = client.get("/")
+        assert resp.status_code == 418
+        assert resp.headers["X-Custom"] == "teapot"
+        assert resp.json()["detail"]["code"] == "missing_identity"
+
+
+class TestSignerForwarding:
+    @respx.mock
+    def test_recovered_signer_forwarded_to_assess(self):
+        """A wallet-authenticated request with an x402 payment header pre-extracts
+        the EIP-3009 signer and forwards it in the assess body."""
+        import base64
+        import json as _json
+
+        route = _mock_assess("allow")
+        signer_addr = "0xabcdef0123456789abcdef0123456789abcdef01"
+        x402_header = base64.b64encode(
+            _json.dumps(
+                {"accepted": {"network": "eip155:8453"}, "payload": {"authorization": {"from": signer_addr}}}
+            ).encode()
+        ).decode()
+
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get(
+            "/",
+            headers={"X-Wallet-Address": "0xwallet", "X-Payment": x402_header},
+        )
+        assert resp.status_code == 200
+        body = _json.loads(route.calls[0].request.content)
+        assert body["signer"] == {"address": signer_addr, "network": "evm"}
+
+
+class TestInvalidCredentialAndPaymentFailOpen:
+    @respx.mock
+    def test_invalid_credential_returns_denial(self):
+        """A 401 invalid_credential from assess surfaces an invalid_credential denial."""
+        respx.post(ASSESS_URL).mock(
+            return_value=httpx.Response(401, json={"error": {"code": "invalid_credential", "message": "bad"}})
+        )
+        gate = AgentScoreGate(api_key="ask_test")
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Operator-Token": "opc_bad"})
+        assert resp.status_code == 401
+        assert resp.json()["detail"]["error"]["code"] == "invalid_credential"
+
+    @respx.mock
+    def test_payment_required_fail_open_passes_through(self):
+        """fail_open=True + 402 from assess → request flows through to the handler."""
+        respx.post(ASSESS_URL).mock(return_value=httpx.Response(402))
+        gate = AgentScoreGate(api_key="ask_test", fail_open=True)
+        client = TestClient(_make_app(gate))
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+
+class TestGetSignerVerdictEdgeCases:
+    def test_returns_none_when_no_wallet_address(self):
+        """get_signer_verdict returns None for operator-token-only requests."""
+        from agentscore_commerce.identity.fastapi import get_signer_verdict
+
+        gate = AgentScoreGate(api_key="ask_test")
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            captured["verdict"] = get_signer_verdict(req)
+            return {"ok": True}
+
+        with patch(
+            "agentscore_commerce.identity.fastapi.AgentScoreCore.acheck_identity",
+            new=AsyncMock(
+                return_value=__import__("agentscore_commerce.identity.types", fromlist=["AssessResult"]).AssessResult(
+                    allow=True, decision="allow"
+                )
+            ),
+        ):
+            client = TestClient(app)
+            resp = client.get("/", headers={"X-Operator-Token": "opc_abc"})
+        assert resp.status_code == 200
+        assert captured["verdict"] is None
+
+    @respx.mock
+    def test_returns_verdict_for_wallet_request(self):
+        """A wallet-authenticated request reaches the client.get_signer_verdict read."""
+        from agentscore_commerce.identity.fastapi import get_signer_verdict
+
+        _mock_assess("allow")
+        gate = AgentScoreGate(api_key="ask_test")
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/", dependencies=[Depends(gate)])
+        def _root(req: Request):
+            captured["verdict"] = get_signer_verdict(req)
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
+        assert resp.status_code == 200
+        # No signer was extracted (no x402 header), so the verdict is None — but the
+        # client.get_signer_verdict read path (lines 336-339) was exercised.
+        assert captured["verdict"] is None
+
+    def test_returns_none_when_state_has_no_client(self):
+        """Defensive guard: state with a wallet_address but no client yields None."""
+        from types import SimpleNamespace
+
+        from agentscore_commerce.identity.fastapi import GATE_STATE_KEY, get_signer_verdict
+
+        req = SimpleNamespace(state=SimpleNamespace(**{GATE_STATE_KEY: {"wallet_address": "0xabc", "client": None}}))
+        assert get_signer_verdict(req) is None  # type: ignore[arg-type]
+
+    def test_get_gate_quota_info_returns_none_for_ungated_request(self):
+        """get_gate_quota_info on an ungated route (no gate state) returns None."""
+        from agentscore_commerce.identity.fastapi import get_gate_quota_info
+
+        app = FastAPI()
+        captured: dict = {}
+
+        @app.get("/")
+        def _root(req: Request):
+            captured["quota"] = get_gate_quota_info(req)
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert captured["quota"] is None
+
+
+class TestConditionalGate:
+    @respx.mock
+    def test_discovery_leg_flows_through_unauthenticated(self):
+        """ConditionalAgentScoreGate lets a no-credential discovery leg through without
+        calling assess."""
+        from agentscore_commerce.identity.fastapi import ConditionalAgentScoreGate
+
+        route = _mock_assess("allow")
+        gate = ConditionalAgentScoreGate(api_key="ask_test", require_kyc=True)
+        app = FastAPI()
+
+        @app.post("/purchase", dependencies=[Depends(gate)])
+        async def purchase():
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.post("/purchase")  # no payment header
+        assert resp.status_code == 200
+        assert route.call_count == 0
+
+    @respx.mock
+    def test_settle_leg_triggers_full_gate(self):
+        """A request carrying a payment credential triggers the inner gate."""
+        from agentscore_commerce.identity.fastapi import ConditionalAgentScoreGate
+
+        _mock_assess("deny", reasons=["kyc_required"])
+        gate = ConditionalAgentScoreGate(api_key="ask_test", require_kyc=True)
+        app = FastAPI()
+
+        @app.post("/purchase", dependencies=[Depends(gate)])
+        async def purchase():
+            return {"ok": True}
+
+        client = TestClient(app)
+        resp = client.post("/purchase", headers={"X-Wallet-Address": "0xabc", "X-Payment": "abc"})
+        assert resp.status_code == 403
+        assert resp.json()["detail"]["error"]["code"] == "wallet_not_trusted"

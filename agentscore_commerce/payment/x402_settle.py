@@ -244,9 +244,9 @@ def classify_orchestration_error(err: BaseException | str) -> ClassifiedX402Erro
 def coerce_resource_config(config: Any) -> Any:
     """Best-effort dict → x402 ``ResourceConfig`` coercion.
 
-    Consumers ported from the JS / Hono stack often pass a plain dict with the JS-style
-    ``payTo`` / ``maxTimeoutSeconds`` camelCase keys (the shape that ``processX402Settle``
-    in node-commerce accepts). x402's Python ``ResourceConfig`` is a Pydantic model with
+    Consumers ported from a JS / Hono stack often pass a plain dict with JS-style
+    ``payTo`` / ``maxTimeoutSeconds`` camelCase keys. x402's Python ``ResourceConfig``
+    is a Pydantic model with
     ``pay_to`` / ``max_timeout_seconds`` snake_case fields, and ``build_payment_requirements``
     does ``config.network`` attribute access — so a raw dict raises
     ``AttributeError("'dict' object has no attribute 'network'")``. Coerce here so callers

@@ -16,11 +16,10 @@ anything malformed.
 
 The MPP path requires the credential to carry a spec-compliant ``did:pkh``
 source (top-level or under ``challenge``). Credentials that omit the source
-field and rely on the Solana TransferChecked-authority fallback (extracting
-the signer from the signed-tx payload via ``@solana/kit``) are recovered by
-the Node sibling, not by this Python helper; Python has no ``@solana/kit``
-equivalent. Production MPP clients emit the ``did:pkh`` source field, so
-this is a non-issue for spec-compliant traffic.
+field and rely on a Solana TransferChecked-authority fallback (extracting the
+signer from the signed-tx payload) are not recovered here. Production MPP
+clients emit the ``did:pkh`` source field, so this is a non-issue for
+spec-compliant traffic.
 """
 
 from __future__ import annotations

@@ -369,3 +369,53 @@ def test_apply_dynamic_options_picks_js_style_product_name() -> None:
     body: dict[str, str] = {}
     out = _apply_dynamic_options(body, {"productName": "Wine Store"})
     assert out["product_name"] == "Wine Store"
+
+
+# ── _session_denial_reason missing-field guard + remaining hook branches ──────
+
+
+@respx.mock
+def test_returns_none_when_session_response_missing_required_fields() -> None:
+    """A 200 without session_id/poll_secret/verify_url is treated as a failure (None)."""
+    respx.post(SESSIONS_URL).mock(return_value=httpx.Response(200, json={"verify_url": "https://x"}))
+    cfg = CreateSessionOnMissing(api_key="ask_test")
+    assert try_create_session_denial_reason_sync(cfg, user_agent="ua") is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_async_on_before_session_error_swallowed() -> None:
+    """An async on_before_session hook that raises is logged and the session still returns."""
+    respx.post(SESSIONS_URL).mock(return_value=httpx.Response(200, json=SESSION_RESPONSE))
+
+    async def hook(_ctx, _session):
+        raise RuntimeError("db down")
+
+    cfg = CreateSessionOnMissing(api_key="ask_test", on_before_session=hook)
+    reason = await try_create_session_denial_reason(cfg, user_agent="ua", ctx={"x": 1})
+    assert reason is not None
+    assert reason.extra is None
+
+
+@respx.mock
+def test_sync_on_before_session_non_dict_non_coroutine_ignored() -> None:
+    """A sync on_before_session returning a non-dict, non-coroutine value yields no extra."""
+    respx.post(SESSIONS_URL).mock(return_value=httpx.Response(200, json=SESSION_RESPONSE))
+    cfg = CreateSessionOnMissing(api_key="ask_test", on_before_session=lambda _ctx, _session: "nope")
+    reason = try_create_session_denial_reason_sync(cfg, user_agent="ua", ctx={"x": 1})
+    assert reason is not None
+    assert reason.extra is None
+
+
+@respx.mock
+def test_sync_on_before_session_coroutine_is_skipped() -> None:
+    """An async on_before_session in a sync adapter is skipped with a warning."""
+    respx.post(SESSIONS_URL).mock(return_value=httpx.Response(200, json=SESSION_RESPONSE))
+
+    async def hook(_ctx, _session):
+        return {"order_id": "ord"}
+
+    cfg = CreateSessionOnMissing(api_key="ask_test", on_before_session=hook)
+    reason = try_create_session_denial_reason_sync(cfg, user_agent="ua", ctx={"x": 1})
+    assert reason is not None
+    assert reason.extra is None  # coroutine skipped → no extra

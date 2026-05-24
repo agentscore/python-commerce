@@ -66,7 +66,7 @@ async def build_how_to_pay(
     ``op_token_placeholder`` defaults to ``"<your_opc_token>"``. Pass ``None``
     (gateless merchants) to strip the ``-H 'X-Operator-Token: ...'`` snippet
     from every rail command — appropriate when the merchant doesn't run an
-    identity gate. The wallet OFAC SDN default (TEC-311) does NOT need an
+    identity gate. The always-on wallet OFAC SDN default does NOT need an
     operator token, so gateless merchants emit cleaner commands.
     """
     total_num = float(total_usd) if isinstance(total_usd, str) else total_usd

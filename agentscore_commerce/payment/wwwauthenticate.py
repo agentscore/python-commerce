@@ -14,13 +14,14 @@ def www_authenticate_header(directives: list[str]) -> str:
 
 
 def alias_amount_fields(accepts: list[Any]) -> list[Any]:
-    """Add the v1↔v2 amount-field alias to each accepts entry. Idempotent.
+    """Add the v1<->v2 amount-field alias to each accepts entry. Idempotent.
 
-    Used by both ``payment_required_header`` (header emit) and ``build_402_body``
-    (body emit) so every x402 entry on the wire carries BOTH ``amount`` (v2 spec)
-    AND ``maxAmountRequired`` (v1 spec). Strict v1-only parsers (e.g. Coinbase
-    awal at ``payments-mcp.coinbase.com``, hardcoded to read ``maxAmountRequired``)
-    work alongside strict v2 parsers, which ignore the alias.
+    Opt-in helper: the 402 emitters (``payment_required_header`` / ``build_402_body``)
+    do NOT call this. Strict x402 v2 settlement matches the agent's echoed requirement
+    against the server's rebuilt one by exact comparison, so an extra ``maxAmountRequired``
+    the rebuild lacks silently fails settle — keep emitted ``accepts`` as
+    ``build_payment_requirements`` produced them. Call this only for a client hardcoded
+    to read ``maxAmountRequired`` regardless of ``x402Version``.
     """
     out: list[Any] = []
     for entry in accepts:
@@ -46,10 +47,15 @@ def payment_required_header(
 ) -> str:
     """Encode the standard x402 PAYMENT-REQUIRED header (base64-encoded JSON).
 
-    Each accepts entry is post-processed via :func:`alias_amount_fields` so v1-only
-    clients (e.g. awal) and v2-strict clients can both read it.
+    Do NOT add a v1<->v2 amount-field alias here. Strict x402 v2 settlement matches the
+    agent's echoed ``accepted`` requirement against the server's freshly rebuilt
+    requirement by exact comparison, so an extra ``maxAmountRequired`` on the wire that
+    the rebuild does not carry makes the match silently fail at settle. Keep ``accepts``
+    identical to what ``build_payment_requirements`` produces. ``alias_amount_fields``
+    stays exported as an explicit opt-in for callers whose client is hardcoded to read
+    ``maxAmountRequired`` regardless of ``x402Version``.
     """
-    body: dict[str, Any] = {"x402Version": x402_version, "accepts": alias_amount_fields(accepts)}
+    body: dict[str, Any] = {"x402Version": x402_version, "accepts": accepts}
     if resource is not None:
         body["resource"] = resource
     raw = json.dumps(body, separators=(",", ":")).encode()

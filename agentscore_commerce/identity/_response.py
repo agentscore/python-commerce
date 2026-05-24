@@ -261,11 +261,14 @@ QUOTA_EXCEEDED_INSTRUCTIONS = json.dumps(
 # Default agent_instructions per denial code. Adapters can override by passing
 # ``agent_instructions=`` on the DenialReason; otherwise the body emitter looks
 # up this map so every denial carries a machine-readable next step.
+#
+# Codes stamped explicitly upstream are intentionally absent: ``missing_identity`` is
+# stamped by build_missing_identity_reason, and ``wallet_signer_mismatch`` /
+# ``wallet_auth_requires_wallet_signing`` are stamped in core.py via get_signer_verdict
+# + build_signer_mismatch_body — they never reach this fallback through
+# denial_reason_to_body.
 _DEFAULT_AGENT_INSTRUCTIONS: dict[str, str] = {
     "api_error": _API_ERROR_INSTRUCTIONS,
-    "missing_identity": _MISSING_IDENTITY_INSTRUCTIONS,
-    "wallet_signer_mismatch": WALLET_SIGNER_MISMATCH_INSTRUCTIONS,
-    "wallet_auth_requires_wallet_signing": WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS,
     "wallet_not_trusted": WALLET_NOT_TRUSTED_INSTRUCTIONS,
     "payment_required": PAYMENT_REQUIRED_INSTRUCTIONS,
     "identity_verification_required": IDENTITY_VERIFICATION_REQUIRED_FALLBACK_INSTRUCTIONS,
@@ -378,7 +381,7 @@ def denial_reason_to_body(reason: DenialReason) -> dict[str, Any]:
     # Wallet-signer-match fields, populated only for wallet_signer_mismatch.
     # For that code, actual_signer_operator is ALWAYS meaningful: a string means the signer
     # resolves to a different operator; null means the signer wallet isn't linked to any
-    # operator. Both carry actionable info, so emit `null` explicitly (matches node-commerce).
+    # operator. Both carry actionable info, so emit `null` explicitly.
     if reason.claimed_operator:
         body["claimed_operator"] = reason.claimed_operator
     if reason.code == "wallet_signer_mismatch":

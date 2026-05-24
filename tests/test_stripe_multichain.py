@@ -70,6 +70,42 @@ def test_create_multichain_payment_intent_forwards_metadata():
     assert api.last_params["metadata"] == {"order_id": "order_42"}
 
 
+def test_create_multichain_payment_intent_raises_when_next_action_without_crypto_details():
+    """next_action present but no crypto_display_details → no addresses → 503."""
+    from agentscore_commerce.errors import CheckoutValidationError
+
+    response = {"id": "pi_x", "next_action": {"some_other_action": {}}}
+    with pytest.raises(CheckoutValidationError):
+        create_multichain_payment_intent(stripe=_FakeClient(_FakeAPI(response)), amount=100)
+
+
+def test_create_multichain_payment_intent_skips_entries_without_address():
+    """A deposit-address entry missing its `address` field is skipped; the rest survive."""
+    response = {
+        "id": "pi_mixed",
+        "next_action": {
+            "crypto_display_details": {
+                "deposit_addresses": {
+                    "tempo": {"address": "0xtempo"},
+                    "base": {},  # no address → skipped
+                    "solana": None,  # None info → skipped
+                }
+            }
+        },
+    }
+    result = create_multichain_payment_intent(stripe=_FakeClient(_FakeAPI(response)), amount=100)
+    assert result.deposit_addresses == {"tempo": "0xtempo"}
+
+
+def test_create_multichain_payment_intent_raises_when_id_missing():
+    """A PI with deposit addresses but no string id raises a RuntimeError."""
+    response = {
+        "next_action": {"crypto_display_details": {"deposit_addresses": {"tempo": {"address": "0xt"}}}},
+    }
+    with pytest.raises(RuntimeError, match="missing id field"):
+        create_multichain_payment_intent(stripe=_FakeClient(_FakeAPI(response)), amount=100)
+
+
 @respx.mock
 async def test_simulate_crypto_deposit_calls_test_helpers_endpoint():
     route = respx.post("https://api.stripe.com/v1/test_helpers/payment_intents/pi_1/simulate_crypto_deposit").mock(
@@ -155,7 +191,7 @@ async def test_create_mppx_stripe_calls_pympp_charge_factory(monkeypatch: pytest
     monkeypatch.setattr(
         importlib,
         "import_module",
-        lambda name: fake_module if name == "pympp.methods.stripe" else importlib.__import__(name),
+        lambda name: fake_module if name == "mpp.methods.stripe" else importlib.__import__(name),
     )
     try:
         result = await mppx_stripe.create_mppx_stripe(profile_id="prof_test", secret_key="sk_test")
@@ -166,7 +202,7 @@ async def test_create_mppx_stripe_calls_pympp_charge_factory(monkeypatch: pytest
         assert kwargs["secret_key"] == "sk_test"
         assert kwargs["payment_method_types"] == ["card", "link"]
     finally:
-        sys.modules.pop("pympp.methods.stripe", None)
+        sys.modules.pop("mpp.methods.stripe", None)
 
 
 @pytest.mark.asyncio
@@ -183,13 +219,13 @@ async def test_create_mppx_stripe_custom_payment_method_types(monkeypatch: pytes
     monkeypatch.setattr(
         importlib,
         "import_module",
-        lambda name: fake_module if name == "pympp.methods.stripe" else importlib.__import__(name),
+        lambda name: fake_module if name == "mpp.methods.stripe" else importlib.__import__(name),
     )
     try:
         await mppx_stripe.create_mppx_stripe(profile_id="prof", secret_key="sk", payment_method_types=["card"])
         assert fake_charge.call_args.kwargs["payment_method_types"] == ["card"]
     finally:
-        sys.modules.pop("pympp.methods.stripe", None)
+        sys.modules.pop("mpp.methods.stripe", None)
 
 
 @pytest.mark.asyncio
@@ -218,10 +254,10 @@ async def test_create_mppx_stripe_missing_charge_factory(monkeypatch: pytest.Mon
     monkeypatch.setattr(
         importlib,
         "import_module",
-        lambda name: fake_module if name == "pympp.methods.stripe" else importlib.__import__(name),
+        lambda name: fake_module if name == "mpp.methods.stripe" else importlib.__import__(name),
     )
     try:
         with pytest.raises(ImportError, match="charge not found"):
             await mppx_stripe.create_mppx_stripe(profile_id="prof", secret_key="sk")
     finally:
-        sys.modules.pop("pympp.methods.stripe", None)
+        sys.modules.pop("mpp.methods.stripe", None)

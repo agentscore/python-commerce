@@ -1,4 +1,4 @@
-"""Tests for UCP profile signing helpers (cross-language parity with node-commerce)."""
+"""Tests for UCP profile signing helpers."""
 
 from __future__ import annotations
 
@@ -384,25 +384,25 @@ class TestUnsafeNumberRejection:
     def test_rejects_int_above_max_safe_boundary(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"big": 2**53}}
-        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+        with pytest.raises(ValueError, match=r"2\^53"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
     def test_rejects_int_well_above_max_safe(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"big": 2**60}}
-        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+        with pytest.raises(ValueError, match=r"2\^53"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
     def test_rejects_int_below_min_safe(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"neg": -(2**53)}}
-        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+        with pytest.raises(ValueError, match=r"2\^53"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
     def test_rejects_oversized_int_in_nested_list(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {"a": [{"b": 2**60}]}}
-        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+        with pytest.raises(ValueError, match=r"2\^53"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
     def test_accepts_bool_values(self) -> None:
@@ -713,7 +713,7 @@ class TestRejectUnsafeNumbersDictKeys:
     def test_sign_rejects_oversized_int_dict_key(self) -> None:
         signer = generate_ucp_signing_key(kid="k")
         profile = {**_base_profile([signer.public_jwk]), "extras": {2**60: "a"}}
-        with pytest.raises(ValueError, match="MAX_SAFE_INTEGER"):
+        with pytest.raises(ValueError, match=r"2\^53"):
             sign_ucp_profile(profile, signing_key=signer.private_key, kid="k")
 
     def test_sign_rejects_float_dict_key(self) -> None:

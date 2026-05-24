@@ -85,3 +85,34 @@ async def test_dispatcher_noop_on_live_stripe_key() -> None:
     )
     # simulate_deposit_if_test_mode early-returns on sk_live_*; getter not called
     assert called == []
+
+
+def test_none_outcome_returns_none() -> None:
+    assert network_for_outcome(None) is None
+
+
+def test_rail_key_x402_base_returns_base() -> None:
+    assert network_for_outcome(Outcome(rail="mpp", rail_key="x402_base")) == "base"
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_forwards_buyer_wallet_and_stripe_version(monkeypatch) -> None:
+    import agentscore_commerce.stripe_multichain.simulate_dispatch as mod
+
+    captured: dict = {}
+
+    async def _fake_simulate(**kwargs) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(mod, "simulate_deposit_if_test_mode", _fake_simulate)
+    await simulate_deposit_for_outcome(
+        outcome=Outcome(rail="x402"),
+        deposit_address="0xabc",
+        get_payment_intent_id=lambda _a: "pi_x",
+        stripe_secret_key="sk_test_dummy",
+        stripe_version="2024-01-01",
+        buyer_wallet="0xbuyer",
+    )
+    assert captured["network"] == "base"
+    assert captured["buyer_wallet"] == "0xbuyer"
+    assert captured["stripe_version"] == "2024-01-01"

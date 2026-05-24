@@ -79,7 +79,7 @@ def test_build_llms_txt_assembles_full_document():
     )
     assert "# Ex" in doc
     assert "## About" in doc
-    assert "Choose your identity header" in doc
+    assert "## Identity" in doc
     assert "Tempo USDC via MPP" in doc
 
 
@@ -105,34 +105,34 @@ class TestLlmsTxtPaymentSectionVerbose:
             tempo_network_name="tempo-mainnet",
             tempo_chain_id=4217,
         )
-        assert "### How to pay with Tempo" in section
+        assert "### Pay with Tempo" in section
         assert "curl -fsSL https://tempo.xyz/install" in section
         assert "tempo wallet login" in section
-        assert "USDC.e on tempo-mainnet, chain 4217" in section
+        assert "USDC.e on tempo-mainnet (chain 4217)" in section
         assert "tempo request -X POST" in section
-        assert "### How to pay with x402" in section
+        assert "### Pay with Base" in section
         assert "npm install -g @agent-score/pay" in section
         assert "agentscore-pay wallet create" in section
         assert "agentscore-pay pay POST https://my.merchant" in section
 
     def test_omits_sections_for_unconfigured_rails(self):
         section = llms_txt_payment_section(rails=["tempo-mainnet"], app_url="https://x", verbose=True)
-        assert "Tempo USDC" in section
-        assert "### How to pay with x402" not in section
-        assert "### How to pay with Stripe" not in section
+        assert "USDC on Tempo" in section
+        assert "### Pay with Base" not in section
+        assert "### Pay with Stripe" not in section
 
     def test_emits_exact_amount_warning_for_x402(self):
         section = llms_txt_payment_section(rails=["x402-base-mainnet"], app_url="https://x", verbose=True)
-        assert "exact amount specified in the 402 challenge" in section
+        assert "exact amount in the 402 challenge" in section
 
     def test_emits_stripe_section(self):
         section = llms_txt_payment_section(rails=["stripe-spt"], app_url="https://x", verbose=True)
-        assert "### How to pay with Stripe SPT" in section
+        assert "### Pay with Stripe SPT" in section
         assert "SharedPaymentToken" in section
 
     def test_solana_only_no_base(self):
         section = llms_txt_payment_section(rails=["mpp-solana-mainnet"], app_url="https://x", verbose=True)
-        assert "### How to pay with x402 (Solana)" in section
+        assert "### Pay with Solana" in section
         assert "--chain solana" in section
         assert "--chain base" not in section
 

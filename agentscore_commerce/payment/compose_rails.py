@@ -5,8 +5,6 @@ across multi-rail merchants' ``compose_mppx`` hooks.
 
 The intent shape is mppx-protocol-shaped; this helper spares callers from
 re-typing the same atomic-conversion + per-rail dict literal.
-
-Mirrors node-commerce ``src/payment/compose_rails.ts``.
 """
 
 from __future__ import annotations

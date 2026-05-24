@@ -189,6 +189,14 @@ def test_extract_signer_for_precheck_garbled_x402_falls_through() -> None:
     assert extract_signer_for_precheck({"Payment-Signature": "!!!notbase64!!!"}) is None
 
 
+def test_extract_signer_for_precheck_reads_mpp_authorization() -> None:
+    """With no x402 header, the precheck falls through to the MPP Authorization: Payment path."""
+    # {"source": "did:pkh:eip155:4217:0xABCDef1234567890123456789012345678901234"}
+    auth = "Payment eyJzb3VyY2UiOiAiZGlkOnBraDplaXAxNTU6NDIxNzoweEFCQ0RlZjEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQifQ=="
+    signer = extract_signer_for_precheck({"Authorization": auth})
+    assert signer == PaymentSigner(address="0xabcdef1234567890123456789012345678901234", network="evm")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # make_mppx_compose_hook
 # ─────────────────────────────────────────────────────────────────────────────

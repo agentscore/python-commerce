@@ -1,8 +1,9 @@
 """Flask rate-limit adapter.
 
-Flask is sync; the underlying limiter is async. We run it on a thread-local event
-loop so this adapter stays drop-in for vanilla WSGI Flask. For async-Flask
-(Flask 3+) consumers we provide an async-compatible variant too.
+Flask is sync; the underlying limiter is async. We run every coroutine on a single
+persistent background event loop (daemon thread) so a Redis client binds to one
+stable loop and is never stranded on a closed per-call loop. Works drop-in for both
+vanilla WSGI Flask and async-Flask/ASGI.
 
 Usage::
 
@@ -16,6 +17,7 @@ Usage::
 from __future__ import annotations
 
 import asyncio
+import threading
 from typing import TYPE_CHECKING, Any
 
 from agentscore_commerce.middleware._core import (
@@ -50,16 +52,18 @@ def rate_limit_flask(
     )
     resolver = key_resolver or (lambda r: default_key_from_forwarded_for(r.headers.get("X-Forwarded-For")))
 
+    # Flask's before_request hook is sync, but the limiter is async. Run every
+    # coroutine on a single persistent background loop (daemon thread) rather than
+    # a fresh per-call loop: a Redis client binds to the loop that created it, so a
+    # throwaway loop would close that loop and silently degrade Redis-backed
+    # limiting to the in-memory fallback after the first request. Submitting from
+    # the request thread and blocking on .result() never deadlocks because the loop
+    # runs on its own thread; works for both sync WSGI and async-Flask/ASGI.
+    loop = asyncio.new_event_loop()
+    threading.Thread(target=loop.run_forever, daemon=True, name="agentscore-ratelimit").start()
+
     def _run_async(coro: Any) -> Any:
-        try:
-            loop = asyncio.get_event_loop_policy().get_event_loop()
-            if loop.is_running():  # async Flask path
-                return asyncio.run_coroutine_threadsafe(coro, loop).result()
-        except RuntimeError:
-            # No current event loop on this thread (sync Flask path); fall through
-            # to asyncio.run which constructs one for this call.
-            pass
-        return asyncio.run(coro)
+        return asyncio.run_coroutine_threadsafe(coro, loop).result()
 
     @app.before_request
     def _enforce() -> Any:

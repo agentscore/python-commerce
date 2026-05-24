@@ -25,6 +25,7 @@ from agentscore_commerce.checkout import (
     PricingResult,
     SettleOutcome,
     format_pydantic_errors,
+    get_identity_status,
     pricing_result,
     validation_envelope,
     validation_response_aiohttp,
@@ -51,8 +52,8 @@ from agentscore_commerce.checkout_hooks import make_mppx_compose_hook
 from agentscore_commerce.errors import CheckoutValidationError
 
 # Re-export the most commonly used helpers at the package root so consumers
-# don't have to remember which submodule each one lives in. Mirrors node's
-# top-level `index.ts` surface; submodule imports still work for power users.
+# don't have to remember which submodule each one lives in; submodule imports
+# still work for power users.
 from agentscore_commerce.identity import (
     A2A_DEFAULT_TRANSPORT,
     A2A_PROTOCOL_VERSION,
@@ -244,6 +245,7 @@ __all__ = [
     "format_pydantic_errors",
     "format_usd_cents",
     "generate_ucp_signing_key",
+    "get_identity_status",
     "has_mppx_header",
     "has_payment_header",
     "has_x402_header",

@@ -53,7 +53,7 @@ async def build_accepted_methods(
     if solana_mpp is not None:
         out.append(
             {
-                "method": "x402/exact",
+                "method": "solana/charge",
                 "network": solana_mpp.network,
                 "token": solana_mpp.token,
                 "symbol": solana_mpp.symbol,

@@ -4,7 +4,6 @@ from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any, Literal
 
 from agentscore_commerce.challenge.pricing import PricingBlock
-from agentscore_commerce.payment.wwwauthenticate import alias_amount_fields
 
 
 @dataclass
@@ -37,7 +36,11 @@ def build_402_body(
     body: dict[str, Any] = {"payment_required": True, "accepted_methods": accepted_methods}
     if x402:
         body["x402Version"] = x402.version
-        body["accepts"] = alias_amount_fields(x402.accepts)
+        # No v1<->v2 amount alias: strict x402 v2 settlement matches the echoed
+        # requirement against the rebuilt one by exact comparison, so an extra
+        # maxAmountRequired the rebuild lacks silently fails settle. Keep accepts
+        # identical to build_payment_requirements output.
+        body["accepts"] = x402.accepts
         if x402.extensions:
             body["extensions"] = x402.extensions
     if amount_usd is not None:

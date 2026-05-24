@@ -96,7 +96,7 @@ def test_llms_txt_payment_section_includes_all_rails():
     )
     assert "Tempo USDC via MPP" in section
     assert "x402 USDC on Base" in section
-    assert "x402 USDC on Solana" in section
+    assert "USDC on Solana" in section
     assert "Stripe Shared Payment Token" in section
 
 

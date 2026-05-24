@@ -25,6 +25,7 @@ from agentscore_commerce.checkout import (
     PricingResult,
 )
 from agentscore_commerce.payment.rail_spec import (
+    SolanaMppRailSpec,
     StripeRailSpec,
     TempoRailSpec,
     X402BaseRailSpec,
@@ -404,3 +405,81 @@ async def test_handle_sanic_invalid_body_returns_400() -> None:
 
     response = await checkout.handle_sanic(_FakeSanicReq())
     assert response.status == 400
+
+
+# ─── helper-method + property branch gaps ────────────────────────────────────
+
+
+def _co(rails: dict[str, Any]) -> Checkout:
+    return Checkout(
+        rails=rails,
+        url="https://x",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=1.0),
+    )
+
+
+def test_identity_status_defaults_anonymous_and_reads_assess() -> None:
+    """CheckoutContext.identity_status reads assess['identity_status'], defaulting
+    to 'anonymous' when absent or non-string."""
+    from agentscore_commerce.checkout import get_identity_status
+
+    # Anonymous default: no assess.
+    ctx = CheckoutContext(request=_req(), reference_id="ref-1")
+    assert ctx.identity_status == "anonymous"
+    assert get_identity_status(ctx) == "anonymous"
+    # Reads a string value.
+    ctx2 = CheckoutContext(
+        request=CheckoutRequest(
+            method="POST", url="https://x", headers={}, body={}, assess={"identity_status": "verified"}
+        ),
+        reference_id="ref-2",
+    )
+    assert ctx2.identity_status == "verified"
+    # Non-string value falls back to anonymous.
+    ctx3 = CheckoutContext(
+        request=CheckoutRequest(method="POST", url="https://x", headers={}, body={}, assess={"identity_status": 123}),
+        reference_id="ref-3",
+    )
+    assert ctx3.identity_status == "anonymous"
+
+
+def test_x402_rail_key_found_and_default() -> None:
+    found = _co({"my_x402": X402BaseRailSpec(recipient=X402_PAY_TO, network=X402_NETWORK)})
+    assert found._x402_rail_key() == "my_x402"
+    missing = _co({"tempo": TempoRailSpec(recipient="0xtempo")})
+    assert missing._x402_rail_key() == "x402_base"
+
+
+def test_mpp_rail_key_prefers_tempo_then_others_then_default() -> None:
+    tempo_first = _co({"solana": SolanaMppRailSpec(recipient="Sol"), "tempo": TempoRailSpec(recipient="0xt")})
+    assert tempo_first._mpp_rail_key() == "tempo"
+    # No tempo → falls to the secondary loop (solana/stripe/session).
+    solana_only = _co({"solana": SolanaMppRailSpec(recipient="Sol")})
+    assert solana_only._mpp_rail_key() == "solana"
+    # No MPP rail at all → default "tempo".
+    x402_only = _co({"x402_base": X402BaseRailSpec(recipient=X402_PAY_TO, network=X402_NETWORK)})
+    assert x402_only._mpp_rail_key() == "tempo"
+
+
+def test_rails_key_for_mppx_method_maps_and_returns_none() -> None:
+    checkout = _co(
+        {
+            "tempo": TempoRailSpec(recipient="0xt"),
+            "solana": SolanaMppRailSpec(recipient="Sol"),
+            "stripe": StripeRailSpec(profile_id="profile_x"),
+        }
+    )
+    assert checkout._rails_key_for_mppx_method("tempo") == "tempo"
+    assert checkout._rails_key_for_mppx_method("solana") == "solana"
+    assert checkout._rails_key_for_mppx_method("stripe") == "stripe"
+    assert checkout._rails_key_for_mppx_method("unknown") is None
+    # Method with no matching rail returns None.
+    tempo_only = _co({"tempo": TempoRailSpec(recipient="0xt")})
+    assert tempo_only._rails_key_for_mppx_method("solana") is None
+    assert tempo_only._rails_key_for_mppx_method("stripe") is None
+
+
+def test_x402_base_network_none_without_server() -> None:
+    """`_x402_base_network` is None when no x402 server is resolvable."""
+    no_server = _co({"tempo": TempoRailSpec(recipient="0xt")})
+    assert no_server._x402_base_network is None

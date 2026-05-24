@@ -1,7 +1,6 @@
 """``compute_first_checkout`` — variable-cost pay-per-result merchant helper.
 
-Mirrors node-commerce ``src/checkout_compute_first.ts``. Uses compute-first +
-exact-x402 (no upto, no Permit2, no Settlement-Overrides).
+Uses compute-first + exact-x402 (no upto, no Permit2, no Settlement-Overrides).
 
 Flow (per request):
 
@@ -503,8 +502,7 @@ class ComputeFirstCheckout:
 
         if denial_reason is not None:
             # Spread denial_reason_to_body so agent_instructions / verify_url
-            # ride through (parity with node's enforceWalletSanctions which
-            # spreads denialReasonToBody into the compute-first envelope).
+            # ride through into the compute-first envelope.
             denial_body = denial_reason_to_body(denial_reason)
             return (
                 denial_reason_status(denial_reason),
@@ -986,7 +984,7 @@ class ComputeFirstCheckout:
 
 
 def compute_first_checkout(**kwargs: Any) -> ComputeFirstCheckout:
-    """Factory wrapper for parity with node's ``computeFirstCheckout(opts)``.
+    """Factory wrapper around :class:`ComputeFirstCheckout`.
 
     Equivalent to constructing :class:`ComputeFirstCheckout` directly.
     """

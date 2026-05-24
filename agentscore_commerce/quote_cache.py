@@ -1,8 +1,7 @@
 """Short-TTL body-hash quote cache for the compute-first + exact-x402 pattern.
 
-Mirrors ``node-commerce/src/quote_cache.ts``. The probe leg writes (run-work →
-cache); the settle leg reads (cache hit → settle exact at the cached price →
-return the cached body).
+The probe leg writes (run-work → cache); the settle leg reads (cache hit →
+settle exact at the cached price → return the cached body).
 
 Default in-memory ``dict``; optional ``redis_url`` lazy-imports
 ``redis.asyncio`` for multi-instance deployments. ``redis`` is an optional

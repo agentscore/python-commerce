@@ -1,6 +1,14 @@
 """Tests for ``agentscore_commerce.payment.payment_header``."""
 
-from agentscore_commerce.payment.payment_header import has_payment_header
+from collections.abc import Mapping
+from typing import Any
+
+from agentscore_commerce.payment.payment_header import (
+    _read_header,
+    has_mppx_header,
+    has_payment_header,
+    has_x402_header,
+)
 
 
 def test_detects_payment_signature_header() -> None:
@@ -72,3 +80,68 @@ def test_reads_mapping_case_variants() -> None:
     assert has_payment_header({"X-Payment": "value"}) is True
     # Only lowercase
     assert has_payment_header({"x-payment": "value"}) is True
+
+
+def test_read_header_none_headers_returns_none() -> None:
+    """`_read_header(None, ...)` short-circuits to None (line 33)."""
+    assert _read_header(None, "x-payment") is None
+
+
+class _NonGetMapping(Mapping):
+    """A Mapping whose `.get` is a non-callable attribute, forcing the Mapping
+    iteration fallback path (lines 46-53) instead of the `.get` getter path.
+    """
+
+    def __init__(self, data: dict[str, Any]) -> None:
+        self._data = data
+        self.get = None  # type: ignore[assignment]  # shadow Mapping.get with a non-callable
+
+    def __getitem__(self, key: str) -> Any:
+        return self._data[key]
+
+    def __iter__(self) -> Any:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+
+def test_mapping_fallback_string_value() -> None:
+    """A Mapping without a callable `.get` falls through to the iteration branch
+    and returns a string header value (lines 46-51)."""
+    headers = _NonGetMapping({"x-payment": "creds"})
+    assert _read_header(headers, "x-payment") == "creds"
+
+
+def test_mapping_fallback_list_value() -> None:
+    """The Mapping iteration branch unwraps a list value to its first hop (lines 52-53)."""
+    headers = _NonGetMapping({"payment-signature": ["first", "second"]})
+    assert _read_header(headers, "payment-signature") == "first"
+
+
+def test_mapping_fallback_non_string_non_list_returns_none() -> None:
+    """A present key whose value is neither str nor list yields None overall."""
+    headers = _NonGetMapping({"x-payment": 12345})
+    assert _read_header(headers, "x-payment") is None
+
+
+def test_getter_not_callable_and_not_mapping_returns_none() -> None:
+    """An object whose `.get` is non-callable and which is not a Mapping yields None."""
+
+    class _Weird:
+        get = "not-callable"
+
+    assert _read_header(_Weird(), "x-payment") is None
+
+
+def test_has_x402_header_variants() -> None:
+    assert has_x402_header({"x-payment": "abc"}) is True
+    assert has_x402_header({"payment-signature": "sig"}) is True
+    assert has_x402_header({"authorization": "Payment jwt"}) is False
+    assert has_x402_header({}) is False
+
+
+def test_has_mppx_header_variants() -> None:
+    assert has_mppx_header({"authorization": "Payment jwt"}) is True
+    assert has_mppx_header({"authorization": "Bearer x"}) is False
+    assert has_mppx_header({"x-payment": "abc"}) is False

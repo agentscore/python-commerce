@@ -3,7 +3,7 @@
 Shared by ``Checkout.handle_mppx`` and ``compute_first_checkout``'s MPP
 settle path so the rail-label / signer derivation stays one source of truth.
 
-Mirrors node-commerce ``src/_mppx_receipt.ts``. Not part of the public API.
+Not part of the public API.
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ def extract_mppx_receipt_header_from_raw(raw: Any) -> str | None:
     * ``raw.to_payment_receipt()`` — pympp's older Receipt return-method shape
       (also reached when ``raw`` is a ``(credential, receipt)`` tuple OR a
       dict/object carrying ``.receipt``).
-    * ``raw.with_receipt(response) -> Response`` — node-compat shape that
-      wraps an outgoing Response and attaches the header.
+    * ``raw.with_receipt(response) -> Response`` — a shape that wraps an
+      outgoing Response and attaches the header.
 
     Returns ``None`` when none match or the underlying call raises.
     """
@@ -75,8 +75,8 @@ def extract_mppx_receipt_method(header: str) -> str | None:
 
     The returned method is ``'tempo'`` / ``'solana'`` / ``'stripe'``, or the
     legacy ``'<scheme>/charge'`` form. Returns ``None`` when the header is
-    malformed or mppx isn't importable. Uses ``Receipt.from_payment_receipt``
-    (Python pympp) — equivalent to node's ``Receipt.deserialize``.
+    malformed or mppx isn't importable. Uses pympp's
+    ``Receipt.from_payment_receipt``.
     """
     try:
         from mpp import Receipt  # type: ignore[import-untyped]

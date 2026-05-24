@@ -8,6 +8,7 @@ import base64
 import json
 from datetime import UTC, datetime, timedelta
 
+from agentscore_commerce.payment.amounts import usd_to_atomic
 from agentscore_commerce.payment.rails import lookup_rail
 
 
@@ -28,8 +29,8 @@ def build_payment_request_blob(
     resolved_currency = currency or (rail_def.currency if rail_def else "usd")
     resolved_chain_id = chain_id if chain_id is not None else (rail_def.chain_id if rail_def else None)
 
-    amount_num = float(amount_usd) if isinstance(amount_usd, str) else amount_usd
-    amount_raw = str(round(amount_num * 10**resolved_decimals))
+    # Shared ROUND_HALF_UP converter so half-base-unit amounts round deterministically.
+    amount_raw = str(usd_to_atomic(amount_usd, decimals=resolved_decimals))
     blob: dict[str, object] = {"amount": amount_raw, "currency": resolved_currency, "decimals": resolved_decimals}
     if recipient:
         blob["recipient"] = recipient

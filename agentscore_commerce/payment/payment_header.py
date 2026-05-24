@@ -2,17 +2,15 @@
 
 The complement is a discovery leg — no credential, expects a 402.
 
-Used by the gate-conditional mount pattern documented in CLAUDE.md: mount
-``AgentScoreGate`` on a route only when payment is being attempted, so the
-discovery leg flows through unauthenticated and gets a 402 with all rails.
+Used by the gate-conditional mount pattern: mount ``AgentScoreGate`` on a route
+only when payment is being attempted, so the discovery leg flows through
+unauthenticated and gets a 402 with all rails.
 
 Three credential channels are checked:
 
 - ``Payment-Signature`` — MPP credentials (Tempo, Solana, Stripe SPT)
 - ``X-Payment`` — x402 v1 EIP-3009 credentials
 - ``Authorization: Payment <jwt>`` — x402 v2 / paymentauth.org credentials
-
-Mirrors node-commerce ``src/payment/payment_header.ts``.
 """
 
 from __future__ import annotations

@@ -26,6 +26,20 @@ def test_body_hash_key_prefix_isolates_namespaces() -> None:
     assert a != b
 
 
+def test_body_hash_key_canonicalizes_nested_lists() -> None:
+    """List values are canonicalized element-wise; list order is significant
+    (exercises the list branch of ``_canonicalize``)."""
+    cache = create_quote_cache()
+    # Nested dicts inside a list get key-sorted, so reordered inner keys hash equal.
+    a = cache.body_hash_key("search", {"items": [{"a": 1, "b": 2}]})
+    b = cache.body_hash_key("search", {"items": [{"b": 2, "a": 1}]})
+    assert a == b
+    # But list element ORDER matters.
+    c = cache.body_hash_key("search", {"items": [{"a": 1}, {"a": 2}]})
+    d = cache.body_hash_key("search", {"items": [{"a": 2}, {"a": 1}]})
+    assert c != d
+
+
 @pytest.mark.asyncio
 async def test_write_then_read_returns_cached_quote() -> None:
     cache = create_quote_cache()

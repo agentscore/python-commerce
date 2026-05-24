@@ -78,7 +78,7 @@ def _apply_dynamic_options(body: dict[str, Any], dynamic: Any) -> dict[str, Any]
         body["context"] = dynamic["context"]
     if dynamic.get("product_name") is not None:
         body["product_name"] = dynamic["product_name"]
-    # Accept JS-style "productName" too for consistency with node-commerce.
+    # Accept JS-style camelCase "productName" too.
     if dynamic.get("productName") is not None:
         body["product_name"] = dynamic["productName"]
     return body

@@ -143,10 +143,9 @@ class SolanaMppRailSpec:
     # accounts the merchant can't close. Acceptable when settle amounts
     # dominate ($50+); not viable for sub-dollar merchants.
     #
-    # NOTE: python-commerce doesn't yet wire SolanaMppRailSpec through
-    # ``create_mppx_server`` (node parity gap); this field is data-only here
-    # today. Merchants building the solana method directly via ``pympp``
-    # should pass ``ata_creation_required`` themselves to the charge factory.
+    # NOTE: SolanaMppRailSpec isn't yet wired through ``create_mppx_server``, so
+    # this field is data-only today. Merchants building the solana method directly
+    # via ``pympp`` should pass ``ata_creation_required`` to the charge factory.
     ata_creation_required: bool = True
 
     def __post_init__(self) -> None:

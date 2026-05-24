@@ -1,15 +1,12 @@
 """Factory for the standard ``on_denied`` callback used by Checkout's gate.
 
-Replaces the ~100-line switch every consumer codebase (store, sayer-py,
-martin-py) wrote by hand.
+Replaces the denial-mapping switch a merchant would otherwise hand-write.
 
 The shape is framework-neutral (``{status, body, headers?}``) — matches
 ``Checkout``'s ``on_denied`` signature directly. For per-framework gate
 middleware (``AgentScoreGate(...)``) the merchant adapts at the call site
 with the framework's ``JSONResponse(body, status_code=status, headers=headers)``
 / equivalent.
-
-Mirrors node-commerce ``src/identity/default_denied.ts``.
 """
 
 from __future__ import annotations

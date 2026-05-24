@@ -6,8 +6,8 @@ Two surfaces:
   * :func:`rate_limit_fastapi` returns an async ``Depends``-able callable for
     per-route gating.
 
-The middleware approach is the canonical mount (matches the node SDK pattern). The
-dependency approach is here for routes that need finer control or a custom key.
+The middleware approach is the canonical mount. The dependency approach is here
+for routes that need finer control or a custom key.
 """
 
 from __future__ import annotations

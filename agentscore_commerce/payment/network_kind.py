@@ -3,8 +3,6 @@
 Replaces the ad-hoc ``startswith("eip155:")`` / ``startswith("solana:")``
 checks scattered across ``checkout``, ``identity.ucp``, ``payment.dispatch``.
 Pure functions; no peer-dep imports.
-
-Mirrors node-commerce ``src/payment/network_kind.ts``.
 """
 
 from __future__ import annotations

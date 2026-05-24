@@ -828,3 +828,138 @@ class TestFlaskQuotaPropagation:
             assert resp.status_code == 200
         assert captured["quota"] is not None
         assert captured["quota"].limit == 1500
+
+
+class TestFlaskBranchGaps:
+    """Covers the remaining shared adapter branches for the Flask gate."""
+
+    def test_on_denied_three_tuple_sets_headers(self) -> None:
+        def custom(_req, reason):
+            return ({"code": reason.code}, 418, {"X-Custom": "teapot"})
+
+        app = _make_app(on_denied=custom)
+        resp = app.test_client().get("/")  # no identity -> denied
+        assert resp.status_code == 418
+        assert resp.headers["X-Custom"] == "teapot"
+        assert resp.get_json()["code"] == "missing_identity"
+
+    def test_recovered_signer_forwarded_to_assess(self) -> None:
+        import base64
+        import json as _json
+
+        signer_addr = "0xabcdef0123456789abcdef0123456789abcdef01"
+        x402_header = base64.b64encode(
+            _json.dumps(
+                {"accepted": {"network": "eip155:8453"}, "payload": {"authorization": {"from": signer_addr}}}
+            ).encode()
+        ).decode()
+        app = _make_app()
+        with patch(
+            "agentscore_commerce.identity.flask.AgentScoreCore.check_identity", return_value=_mock_result()
+        ) as mock_check:
+            resp = app.test_client().get("/", headers={"x-wallet-address": "0xwallet", "x-payment": x402_header})
+            assert resp.status_code == 200
+            assert mock_check.call_args.kwargs["signer"] == {"address": signer_addr, "network": "evm"}
+
+    def test_condition_false_short_circuits(self) -> None:
+        app = _make_app(condition=lambda _req: False)
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check") as mock_check:
+            resp = app.test_client().get("/")  # no identity, but condition skips gating
+            assert resp.status_code == 200
+            mock_check.assert_not_called()
+
+    def test_invalid_credential_returns_401(self) -> None:
+        from agentscore_commerce.identity.core import InvalidCredentialError
+
+        app = _make_app()
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", side_effect=InvalidCredentialError()):
+            resp = app.test_client().get("/", headers={"x-operator-token": "opc_bad"})
+            assert resp.status_code == 401
+            assert resp.get_json()["error"]["code"] == "invalid_credential"
+
+    def test_timeout_fail_closed_returns_api_error(self) -> None:
+        app = _make_app(fail_open=False)
+        with patch(
+            "agentscore_commerce.identity.flask.AgentScoreCore.check",
+            side_effect=httpx.TimeoutException("read timeout"),
+        ):
+            resp = app.test_client().get("/", headers={"x-wallet-address": "0xtimeoutflask"})
+            assert resp.status_code == 503
+            assert resp.get_json()["error"]["code"] == "api_error"
+
+    def test_fixable_denial_falls_back_to_bare_when_session_returns_none(self) -> None:
+        from agentscore_commerce.identity.sessions import CreateSessionOnMissing
+
+        app = _make_app(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"))
+        result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        with (
+            patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=result),
+            patch(
+                "agentscore_commerce.identity.flask.try_create_session_denial_reason_sync",
+                return_value=None,
+            ),
+        ):
+            resp = app.test_client().get("/", headers={"x-wallet-address": "0xkycflask"})
+            assert resp.status_code == 403
+            assert resp.get_json()["error"]["code"] == "wallet_not_trusted"
+
+    def test_get_signer_verdict_reads_from_client(self) -> None:
+        from agentscore_commerce.identity.flask import get_signer_verdict
+
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        agentscore_gate(app, api_key="test-key")
+        captured: dict = {}
+
+        @app.route("/sv")
+        def _sv() -> dict[str, object]:
+            captured["verdict"] = get_signer_verdict()
+            return {"ok": True}
+
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=_mock_result()):
+            resp = app.test_client().get("/sv", headers={"x-wallet-address": "0xsignerverdictflask"})
+            assert resp.status_code == 200
+        assert captured["verdict"] is None
+
+    def test_conditional_gate_discovery_leg_flows_through(self) -> None:
+        from agentscore_commerce.identity.flask import conditional_agentscore_gate
+
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        conditional_agentscore_gate(app, api_key="test-key", require_kyc=True)
+
+        @app.route("/", methods=["POST"])
+        def _root() -> dict[str, object]:
+            return {"ok": True}
+
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check") as mock_check:
+            resp = app.test_client().post("/")  # no payment header
+            assert resp.status_code == 200
+            mock_check.assert_not_called()
+
+    def test_conditional_gate_settle_leg_gates(self) -> None:
+        from agentscore_commerce.identity.flask import conditional_agentscore_gate
+
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        conditional_agentscore_gate(app, api_key="test-key", require_kyc=True)
+
+        @app.route("/", methods=["POST"])
+        def _root() -> dict[str, object]:
+            return {"ok": True}
+
+        result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=result):
+            resp = app.test_client().post("/", headers={"x-wallet-address": "0xabc", "x-payment": "abc"})
+            assert resp.status_code == 403
+
+    def test_get_signer_verdict_none_when_no_client(self) -> None:
+        """Defensive guard: gate state with a wallet_address but client=None → None."""
+        from flask import Flask, g
+
+        from agentscore_commerce.identity.flask import get_signer_verdict
+
+        app = Flask(__name__)
+        with app.test_request_context("/"):
+            g._agentscore_gate = {"wallet_address": "0xabc", "client": None}
+            assert get_signer_verdict() is None

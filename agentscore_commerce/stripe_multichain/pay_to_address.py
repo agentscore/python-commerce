@@ -12,8 +12,6 @@ Stripe-multichain merchants need ONE function for their ``mint_recipients``
 
 Stripe SPT and card methods don't carry an on-chain recipient, so the settle
 leg still mints a fresh PaymentIntent for them.
-
-Mirrors node-commerce ``src/stripe-multichain/pay_to_address.ts``.
 """
 
 from __future__ import annotations

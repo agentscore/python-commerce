@@ -654,3 +654,180 @@ class TestDjangoQuotaPropagation:
             assert captured["quota"].limit == 1500
         finally:
             settings.AGENTSCORE_GATE = original
+
+
+class TestDjangoBranchGaps:
+    """Covers the remaining shared adapter branches: signer forwarding, the
+    InvalidCredential / TokenDenied / timeout fail-closed paths, the condition
+    short-circuit, and the conditional middleware variant."""
+
+    factory = RequestFactory()
+
+    def _make_middleware(self, **config_overrides: object) -> AgentScoreMiddleware:
+        # Start from a clean base config so global mutation from earlier test classes
+        # (e.g. a left-over fail_open=True) can't leak into these fail-closed assertions.
+        original = settings.AGENTSCORE_GATE
+        settings.AGENTSCORE_GATE = {"api_key": "test-key", **config_overrides}
+        try:
+            return AgentScoreMiddleware(_ok_response)
+        finally:
+            settings.AGENTSCORE_GATE = original
+
+    def test_recovered_signer_forwarded_to_assess(self) -> None:
+        import base64
+
+        mw = self._make_middleware()
+        signer_addr = "0xabcdef0123456789abcdef0123456789abcdef01"
+        x402_header = base64.b64encode(
+            json.dumps(
+                {"accepted": {"network": "eip155:8453"}, "payload": {"authorization": {"from": signer_addr}}}
+            ).encode()
+        ).decode()
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xwallet", HTTP_X_PAYMENT=x402_header)
+        with patch(
+            "agentscore_commerce.identity.django.AgentScoreCore.check_identity", return_value=_mock_result()
+        ) as mock_check:
+            mw(request)
+            assert mock_check.call_args.kwargs["signer"] == {"address": signer_addr, "network": "evm"}
+
+    def test_invalid_credential_returns_401(self) -> None:
+        from agentscore_commerce.identity.core import InvalidCredentialError
+
+        mw = self._make_middleware()
+        request = self.factory.get("/", HTTP_X_OPERATOR_TOKEN="opc_bad")
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", side_effect=InvalidCredentialError()):
+            resp = mw(request)
+            assert resp.status_code == 401
+            assert json.loads(resp.content)["error"]["code"] == "invalid_credential"
+
+    def test_token_denied_returns_token_reason(self) -> None:
+        from agentscore_commerce.identity.core import TokenDeniedError
+
+        mw = self._make_middleware()
+        request = self.factory.get("/", HTTP_X_OPERATOR_TOKEN="opc_exp")
+        err = TokenDeniedError({"error": {"code": "token_expired"}, "next_steps": {"action": "x"}})
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", side_effect=err):
+            resp = mw(request)
+            assert resp.status_code == 401
+            assert json.loads(resp.content)["error"]["code"] == "token_expired"
+
+    def test_timeout_fail_closed_returns_api_error(self) -> None:
+        mw = self._make_middleware(fail_open=False)
+        # Unique address so a previously-cached allow for 0xabc doesn't short-circuit.
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xtimeoutwallet")
+        with patch(
+            "agentscore_commerce.identity.django.AgentScoreCore.check",
+            side_effect=httpx.TimeoutException("read timeout"),
+        ):
+            resp = mw(request)
+            assert resp.status_code == 503
+            assert json.loads(resp.content)["error"]["code"] == "api_error"
+
+    def test_condition_false_short_circuits_to_response(self) -> None:
+        """A condition returning False skips gating entirely."""
+        mw = self._make_middleware(condition=lambda _req: False)
+        request = self.factory.get("/")  # no identity headers
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check") as mock_check:
+            resp = mw(request)
+            assert resp.status_code == 200
+            mock_check.assert_not_called()
+
+    def test_fixable_denial_without_session_config_returns_bare(self) -> None:
+        """Fixable reasons but no create_session_on_missing → bare wallet_not_trusted
+        (the session-bootstrap branch's else)."""
+        mw = self._make_middleware()
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
+        result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result):
+            resp = mw(request)
+            assert resp.status_code == 403
+            assert json.loads(resp.content)["error"]["code"] == "wallet_not_trusted"
+
+    def test_get_signer_verdict_none_when_no_client(self) -> None:
+        from agentscore_commerce.identity.django import get_signer_verdict
+
+        request = self.factory.get("/")
+        request._agentscore_gate = {"wallet_address": "0xabc", "client": None}  # type: ignore[attr-defined]
+        assert get_signer_verdict(request) is None
+
+    def test_get_signer_verdict_none_when_no_gate_state(self) -> None:
+        """No gate state on the request → None (the `not state` guard)."""
+        from agentscore_commerce.identity.django import get_signer_verdict
+
+        request = self.factory.get("/")
+        assert get_signer_verdict(request) is None
+
+    def test_get_signer_verdict_reads_from_client(self) -> None:
+        """A wallet-authenticated request reaches client.get_signer_verdict."""
+        from agentscore_commerce.identity.django import get_signer_verdict
+
+        mw = self._make_middleware()
+        captured: dict = {}
+
+        def view(request: HttpRequest) -> JsonResponse:
+            captured["verdict"] = get_signer_verdict(request)
+            return JsonResponse({"ok": True})
+
+        mw.get_response = view
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xsignerverdict")
+        with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=_mock_result()):
+            resp = mw(request)
+            assert resp.status_code == 200
+        # No signer was extracted (no x402 header) so the verdict is None, but the
+        # client.get_signer_verdict read path was exercised.
+        assert captured["verdict"] is None
+
+    def test_get_gate_quota_info_none_for_ungated_request(self) -> None:
+        from agentscore_commerce.identity.django import get_gate_quota_info
+
+        request = self.factory.get("/")
+        assert get_gate_quota_info(request) is None
+
+    def test_fixable_denial_falls_back_to_bare_when_session_mint_returns_none(self) -> None:
+        """Fixable reason + create_session_on_missing configured, but the session mint
+        returns None → bare wallet_not_trusted (the 258->261 fall-through)."""
+        from agentscore_commerce.identity.sessions import CreateSessionOnMissing
+
+        mw = self._make_middleware(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"))
+        result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xkycnosession")
+        with (
+            patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result),
+            patch(
+                "agentscore_commerce.identity.django.try_create_session_denial_reason_sync",
+                return_value=None,
+            ),
+        ):
+            resp = mw(request)
+        assert resp.status_code == 403
+        assert json.loads(resp.content)["error"]["code"] == "wallet_not_trusted"
+
+    def test_conditional_middleware_discovery_leg_flows_through(self) -> None:
+        from agentscore_commerce.identity.django import ConditionalAgentScoreMiddleware
+
+        original = settings.AGENTSCORE_GATE.copy()
+        settings.AGENTSCORE_GATE = {"api_key": "test-key", "require_kyc": True}
+        try:
+            mw = ConditionalAgentScoreMiddleware(_ok_response)
+            request = self.factory.get("/")  # no payment header
+            with patch("agentscore_commerce.identity.django.AgentScoreCore.check") as mock_check:
+                resp = mw(request)
+                assert resp.status_code == 200
+                mock_check.assert_not_called()
+        finally:
+            settings.AGENTSCORE_GATE = original
+
+    def test_conditional_middleware_settle_leg_gates(self) -> None:
+        from agentscore_commerce.identity.django import ConditionalAgentScoreMiddleware
+
+        original = settings.AGENTSCORE_GATE.copy()
+        settings.AGENTSCORE_GATE = {"api_key": "test-key", "require_kyc": True}
+        try:
+            mw = ConditionalAgentScoreMiddleware(_ok_response)
+            request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc", HTTP_X_PAYMENT="abc")
+            result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+            with patch("agentscore_commerce.identity.django.AgentScoreCore.check", return_value=result):
+                resp = mw(request)
+                assert resp.status_code == 403
+        finally:
+            settings.AGENTSCORE_GATE = original

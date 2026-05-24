@@ -2,7 +2,7 @@
 
 Module-level state ensures each warning fires at most once per process,
 regardless of how many ``Checkout`` / ``compute_first_checkout`` instances
-trigger it. Mirrors ``node-commerce/src/_warnings.ts``.
+trigger it.
 """
 
 from __future__ import annotations

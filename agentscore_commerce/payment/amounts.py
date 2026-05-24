@@ -3,12 +3,11 @@
 `usd_to_atomic(usd, decimals=6)` returns the integer atomic value of a USD
 amount for a token with `decimals` places of precision (USDC is 6). Uses
 ``Decimal`` + ``ROUND_HALF_UP`` so a USD value at exactly half a base unit
-rounds away from zero, matching the cross-language Node sibling.
+rounds away from zero.
 
 Rejects negative, NaN, and infinite inputs. Scientific-notation strings
-(``"1e6"``) are accepted on the Python side via ``Decimal``; the Node sibling
-rejects them and requires fixed notation, so cross-language byte-parity tests
-fix on fixed-notation fixtures.
+(``"1e6"``) are accepted via ``Decimal``; prefer fixed notation for amounts
+on the wire so the encoded value is unambiguous.
 """
 
 from __future__ import annotations
@@ -37,7 +36,7 @@ def usd_to_atomic(usd: str | float | int | Decimal, *, decimals: int) -> int:
         msg = f"decimals must be a non-negative int, got {decimals!r}"
         raise ValueError(msg)
 
-    # Strip whitespace on string input so Python matches Node's `.trim()` behavior
+    # Strip whitespace on string input before parsing
     # (Decimal itself rejects whitespace-padded strings with InvalidOperation).
     raw = usd.strip() if isinstance(usd, str) else usd
     try:

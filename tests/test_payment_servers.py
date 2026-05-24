@@ -361,3 +361,375 @@ async def test_coinbase_facilitator_emits_per_endpoint_bearer(monkeypatch: pytes
     methods = [c[0] for c in captured]
     assert "POST" in methods  # verify + settle
     assert "GET" in methods  # supported
+
+
+# ---------------------------------------------------------------------------
+# Peer-dep ImportError paths + stripe rail + realm (mppx_server branch gaps)
+# ---------------------------------------------------------------------------
+
+
+def _block_import(monkeypatch: pytest.MonkeyPatch, *blocked_prefixes: str) -> None:
+    """Make importlib.import_module raise ImportError for the given module prefixes."""
+    import importlib
+
+    real = importlib.import_module
+
+    def _fake(name: str, *args: Any, **kwargs: Any) -> Any:
+        if any(name == p or name.startswith(p) for p in blocked_prefixes):
+            msg = f"blocked {name}"
+            raise ImportError(msg)
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", _fake)
+
+
+@pytest.mark.asyncio
+async def test_create_mppx_server_missing_pympp_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When `mpp.server` is unavailable, a guiding ImportError names the install command."""
+    _block_import(monkeypatch, "mpp.server")
+    with pytest.raises(ImportError, match=r"pympp not installed"):
+        await create_mppx_server(secret_key="X" * 32, rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 20)})
+
+
+@pytest.mark.skipif(not _MPPX_INSTALLED, reason="pympp not installed")
+@pytest.mark.asyncio
+async def test_create_mppx_server_missing_tempo_factory_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When `mpp.methods.tempo` is unavailable, the tempo rail raises a guiding ImportError."""
+    _block_import(monkeypatch, "mpp.methods.tempo")
+    with pytest.raises(ImportError, match=r"pympp\[tempo\] not installed"):
+        await create_mppx_server(
+            secret_key="X" * 32,
+            rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 20, testnet=True)},
+        )
+
+
+@pytest.mark.skipif(not _MPPX_INSTALLED or not _TEMPO_INSTALLED, reason="pympp[tempo] not installed")
+@pytest.mark.asyncio
+async def test_create_mppx_server_missing_charge_intent_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A tempo module present but missing ChargeIntent raises the upgrade hint."""
+    import mpp.methods.tempo as tempo_mod
+
+    # Make getattr(module, "ChargeIntent", None) return None without removing `tempo`.
+    monkeypatch.setattr(tempo_mod, "ChargeIntent", None, raising=False)
+    with pytest.raises(ImportError, match=r"missing ChargeIntent"):
+        await create_mppx_server(
+            secret_key="X" * 32,
+            rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 20, testnet=True)},
+        )
+
+
+@pytest.mark.skipif(not _MPPX_INSTALLED, reason="pympp not installed")
+@pytest.mark.asyncio
+async def test_create_mppx_server_passes_realm_through() -> None:
+    """A non-None `realm` is threaded into Mpp.create."""
+    server = await create_mppx_server(
+        secret_key="X" * 32,
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 20, testnet=True)},
+        realm="my-realm",
+    )
+    assert type(server).__name__ == "Mpp"
+
+
+@pytest.mark.skipif(not _MPPX_INSTALLED, reason="pympp not installed")
+@pytest.mark.asyncio
+async def test_create_mppx_server_stripe_rail_resolves(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A fully-specified StripeRailSpec resolves a stripe method and constructs an Mpp.
+
+    ``create_mppx_stripe`` is stubbed because the installed pympp build doesn't ship a
+    working ``stripe/charge`` factory; this exercises the stripe branch (resolve + break)
+    in ``create_mppx_server`` without depending on that peer-dep detail.
+    """
+
+    async def _fake_create_stripe(**_kwargs: Any) -> Any:
+        return object()
+
+    monkeypatch.setattr("agentscore_commerce.stripe_multichain.mppx_stripe.create_mppx_stripe", _fake_create_stripe)
+    server = await create_mppx_server(
+        secret_key="X" * 32,
+        rails={"stripe": StripeRailSpec(profile_id="profile_x", secret_key="sk_test_x")},
+    )
+    assert type(server).__name__ == "Mpp"
+
+
+@pytest.mark.skipif(not _MPPX_INSTALLED, reason="pympp not installed")
+@pytest.mark.asyncio
+async def test_create_mppx_server_with_prebuilt_method_skips_rail_resolution() -> None:
+    """Passing `method=` directly skips the rail-resolution loop entirely (127->145)."""
+    import mpp.methods.tempo as tempo_mod
+
+    method = tempo_mod.tempo(
+        intents={"charge": tempo_mod.ChargeIntent()},
+        currency="0x" + "11" * 20,
+        recipient="0x" + "00" * 20,
+        chain_id=42431,
+    )
+    server = await create_mppx_server(secret_key="X" * 32, method=method)
+    assert type(server).__name__ == "Mpp"
+
+
+# ---------------------------------------------------------------------------
+# x402_server peer-dep + error-path branch gaps
+# ---------------------------------------------------------------------------
+
+
+def test__import_optional_returns_none_for_missing_module() -> None:
+    from agentscore_commerce.payment.x402_server import _import_optional
+
+    assert _import_optional("totally_nonexistent_module_xyz") is None
+    assert _import_optional("os") is not None
+
+
+@pytest.mark.asyncio
+async def test_create_x402_server_missing_x402_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When the top-level `x402` package is unavailable, a guiding ImportError fires."""
+    import agentscore_commerce.payment.x402_server as mod
+
+    monkeypatch.setattr(mod, "_import_optional", lambda _name: None)
+    with pytest.raises(ImportError, match=r"x402 not installed"):
+        await create_x402_server(facilitator="http", initialize=False)
+
+
+@pytest.mark.asyncio
+async def test_create_x402_server_http_facilitator_missing_client_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`facilitator='http'` but x402.http lacks HTTPFacilitatorClient → ImportError."""
+    import agentscore_commerce.payment.x402_server as mod
+
+    x402_top = type("X", (), {"x402ResourceServer": object})()
+
+    def _fake_import(name: str) -> Any:
+        if name == "x402":
+            return x402_top
+        if name == "x402.http":
+            return type("H", (), {})()  # no HTTPFacilitatorClient
+        return None
+
+    monkeypatch.setattr(mod, "_import_optional", _fake_import)
+    monkeypatch.delenv("CDP_API_KEY_ID", raising=False)
+    monkeypatch.delenv("CDP_API_KEY_SECRET", raising=False)
+    with pytest.raises(ImportError, match=r"x402.http missing HTTPFacilitatorClient"):
+        await create_x402_server(facilitator="http", initialize=False)
+
+
+@pytest.mark.asyncio
+async def test_create_x402_server_coinbase_missing_cdp_sdk_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`facilitator='coinbase'` with creds but no cdp-sdk → guiding ImportError."""
+    import agentscore_commerce.payment.x402_server as mod
+
+    x402_top = type("X", (), {"x402ResourceServer": object})()
+
+    def _fake_import(name: str) -> Any:
+        if name == "x402":
+            return x402_top
+        return None  # cdp.auth.utils.jwt missing
+
+    monkeypatch.setattr(mod, "_import_optional", _fake_import)
+    monkeypatch.setenv("CDP_API_KEY_ID", "id")
+    monkeypatch.setenv("CDP_API_KEY_SECRET", "secret")
+    with pytest.raises(ImportError, match=r"cdp-sdk not installed"):
+        await create_x402_server(facilitator="coinbase", initialize=False)
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_upto_scheme_missing_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An upto rail whose scheme module/class is missing raises an x402[evm] hint."""
+    import agentscore_commerce.payment.x402_server as mod
+
+    real = mod._import_optional
+
+    def _fake_import(name: str) -> Any:
+        if name == "x402.mechanisms.evm.upto.server":
+            return None
+        return real(name)
+
+    monkeypatch.setattr(mod, "_import_optional", _fake_import)
+    with pytest.raises(ImportError, match=r"x402\[evm\] not installed"):
+        await create_x402_server(facilitator="http", rails=["x402-base-sepolia-upto"], initialize=False)
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_exact_scheme_missing_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An exact rail whose scheme module/class is missing raises an x402[evm] hint."""
+    import agentscore_commerce.payment.x402_server as mod
+
+    real = mod._import_optional
+
+    def _fake_import(name: str) -> Any:
+        if name == "x402.mechanisms.evm.exact.server":
+            return None
+        return real(name)
+
+    monkeypatch.setattr(mod, "_import_optional", _fake_import)
+    with pytest.raises(ImportError, match=r"x402\[evm\] not installed"):
+        await create_x402_server(facilitator="http", rails=["x402-base-mainnet"], initialize=False)
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_bazaar_missing_extension_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`bazaar=True` but the bazaar extension is unavailable → guiding ImportError."""
+    import agentscore_commerce.payment.x402_server as mod
+
+    real = mod._import_optional
+
+    def _fake_import(name: str) -> Any:
+        if name == "x402.extensions.bazaar":
+            return None
+        return real(name)
+
+    monkeypatch.setattr(mod, "_import_optional", _fake_import)
+    with pytest.raises(ImportError, match=r"x402\[extensions\] not installed"):
+        await create_x402_server(facilitator=object(), bazaar=True, initialize=False)
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_bazaar_server_missing_register_extension_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server without register_extension raises a clear RuntimeError when bazaar=True."""
+    import x402
+
+    import agentscore_commerce.payment.x402_server as mod
+
+    real = mod._import_optional
+
+    def _fake_import(name: str) -> Any:
+        if name == "x402.extensions.bazaar":
+            return type("B", (), {"bazaar_resource_server_extension": object()})()
+        return real(name)
+
+    orig_init = x402.x402ResourceServer.__init__
+
+    def patched_init(self: Any, **kw: Any) -> None:
+        orig_init(self, **kw)
+        # Drop register_extension so the callable check fails.
+        self.register_extension = "not-callable"
+
+    monkeypatch.setattr(mod, "_import_optional", _fake_import)
+    monkeypatch.setattr(x402.x402ResourceServer, "__init__", patched_init)
+    with pytest.raises(RuntimeError, match=r"does not expose register_extension"):
+        await create_x402_server(facilitator=object(), bazaar=True, initialize=False)
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_awaits_async_initialize(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When the server's initialize() returns an awaitable, create_x402_server awaits it."""
+    import x402
+
+    awaited: list[bool] = []
+
+    async def _async_init(self: Any) -> None:
+        awaited.append(True)
+
+    monkeypatch.setattr(x402.x402ResourceServer, "initialize", _async_init, raising=False)
+    server = await create_x402_server(facilitator="http", initialize=True)
+    assert awaited == [True]
+    assert type(server).__name__ == "x402ResourceServer"
+
+
+def test_build_x402_accepts_for_402_missing_x402_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """build_x402_accepts_for_402 raises a guiding ImportError when x402 is absent."""
+    import agentscore_commerce.payment.x402_server as mod
+    from agentscore_commerce.payment import build_x402_accepts_for_402
+
+    monkeypatch.setattr(mod, "_import_optional", lambda _name: None)
+    with pytest.raises(ImportError, match=r"x402 not installed"):
+        build_x402_accepts_for_402(object(), network="eip155:8453", price="$0.10", pay_to="0xDEAD")
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_sync_initialize_not_awaited(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A sync initialize() (x402 2.9 shape) is called but not awaited."""
+    import x402
+
+    calls: list[bool] = []
+
+    def _sync_init(self: Any) -> None:
+        calls.append(True)
+
+    monkeypatch.setattr(x402.x402ResourceServer, "initialize", _sync_init, raising=False)
+    server = await create_x402_server(facilitator="http", initialize=True)
+    assert calls == [True]
+    assert type(server).__name__ == "x402ResourceServer"
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_initialize_noncallable_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A server whose `initialize` attr isn't callable is skipped without error."""
+    import x402
+
+    monkeypatch.setattr(x402.x402ResourceServer, "initialize", "not-callable", raising=False)
+    server = await create_x402_server(facilitator="http", initialize=True)
+    assert type(server).__name__ == "x402ResourceServer"
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_non_base_rail_is_ignored() -> None:
+    """A rail string that doesn't start with `x402-base` is silently skipped (no scheme)."""
+    server = await create_x402_server(
+        facilitator="http",
+        rails=["x402-unknown-network"],  # type: ignore[list-item]
+        initialize=False,
+    )
+    # No EVM scheme registered for the unrecognized rail.
+    assert "eip155:8453" not in getattr(server, "_schemes", {})
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_two_exact_rails_reuse_module() -> None:
+    """Two exact rails exercise the `evm_exact_module is None` cache reuse branch."""
+    server = await create_x402_server(
+        facilitator="http",
+        rails=["x402-base-mainnet", "x402-base-sepolia"],
+        initialize=False,
+    )
+    assert "eip155:8453" in server._schemes
+    assert "eip155:84532" in server._schemes
+
+
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
+@pytest.mark.asyncio
+async def test_create_x402_server_two_upto_rails_reuse_module() -> None:
+    """Two upto rails exercise the `evm_upto_module is None` cache reuse branch."""
+    server = await create_x402_server(
+        facilitator="http",
+        rails=["x402-base-mainnet-upto", "x402-base-sepolia-upto"],
+        initialize=False,
+    )
+    assert "eip155:8453" in server._schemes
+    assert "eip155:84532" in server._schemes
+
+
+@pytest.mark.asyncio
+async def test_coinbase_facilitator_missing_facilitator_config_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Coinbase path with cdp present but x402.http lacking FacilitatorConfig → ImportError."""
+    import agentscore_commerce.payment.x402_server as mod
+
+    x402_top = type("X", (), {"x402ResourceServer": object})()
+    fake_cdp = type(
+        "J",
+        (),
+        {"JwtOptions": object, "generate_jwt": staticmethod(lambda _o: "jwt")},
+    )()
+
+    def _fake_import(name: str) -> Any:
+        if name == "x402":
+            return x402_top
+        if name == "cdp.auth.utils.jwt":
+            return fake_cdp
+        if name == "x402.http":
+            return type("H", (), {})()  # no FacilitatorConfig / HTTPFacilitatorClient
+        return None
+
+    monkeypatch.setattr(mod, "_import_optional", _fake_import)
+    monkeypatch.setenv("CDP_API_KEY_ID", "id")
+    monkeypatch.setenv("CDP_API_KEY_SECRET", "secret")
+    with pytest.raises(ImportError, match=r"FacilitatorConfig / HTTPFacilitatorClient"):
+        await create_x402_server(facilitator="coinbase", initialize=False)

@@ -82,6 +82,39 @@ def test_extract_x402_signer_rejects_non_evm() -> None:
     assert extract_x402_signer(header) is None
 
 
+def test_extract_x402_signer_none_when_decoded_json_not_dict() -> None:
+    """A header decoding to a JSON array/scalar (not an object) yields None."""
+    array_header = base64.b64encode(json.dumps([1, 2, 3]).encode()).decode()
+    assert extract_x402_signer(array_header) is None
+    scalar_header = base64.b64encode(json.dumps("just-a-string").encode()).decode()
+    assert extract_x402_signer(scalar_header) is None
+
+
+def test_extract_x402_signer_skips_solana_network() -> None:
+    """Solana x402 payloads are explicitly skipped (caller extracts the SPL payer)."""
+    header = base64.b64encode(
+        json.dumps(
+            {
+                "accepted": {"network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"},
+                "payload": {"authorization": {"from": WALLET_A}},
+            }
+        ).encode()
+    ).decode()
+    assert extract_x402_signer(header) is None
+
+
+def test_extract_x402_signer_none_when_payload_not_dict() -> None:
+    """`payload` present but not an object (null / string) yields None."""
+    header = base64.b64encode(json.dumps({"payload": "oops"}).encode()).decode()
+    assert extract_x402_signer(header) is None
+
+
+def test_extract_x402_signer_none_when_authorization_not_dict() -> None:
+    """`payload.authorization` present but not an object yields None."""
+    header = base64.b64encode(json.dumps({"payload": {"authorization": "oops"}}).encode()).decode()
+    assert extract_x402_signer(header) is None
+
+
 # ---------------------------------------------------------------------------
 # AgentScoreCore.check passes signer through; client.get_signer_verdict reads it back
 # ---------------------------------------------------------------------------

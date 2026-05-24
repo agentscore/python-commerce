@@ -5,8 +5,6 @@ agents can recover from (e.g. the agent's wallet isn't enrolled with
 Tempo's keychain). This module maps known failure-reason strings to typed
 ``ClassifiedMppxFailure`` envelopes so the merchant SDK can return them
 instead of the generic ``payment_proof_invalid: regenerate`` body.
-
-Mirrors node-commerce ``src/payment/mppx_failures.ts``.
 """
 
 from __future__ import annotations

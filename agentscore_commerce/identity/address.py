@@ -4,7 +4,7 @@ EVM addresses (0x + 40 hex chars) are case-insensitive in the protocol — we lo
 so DB lookups against `address_lower`-style columns work. Solana addresses are base58 and
 case-sensitive — we MUST preserve the input verbatim, never lowercase.
 
-Must produce identical output to the API and node SDK normalizers. Drift here
+Must produce the same normalization the AgentScore API applies. Drift here
 silently breaks captured-wallet resolution and signer-match.
 """
 

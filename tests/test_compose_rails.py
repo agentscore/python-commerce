@@ -66,3 +66,32 @@ def test_auto_drops_stripe_when_amount_below_min(caplog: pytest.LogCaptureFixtur
 def test_keeps_stripe_at_50_cent_boundary() -> None:
     rails = build_mppx_compose_rails(amount_usd="0.50", tempo_recipient="0xabc")
     assert any(r[0] == "stripe/charge" for r in rails)
+
+
+def test_omits_tempo_when_no_tempo_recipient() -> None:
+    """No tempo_recipient → the tempo rail is skipped entirely (82->94 branch)."""
+    rails = build_mppx_compose_rails(amount_usd="1.00", solana_recipient="SolAddr")
+    assert all(r[0] != "tempo/charge" for r in rails)
+    assert any(r[0] == "solana/charge" for r in rails)
+
+
+def test_unparseable_amount_keeps_stripe_rail_when_no_solana() -> None:
+    """When amount_usd can't parse to Decimal (and no solana rail forces an earlier
+    raise), the stripe branch treats it as None and keeps the rail (111-112)."""
+    _WarnedFlags.stripe_below_minimum = False
+    rails = build_mppx_compose_rails(amount_usd="nope", tempo_recipient="0xabc")
+    # amount_decimal is None → falls to the else branch → stripe rail kept.
+    assert any(r[0] == "stripe/charge" for r in rails)
+
+
+def test_warns_only_once_for_below_minimum(caplog: pytest.LogCaptureFixture) -> None:
+    """The below-minimum warning fires once; a second sub-min call skips the warn
+    branch (114->126)."""
+    _WarnedFlags.stripe_below_minimum = False
+    with caplog.at_level("WARNING"):
+        build_mppx_compose_rails(amount_usd="0.01", tempo_recipient="0xabc")
+        first_count = sum(1 for r in caplog.records if "Dropping stripe/charge" in r.message)
+        build_mppx_compose_rails(amount_usd="0.02", tempo_recipient="0xabc")
+        second_count = sum(1 for r in caplog.records if "Dropping stripe/charge" in r.message)
+    assert first_count == 1
+    assert second_count == 1  # no new warning on the second sub-min call

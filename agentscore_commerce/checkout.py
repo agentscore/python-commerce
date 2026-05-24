@@ -335,6 +335,14 @@ class CheckoutContext:
         return value if isinstance(value, str) else "anonymous"
 
 
+def get_identity_status(ctx: CheckoutContext) -> str:
+    """Function form of :attr:`CheckoutContext.identity_status`.
+
+    Returns ``"verified"`` / ``"unverified"`` / ``"anonymous"`` / ``"denied"``.
+    """
+    return ctx.identity_status
+
+
 @dataclass
 class CheckoutGateConfig:
     """Optional gate configuration for :class:`Checkout`.
@@ -1609,9 +1617,8 @@ class Checkout:
                 signer={"address": signer.address, "network": signer.network},
             )
         except (TokenExpiredError, InvalidCredentialError) as err:
-            # 401 — credential issues map to invalid_credential. These are
-            # unusual on the wallet-OFAC-only path (no operator_token) but
-            # carried for parity with node's mapping.
+            # 401 — credential issues map to invalid_credential. Unusual on the
+            # wallet-OFAC-only path (no operator_token) but handled for completeness.
             reason = DenialReason(
                 code="invalid_credential" if isinstance(err, InvalidCredentialError) else "token_expired",
                 message=str(err),
@@ -2002,7 +2009,7 @@ class Checkout:
             decimals=pricing_decimals,
             # Merchants without an identity-bearing policy flag get clean commands
             # without an X-Operator-Token header — agents don't need one to satisfy
-            # wallet OFAC enforcement (the always-on default per TEC-311).
+            # the always-on wallet OFAC enforcement default.
             op_token_placeholder=None if not self._has_identity_gate() else "<your_opc_token>",
         )
         pricing_block = ctx.pricing.block or build_pricing_block(

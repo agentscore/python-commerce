@@ -102,8 +102,8 @@ VerifyWalletSignerKind = Literal[
 class VerifyWalletSignerResult:
     """Projected wallet-signer-match verdict surfaced inside :class:`SignerVerdict`.
 
-    Kept as a dataclass for API parity with node-commerce and so existing
-    ``build_signer_mismatch_body(...)`` helpers consume it unchanged.
+    Kept as a dataclass so existing ``build_signer_mismatch_body(...)`` helpers
+    consume it unchanged.
     """
 
     kind: VerifyWalletSignerKind
@@ -252,9 +252,8 @@ class AssessResult:
     identity_method: str | None = None
     operator_verification: OperatorVerification | None = None
     # Account-level verification block (KYC level, age bracket, jurisdiction,
-    # sanctions verdict). Mirrors node-commerce's typed
-    # AgentScoreData.account_verification field; consumed by the A2A agent-card
-    # builder when emitting per-card identity claims.
+    # sanctions verdict); consumed by the A2A agent-card builder when emitting
+    # per-card identity claims.
     account_verification: dict[str, Any] | None = None
     resolved_operator: str | None = None
     verify_url: str | None = None

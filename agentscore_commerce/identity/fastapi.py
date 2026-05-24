@@ -255,19 +255,16 @@ class AgentScoreGate:
                 _mark_degraded(request, "quota_exceeded")
                 return
             self._deny(request, DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS))
-            return
         except httpx.TimeoutException:
             if self._client.fail_open:
                 _mark_degraded(request, "network_timeout")
                 return
             self._deny(request, DenialReason(code="api_error"))
-            return
         except Exception:
             if self._client.fail_open:
                 _mark_degraded(request, "api_error")
                 return
             self._deny(request, DenialReason(code="api_error"))
-            return
 
         if result.allow:
             setattr(request.state, ASSESS_STATE_KEY, result.raw)

@@ -173,3 +173,11 @@ def test_no_credential_provided_returns_none() -> None:
         signer_address=None,
         signer_network=None,
     )
+
+
+def test_unknown_rail_returns_null_result() -> None:
+    """A rail outside the supported set falls through to the null result."""
+    assert zero_amount_carve_out(rail="dogecoin") == ZeroSettleResult(  # type: ignore[arg-type]
+        signer_address=None,
+        signer_network=None,
+    )

@@ -64,29 +64,45 @@ def test_payment_required_header_base64_encodes_json():
     assert decoded["resource"]["url"] == "https://x"
 
 
-def test_payment_required_header_emits_v1_alias_for_v2_clients():
-    """v1-only parsers (Coinbase awal) read maxAmountRequired; v2-strict parsers read amount.
+def test_payment_required_header_does_not_alias_accepts():
+    """The header must NOT add a v1<->v2 amount alias.
 
-    Header carries both so either side works.
+    @x402/core matches a v2 payment by whole-object deepEqual of the echoed
+    requirement against the server's rebuilt one, so an extra maxAmountRequired
+    on the wire that the rebuild lacks silently fails settle. The header keeps
+    accepts byte-identical to build_payment_requirements output.
     """
-    from agentscore_commerce.payment import alias_amount_fields
-
     h = payment_required_header(
         x402_version=2,
         accepts=[{"scheme": "exact", "network": "eip155:84532", "amount": "110000"}],
     )
     decoded = json.loads(base64.b64decode(h))
     assert decoded["accepts"][0]["amount"] == "110000"
-    assert decoded["accepts"][0]["maxAmountRequired"] == "110000"
+    assert "maxAmountRequired" not in decoded["accepts"][0]
 
-    # Reverse: vendor emitting v1 shape gets amount alias added.
-    aliased = alias_amount_fields([{"scheme": "exact", "maxAmountRequired": "110000"}])
+
+def test_alias_amount_fields_still_available_as_opt_in():
+    """alias_amount_fields stays exported for callers with hardcoded-v1 clients."""
+    from agentscore_commerce.payment import alias_amount_fields
+
+    # Forward: v2 amount -> adds maxAmountRequired.
+    aliased = alias_amount_fields([{"scheme": "exact", "amount": "110000"}])
     assert aliased[0]["amount"] == "110000"
     assert aliased[0]["maxAmountRequired"] == "110000"
+
+    # Reverse: v1 shape gets amount alias added.
+    reverse = alias_amount_fields([{"scheme": "exact", "maxAmountRequired": "110000"}])
+    assert reverse[0]["amount"] == "110000"
+    assert reverse[0]["maxAmountRequired"] == "110000"
 
     # Idempotent: both already set → unchanged.
     both = alias_amount_fields([{"amount": "1", "maxAmountRequired": "1"}])
     assert both[0] == {"amount": "1", "maxAmountRequired": "1"}
+
+    # Non-dict entries pass through untouched.
+    passthrough = alias_amount_fields(["not-a-dict", {"amount": "5"}])
+    assert passthrough[0] == "not-a-dict"
+    assert passthrough[1]["maxAmountRequired"] == "5"
 
 
 def test_settlement_override_header_returns_name_value_pair():
@@ -119,3 +135,14 @@ def test_register_x402_schemes_v1_v2_skips_v1_when_absent():
 
     register_x402_schemes_v1_v2(Server(), "eip155:1", object())
     assert calls == ["eip155:1"]
+
+
+def test_register_x402_schemes_v1_v2_raises_when_register_not_callable():
+    """A server lacking a callable `register` method raises a clear TypeError."""
+    import pytest
+
+    class _NoRegister:
+        register = "not-a-method"
+
+    with pytest.raises(TypeError, match="no callable `register` method"):
+        register_x402_schemes_v1_v2(_NoRegister(), "eip155:1", object())

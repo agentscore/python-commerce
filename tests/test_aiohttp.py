@@ -568,3 +568,159 @@ async def test_aiohttp_propagates_quota_from_assess_response_headers() -> None:
     assert captured["quota"] is not None
     assert captured["quota"].limit == 1500
     assert captured["quota"].used == 1200
+
+
+class TestAiohttpBranchGaps:
+    """Covers the remaining shared adapter branches for the aiohttp gate."""
+
+    @pytest.mark.asyncio
+    async def test_on_denied_three_tuple_sets_headers(self):
+        def custom(_req, reason):
+            return ({"code": reason.code}, 418, {"X-Custom": "teapot"})
+
+        client = await _client(_make_app(on_denied=custom))
+        async with client:
+            resp = await client.get("/")  # no identity -> denied
+            assert resp.status == 418
+            assert resp.headers["X-Custom"] == "teapot"
+            assert (await resp.json())["code"] == "missing_identity"
+
+    @pytest.mark.asyncio
+    async def test_recovered_signer_forwarded_to_assess(self):
+        import base64
+
+        signer_addr = "0xabcdef0123456789abcdef0123456789abcdef01"
+        x402_header = base64.b64encode(
+            json.dumps(
+                {"accepted": {"network": "eip155:8453"}, "payload": {"authorization": {"from": signer_addr}}}
+            ).encode()
+        ).decode()
+        from agentscore_commerce.identity.types import AssessResult
+
+        mock = AsyncMock(return_value=AssessResult(allow=True, decision="allow", reasons=[], raw={}))
+        with patch("agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity", new=mock):
+            client = await _client(_make_app())
+            async with client:
+                resp = await client.get("/", headers={"X-Wallet-Address": "0xwallet", "X-Payment": x402_header})
+                assert resp.status == 200
+            assert mock.call_args.kwargs["signer"] == {"address": signer_addr, "network": "evm"}
+
+    @pytest.mark.asyncio
+    async def test_condition_false_short_circuits(self):
+        mock = AsyncMock()
+        with patch("agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity", new=mock):
+            client = await _client(_make_app(condition=lambda _req: False))
+            async with client:
+                resp = await client.get("/")  # no identity, condition skips
+                assert resp.status == 200
+            mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_invalid_credential_returns_401(self):
+        from agentscore_commerce.identity.core import InvalidCredentialError
+
+        with patch(
+            "agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity",
+            side_effect=InvalidCredentialError(),
+        ):
+            client = await _client(_make_app())
+            async with client:
+                resp = await client.get("/", headers={"X-Operator-Token": "opc_bad"})
+                assert resp.status == 401
+                assert (await resp.json())["error"]["code"] == "invalid_credential"
+
+    @pytest.mark.asyncio
+    async def test_timeout_fail_closed_returns_api_error(self):
+        with patch(
+            "agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity",
+            side_effect=httpx.TimeoutException("read timeout"),
+        ):
+            client = await _client(_make_app(fail_open=False))
+            async with client:
+                resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+                assert resp.status == 503
+                assert (await resp.json())["error"]["code"] == "api_error"
+
+    @pytest.mark.asyncio
+    async def test_fixable_denial_falls_back_to_bare_when_session_returns_none(self):
+        from agentscore_commerce.identity.types import AssessResult
+
+        deny = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        with (
+            patch(
+                "agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity",
+                new=AsyncMock(return_value=deny),
+            ),
+            patch(
+                "agentscore_commerce.identity.aiohttp.try_create_session_denial_reason",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            client = await _client(_make_app(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session")))
+            async with client:
+                resp = await client.get("/", headers={"X-Wallet-Address": "0xabc"})
+                assert resp.status == 403
+                assert (await resp.json())["error"]["code"] == "wallet_not_trusted"
+
+    def test_get_signer_verdict_none_when_no_client(self):
+        from agentscore_commerce.identity.aiohttp import get_signer_verdict
+
+        req = {GATE_STATE_KEY: {"wallet_address": "0xabc", "client": None}}
+        assert get_signer_verdict(req) is None  # type: ignore[arg-type]
+
+    def test_get_signer_verdict_none_when_no_state(self):
+        from agentscore_commerce.identity.aiohttp import get_signer_verdict
+
+        assert get_signer_verdict({}) is None  # type: ignore[arg-type]
+
+    @pytest.mark.asyncio
+    async def test_get_signer_verdict_reads_from_client(self):
+        from agentscore_commerce.identity.aiohttp import get_signer_verdict
+        from agentscore_commerce.identity.types import AssessResult
+
+        captured: dict = {}
+
+        async def _sv(request: web.Request) -> web.Response:
+            captured["verdict"] = get_signer_verdict(request)
+            return web.json_response({"ok": True})
+
+        mock = AsyncMock(return_value=AssessResult(allow=True, decision="allow", reasons=[], raw={}))
+        with patch("agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity", new=mock):
+            client = await _client(_make_app(handler=_sv))
+            async with client:
+                resp = await client.get("/", headers={"X-Wallet-Address": "0xsvread"})
+                assert resp.status == 200
+        assert captured["verdict"] is None
+
+    @pytest.mark.asyncio
+    async def test_conditional_middleware_discovery_leg_flows_through(self):
+        from agentscore_commerce.identity.aiohttp import conditional_agentscore_gate_middleware
+
+        mock = AsyncMock()
+        with patch("agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity", new=mock):
+            app = web.Application()
+            app.middlewares.append(conditional_agentscore_gate_middleware(api_key="ask_test", require_kyc=True))
+            app.router.add_post("/", _ok_handler)
+            client = await _client(app)
+            async with client:
+                resp = await client.post("/")  # no payment header
+                assert resp.status == 200
+            mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_conditional_middleware_settle_leg_gates(self):
+        from agentscore_commerce.identity.aiohttp import conditional_agentscore_gate_middleware
+        from agentscore_commerce.identity.types import AssessResult
+
+        deny = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
+        with patch(
+            "agentscore_commerce.identity.aiohttp.AgentScoreCore.acheck_identity",
+            new=AsyncMock(return_value=deny),
+        ):
+            app = web.Application()
+            app.middlewares.append(conditional_agentscore_gate_middleware(api_key="ask_test", require_kyc=True))
+            app.router.add_post("/", _ok_handler)
+            client = await _client(app)
+            async with client:
+                resp = await client.post("/", headers={"X-Wallet-Address": "0xabc", "X-Payment": "abc"})
+                assert resp.status == 403

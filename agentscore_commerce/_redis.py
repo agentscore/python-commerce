@@ -8,7 +8,7 @@ on logging posture, TLS handling, or connect-error semantics.
 ``REDIS_URL`` env); when unset or the lazy import fails, this returns ``None``
 and the caller falls back to its in-process dict.
 
-Mirrors node-commerce ``src/_redis.ts``. Not part of the public API.
+Not part of the public API.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ async def _try_create_redis(
     - the import / construction raises for any other reason
 
     ``rediss://`` URLs auto-enable TLS via ``redis.asyncio.from_url``.
-    Matches the node sibling's connect-timeout and retry-cap (3s, 1 retry).
+    Uses a 3s connect-timeout and a 1-retry cap.
     """
     resolved = url if url is not None else os.environ.get("REDIS_URL")
     if not resolved:
@@ -80,10 +80,9 @@ def memoized_redis(*, url: str | None, label: str) -> Callable[[], Awaitable[Any
     First call constructs the client; later calls return the same client
     (or the same ``None``).
 
-    Mirrors node's ``memoizedRedis`` closure pattern. Pairs with the per-caller
-    ``redis_url`` opt — when ``url`` is ``None`` AND ``REDIS_URL`` is unset, the
-    getter resolves to ``None`` once and remains so for the lifetime of the
-    caller.
+    Pairs with the per-caller ``redis_url`` opt — when ``url`` is ``None`` AND
+    ``REDIS_URL`` is unset, the getter resolves to ``None`` once and remains so
+    for the lifetime of the caller.
     """
     client: Any | None = None
     attempted = False

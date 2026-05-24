@@ -1,4 +1,4 @@
-"""UCP profile signing helpers (JWKS + JWS) — Python sibling of node-commerce.
+"""UCP profile signing helpers (JWKS + JWS).
 
 UCP §6 (https://ucp.dev/latest/specification/signatures/) requires that profiles
 published at ``/.well-known/ucp`` carry a JWKS-backed signature for trust-mode clients
@@ -17,9 +17,8 @@ Implementation rides on ``joserfc`` (optional extra). Install via
 (development) skip this module entirely; the unsigned :func:`build_ucp_profile`
 path still works.
 
-Cross-language API parity with ``@agent-score/commerce`` Node SDK — same canonical
-body, same JWS Compact Serialization, same key-resolution semantics. Profiles
-signed by Node verify in Python and vice versa.
+The canonical body and JWS Compact Serialization follow RFC 8785 / RFC 7515 so any
+spec-compliant verifier can validate a signed profile.
 """
 
 from __future__ import annotations
@@ -168,24 +167,20 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
 
 
 def _reject_unsafe_numbers(value: Any) -> None:
-    """Walk ``value`` and raise on anything that won't survive cross-language parity.
+    """Walk ``value`` and raise on anything that won't canonicalize stably across implementations.
 
     Three failure modes are rejected:
 
-    * Non-integer ``float`` values. Cross-language float canonicalization (RFC 8785
-      §3.2.2.3) diverges between Python's ``json.dumps`` and Node's ``JSON.stringify``
-      (e.g. ``1.0`` vs ``1``, ``1e-7`` vs ``1e-07``). Use decimal strings (``"9.99"``)
-      for monetary or fractional fields.
-    * ``int`` values whose magnitude exceeds ``Number.MAX_SAFE_INTEGER`` (2^53 - 1).
-      Python ints are arbitrary-width, but JS verifiers parse the canonical body via
-      ``JSON.parse`` which silently loses precision past 2^53. Use a decimal string
-      for any integer that may exceed the safe range.
+    * Non-integer ``float`` values. Float canonicalization (RFC 8785 §3.2.2.3) is
+      not stable across JSON encoders (e.g. ``1.0`` vs ``1``, ``1e-7`` vs ``1e-07``).
+      Use decimal strings (``"9.99"``) for monetary or fractional fields.
+    * ``int`` values whose magnitude exceeds 2^53 - 1. Verifiers that reparse the
+      canonical body with a JSON number type capped at 2^53 (e.g. JavaScript
+      ``JSON.parse``) silently lose precision. Use a decimal string for any
+      integer that may exceed the safe range.
     * Strings containing U+2028 (LINE SEPARATOR) or U+2029 (PARAGRAPH SEPARATOR).
-      Pre-ES2019 V8 (and any environment whose ``JSON.stringify`` still escapes
-      these codepoints) emits the escaped sequences while
-      ``json.dumps(ensure_ascii=False)`` emits them raw, so the canonical bytes
-      would diverge across the Node and Python siblings. Mirror of the rejection
-      in ``core/api/src/lib/canonicalize.ts``.
+      Some JSON encoders escape these codepoints while others emit them raw, so the
+      canonical bytes would diverge across implementations.
 
     Catching the drift at sign-time prevents silent verifier-side failures in
     production.
@@ -196,29 +191,28 @@ def _reject_unsafe_numbers(value: Any) -> None:
         msg = (
             f"UCP profile canonicalization rejects float value {value!r}. "
             "Use a decimal string (e.g. '9.99') for monetary or fractional fields "
-            "to preserve cross-language byte-parity."
+            "so the signed canonical bytes stay stable for any verifier."
         )
         raise ValueError(msg)
     if isinstance(value, int) and abs(value) > _MAX_SAFE_INT:
         msg = (
             f"UCP profile canonicalization rejects integer {value} that exceeds "
-            "Number.MAX_SAFE_INTEGER (2^53 - 1). JS verifiers cannot losslessly "
-            "parse this; use a decimal string to preserve cross-language byte-parity."
+            "2^53 - 1. Verifiers with a 2^53-limited JSON number type cannot losslessly "
+            "parse this; use a decimal string to keep the signed bytes stable across implementations."
         )
         raise ValueError(msg)
     if isinstance(value, str):
         if "\u2028" in value or "\u2029" in value:
             msg = (
                 "UCP profile strings containing U+2028 (LINE SEPARATOR) or "
-                "U+2029 (PARAGRAPH SEPARATOR) are not allowed; cross-language "
-                "byte parity requires neither be present (Node JSON.stringify "
-                "on older V8 escapes them; Python json.dumps with "
-                "ensure_ascii=False does not)."
+                "U+2029 (PARAGRAPH SEPARATOR) are not allowed; stable canonical "
+                "bytes require neither be present (some JSON encoders escape them, "
+                "others emit them raw)."
             )
             raise ValueError(msg)
         return
-    # Reject set / frozenset with a typed message (mirrors the node sibling's
-    # "Set values are not allowed" rejection in stableStringify). Without this,
+    # Reject set / frozenset with a typed message (sets aren't representable in
+    # JSON). Without this,
     # an empty set or a set-of-valid-strings falls through `_reject_unsafe_numbers`
     # cleanly and surfaces a raw `TypeError` from `json.dumps` later. Sets aren't
     # representable in JSON; convert to a sorted list before passing.
@@ -228,8 +222,8 @@ def _reject_unsafe_numbers(value: Any) -> None:
             "Convert to a sorted list before passing."
         )
         raise ValueError(msg)
-    # Reject bytes / bytearray with a typed message (mirrors the node sibling's
-    # "typed arrays are not allowed" rejection in stableStringify). Without this,
+    # Reject bytes / bytearray with a typed message (raw bytes aren't representable
+    # in JSON). Without this,
     # raw bytes fall through cleanly and surface a confusing
     # `TypeError: Object of type bytes is not JSON serializable` from
     # `json.dumps` later. Convert to a base64url string before passing.
@@ -252,8 +246,7 @@ def _canonicalize_profile(profile: dict[str, Any]) -> bytes:
     """Canonicalize a UCP profile body for signing.
 
     Removes the ``signature`` field (if present), sorts keys lexicographically at every
-    nesting level, returns UTF-8 JSON bytes. Cross-language byte-identical with the
-    Node ``stableStringify`` output.
+    nesting level, returns UTF-8 JSON bytes (RFC 8785-style canonical output).
 
     Throws ``ValueError`` on float input or oversized int (see
     :func:`_reject_unsafe_numbers`).
@@ -417,10 +410,9 @@ def verify_ucp_profile(
     # UCP doesn't define any critical headers; any crit advertised is by definition
     # unrecognized. Reject before the JWKS kid lookup so a crit-violating JWS with a
     # missing/duplicate/unusable kid surfaces crit (not kid_not_found / duplicate_kid /
-    # unusable_key), matching node-commerce's manual peek order:
-    # typ -> alg -> kid -> crit -> kid_lookup. Cross-language ordering parity is
-    # non-obvious because joserfc's deserialize_compact only enforces crit AFTER
-    # the kid lookup, so we must check it here ourselves.
+    # unusable_key), via a manual peek order: typ -> alg -> kid -> crit -> kid_lookup.
+    # This ordering is non-obvious because joserfc's deserialize_compact only enforces
+    # crit AFTER the kid lookup, so we must check it here ourselves.
     # Gate on key-presence (not `is not None`) so that JSON `null` falls through to
     # the shape check and surfaces typed `malformed_jws`, not joserfc's raw TypeError
     # when it tries to iterate `None`. RFC 7515 §4.1.11 requires a non-empty array.
@@ -449,8 +441,7 @@ def verify_ucp_profile(
     # RFC 7517 §4.2: reject keys not intended for signature verification.
     # ``use`` and ``alg`` are optional per RFC 7517; an explicit JSON null is
     # out-of-spec but treat it as absent (skip-on-null) so a JWK with
-    # ``"use": null`` matches the Node sibling's ``!= null`` semantics in
-    # ucp-jwks.ts and the two languages stay symmetric.
+    # ``"use": null`` is accepted rather than rejected.
     matched_use = matched.get("use")
     if matched_use is not None and matched_use != "sig":
         raise UCPVerificationError(

@@ -316,3 +316,129 @@ async def test_mint_multichain_recipients_returns_full_merged_map() -> None:
     assert isinstance(out, MintMultichainRecipientsResult)
     assert out.recipients == {"tempo": "0xTEMPO", "base": "0xBASE", "solana": "STATIC123"}
     assert out.reused_from_credential is False
+
+
+@dataclass
+class FakePiCacheWithLookups(FakePiCache):
+    """PiCache stand-in that resolves a PI id + per-network addresses for an
+    already-known recipient, exercising the settle-leg reuse path of
+    `mint_multichain_recipients`."""
+
+    pi_id_for_addr: str = "pi_known_789"
+    network_map: dict[str, str] = field(default_factory=dict)
+
+    def get_payment_intent_id(self, addr: str) -> str | None:
+        return self.pi_id_for_addr if addr else None
+
+    def get_network_deposit_address(self, _pi: str, network: str) -> str | None:
+        return self.network_map.get(network)
+
+
+@pytest.mark.asyncio
+async def test_mint_multichain_recipients_mints_when_credential_not_reusable() -> None:
+    """A stripe-method credential isn't reusable, so mint_multichain_recipients
+    falls through to the mint path (142->157)."""
+    cache = FakePiCache()
+    stripe = _fake_stripe({"tempo": "0xTEMPO", "base": "0xBASE"})
+    with patch("mpp.Credential", FakeCredential):
+        out = await mint_multichain_recipients(
+            authorization_header="Payment stripe:does-not-matter",
+            amount_cents=100,
+            stripe=stripe,
+            pi_cache=cache,  # type: ignore[arg-type]
+        )
+    assert out.reused_from_credential is False
+    assert out.recipients == {"tempo": "0xTEMPO", "base": "0xBASE"}
+
+
+@pytest.mark.asyncio
+async def test_mint_multichain_recipients_reuses_credential_recipient() -> None:
+    """Settle leg: the credential-bound recipient is cached, so the structured
+    helper rebuilds the full per-network map from the cache + static map and
+    flags `reused_from_credential=True`."""
+    cache = FakePiCacheWithLookups(
+        has_address_result=True,
+        network_map={"tempo": "0xCACHED", "base": "0xBASE"},
+    )
+    with patch("mpp.Credential", FakeCredential):
+        out = await mint_multichain_recipients(
+            authorization_header="Payment tempo:0xCACHED",
+            amount_cents=100,
+            stripe=_fake_stripe({}),
+            pi_cache=cache,  # type: ignore[arg-type]
+            static_recipients={"solana": "STATIC123"},
+        )
+    assert out.reused_from_credential is True
+    assert out.payment_intent_id == "pi_known_789"
+    assert out.recipients == {"tempo": "0xCACHED", "base": "0xBASE", "solana": "STATIC123"}
+
+
+@pytest.mark.asyncio
+async def test_mint_multichain_recipients_reuse_with_no_pi_id() -> None:
+    """Credential reuse where the cache can't resolve a PI id: the network_map
+    stays empty and only the static recipients survive in the merge."""
+    cache = FakePiCacheWithLookups(has_address_result=True, pi_id_for_addr="")
+    with patch("mpp.Credential", FakeCredential):
+        out = await mint_multichain_recipients(
+            authorization_header="Payment solana:STATIC123",
+            amount_cents=100,
+            stripe=_fake_stripe({}),
+            pi_cache=cache,  # type: ignore[arg-type]
+            static_recipients={"solana": "STATIC123"},
+        )
+    assert out.reused_from_credential is True
+    assert out.payment_intent_id == ""
+    assert out.recipients == {"solana": "STATIC123"}
+
+
+@pytest.mark.asyncio
+async def test_credential_without_payment_prefix_falls_through_to_mint() -> None:
+    """An Authorization header that isn't a `Payment ...` credential falls
+    through to the mint path rather than being parsed (line 188)."""
+    cache = FakePiCache()
+    stripe = _fake_stripe({"tempo": "0xFRESH"})
+    result = await create_pay_to_address_from_stripe_pi(
+        authorization_header="Bearer not-a-payment-credential",
+        amount_cents=100,
+        stripe=stripe,
+        pi_cache=cache,  # type: ignore[arg-type]
+    )
+    assert result == "0xFRESH"
+
+
+@pytest.mark.asyncio
+async def test_credential_missing_recipient_field_raises() -> None:
+    """A credential whose challenge.request.recipient is empty raises invalid_credential."""
+    from agentscore_commerce.errors import CheckoutValidationError
+
+    cache = FakePiCache(has_address_result=True)
+    with patch("mpp.Credential", FakeCredential), pytest.raises(CheckoutValidationError) as exc:
+        # FakeCredential.from_authorization splits on ':' — empty recipient after method.
+        await create_pay_to_address_from_stripe_pi(
+            authorization_header="Payment tempo:",
+            amount_cents=100,
+            stripe=_fake_stripe({}),
+            pi_cache=cache,  # type: ignore[arg-type]
+        )
+    assert exc.value.code == "invalid_credential"
+    assert "missing its recipient" in exc.value.message
+
+
+@pytest.mark.asyncio
+async def test_mint_raises_503_when_no_matching_deposit_network() -> None:
+    """Stripe returns deposit addresses but none on tempo/base/solana → 503."""
+    from agentscore_commerce.errors import CheckoutValidationError
+
+    cache = FakePiCache()
+    # Only an unrelated network is returned, so the preferred/base/tempo fallback all miss.
+    stripe = _fake_stripe({"polygon": "0xPOLY"})
+    with pytest.raises(CheckoutValidationError) as exc:
+        await create_pay_to_address_from_stripe_pi(
+            authorization_header=None,
+            amount_cents=100,
+            stripe=stripe,
+            pi_cache=cache,  # type: ignore[arg-type]
+            networks=["polygon"],
+        )
+    assert exc.value.status == 503
+    assert exc.value.code == "payment_provider_unavailable"

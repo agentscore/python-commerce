@@ -52,3 +52,30 @@ async def test_awaits_async_handler():
 
     out = await dispatch_settlement_by_network(p, evm=handler)
     assert out == "async-evm"
+
+
+async def test_raises_when_no_svm_handler_for_solana():
+    from agentscore_commerce.errors import CheckoutValidationError
+
+    p = _Payload(accepted={"network": "solana:abc"})
+    with pytest.raises(CheckoutValidationError) as exc:
+        await dispatch_settlement_by_network(p, evm=lambda _: "x")
+    assert exc.value.code == "payment_provider_unavailable"
+    assert exc.value.status == 503
+    assert "No Solana" in exc.value.message
+
+
+async def test_reads_network_from_object_accepted():
+    """`payload.accepted` may be an object exposing `.network` (not a dict)."""
+
+    @dataclass
+    class _Accepted:
+        network: str
+
+    @dataclass
+    class _ObjPayload:
+        accepted: _Accepted
+
+    p = _ObjPayload(accepted=_Accepted(network="eip155:8453"))
+    out = await dispatch_settlement_by_network(p, evm=lambda _: "evm-obj")
+    assert out == "evm-obj"

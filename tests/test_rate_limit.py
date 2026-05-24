@@ -114,6 +114,85 @@ def test_flask_install() -> None:
 
 
 @pytest.mark.asyncio
+async def test_flask_install_under_running_loop() -> None:
+    # Running inside pytest-asyncio's loop, the sync before_request hook sees a
+    # loop already active on this thread and takes the worker-thread offload
+    # branch of _run_async (instead of asyncio.run). Exercises that path.
+    from flask import Flask
+
+    from agentscore_commerce.middleware.flask import rate_limit_flask
+
+    app = Flask(__name__)
+    rate_limit_flask(app, max_requests=2, window_seconds=60, key_resolver=lambda _r: "loop")
+
+    @app.get("/health")
+    def health() -> dict[str, bool]:
+        return {"ok": True}
+
+    client = app.test_client()
+    assert client.get("/health").status_code == 200
+    assert client.get("/health").status_code == 200
+    assert client.get("/health").status_code == 429
+
+
+def test_flask_redis_enforced_across_requests_on_persistent_loop() -> None:
+    # A real redis.asyncio client binds to the loop that first drives it. A fresh
+    # per-request loop would strand the cached client on a closed loop, so check()
+    # would raise and silently fall back to in-memory after the first request. This
+    # stub simulates that loop affinity (raises if awaited on a different loop than
+    # the first call); with the persistent background loop all requests share one
+    # loop, so Redis enforcement holds across requests (2nd request -> 429).
+    import asyncio
+    import sys
+    import types
+
+    class _LoopBoundRedis:
+        def __init__(self) -> None:
+            self._loop: object | None = None
+            self.counts: dict[str, int] = {}
+
+        def _check_loop(self) -> None:
+            running = asyncio.get_running_loop()
+            if self._loop is None:
+                self._loop = running
+            elif running is not self._loop:
+                msg = "got Future attached to a different loop"
+                raise RuntimeError(msg)
+
+        async def incr(self, key: str) -> int:
+            self._check_loop()
+            self.counts[key] = self.counts.get(key, 0) + 1
+            return self.counts[key]
+
+        async def expire(self, _key: str, _ttl: int) -> bool:
+            self._check_loop()
+            return True
+
+    from flask import Flask
+
+    from agentscore_commerce.middleware.flask import rate_limit_flask
+
+    client_stub = _LoopBoundRedis()
+    module = types.ModuleType("redis.asyncio")
+    module.from_url = lambda _url, **_kw: client_stub  # type: ignore[attr-defined]
+    sys.modules["redis.asyncio"] = module
+    try:
+        app = Flask(__name__)
+        rate_limit_flask(app, max_requests=1, window_seconds=60, redis_url="redis://stub", key_resolver=lambda _r: "rk")
+
+        @app.get("/health")
+        def health() -> dict[str, bool]:
+            return {"ok": True}
+
+        c = app.test_client()
+        assert c.get("/health").status_code == 200  # redis count=1
+        assert c.get("/health").status_code == 429  # redis count=2 across requests
+        assert client_stub.counts["rl:rk"] == 2  # both requests hit redis, not the in-memory fallback
+    finally:
+        sys.modules.pop("redis.asyncio", None)
+
+
+@pytest.mark.asyncio
 async def test_aiohttp_middleware() -> None:
     from aiohttp import web
     from aiohttp.test_utils import TestClient, TestServer
@@ -239,6 +318,87 @@ async def test_core_redis_path_with_stub() -> None:
         assert counts["testrl:k"] == 3
     finally:
         sys.modules.pop("redis.asyncio", None)
+
+
+@pytest.mark.asyncio
+async def test_core_redis_import_failure_falls_back_to_memory(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`redis_url` set but `redis` not installed → logs error, falls back to in-memory."""
+    import importlib
+
+    real = importlib.import_module
+
+    def _fake(name: str, *args: object, **kwargs: object) -> object:
+        if name == "redis.asyncio":
+            msg = "no redis"
+            raise ImportError(msg)
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", _fake)
+    limiter = create_rate_limiter(max_requests=1, redis_url="redis://nope")
+    d1 = await limiter.check("k")
+    d2 = await limiter.check("k")
+    # In-memory path is used: first allowed, second blocked.
+    assert d1.allowed is True
+    assert d2.allowed is False
+
+
+@pytest.mark.asyncio
+async def test_core_redis_call_raises_falls_back_to_memory() -> None:
+    """A Redis call that raises mid-check falls back to the in-memory counter."""
+    import sys
+    import types
+
+    class _BrokenRedis:
+        async def incr(self, _key: str) -> int:
+            msg = "connection reset"
+            raise RuntimeError(msg)
+
+        async def expire(self, _key: str, _seconds: int) -> bool:
+            return True
+
+    module = types.ModuleType("redis.asyncio")
+    module.from_url = lambda _url, **_kw: _BrokenRedis()  # type: ignore[attr-defined]
+    sys.modules["redis.asyncio"] = module
+    try:
+        limiter = create_rate_limiter(max_requests=1, redis_url="redis://stub")
+        d1 = await limiter.check("k")
+        d2 = await limiter.check("k")
+        assert d1.allowed is True
+        assert d2.allowed is False  # in-memory fallback enforced the limit
+    finally:
+        sys.modules.pop("redis.asyncio", None)
+
+
+def test_django_rate_limit_middleware_swallows_settings_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """If reading django settings raises, the middleware falls back to default config."""
+    import agentscore_commerce.middleware._core as core_mod
+    from agentscore_commerce.middleware.django import RateLimitMiddleware
+
+    captured: dict = {}
+
+    def _fake_create(**kwargs: object) -> object:
+        captured.update(kwargs)
+        return object()
+
+    # Force the `from django.conf import settings` access to blow up.
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _boom_import(name: str, *args: object, **kwargs: object) -> object:
+        if name == "django.conf":
+            msg = "settings unavailable"
+            raise RuntimeError(msg)
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(core_mod, "create_rate_limiter", _fake_create)
+    import agentscore_commerce.middleware.django as dj_mod
+
+    monkeypatch.setattr(dj_mod, "create_rate_limiter", _fake_create)
+    monkeypatch.setattr(builtins, "__import__", _boom_import)
+
+    RateLimitMiddleware(get_response=lambda _r: None)
+    assert captured == {"window_seconds": 60, "max_requests": 60, "redis_url": None, "key_prefix": "rl:"}
 
 
 @pytest.mark.asyncio

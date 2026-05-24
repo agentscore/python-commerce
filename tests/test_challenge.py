@@ -41,6 +41,7 @@ async def test_build_accepted_methods_full_set():
     assert len(out) == 4
     assert out[1]["pay_to"] == "0xB"
     assert out[2]["network"].startswith("solana:")
+    assert out[2]["method"] == "solana/charge"
 
 
 @pytest.mark.asyncio
@@ -223,8 +224,12 @@ def test_build_402_body_assembles_full_response():
     assert body["agent_instructions"]["how_to_pay"] == {}
 
 
-def test_build_402_body_emits_v1_alias_on_accepts_entries():
-    """Each accepts entry carries both `amount` (v2) and `maxAmountRequired` (v1)."""
+def test_build_402_body_keeps_accepts_byte_identical():
+    """accepts entries pass through unchanged — no v1 maxAmountRequired alias.
+
+    @x402/core matches v2 by whole-object deepEqual of the echoed requirement, so an
+    extra maxAmountRequired the server's rebuild lacks silently fails settle.
+    """
     body = build_402_body(
         accepted_methods=[],
         x402=X402PaymentRequired(
@@ -234,4 +239,17 @@ def test_build_402_body_emits_v1_alias_on_accepts_entries():
     )
     entry = body["accepts"][0]
     assert entry["amount"] == "110000"
-    assert entry["maxAmountRequired"] == "110000"
+    assert "maxAmountRequired" not in entry
+
+
+def test_build_402_body_emits_extensions_when_present():
+    """A non-empty x402.extensions block is surfaced on body.extensions per x402 spec."""
+    body = build_402_body(
+        accepted_methods=[],
+        x402=X402PaymentRequired(
+            accepts=[{"scheme": "exact"}],
+            version=2,
+            extensions={"bazaar": {"discoverable": True}},
+        ),
+    )
+    assert body["extensions"] == {"bazaar": {"discoverable": True}}

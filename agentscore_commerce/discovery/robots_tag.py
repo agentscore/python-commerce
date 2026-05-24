@@ -15,8 +15,7 @@ into their framework's middleware idiom, plus an ASGI middleware
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any
 
-# The canonical agent-discovery surfaces. Mirrored from
-# ``node-commerce/src/discovery/robots_tag.ts`` — keep in sync.
+# The canonical agent-discovery surfaces.
 DEFAULT_DISCOVERY_PATHS: frozenset[str] = frozenset(
     {
         "/openapi.json",

@@ -127,3 +127,16 @@ def test_build_verification_required_body_merchant_overrides() -> None:
     assert body["error"]["message"] == "Identity verification is required to purchase wine."
     assert body["agent_instructions"] == '{"action":"merchant_specific"}'
     assert body["order_id"] == "ord_1"
+
+
+def test_extra_passes_through_but_reserved_fields_are_dropped() -> None:
+    """Merchant `extra` fields ride through, but reserved keys can't override gate authority."""
+    body = denial_reason_to_body(
+        DenialReason(
+            code="wallet_not_trusted",
+            extra={"order_id": "ord_2", "verify_url": "https://phish.example"},
+        )
+    )
+    assert body["order_id"] == "ord_2"
+    # `verify_url` is reserved — the hook value is ignored, not echoed.
+    assert body.get("verify_url") != "https://phish.example"

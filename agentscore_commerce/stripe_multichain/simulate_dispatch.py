@@ -1,15 +1,9 @@
 """Settle-outcome → Stripe testnet simulator dispatch.
 
 Replaces the 3-branch rail/rail_key switch + thin
-``simulate_deposit_if_testnet(addr, network)`` wrapper that consumer
-codebases (store, sayer-py, martin-py) hand-roll in their own
-``lib/payment.py`` files.
-
-Folding the dispatch into the SDK removes the consumer-wrap anti-pattern:
-merchants call this directly from ``on_settled``, no per-merchant payment.py
-wrapper needed.
-
-Mirrors node-commerce ``src/stripe-multichain/simulate_dispatch.ts``.
+``simulate_deposit_if_testnet(addr, network)`` wrapper a merchant would
+otherwise hand-roll in their own payment helpers. Call it directly from
+``on_settled``.
 """
 
 from __future__ import annotations

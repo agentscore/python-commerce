@@ -8,8 +8,6 @@ overrides.
 Per-order recipient minting (Stripe-multichain) is wired via Checkout's
 ``mint_recipients`` hook, so the ``recipient=""`` sentinel here is the
 expected shape — ``mint_recipients`` overrides it at request time.
-
-Mirrors node-commerce ``src/payment/default_rails.ts``.
 """
 
 from __future__ import annotations

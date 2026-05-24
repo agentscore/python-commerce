@@ -45,6 +45,7 @@ from agentscore_commerce.payment.signer import (
     extract_payment_signer,
     extract_signer_for_precheck,
     extract_x402_signer,
+    parse_did_pkh_address,
     read_x402_payment_header,
 )
 from agentscore_commerce.payment.solana import load_solana_fee_payer
@@ -149,6 +150,7 @@ __all__ = [
     "lookup_rail",
     "network_family",
     "networks",
+    "parse_did_pkh_address",
     "payment_directive",
     "payment_required_header",
     "process_x402_settle",

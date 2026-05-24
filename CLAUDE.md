@@ -120,7 +120,7 @@ Anonymous POST flows through to the handler unauthenticated and gets a 402 with 
 
 ### `compatible_clients` field on emitted 402s
 
-`build_agent_instructions` emits a `compatible_clients` field in the 402 body, derived automatically from `how_to_pay`: per-rail list of CLIs the AgentScore team has smoke-verified end-to-end. Vendors override with `BuildAgentInstructionsInput(compatible_clients={...})` to add their own tested clients. Set to an empty dict `{}` to suppress the default. Same data is published as `core/docs/integrations/x402-clients.mdx` for human-side rationale + per-rail commands.
+`build_agent_instructions` emits a `compatible_clients` field in the 402 body, derived automatically from `how_to_pay`: per-rail list of CLIs the AgentScore team has smoke-verified end-to-end. Vendors override with `build_agent_instructions(how_to_pay=how_to_pay, compatible_clients={...})` to add their own tested clients. Set to an empty dict `{}` to suppress the default. Same data is published as `core/docs/integrations/x402-clients.mdx` for human-side rationale + per-rail commands.
 
 ## Tooling
 

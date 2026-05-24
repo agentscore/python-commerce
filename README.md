@@ -183,8 +183,6 @@ For the `on_denied` hook on Checkout's gate config, `create_default_on_denied(me
 ```python
 from agentscore_commerce import extract_payment_signer
 from agentscore_commerce.payment import (
-    BuildPaymentDirectiveInput,
-    PaymentDirectiveInput,
     build_payment_directive,
     networks,
     payment_directive,
@@ -193,12 +191,12 @@ from agentscore_commerce.payment import (
 
 # Build paymentauth.org directives by symbolic rail name (decimals + currency from registry)
 directives = [
-    build_payment_directive(BuildPaymentDirectiveInput(
+    build_payment_directive(
         rail="tempo-mainnet", id="chg_t", realm="ex.com", recipient=TEMPO_ADDR, amount_usd=0.01,
-    )),
-    build_payment_directive(BuildPaymentDirectiveInput(
+    ),
+    build_payment_directive(
         rail="x402-base-mainnet", id="chg_b", realm="ex.com", recipient=BASE_ADDR, amount_usd=0.01,
-    )),
+    ),
 ]
 www_auth = www_authenticate_header(directives)
 
@@ -211,25 +209,15 @@ if signer:
 ## Discovery + 402 builders
 
 ```python
+from agentscore_commerce import TempoRailSpec
 from agentscore_commerce.discovery import (
-    BuildLlmsTxtInput,
-    LlmsTxtIdentitySectionInput,
-    LlmsTxtPaymentSectionInput,
     LlmsTxtSection,
     PaymentMethodConfig,
-    WellKnownMppInput,
     build_llms_txt,
     build_well_known_mpp,
 )
 from agentscore_commerce.challenge import (
-    Build402BodyInput,
-    BuildAcceptedMethodsInput,
-    BuildAgentInstructionsInput,
-    BuildHowToPayInput,
-    HowToPayRails,
     PricingBlock,
-    TempoConfig,
-    TempoRailConfig,
     build_402_body,
     build_accepted_methods,
     build_agent_instructions,
@@ -238,19 +226,20 @@ from agentscore_commerce.challenge import (
     first_encounter_agent_memory,
 )
 
-accepted = build_accepted_methods(BuildAcceptedMethodsInput(tempo=TempoConfig(recipient=TEMPO_ADDR)))
-how_to_pay = build_how_to_pay(BuildHowToPayInput(
+# build_accepted_methods + build_how_to_pay are async (they resolve per-order recipients).
+accepted = await build_accepted_methods(tempo=TempoRailSpec(recipient=TEMPO_ADDR))
+how_to_pay = await build_how_to_pay(
     url="https://my.merchant/buy", retry_body_json="{}", total_usd="10.00",
-    rails=HowToPayRails(tempo=TempoRailConfig(recipient=TEMPO_ADDR)),
-))
-body = build_402_body(Build402BodyInput(
+    rails={"tempo": TempoRailSpec(recipient=TEMPO_ADDR)},
+)
+body = build_402_body(
     accepted_methods=accepted,
-    agent_instructions=build_agent_instructions(BuildAgentInstructionsInput(how_to_pay=how_to_pay)),
+    agent_instructions=build_agent_instructions(how_to_pay=how_to_pay),
     pricing=build_pricing_block(subtotal_cents=1000, tax_cents=80, shipping_cents=999, tax_rate=0.08, tax_state="CA"),
     amount_usd="10.80",
     # First-encounter merchants attach the cross-merchant agent_memory hint.
     agent_memory=first_encounter_agent_memory(first_encounter=not merchant.has_seen_operator(op_token)),
-))
+)
 ```
 
 `build_pricing_block` handles cents → dollar-string (with optional shipping). Pass `discount_cents` for redemption codes / coupons: `subtotal` stays the list price, the block surfaces `discount` as a dollar-string, and `total` becomes `subtotal + tax + shipping - discount` (floored at 0). `pricing_result` accepts the same `discount_cents` and propagates it to `block.discount` so agents reading the 402 see the savings line. Pass `decimals: N` (default `2`) on either helper for sub-cent unit pricing — e.g. `decimals=4` advertises `$0.0005`-precision instead of rounding to two decimals. Set `decimals` on `PricingResult` and the SDK threads it through `build_how_to_pay`, `build_pricing_block`, and the x402 settle `price` string automatically; the cents inputs accept floats under that mode (per-token / per-byte unit pricing). `first_encounter_agent_memory` returns the canonical hint or `None` based on a per-merchant first-seen flag. `Receipt` (plus `ReceiptNextSteps`, `ProductInfo`, `ShippingAddress`) is a universal dataclass for the post-settlement 200 response shape — goods merchants populate the shipping/fulfillment/tracking slots, API merchants fill only the universal fields (id, created_at, pricing, payment_status, next_steps).
@@ -259,7 +248,6 @@ body = build_402_body(Build402BodyInput(
 
 ```python
 from agentscore_commerce.payment import (
-    BuildPaymentHeadersInput,
     PaymentHeadersRail,
     build_idempotency_key,
     build_payment_headers,
@@ -267,7 +255,7 @@ from agentscore_commerce.payment import (
 
 idempotency_key = build_idempotency_key(payment_intent_id=pi_id, order_id=order_id, amount_cents=amount)
 
-headers = build_payment_headers(BuildPaymentHeadersInput(
+headers = build_payment_headers(
     order_id=order_id,
     realm="agents.merchant.example",
     rails=[
@@ -275,7 +263,7 @@ headers = build_payment_headers(BuildPaymentHeadersInput(
         PaymentHeadersRail(rail="x402-base-mainnet", amount_usd="10.00", recipient=BASE_ADDR),
         PaymentHeadersRail(rail="stripe", amount_usd="10.00", network_id=STRIPE_PROFILE_ID),
     ],
-))
+)
 # headers["www_authenticate"] → set as Authorization-style WWW-Authenticate header
 # headers["payment_required"] → set as PAYMENT-REQUIRED header (when x402 is present)
 ```
@@ -395,40 +383,37 @@ ACP (Stripe + OpenAI Agentic Commerce Protocol) is a transactional checkout prot
 import os
 import stripe
 from agentscore_commerce.stripe_multichain import (
-    CreateMultichainPaymentIntentInput,
-    PiCacheOptions,
-    SimulateDepositIfTestModeInput,
     create_multichain_payment_intent,
     create_pi_cache,
     simulate_deposit_if_test_mode,
 )
 
 stripe_client = stripe.StripeClient(os.environ["STRIPE_SECRET_KEY"])
-result = create_multichain_payment_intent(CreateMultichainPaymentIntentInput(
+result = create_multichain_payment_intent(
     stripe=stripe_client,
     amount=1000,
     networks=["tempo", "base", "solana"],
     metadata={"order_id": order_id},
     idempotency_key=order_id,
-))
+)
 base_address = result.deposit_addresses.get("base")
 solana_address = result.deposit_addresses.get("solana")
 
 # PI / deposit-address cache. Redis-backed when REDIS_URL is set, in-memory otherwise.
 # Multi-instance deployments need Redis so a deposit lands on whichever instance settles it.
-pi_cache = create_pi_cache(PiCacheOptions(redis_url=os.environ.get("REDIS_URL")))
+pi_cache = create_pi_cache(redis_url=os.environ.get("REDIS_URL"))
 for addr in result.deposit_addresses.values():
     await pi_cache.cache_address(addr)
     pi_cache.cache_payment_intent(addr, result.payment_intent_id)
 pi_cache.cache_network_addresses(result.payment_intent_id, result.deposit_addresses)
 
 # Testnet helper. Gates on sk_test_ and looks up the PI for you. No-op on live keys.
-await simulate_deposit_if_test_mode(SimulateDepositIfTestModeInput(
+await simulate_deposit_if_test_mode(
     get_payment_intent_id=pi_cache.get_payment_intent_id,
     deposit_address=base_address,
     network="base",
     stripe_secret_key=os.environ["STRIPE_SECRET_KEY"],
-))
+)
 ```
 
 ## Build the x402 accepts entry for the 402 challenge
@@ -450,12 +435,8 @@ Returns a list of plain dicts ready for the 402 body's `accepts[]`. `extra.name`
 ## Drop-in 402 + settle (x402)
 
 ```python
-from agentscore_commerce.challenge import Build402BodyInput, Respond402Input, respond_402
+from agentscore_commerce.challenge import build_402_body, respond_402
 from agentscore_commerce.payment import (
-    PaymentRequiredHeaderInput,
-    ProcessX402SettleInput,
-    ValidateX402NetworkConfigInput,
-    VerifyX402RequestInput,
     classify_x402_settle_result,
     process_x402_settle,
     validate_x402_network_config,
@@ -463,26 +444,26 @@ from agentscore_commerce.payment import (
 )
 
 # Boot-time guard. Raises if a configured network isn't supported.
-validate_x402_network_config(ValidateX402NetworkConfigInput(base_network=X402_BASE))
+validate_x402_network_config(base_network=X402_BASE)
 
 @app.post("/purchase")
 async def purchase(request: Request):
     # Path A: agent presented an x402 X-Payment header
     if request.headers.get("payment-signature") or request.headers.get("x-payment"):
-        verified = await verify_x402_request(VerifyX402RequestInput(
+        verified = await verify_x402_request(
             headers=dict(request.headers),
             is_cached_address=pi_cache.has_address,
             accepted_network=X402_BASE,
-        ))
+        )
         if not verified.ok:
             return JSONResponse(verified.body, status_code=verified.status)
 
-        settle = await process_x402_settle(ProcessX402SettleInput(
+        settle = await process_x402_settle(
             x402_server=x402_server,
             payload=verified.payload,
             resource_config={"scheme": "exact", "network": verified.signed_network, "price": f"${total}", "payTo": verified.signed_pay_to, "maxTimeoutSeconds": 300},
             resource_meta={"url": str(request.url), "mimeType": "application/json"},
-        ))
+        )
         classified = classify_x402_settle_result(settle)
         if classified is not None:
             # Log raw `settle` server-side; return controlled phase-based response to the agent.
@@ -497,11 +478,12 @@ async def purchase(request: Request):
 
     # Path B: cold call (or Authorization: Payment for pympp). After pympp.compose() returns 402,
     # respond_402 PRESERVES pympp's WWW-Authenticate and ADDS x402's PAYMENT-REQUIRED.
-    result = respond_402(Respond402Input(
+    # `body` is the dict from build_402_body; `x402` carries the payment_required_header kwargs.
+    result = respond_402(
         mppx_challenge_headers=pympp_challenge_headers,
-        body=Build402BodyInput(accepted_methods=accepted, agent_instructions=instructions, pricing=pricing, amount_usd=total, retry_body=body),
-        x402=PaymentRequiredHeaderInput(x402_version=2, accepts=x402_accepts, resource={"url": str(request.url), "mimeType": "application/json"}),
-    ))
+        body=build_402_body(accepted_methods=accepted, agent_instructions=instructions, pricing=pricing, amount_usd=total, retry_body=body),
+        x402={"x402_version": 2, "accepts": x402_accepts, "resource": {"url": str(request.url), "mimeType": "application/json"}},
+    )
     return JSONResponse(result.body, status_code=result.status, headers=result.headers)
 ```
 

@@ -33,6 +33,7 @@ Env vars:
 Run: uvicorn examples.compliance_merchant:app --port 3000
 """
 
+import json
 import os
 from typing import Any
 
@@ -94,7 +95,7 @@ async def _on_denied(_ctx: Any, reason: DenialReason) -> dict[str, Any] | None:
             "body": build_verification_required_body(
                 reason,
                 message="Identity verification is required for this purchase.",
-                agent_instructions=VERIFICATION_INSTRUCTIONS,
+                agent_instructions=json.dumps(VERIFICATION_INSTRUCTIONS),
             ),
         }
 

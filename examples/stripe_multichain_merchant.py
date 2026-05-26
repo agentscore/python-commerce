@@ -40,13 +40,19 @@ app.add_middleware(RateLimitMiddleware)
 async def checkout(body: dict) -> dict:
     amount_cents = round(float(body["amount_usd"]) * 100)
 
+    # Stripe metadata values must be strings; only attach order_id when present.
+    order_id = body.get("order_id")
+    metadata: dict[str, str] = {"merchant": "example-store"}
+    if order_id:
+        metadata["order_id"] = order_id
+
     # 1. Create a Stripe PI with deposit addresses on tempo + base + solana.
     result = create_multichain_payment_intent(
         stripe=stripe_client,
         amount=amount_cents,
         networks=["tempo", "base", "solana"],
-        metadata={"order_id": body.get("order_id"), "merchant": "example-store"},
-        idempotency_key=f"pi-{body['order_id']}-{amount_cents}" if body.get("order_id") else None,
+        metadata=metadata,
+        idempotency_key=f"pi-{order_id}-{amount_cents}" if order_id else None,
     )
 
     # 2. Return per-network deposit addresses to the agent (or 402 with

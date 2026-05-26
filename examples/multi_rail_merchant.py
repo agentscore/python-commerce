@@ -151,6 +151,7 @@ async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
     # Compose the canonical Receipt shape returned on 200. Goods merchants
     # populate the goods-only slots (shipping, fulfillment_status, tracking)
     # at fulfillment time; this example wires the universal fields.
+    success = build_success_next_steps(order_status_url=f"{APP_URL}/orders/{ctx.reference_id}")
     receipt = Receipt(
         id=ctx.reference_id,
         created_at=datetime.now(timezone.utc).isoformat(),
@@ -158,9 +159,10 @@ async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
         product=ProductInfo(name="Regulated Goods Cart"),
         payment_status="completed",
         next_steps=ReceiptNextSteps(
-            **build_success_next_steps(
-                order_status_url=f"{APP_URL}/orders/{ctx.reference_id}",
-            ),
+            action=success["action"],
+            user_message=success.get("user_message"),
+            order_status_url=success.get("order_status_url"),
+            fulfillment_eta=success.get("fulfillment_eta"),
         ),
         extras={
             "tx_hash": outcome.tx_hash,

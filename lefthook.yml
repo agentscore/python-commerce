@@ -13,5 +13,7 @@ pre-push:
   commands:
     ty:
       run: uv run ty check agentscore_commerce/
+    ty-examples:
+      run: uv run ty check -c 'src.include=["examples"]'
     vulture:
       run: uv run vulture . --min-confidence 80 --exclude .venv

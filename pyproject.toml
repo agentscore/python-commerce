@@ -44,7 +44,7 @@ x402 = ["x402[evm,fastapi]>=2.9,<3"]
 mppx = ["pympp[server,tempo,stripe]>=0.6,<1"]
 coinbase = ["cdp-sdk>=1.0,<2"]
 ucp = ["joserfc>=1.0.0,<2"]
-redis = ["redis>=5.0,<7"]
+redis = ["redis>=5.0,<8"]
 
 [project.urls]
 Homepage = "https://agentscore.sh"
@@ -73,7 +73,7 @@ dev = [
     "lefthook>=2.1.6",
     "cdp-sdk>=1.0,<2",
     "joserfc>=1.0.0,<2",
-    "redis>=5.0,<7",
+    "redis>=5.0,<8",
 ]
 
 [tool.ty.src]

@@ -46,6 +46,9 @@ jobs:
       - name: Type check (ty)
         run: uv run ty check agentscore_commerce/
 
+      - name: Type check examples (ty)
+        run: uv run ty check -c 'src.include=["examples"]'
+
       - name: Vulture
         run: uv run vulture agentscore_commerce/ --min-confidence 80
 

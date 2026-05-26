@@ -271,7 +271,7 @@ headers = build_payment_headers(
 ### Identity publishing (cross-vendor standards)
 
 ```python
-from agentscore_commerce import StripeRailSpec
+from agentscore_commerce import StripeRailSpec, TempoRailSpec, X402BaseRailSpec
 from agentscore_commerce.identity import (
     AgentScoreGatePolicy,
     UCPServiceBinding,
@@ -280,6 +280,9 @@ from agentscore_commerce.identity import (
     A2AAgentSkill,
     build_a2a_agent_card,
     build_ucp_profile,
+    mpp_payment_handler,
+    x402_payment_handler,
+    stripe_spt_payment_handler,
     ucp_a2a_extension,
 )
 
@@ -324,8 +327,8 @@ profile = build_ucp_profile(
         ],
     },
     payment_handlers={
-        **mpp_payment_handler(networks=[{"network": "tempo-mainnet", "chain_id": 4217, "recipient": TEMPO_ADDR}]),
-        **x402_payment_handler(networks=[{"network": "base-8453", "recipient": BASE_ADDR}]),
+        **mpp_payment_handler(networks=[TempoRailSpec(recipient=TEMPO_ADDR)]),
+        **x402_payment_handler(networks=[X402BaseRailSpec(recipient=BASE_ADDR)]),
         **stripe_spt_payment_handler(spec=StripeRailSpec(profile_id="profile_5xKvNqM9BaH")),
     },
     signing_keys=[UCPSigningKey(kid="me", kty="EC", alg="ES256")],

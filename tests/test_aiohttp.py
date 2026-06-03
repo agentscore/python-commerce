@@ -19,9 +19,9 @@ from agentscore_commerce.identity.aiohttp import (
 )
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
-ASSESS_URL = "https://api.agentscore.sh/v1/assess"
-SESSIONS_URL = "https://api.agentscore.sh/v1/sessions"
-CAPTURE_URL = "https://api.agentscore.sh/v1/credentials/wallets"
+ASSESS_URL = "https://api.agentscore.com/v1/assess"
+SESSIONS_URL = "https://api.agentscore.com/v1/sessions"
+CAPTURE_URL = "https://api.agentscore.com/v1/credentials/wallets"
 
 
 async def _ok_handler(request: web.Request) -> web.Response:
@@ -311,7 +311,7 @@ class TestCreateSessionOnMissing:
                 200,
                 json={
                     "session_id": "sess_abc123",
-                    "verify_url": "https://agentscore.sh/verify/sess_abc123",
+                    "verify_url": "https://agentscore.com/verify/sess_abc123",
                     "poll_secret": "ps_secret",
                     "next_steps": {
                         "action": "deliver_verify_url_and_poll",
@@ -329,7 +329,7 @@ class TestCreateSessionOnMissing:
             data = await resp.json()
             assert data["error"]["code"] == "identity_verification_required"
             assert data["session_id"] == "sess_abc123"
-            assert data["verify_url"] == "https://agentscore.sh/verify/sess_abc123"
+            assert data["verify_url"] == "https://agentscore.com/verify/sess_abc123"
             assert data["poll_secret"] == "ps_secret"
             import json as _json
 
@@ -358,7 +358,7 @@ class TestCreateSessionOnMissing:
                 200,
                 json={
                     "session_id": "sess_kyc",
-                    "verify_url": "https://agentscore.sh/verify/sess_kyc",
+                    "verify_url": "https://agentscore.com/verify/sess_kyc",
                     "poll_secret": "ps_kyc",
                     "next_steps": {"action": "deliver_verify_url_and_poll"},
                 },
@@ -464,7 +464,7 @@ class TestUserAgent:
 @pytest.mark.asyncio
 @respx.mock
 async def test_aiohttp_passes_through_token_expired():
-    respx.post("https://api.agentscore.sh/v1/assess").mock(
+    respx.post("https://api.agentscore.com/v1/assess").mock(
         return_value=httpx.Response(
             401,
             json={
@@ -493,7 +493,7 @@ async def test_aiohttp_passes_through_token_expired():
 @pytest.mark.asyncio
 @respx.mock
 async def test_aiohttp_api_error_on_unexpected_exception():
-    respx.post("https://api.agentscore.sh/v1/assess").mock(
+    respx.post("https://api.agentscore.com/v1/assess").mock(
         side_effect=httpx.ConnectError("dns down"),
     )
     app = web.Application(
@@ -517,7 +517,7 @@ async def test_aiohttp_handler_exception_is_not_swallowed_by_gate():
     """Regression: gate's try-block must NOT wrap downstream handler. If the user's
     handler raises, the exception must propagate up — NOT be misclassified as an
     AgentScore infra failure (which under fail_open would re-invoke the handler)."""
-    respx.post("https://api.agentscore.sh/v1/assess").mock(
+    respx.post("https://api.agentscore.com/v1/assess").mock(
         return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
     )
     invocations = {"count": 0}

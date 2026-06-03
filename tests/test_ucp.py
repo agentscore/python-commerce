@@ -144,8 +144,8 @@ def test_passes_through_name_payment_handlers_extras():
     tempo_handler = UCPPaymentHandlerBinding(
         id="tempo",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/tempo",
-        schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+        spec="https://agentscore.com/specification/payment-handlers/tempo",
+        schema="https://agentscore.com/schemas/payment-handlers/tempo.json",
         config={"recipient": "0xtempo"},
     )
     profile = build_ucp_profile(
@@ -166,8 +166,8 @@ def test_payment_handler_omits_config_when_caller_does_not_set_it():
     handler = UCPPaymentHandlerBinding(
         id="tempo",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/tempo",
-        schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+        spec="https://agentscore.com/specification/payment-handlers/tempo",
+        schema="https://agentscore.com/schemas/payment-handlers/tempo.json",
     )
     profile = build_ucp_profile(
         **_base_kwargs(),

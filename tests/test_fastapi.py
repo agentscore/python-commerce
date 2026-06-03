@@ -17,9 +17,9 @@ from agentscore_commerce.identity.fastapi import (
 )
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
-ASSESS_URL = "https://api.agentscore.sh/v1/assess"
-SESSIONS_URL = "https://api.agentscore.sh/v1/sessions"
-CAPTURE_URL = "https://api.agentscore.sh/v1/credentials/wallets"
+ASSESS_URL = "https://api.agentscore.com/v1/assess"
+SESSIONS_URL = "https://api.agentscore.com/v1/sessions"
+CAPTURE_URL = "https://api.agentscore.com/v1/credentials/wallets"
 
 
 def _mock_assess(decision: str = "allow", reasons: list[str] | None = None) -> respx.Route:
@@ -312,7 +312,7 @@ class TestCreateSessionOnMissing:
                 200,
                 json={
                     "session_id": "sess_abc123",
-                    "verify_url": "https://agentscore.sh/verify/sess_abc123",
+                    "verify_url": "https://agentscore.com/verify/sess_abc123",
                     "poll_secret": "ps_secret",
                     "next_steps": {
                         "action": "deliver_verify_url_and_poll",
@@ -331,7 +331,7 @@ class TestCreateSessionOnMissing:
         detail = resp.json()["detail"]
         assert detail["error"]["code"] == "identity_verification_required"
         assert detail["session_id"] == "sess_abc123"
-        assert detail["verify_url"] == "https://agentscore.sh/verify/sess_abc123"
+        assert detail["verify_url"] == "https://agentscore.com/verify/sess_abc123"
         assert detail["poll_secret"] == "ps_secret"
         # agent_instructions is the JSON-stringified next_steps from the API.
         import json as _json
@@ -364,7 +364,7 @@ class TestCreateSessionOnMissing:
                 200,
                 json={
                     "session_id": "sess_kyc",
-                    "verify_url": "https://agentscore.sh/verify/sess_kyc",
+                    "verify_url": "https://agentscore.com/verify/sess_kyc",
                     "poll_secret": "ps_kyc",
                     "next_steps": {"action": "deliver_verify_url_and_poll"},
                 },
@@ -559,7 +559,7 @@ class TestUserAgent:
 
 @respx.mock
 def test_fastapi_passes_through_token_expired():
-    respx.post("https://api.agentscore.sh/v1/assess").mock(
+    respx.post("https://api.agentscore.com/v1/assess").mock(
         return_value=httpx.Response(
             401,
             json={
@@ -586,7 +586,7 @@ def test_fastapi_passes_through_token_expired():
 
 @respx.mock
 def test_fastapi_api_error_on_unexpected_exception():
-    respx.post("https://api.agentscore.sh/v1/assess").mock(
+    respx.post("https://api.agentscore.com/v1/assess").mock(
         side_effect=httpx.ConnectError("dns down"),
     )
     gate = AgentScoreGate(api_key="ak", fail_open=False)

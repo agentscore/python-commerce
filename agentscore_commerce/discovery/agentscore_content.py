@@ -133,7 +133,7 @@ def build_agentscore_onboarding_steps(
         "`opc_...` token returns 403 `wallet_signer_mismatch`; the body lists `linked_wallets[]` and "
         "`agent_instructions.action: resign_or_switch_to_operator_token` with three deterministic "
         "recoveries (switch to a linked wallet, drop the operator_token to re-KYC the new wallet, "
-        "or pre-claim the new wallet via SIWE on agentscore.sh/verify)."
+        "or pre-claim the new wallet via SIWE on agentscore.com/verify)."
     )
     rail_count = len(accepted_rails)
     rail_plural = "" if rail_count == 1 else "s"

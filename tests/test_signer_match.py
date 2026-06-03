@@ -35,7 +35,7 @@ def test_agent_memory_hint_has_core_fields() -> None:
     hint = build_agent_memory_hint()
     assert hint.save_for_future_agentscore_gates is True
     assert "AgentScore" in hint.pattern_summary
-    assert hint.identity_check_endpoint == "https://api.agentscore.sh/v1/credentials"
+    assert hint.identity_check_endpoint == "https://api.agentscore.com/v1/credentials"
     assert hint.list_wallets_endpoint is None
     assert "X-Wallet-Address" in hint.identity_paths["wallet"]
     assert "X-Operator-Token" in hint.identity_paths["operator_token"]
@@ -296,7 +296,7 @@ def test_asgi_middleware_surfaces_token_denied_as_granular_denial() -> None:
     gated = AgentScoreGate(app, api_key=API_KEY)
 
     with respx.mock:
-        respx.post("https://api.agentscore.sh/v1/assess").mock(
+        respx.post("https://api.agentscore.com/v1/assess").mock(
             return_value=httpx.Response(
                 401,
                 json={

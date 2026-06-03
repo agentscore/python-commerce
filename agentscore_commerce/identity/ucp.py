@@ -40,8 +40,8 @@ AGENTSCORE_UCP_CAPABILITY = "sh.agentscore.identity"
 to find verified-buyer claims attached to the profile."""
 
 _AGENTSCORE_CAPABILITY_VERSION = "2026-04-08"
-_AGENTSCORE_DEFAULT_SPEC_URL = "https://agentscore.sh/specification/identity"
-_AGENTSCORE_DEFAULT_SCHEMA_URL = "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json"
+_AGENTSCORE_DEFAULT_SPEC_URL = "https://agentscore.com/specification/identity"
+_AGENTSCORE_DEFAULT_SCHEMA_URL = "https://agentscore.com/schemas/ucp/sh-agentscore-identity-v1.json"
 
 
 @dataclass
@@ -475,8 +475,8 @@ def build_ucp_profile(
 # these constants; bumping a handler spec version is a one-line change here.
 
 _HANDLER_VERSION = "2026-04-08"
-_SPEC_BASE = "https://agentscore.sh/specification/payment-handlers"
-_SCHEMA_BASE = "https://agentscore.sh/schemas/payment-handlers"
+_SPEC_BASE = "https://agentscore.com/specification/payment-handlers"
+_SCHEMA_BASE = "https://agentscore.com/schemas/payment-handlers"
 
 
 # CAIP-2 → UCP-namespace network-name mapping. UCP payment_handler bindings publish

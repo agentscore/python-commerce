@@ -17,8 +17,8 @@
         "sh.agentscore.identity": [
           {
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/identity",
-            "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+            "spec": "https://agentscore.com/specification/identity",
+            "schema": "https://agentscore.com/schemas/ucp/sh-agentscore-identity-v1.json",
             "extends": [
               "dev.ucp.shopping.checkout",
               "dev.ucp.shopping.cart"

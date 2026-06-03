@@ -146,6 +146,6 @@ def test_handler_metadata_versioning() -> None:
     # All same version + spec/schema base.
     assert mpp_binding.version == x402_binding.version == stripe_binding.version
     assert all(
-        b.spec.startswith("https://agentscore.sh/specification/payment-handlers/")
+        b.spec.startswith("https://agentscore.com/specification/payment-handlers/")
         for b in [mpp_binding, x402_binding, stripe_binding]
     )

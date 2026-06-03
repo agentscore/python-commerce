@@ -19,8 +19,8 @@
           {
             "id": "stripe",
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/payment-handlers/stripe_spt",
-            "schema": "https://agentscore.sh/schemas/payment-handlers/stripe_spt.json",
+            "spec": "https://agentscore.com/specification/payment-handlers/stripe_spt",
+            "schema": "https://agentscore.com/schemas/payment-handlers/stripe_spt.json",
             "config": {
               "profile_id": "abc",
               "count": 7

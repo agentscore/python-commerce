@@ -126,7 +126,7 @@ class AgentScoreMiddleware:
             allowed_jurisdictions=config.get("allowed_jurisdictions"),
             fail_open=config.get("fail_open", False),
             cache_seconds=config.get("cache_seconds", 300),
-            base_url=config.get("base_url", "https://api.agentscore.sh"),
+            base_url=config.get("base_url", "https://api.agentscore.com"),
             chain=config.get("chain"),
             user_agent=config.get("user_agent"),
         )

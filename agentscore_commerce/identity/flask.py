@@ -134,7 +134,7 @@ def agentscore_gate(
     allowed_jurisdictions: list[str] | None = None,
     fail_open: bool = False,
     cache_seconds: int = 300,
-    base_url: str = "https://api.agentscore.sh",
+    base_url: str = "https://api.agentscore.com",
     chain: str | None = None,
     user_agent: str | None = None,
     extract_identity: Callable[[Request], AgentIdentity | None] | None = None,

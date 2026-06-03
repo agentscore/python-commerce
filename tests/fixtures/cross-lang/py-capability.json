@@ -17,8 +17,8 @@
         "sh.agentscore.identity": [
           {
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/identity",
-            "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+            "spec": "https://agentscore.com/specification/identity",
+            "schema": "https://agentscore.com/schemas/ucp/sh-agentscore-identity-v1.json",
             "kyc_required": true
           }
         ]
@@ -28,8 +28,8 @@
           {
             "id": "tempo",
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
-            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json",
+            "spec": "https://agentscore.com/specification/payment-handlers/tempo",
+            "schema": "https://agentscore.com/schemas/payment-handlers/tempo.json",
             "config": {
               "rail": "tempo-mainnet",
               "chain_id": 4217

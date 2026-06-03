@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agentscore-commerce.svg)](https://pypi.org/project/agentscore-commerce/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-The full merchant-side SDK for [AgentScore](https://agentscore.sh) in Python: agent commerce in one install. Identity middleware (FastAPI, Flask, Django, AIOHTTP, Sanic, ASGI), payment helpers, 402 challenge builders, MPP discovery, and Stripe multichain support.
+The full merchant-side SDK for [AgentScore](https://agentscore.com) in Python: agent commerce in one install. Identity middleware (FastAPI, Flask, Django, AIOHTTP, Sanic, ASGI), payment helpers, 402 challenge builders, MPP discovery, and Stripe multichain support.
 
 ## Install
 
@@ -527,7 +527,7 @@ The [examples/](./examples) directory has 8 runnable single-file FastAPI apps co
 
 ## Documentation
 
-Full integration docs at [docs.agentscore.sh/integrations/python-commerce](https://docs.agentscore.sh/integrations/python-commerce).
+Full integration docs at [docs.agentscore.com/integrations/python-commerce](https://docs.agentscore.com/integrations/python-commerce).
 
 ## License
 

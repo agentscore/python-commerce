@@ -25,8 +25,8 @@
           {
             "id": "tempo",
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
-            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json",
+            "spec": "https://agentscore.com/specification/payment-handlers/tempo",
+            "schema": "https://agentscore.com/schemas/payment-handlers/tempo.json",
             "config": {
               "rail": "tempo-mainnet",
               "chain_id": 4217
@@ -37,8 +37,8 @@
           {
             "id": "x402",
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/payment-handlers/x402",
-            "schema": "https://agentscore.sh/schemas/payment-handlers/x402.json",
+            "spec": "https://agentscore.com/specification/payment-handlers/x402",
+            "schema": "https://agentscore.com/schemas/payment-handlers/x402.json",
             "config": {
               "networks": [
                 "base-8453"

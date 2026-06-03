@@ -296,7 +296,7 @@ class TestFlaskGate:
             decision="deny",
             reasons=["kyc_required", "sanctions_flagged"],
             raw={
-                "verify_url": "https://agentscore.sh/verify/abc123",
+                "verify_url": "https://agentscore.com/verify/abc123",
                 "operator_verification": {"level": "none"},
             },
         )
@@ -332,7 +332,7 @@ class TestFlaskGate:
         app = _make_app()
         raw = {
             "decision": "deny",
-            "verify_url": "https://agentscore.sh/verify/abc123",
+            "verify_url": "https://agentscore.com/verify/abc123",
         }
         result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw=raw)
         with patch("agentscore_commerce.identity.flask.AgentScoreCore.check", return_value=result):
@@ -353,7 +353,7 @@ class TestFlaskCreateSessionOnMissing:
         app = _make_app(create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"))
         session_reason = DenialReason(
             code="identity_verification_required",
-            verify_url="https://agentscore.sh/verify/sess_abc",
+            verify_url="https://agentscore.com/verify/sess_abc",
             session_id="sess_abc",
             poll_secret="ps_secret",
             agent_instructions="please verify",
@@ -368,7 +368,7 @@ class TestFlaskCreateSessionOnMissing:
             data = resp.get_json()
             assert data["error"]["code"] == "identity_verification_required"
             assert data["session_id"] == "sess_abc"
-            assert data["verify_url"] == "https://agentscore.sh/verify/sess_abc"
+            assert data["verify_url"] == "https://agentscore.com/verify/sess_abc"
             assert data["poll_secret"] == "ps_secret"
             assert data["agent_instructions"] == "please verify"
 
@@ -394,7 +394,7 @@ class TestFlaskCreateSessionOnMissing:
         result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
         session_reason = DenialReason(
             code="identity_verification_required",
-            verify_url="https://agentscore.sh/verify/sess_kyc",
+            verify_url="https://agentscore.com/verify/sess_kyc",
             session_id="sess_kyc",
             poll_secret="ps_kyc",
         )
@@ -571,7 +571,7 @@ class TestFlaskUserAgent:
         app = _make_app()
 
         with respx.mock:
-            route = respx.post("https://api.agentscore.sh/v1/assess").mock(
+            route = respx.post("https://api.agentscore.com/v1/assess").mock(
                 return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
             )
             client = app.test_client()
@@ -587,7 +587,7 @@ class TestFlaskUserAgent:
         app = _make_app(user_agent="myapp/2.0")
 
         with respx.mock:
-            route = respx.post("https://api.agentscore.sh/v1/assess").mock(
+            route = respx.post("https://api.agentscore.com/v1/assess").mock(
                 return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
             )
             client = app.test_client()
@@ -608,7 +608,7 @@ class TestFlaskChainOption:
         app = _make_app(chain="solana")
 
         with respx.mock:
-            route = respx.post("https://api.agentscore.sh/v1/assess").mock(
+            route = respx.post("https://api.agentscore.com/v1/assess").mock(
                 return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
             )
             client = app.test_client()
@@ -633,7 +633,7 @@ class TestFlaskTokenDenied:
                     "error": {"code": "token_expired", "message": "invalid"},
                     "session_id": "sess_flask",
                     "poll_secret": "poll_flask",
-                    "verify_url": "https://agentscore.sh/verify?session=sess_flask",
+                    "verify_url": "https://agentscore.com/verify?session=sess_flask",
                     "next_steps": {"action": "deliver_verify_url_and_poll"},
                 }
             ),

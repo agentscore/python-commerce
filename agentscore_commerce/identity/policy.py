@@ -82,7 +82,7 @@ def build_gate_from_policy(
     policy: Mapping[str, Any] | None,
     *,
     api_key: str,
-    base_url: str = "https://api.agentscore.sh",
+    base_url: str = "https://api.agentscore.com",
     create_session_on_missing: CreateSessionOnMissing | None = None,
 ) -> AgentScoreGate | None:
     """Build a per-request :class:`AgentScoreGate` from a :class:`PolicyBlock`-shaped mapping.

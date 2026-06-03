@@ -29,7 +29,7 @@ from agentscore_commerce.checkout import (
 )
 from agentscore_commerce.payment.rail_spec import X402BaseRailSpec
 
-ASSESS_URL = "https://api.agentscore.sh/v1/assess"
+ASSESS_URL = "https://api.agentscore.com/v1/assess"
 RECIPIENT = "0x1111111111111111111111111111111111111111"
 SDN_WALLET = "0xdead000000000000000000000000000000000bad"
 CLEAN_WALLET = "0xaaa0000000000000000000000000000000000099"

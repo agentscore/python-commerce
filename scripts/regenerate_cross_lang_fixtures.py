@@ -81,8 +81,8 @@ def _tempo_handler(config: dict[str, Any] | None = None) -> UCPPaymentHandlerBin
     h = UCPPaymentHandlerBinding(
         id="tempo",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/tempo",
-        schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+        spec="https://agentscore.com/specification/payment-handlers/tempo",
+        schema="https://agentscore.com/schemas/payment-handlers/tempo.json",
     )
     if config is not None:
         h.config = config
@@ -93,8 +93,8 @@ def _x402_handler(networks: list[str]) -> UCPPaymentHandlerBinding:
     return UCPPaymentHandlerBinding(
         id="x402",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/x402",
-        schema="https://agentscore.sh/schemas/payment-handlers/x402.json",
+        spec="https://agentscore.com/specification/payment-handlers/x402",
+        schema="https://agentscore.com/schemas/payment-handlers/x402.json",
         config={"networks": networks},
     )
 
@@ -103,8 +103,8 @@ def _stripe_handler(config: dict[str, Any]) -> UCPPaymentHandlerBinding:
     return UCPPaymentHandlerBinding(
         id="stripe",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/stripe_spt",
-        schema="https://agentscore.sh/schemas/payment-handlers/stripe_spt.json",
+        spec="https://agentscore.com/specification/payment-handlers/stripe_spt",
+        schema="https://agentscore.com/schemas/payment-handlers/stripe_spt.json",
         config=config,
     )
 
@@ -160,8 +160,8 @@ def main() -> None:
     key = generate_ucp_signing_key(kid=kid)
     custom_capability = UCPCapabilityBinding(
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/identity",
-        schema="https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+        spec="https://agentscore.com/specification/identity",
+        schema="https://agentscore.com/schemas/ucp/sh-agentscore-identity-v1.json",
         # `extras` flat on the binding — kyc_required is a vendor field on this binding.
         extras={"kyc_required": True},
     )

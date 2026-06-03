@@ -21,7 +21,7 @@ def test_injects_canonical_wallet_not_trusted_instructions() -> None:
         DenialReason(
             code="wallet_not_trusted",
             reasons=["sanctions_flagged"],
-            verify_url="https://agentscore.sh/dashboard/verify?address=0xabc&chain=base",
+            verify_url="https://agentscore.com/dashboard/verify?address=0xabc&chain=base",
         )
     )
     instructions = json.loads(body["agent_instructions"])
@@ -40,7 +40,7 @@ def test_injects_fallback_identity_verification_required_instructions() -> None:
     body = denial_reason_to_body(
         DenialReason(
             code="identity_verification_required",
-            verify_url="https://agentscore.sh/verify?session=sess_abc",
+            verify_url="https://agentscore.com/verify?session=sess_abc",
         )
     )
     instructions = json.loads(body["agent_instructions"])
@@ -51,7 +51,7 @@ def test_injects_fallback_token_expired_instructions() -> None:
     body = denial_reason_to_body(
         DenialReason(
             code="token_expired",
-            verify_url="https://agentscore.sh/verify?session=sess_abc",
+            verify_url="https://agentscore.com/verify?session=sess_abc",
         )
     )
     instructions = json.loads(body["agent_instructions"])

@@ -372,7 +372,7 @@ class CheckoutGateConfig:
 
     api_key: str
     """AgentScore API key. Required when ``run_gate`` is omitted."""
-    base_url: str = "https://api.agentscore.sh"
+    base_url: str = "https://api.agentscore.com"
     """AgentScore API base URL. Override for self-hosted / staging deployments."""
     merchant_name: str | None = None
     """Surfaced on auto-minted verification sessions (``product_name`` field) so
@@ -1560,7 +1560,7 @@ class Checkout:
           - ``AGENTSCORE_API_KEY`` — required. No key → one-time warning + skip
             (dev/testnet pattern; production should always configure a key).
           - ``AGENTSCORE_BASE_URL`` — optional override for staging/dev API
-            (e.g. ``https://api-dev.agentscore.sh`` or ``http://localhost:3002``).
+            (e.g. ``https://api-dev.agentscore.com`` or ``http://localhost:3002``).
 
         Stripe SPT (no extractable wallet signer) → skip silently; Stripe runs
         its own OFAC screen on the buyer's Stripe account at customer creation.

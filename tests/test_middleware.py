@@ -17,12 +17,12 @@ from agentscore_commerce.identity.middleware import AgentScoreGate, CreateSessio
 if TYPE_CHECKING:
     from starlette.requests import Request
 
-ASSESS_URL = "https://api.agentscore.sh/v1/assess"
-SESSIONS_URL = "https://api.agentscore.sh/v1/sessions"
+ASSESS_URL = "https://api.agentscore.com/v1/assess"
+SESSIONS_URL = "https://api.agentscore.com/v1/sessions"
 
 SESSION_RESPONSE = {
     "session_id": "sess_abc123",
-    "verify_url": "https://agentscore.sh/verify/sess_abc123",
+    "verify_url": "https://agentscore.com/verify/sess_abc123",
     "poll_secret": "ps_secret_456",
     # API emits structured next_steps; gate stringifies into agent_instructions.
     "next_steps": {
@@ -72,7 +72,7 @@ class TestCreateSessionOnMissing:
         assert resp.status_code == 403
         data = resp.json()
         assert data["error"]["code"] == "identity_verification_required"
-        assert data["verify_url"] == "https://agentscore.sh/verify/sess_abc123"
+        assert data["verify_url"] == "https://agentscore.com/verify/sess_abc123"
         assert data["session_id"] == "sess_abc123"
         assert data["poll_secret"] == "ps_secret_456"
         # agent_instructions is the JSON-stringified next_steps from the API.
@@ -246,7 +246,7 @@ class TestCreateSessionOnMissing:
         assert sessions_route.call_count == 0
 
 
-CAPTURE_URL = "https://api.agentscore.sh/v1/credentials/wallets"
+CAPTURE_URL = "https://api.agentscore.com/v1/credentials/wallets"
 
 
 def _capture_app() -> Starlette:
@@ -484,8 +484,8 @@ def test_middleware_passes_through_token_expired_with_auto_session():
                 "error": {"code": "token_expired", "message": "invalid"},
                 "session_id": "sess_auto",
                 "poll_secret": "poll_auto",
-                "verify_url": "https://agentscore.sh/verify?session=sess_auto",
-                "poll_url": "https://api.agentscore.sh/v1/sessions/sess_auto",
+                "verify_url": "https://agentscore.com/verify?session=sess_auto",
+                "poll_url": "https://api.agentscore.com/v1/sessions/sess_auto",
                 "next_steps": {"action": "deliver_verify_url_and_poll"},
             },
         )
@@ -500,7 +500,7 @@ def test_middleware_passes_through_token_expired_with_auto_session():
     assert body["error"]["code"] == "token_expired"
     assert body["session_id"] == "sess_auto"
     assert body["poll_secret"] == "poll_auto"
-    assert body["verify_url"] == "https://agentscore.sh/verify?session=sess_auto"
+    assert body["verify_url"] == "https://agentscore.com/verify?session=sess_auto"
     assert json.loads(body["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
 
 
@@ -564,7 +564,7 @@ def test_middleware_emits_wallet_not_trusted_on_policy_deny():
             json={
                 "decision": "deny",
                 "decision_reasons": ["kyc_required"],
-                "verify_url": "https://agentscore.sh/verify",
+                "verify_url": "https://agentscore.com/verify",
             },
         )
     )
@@ -577,7 +577,7 @@ def test_middleware_emits_wallet_not_trusted_on_policy_deny():
     assert body["error"]["code"] == "wallet_not_trusted"
     assert body["decision"] == "deny"
     assert body["reasons"] == ["kyc_required"]
-    assert body["verify_url"] == "https://agentscore.sh/verify"
+    assert body["verify_url"] == "https://agentscore.com/verify"
 
 
 @respx.mock

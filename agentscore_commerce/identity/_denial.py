@@ -85,7 +85,7 @@ def build_signer_mismatch_body(
     if result.kind == "pass":
         return None
 
-    learn_more = learn_more_url or "https://docs.agentscore.sh/guides/agent-identity"
+    learn_more = learn_more_url or "https://docs.agentscore.com/guides/agent-identity"
 
     if result.kind == "wallet_signer_mismatch":
         linked = result.linked_wallets or []
@@ -169,7 +169,7 @@ def verification_agent_instructions(
     """
     base_steps = [
         "Present the verify_url directly to the user — it is a complete, ready-to-open URL with the session "
-        "token already embedded (e.g. https://agentscore.sh/verify?session=sess_...). "
+        "token already embedded (e.g. https://agentscore.com/verify?session=sess_...). "
         "Do NOT modify or construct the URL yourself.",
         f"Immediately begin polling poll_url every {poll_interval_seconds} seconds with header X-Poll-Secret "
         "set to poll_secret. The user will complete verification in their browser while you poll in the background.",

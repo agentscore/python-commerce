@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
-DEFAULT_BASE_URL = "https://api.agentscore.sh"
+DEFAULT_BASE_URL = "https://api.agentscore.com"
 DEFAULT_CACHE_SECONDS = 300
 
 
@@ -79,7 +79,7 @@ class AgentScoreCore:
         user_agent: str | None = None,
     ) -> None:
         if not api_key:
-            msg = "AgentScore API key is required. Get one at https://agentscore.sh/sign-up"
+            msg = "AgentScore API key is required. Get one at https://agentscore.com/sign-up"
             raise ValueError(msg)
 
         self.fail_open = fail_open

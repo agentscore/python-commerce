@@ -67,9 +67,9 @@ _MISSING_IDENTITY_INSTRUCTIONS = json.dumps(
                 "with the user, then poll poll_url every 5s with the X-Poll-Secret header "
                 "until status=verified (the poll returns a one-time operator_token). If the "
                 "retry returns the same bare 403, this merchant does not support self-service "
-                "session bootstrapping — direct the user to https://agentscore.sh/sign-up to "
+                "session bootstrapping — direct the user to https://agentscore.com/sign-up to "
                 "create an AgentScore identity and mint an operator_token from their "
-                "dashboard (https://agentscore.sh/dashboard/verify). The user hands the "
+                "dashboard (https://agentscore.com/dashboard/verify). The user hands the "
                 "opc_... to you, and you retry with X-Operator-Token."
             ),
         ],

@@ -24,7 +24,7 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "9tbm2c88gZyFzzDyfI0A-yfbB4xzu6m9pAWy0Ln3lNI"
+        "x": "OQi97mKW-B7_I3ul9t2sqGCn6ZA74aANaKvDvjOw8-4"
       }
     ],
     "max_safe_int": 9007199254740991,
@@ -32,13 +32,13 @@
     "small_int": 42,
     "neg_small_int": -42,
     "zero": 0,
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiOXRibTJjODhnWnlGenpEeWZJMEEteWZiQjR4enU2bTlwQVd5MExuM2xOSSJ9XSwic21hbGxfaW50Ijo0MiwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJJbnQgQm91bmRhcnkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2kuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvbWNwLm9wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9LCJ6ZXJvIjowfQ.oOfju-MfP_EIzK4iOzY2S0pGqz71o8UGTqbYRTOnsZ9IDKgjEv0XhKvudk4vzcoDFZ5xW-Rr7rf9fQiJtHMxCw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LWludC1ib3VuZGFyeS1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJtYXhfc2FmZV9pbnQiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbl9zYWZlX2ludCI6LTkwMDcxOTkyNTQ3NDA5OTEsIm5lZ19zbWFsbF9pbnQiOi00Miwic2lnbmluZ19rZXlzIjpbeyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1pbnQtYm91bmRhcnktRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiT1FpOTdtS1ctQjdfSTN1bDl0MnNxR0NuNlpBNzRhQU5hS3ZEdmpPdzgtNCJ9XSwic21hbGxfaW50Ijo0MiwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJJbnQgQm91bmRhcnkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2kuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvbWNwLm9wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9LCJ6ZXJvIjowfQ.F5zrqSpIi91EOBm2QmAhIJRmekU7p-VD3Sf1O3X1LuMVaf79v1wHF6boYQRSRZH_4KXF4Gout39CJ1f-7HReDQ"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "9tbm2c88gZyFzzDyfI0A-yfbB4xzu6m9pAWy0Ln3lNI",
+        "x": "OQi97mKW-B7_I3ul9t2sqGCn6ZA74aANaKvDvjOw8-4",
         "kid": "py-int-boundary-EdDSA",
         "alg": "EdDSA",
         "use": "sig",

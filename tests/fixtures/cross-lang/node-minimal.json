@@ -24,10 +24,10 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "uLYv8aI6H5s6nYXHHTKDGdh8yVCQRzDPkM0AO6IhFoI"
+        "x": "dZYxHEBzWB022zKUiHS1v9Q7nkaK49POYI82Nr5xSqQ"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJ1TFl2OGFJNkg1czZuWVhISFRLREdkaDh5VkNRUnpEUGtNMEFPNkloRm9JIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6Ik1pbmltYWwgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL20uZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvbWNwLm9wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.fqIGhDyJowQJmEVapVofDGkB6UamNc-YJojcpGWucn7UIxvJiqmdGPjiLhpiKpMrwgzBkXe1hLBzZoNHtAPMCw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtbWluaW1hbC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJkWll4SEVCeldCMDIyektVaUhTMXY5UTdua2FLNDlQT1lJODJOcjV4U3FRIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6Ik1pbmltYWwgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7fSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL20uZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvbWNwLm9wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.g8azzIAP8dMbOfEUAG0w0P1wja-S2sM8HtrltGv1kTM8zDmnrHTAUv1x4jIqus7wyc_M0_JEHReDoyX7H3hQDg"
   },
   "jwks": {
     "keys": [
@@ -37,7 +37,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "uLYv8aI6H5s6nYXHHTKDGdh8yVCQRzDPkM0AO6IhFoI"
+        "x": "dZYxHEBzWB022zKUiHS1v9Q7nkaK49POYI82Nr5xSqQ"
       }
     ]
   },

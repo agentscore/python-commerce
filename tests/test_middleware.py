@@ -299,7 +299,7 @@ class TestCaptureWallet:
         assert capture_route.call_count == 0
 
     @respx.mock
-    def test_no_ops_when_gate_did_not_run(self):
+    async def test_no_ops_when_gate_did_not_run(self):
         """Calling capture_wallet on a request that never went through AgentScoreGate
         (no middleware installed) should silently no-op rather than crash."""
         import httpx as httpx_client  # avoid shadowing the module-level import
@@ -319,11 +319,7 @@ class TestCaptureWallet:
 
         request = SReq(scope, _receive)
 
-        import asyncio
-
-        asyncio.get_event_loop().run_until_complete(
-            capture_wallet(request, "0xsigner", "evm"),
-        )
+        await capture_wallet(request, "0xsigner", "evm")
         assert capture_route.call_count == 0
 
 

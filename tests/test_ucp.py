@@ -72,7 +72,7 @@ def test_appends_agentscore_capability_when_gate_provided():
     cap = _agentscore_cap(d)
     # Date-format version (UCP convention; matches every other binding's version field).
     assert cap["version"] == "2026-04-08"
-    assert "sh-agentscore-identity-v1.json" in cap["schema"]
+    assert "com-agentscore-identity-v1.json" in cap["schema"]
     # Multi-parent extends — matches Shopify's dev.shopify.catalog.storefront pattern
     # and UCP-canonical dev.ucp.shopping.discount (extends [checkout, cart]).
     assert cap["extends"] == ["dev.ucp.shopping.checkout", "dev.ucp.shopping.cart"]
@@ -144,20 +144,20 @@ def test_passes_through_name_payment_handlers_extras():
     tempo_handler = UCPPaymentHandlerBinding(
         id="tempo",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/tempo",
-        schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+        spec="https://www.agentscore.com/specification/payment-handlers/tempo",
+        schema="https://www.agentscore.com/schemas/payment-handlers/tempo.json",
         config={"recipient": "0xtempo"},
     )
     profile = build_ucp_profile(
         **_base_kwargs(),
         name="Example Merchant",
-        payment_handlers={"sh.agentscore.payment.tempo": [tempo_handler]},
+        payment_handlers={"com.agentscore.payment.tempo": [tempo_handler]},
         extras={"custom_top_level": "top_value"},
         ucp_extras={"custom_ucp_field": "ucp_value"},
     )
     d = profile.to_dict()
     assert d["ucp"]["name"] == "Example Merchant"
-    assert d["ucp"]["payment_handlers"]["sh.agentscore.payment.tempo"][0]["id"] == "tempo"
+    assert d["ucp"]["payment_handlers"]["com.agentscore.payment.tempo"][0]["id"] == "tempo"
     assert d["custom_top_level"] == "top_value"
     assert d["ucp"]["custom_ucp_field"] == "ucp_value"
 
@@ -166,15 +166,15 @@ def test_payment_handler_omits_config_when_caller_does_not_set_it():
     handler = UCPPaymentHandlerBinding(
         id="tempo",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/tempo",
-        schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+        spec="https://www.agentscore.com/specification/payment-handlers/tempo",
+        schema="https://www.agentscore.com/schemas/payment-handlers/tempo.json",
     )
     profile = build_ucp_profile(
         **_base_kwargs(),
-        payment_handlers={"sh.agentscore.payment.tempo": [handler]},
+        payment_handlers={"com.agentscore.payment.tempo": [handler]},
     )
     d = profile.to_dict()
-    serialized = d["ucp"]["payment_handlers"]["sh.agentscore.payment.tempo"][0]
+    serialized = d["ucp"]["payment_handlers"]["com.agentscore.payment.tempo"][0]
     assert "config" not in serialized
 
 

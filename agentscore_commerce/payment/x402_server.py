@@ -171,8 +171,7 @@ async def create_x402_server(
     if facilitator == "coinbase":
         # Coinbase's x402 facilitator at api.cdp.coinbase.com requires a JWT
         # bearer per endpoint signed with the CDP API key. A bare x402Facilitator()
-        # does NOT auto-pick up CDP creds — the public docs implying otherwise
-        # are wrong. Build an HTTPFacilitatorClient with a CreateHeadersAuthProvider
+        # does NOT auto-pick up CDP creds. Build an HTTPFacilitatorClient with a CreateHeadersAuthProvider
         # that mints per-endpoint JWTs via cdp-sdk.
         facilitator_instance = _build_coinbase_facilitator(x402_top, cdp_api_key_id, cdp_api_key_secret)
     elif facilitator == "http":

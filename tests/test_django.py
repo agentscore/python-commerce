@@ -256,7 +256,7 @@ class TestDjangoMiddleware:
             decision="deny",
             reasons=["kyc_required", "sanctions_flagged"],
             raw={
-                "verify_url": "https://agentscore.sh/verify/abc123",
+                "verify_url": "https://www.agentscore.com/verify/abc123",
                 "operator_verification": {"level": "none"},
             },
         )
@@ -291,7 +291,7 @@ class TestDjangoMiddleware:
         mw = self._make_middleware()
         raw = {
             "decision": "deny",
-            "verify_url": "https://agentscore.sh/verify/abc123",
+            "verify_url": "https://www.agentscore.com/verify/abc123",
         }
         result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw=raw)
         request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
@@ -321,7 +321,7 @@ class TestDjangoCreateSessionOnMissing:
 
         session_reason = DenialReason(
             code="identity_verification_required",
-            verify_url="https://agentscore.sh/verify/sess_abc",
+            verify_url="https://www.agentscore.com/verify/sess_abc",
             session_id="sess_abc",
             poll_secret="ps_secret",
             agent_instructions="please verify",
@@ -339,7 +339,7 @@ class TestDjangoCreateSessionOnMissing:
         data = json.loads(resp.content)
         assert data["error"]["code"] == "identity_verification_required"
         assert data["session_id"] == "sess_abc"
-        assert data["verify_url"] == "https://agentscore.sh/verify/sess_abc"
+        assert data["verify_url"] == "https://www.agentscore.com/verify/sess_abc"
         assert data["poll_secret"] == "ps_secret"
         assert data["agent_instructions"] == "please verify"
 
@@ -369,7 +369,7 @@ class TestDjangoCreateSessionOnMissing:
         result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
         session_reason = DenialReason(
             code="identity_verification_required",
-            verify_url="https://agentscore.sh/verify/sess_kyc",
+            verify_url="https://www.agentscore.com/verify/sess_kyc",
             session_id="sess_kyc",
             poll_secret="ps_kyc",
         )
@@ -539,7 +539,7 @@ class TestDjangoUserAgent:
         mw = self._make_middleware()
 
         with respx.mock:
-            route = respx.post("https://api.agentscore.sh/v1/assess").mock(
+            route = respx.post("https://api.agentscore.com/v1/assess").mock(
                 return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
             )
             request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
@@ -555,7 +555,7 @@ class TestDjangoUserAgent:
         mw = self._make_middleware(user_agent="myapp/2.0")
 
         with respx.mock:
-            route = respx.post("https://api.agentscore.sh/v1/assess").mock(
+            route = respx.post("https://api.agentscore.com/v1/assess").mock(
                 return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
             )
             request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")
@@ -586,7 +586,7 @@ class TestDjangoChainOption:
         mw = self._make_middleware(chain="solana")
 
         with respx.mock:
-            route = respx.post("https://api.agentscore.sh/v1/assess").mock(
+            route = respx.post("https://api.agentscore.com/v1/assess").mock(
                 return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
             )
             request = self.factory.get("/", HTTP_X_WALLET_ADDRESS="0xabc")

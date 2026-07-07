@@ -244,8 +244,8 @@ async def test_handle_fastapi_wraps_handle_in_jsonresponse() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_fastapi_invalid_body_returns_400() -> None:
-    """Non-JSON body → 400 invalid_body envelope (line 1004-1005)."""
+async def test_handle_fastapi_empty_body_falls_through_to_402() -> None:
+    """Non-JSON body falls through to the 402 paywall (x402 discovery probe)."""
     from starlette.requests import Request
 
     checkout = Checkout(
@@ -276,9 +276,7 @@ async def test_handle_fastapi_invalid_body_returns_400() -> None:
     }
     request = Request(scope, receive=_receive)
     response = await checkout.handle_fastapi(request)
-    assert response.status_code == 400
-    body = json.loads(response.body)
-    assert body["error"]["code"] == "invalid_body"
+    assert response.status_code == 402
 
 
 @pytest.mark.asyncio
@@ -313,8 +311,8 @@ async def test_handle_fastapi_explicit_body_skips_parsing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_aiohttp_invalid_body_returns_400() -> None:
-    """aiohttp adapter: non-JSON body → 400 envelope."""
+async def test_handle_aiohttp_empty_body_falls_through_to_402() -> None:
+    """aiohttp adapter: non-JSON body falls through to the 402 paywall."""
     checkout = Checkout(
         rails={"tempo": TempoRailSpec(recipient="0xtempo")},
         url="https://api.example/purchase",
@@ -330,11 +328,11 @@ async def test_handle_aiohttp_invalid_body_returns_400() -> None:
             raise ValueError("malformed")
 
     response = await checkout.handle_aiohttp(_FakeReq())
-    assert response.status == 400
+    assert response.status == 402
 
 
-def test_handle_flask_invalid_body_returns_400() -> None:
-    """Flask adapter: get_json returning None → 400 envelope."""
+def test_handle_flask_empty_body_falls_through_to_402() -> None:
+    """Flask adapter: get_json returning None falls through to the 402 paywall."""
     from flask import Flask
 
     app = Flask(__name__)
@@ -347,11 +345,11 @@ def test_handle_flask_invalid_body_returns_400() -> None:
         from flask import request as flask_request
 
         resp = checkout.handle_flask(flask_request)
-        assert resp.status_code == 400
+        assert resp.status_code == 402
 
 
-def test_handle_django_invalid_body_returns_400() -> None:
-    """Django adapter: invalid JSON in request.body → 400 envelope."""
+def test_handle_django_empty_body_falls_through_to_402() -> None:
+    """Django adapter: invalid JSON in request.body falls through to the 402 paywall."""
     # Configure Django minimally if not already configured.
     import django
     from django.conf import settings
@@ -382,12 +380,12 @@ def test_handle_django_invalid_body_returns_400() -> None:
         compute_pricing=lambda _ctx: PricingResult(amount_usd=1.0),
     )
     response = checkout.handle_django(request)
-    assert response.status_code == 400
+    assert response.status_code == 402
 
 
 @pytest.mark.asyncio
-async def test_handle_sanic_invalid_body_returns_400() -> None:
-    """Sanic adapter: request.json raising → 400 envelope."""
+async def test_handle_sanic_empty_body_falls_through_to_402() -> None:
+    """Sanic adapter: request.json raising falls through to the 402 paywall."""
     checkout = Checkout(
         rails={"tempo": TempoRailSpec(recipient="0xtempo")},
         url="https://api.example/purchase",
@@ -404,7 +402,7 @@ async def test_handle_sanic_invalid_body_returns_400() -> None:
             raise RuntimeError("malformed body")
 
     response = await checkout.handle_sanic(_FakeSanicReq())
-    assert response.status == 400
+    assert response.status == 402
 
 
 # ─── helper-method + property branch gaps ────────────────────────────────────

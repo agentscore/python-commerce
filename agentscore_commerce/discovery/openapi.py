@@ -27,7 +27,19 @@ def agentscore_security_schemes() -> dict[str, Any]:
             "name": "X-Wallet-Address",
             "description": (
                 "Wallet-path identity (0x... or base58). Only works on rails that carry a wallet signature "
-                "(Tempo MPP, x402 EIP-3009, x402 SPL Token). The wallet you claim MUST sign the payment."
+                "(Tempo MPP, x402 EIP-3009 on Base, Solana MPP). The wallet you claim MUST sign the payment."
+            ),
+        },
+        "AgentIdentity": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "Agent-Identity",
+            "description": (
+                "AIP Agent Identity Token path (a JWT from a trusted issuer; AgentScore is always trusted). "
+                "Opt-in. The token is bound to the agent key via `cnf`; the request MUST also carry an RFC 9421 "
+                "HTTP Message Signature (`Signature-Input` + `Signature` over `@method @authority @path "
+                "agent-identity`, tag `agent-identity`) proving possession. A verified AIT is the sole identity "
+                "and is evaluated against the merchant policy via its attested claims."
             ),
         },
         "siwx": siwx_security_scheme(),

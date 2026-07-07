@@ -22,9 +22,20 @@ from agentscore_commerce.payment import (
     create_x402_server,
 )
 
-_X402_INSTALLED = importlib.util.find_spec("x402") is not None
-_MPPX_INSTALLED = importlib.util.find_spec("mpp.server") is not None
-_TEMPO_INSTALLED = importlib.util.find_spec("mpp.methods.tempo") is not None
+
+def _module_installed(name: str) -> bool:
+    # find_spec raises ModuleNotFoundError for a dotted name whose parent
+    # package is absent (e.g. "mpp.server" when pympp isn't installed) rather
+    # than returning None; treat that as "not installed" so minimal envs skip.
+    try:
+        return importlib.util.find_spec(name) is not None
+    except ModuleNotFoundError:
+        return False
+
+
+_X402_INSTALLED = _module_installed("x402")
+_MPPX_INSTALLED = _module_installed("mpp.server")
+_TEMPO_INSTALLED = _module_installed("mpp.methods.tempo")
 
 
 @pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")

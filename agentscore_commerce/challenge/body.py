@@ -7,9 +7,45 @@ from agentscore_commerce.challenge.pricing import PricingBlock
 
 
 @dataclass
+class X402ResourceInfo:
+    """x402 v2 ``ResourceInfo`` resource metadata for the 402 body.
+
+    Surfaced on the 402 body (and the PAYMENT-REQUIRED header) so spec-compliant
+    crawlers and discovery clients can read what the paid resource is. Mirrors
+    x402's ``ResourceInfoSchema``.
+    """
+
+    url: str
+    description: str | None = None
+    mime_type: str | None = None
+    service_name: str | None = None
+    tags: list[str] | None = None
+    icon_url: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-ready dict with x402 camelCase keys, omitting unset fields."""
+        out: dict[str, Any] = {"url": self.url}
+        if self.description is not None:
+            out["description"] = self.description
+        if self.mime_type is not None:
+            out["mimeType"] = self.mime_type
+        if self.service_name is not None:
+            out["serviceName"] = self.service_name
+        if self.tags is not None:
+            out["tags"] = self.tags
+        if self.icon_url is not None:
+            out["iconUrl"] = self.icon_url
+        return out
+
+
+@dataclass
 class X402PaymentRequired:
     accepts: list[Any]
     version: Literal[1, 2] = 2
+    resource: X402ResourceInfo | dict[str, Any] | None = None
+    """x402 v2 ``resource`` field: resource metadata (url + service_name / tags /
+    description / mime_type / icon_url). Emitted on the 402 body as ``body.resource``
+    so spec-compliant crawlers and discovery clients can read what's being sold."""
     extensions: dict[str, Any] | None = None
     """Per-endpoint x402 ``extensions`` block (e.g. Bazaar discovery declared
     via ``build_bazaar_discovery_payload``). Emitted on the 402 body as
@@ -41,6 +77,8 @@ def build_402_body(
         # maxAmountRequired the rebuild lacks silently fails settle. Keep accepts
         # identical to build_payment_requirements output.
         body["accepts"] = x402.accepts
+        if x402.resource is not None:
+            body["resource"] = x402.resource.to_dict() if isinstance(x402.resource, X402ResourceInfo) else x402.resource
         if x402.extensions:
             body["extensions"] = x402.extensions
     if amount_usd is not None:

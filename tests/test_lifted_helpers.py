@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import importlib.util
 import json
 import time
 from collections.abc import Awaitable
@@ -30,6 +31,8 @@ from agentscore_commerce.stripe_multichain import (
     create_pi_cache,
     simulate_deposit_if_test_mode,
 )
+
+_X402_INSTALLED = importlib.util.find_spec("x402") is not None
 
 # ─────────────────────────────────────────────────────────────────────────────
 # pi_cache
@@ -512,6 +515,7 @@ async def test_process_x402_settle_success_returns_payment_response_header():
     assert decoded["tx_hash"] == "0xabc"
 
 
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
 @pytest.mark.asyncio
 async def test_process_x402_settle_coerces_dict_resource_config_with_camelcase_keys():
     """Consumers ported from the JS / Hono stack pass dicts with camelCase keys
@@ -552,6 +556,7 @@ async def test_process_x402_settle_coerces_dict_resource_config_with_camelcase_k
     assert cfg.max_timeout_seconds == 300
 
 
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
 @pytest.mark.asyncio
 async def test_process_x402_settle_passes_typed_resource_config_unchanged():
     """If the caller already provides a typed ResourceConfig, pass it through unchanged."""
@@ -587,6 +592,7 @@ async def test_process_x402_settle_passes_typed_resource_config_unchanged():
     assert captured["cfg"] is typed
 
 
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
 @pytest.mark.asyncio
 async def test_process_x402_settle_coerces_dict_payload_v2_to_typed_payment_payload():
     """Same fix as resource_config: ``verify_x402_request`` returns ``payload`` as a
@@ -654,6 +660,7 @@ async def test_process_x402_settle_coerces_dict_payload_v2_to_typed_payment_payl
     assert verify_payload.get_scheme() == "exact"
 
 
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
 @pytest.mark.asyncio
 async def test_process_x402_settle_serializes_pydantic_settle_result_to_payment_response_header():
     """x402 2.9's ``settle_payment`` returns a Pydantic ``SettleResponse`` model;
@@ -735,6 +742,7 @@ async def test_process_x402_settle_serializes_dict_settle_result():
     assert decoded == {"success": True, "transaction": "0xdef"}
 
 
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
 @pytest.mark.asyncio
 async def test_process_x402_settle_passes_typed_payment_payload_unchanged():
     """If the caller already provides a typed PaymentPayload, pass it through unchanged."""

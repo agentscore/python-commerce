@@ -12,12 +12,12 @@ from agentscore_commerce.identity.sessions import (
     try_create_session_denial_reason_sync,
 )
 
-SESSIONS_URL = "https://api.agentscore.sh/v1/sessions"
+SESSIONS_URL = "https://api.agentscore.com/v1/sessions"
 # API emits structured next_steps on /v1/sessions success. The gate stringifies it into
 # agent_instructions for consistent rendering with every other denial body.
 SESSION_RESPONSE = {
     "session_id": "sess_abc",
-    "verify_url": "https://agentscore.sh/verify/sess_abc",
+    "verify_url": "https://www.agentscore.com/verify/sess_abc",
     "poll_secret": "ps_secret",
     "next_steps": {
         "action": "deliver_verify_url_and_poll",
@@ -39,7 +39,7 @@ class TestSyncHelper:
         assert reason is not None
         assert reason.code == "identity_verification_required"
         assert reason.session_id == "sess_abc"
-        assert reason.verify_url == "https://agentscore.sh/verify/sess_abc"
+        assert reason.verify_url == "https://www.agentscore.com/verify/sess_abc"
         assert reason.poll_secret == "ps_secret"
         # agent_instructions is the JSON-stringified next_steps from the API.
         assert reason.agent_instructions is not None
@@ -110,10 +110,10 @@ class TestSyncHelper:
 
     @respx.mock
     def test_respects_custom_base_url(self):
-        custom_url = "https://staging.agentscore.sh/v1/sessions"
+        custom_url = "https://staging.agentscore.com/v1/sessions"
         route = respx.post(custom_url).mock(return_value=httpx.Response(200, json=SESSION_RESPONSE))
         try_create_session_denial_reason_sync(
-            CreateSessionOnMissing(api_key="ask_test", base_url="https://staging.agentscore.sh"),
+            CreateSessionOnMissing(api_key="ask_test", base_url="https://staging.agentscore.com"),
             user_agent="agentscore-commerce/1.0",
         )
         assert route.called
@@ -311,7 +311,7 @@ class TestOnBeforeSessionSync:
         cfg = CreateSessionOnMissing(api_key="ask_test", on_before_session=hook)
         try_create_session_denial_reason_sync(cfg, user_agent="ua", ctx={"x": 1})
         assert captured["session_id"] == "sess_abc"
-        assert captured["verify_url"] == "https://agentscore.sh/verify/sess_abc"
+        assert captured["verify_url"] == "https://www.agentscore.com/verify/sess_abc"
 
     @respx.mock
     def test_hook_error_swallowed_session_still_returned(self):

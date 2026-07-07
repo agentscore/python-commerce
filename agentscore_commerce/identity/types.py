@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from agentscore import Network as Network
 from agentscore.types import SignerSanctions as SignerSanctions  # noqa: TC002 — runtime re-export for vendors
+
+if TYPE_CHECKING:
+    # AIP types live in the agentscore-py SDK. Type-only import (mirrors how the SDK owns the
+    # AipSignatureMaterial / AipProvenance wire shapes); the gate forwards / surfaces them but
+    # doesn't re-shape them into local dataclasses, same as policy_result / account_verification.
+    from agentscore.types import AipProvenance, AipSignatureMaterial
 
 # Reputation-API types (Activity, Classification, Identity, Reputation, ScoreDetail,
 # Grade, ScoreStatus) live in agentscore-py — not re-exported here. Commerce SDK is
@@ -35,10 +41,19 @@ DenialCode = Literal[
 
 @dataclass
 class AgentIdentity:
-    """Identity of an agent — wallet address and/or operator token."""
+    """Identity of an agent — wallet address, operator token, or AIP Agent Identity Token."""
 
     address: str | None = None
     operator_token: str | None = None
+    # Raw AIP Agent Identity Token (a JWT). When set, the gate has verified the token's RFC 9421
+    # proof-of-possession at the edge as a fail-fast filter; ``check`` forwards it to ``/v1/assess``
+    # as ``aip_token`` (with ``aip_signature``) for AUTHORITATIVE server-side re-verification of the
+    # IdP signature + proof-of-possession + policy.
+    aip_token: str | None = None
+    # RFC 9421 signature material accompanying ``aip_token``, forwarded to ``/v1/assess`` as
+    # ``aip_signature`` so the API re-verifies proof-of-possession itself (the edge is not trusted
+    # as the authority). Always set together with ``aip_token``.
+    aip_signature: AipSignatureMaterial | None = None
 
 
 @dataclass
@@ -55,11 +70,17 @@ class AgentMemoryHint:
     pattern_summary: str
     quickstart: str
     identity_check_endpoint: str
+    # ``identity_paths`` may carry an optional ``agent_identity`` key (the AIP path) when the
+    # merchant opted into AIP — emitted by ``build_agent_memory_hint`` alongside wallet / operator_token.
     identity_paths: dict[str, str]
     bootstrap: str
     do_not_persist_in_memory: list[str]
     persist_in_credential_store: list[str]
     list_wallets_endpoint: str | None = None
+    # Issuers whose AIP Agent Identity Tokens this merchant accepts. Present only when the
+    # merchant opted into AIP; an agent holding an AIT from one of these can present it via an
+    # ``Agent-Identity`` header + RFC 9421 signature instead of bootstrapping a fresh credential.
+    aip_trusted_issuers: list[str] | None = None
 
 
 @dataclass
@@ -140,17 +161,40 @@ class SignerVerdict:
 
 # Canonical production AgentScore API; agent memory pointers are always hardcoded to this
 # value regardless of how a given merchant configured their gate.
-_CANONICAL_AGENTSCORE_API = "https://api.agentscore.sh"
+_CANONICAL_AGENTSCORE_API = "https://api.agentscore.com"
 
 
-def build_agent_memory_hint() -> AgentMemoryHint:
+def build_agent_memory_hint(aip_trusted_issuers: list[str] | None = None) -> AgentMemoryHint:
     """Build the cross-merchant memory hint emitted on bootstrap denials.
 
     Memory pointers always point at the canonical production API — merchants must not be
     able to redirect the cross-merchant memory surface, since that would be a phishing
     vector for the verify URL.
+
+    When ``aip_trusted_issuers`` is a non-empty list (the merchant opted into AIP), the hint
+    advertises the AIP identity path and the accepted issuer allowlist so an agent holding an
+    Agent Identity Token from one of them can present it directly.
     """
     api = _CANONICAL_AGENTSCORE_API
+    accepts_aip = bool(aip_trusted_issuers)
+    identity_paths = {
+        "wallet": (
+            "If paying from a crypto wallet you have used before on any AgentScore merchant, send "
+            "`X-Wallet-Address: 0x...`. Shortest path; no token lifecycle to manage."
+        ),
+        "operator_token": (
+            "For any rail (Stripe SPT, card, or a wallet you have not linked yet), send "
+            "`X-Operator-Token: opc_...`. Reusable across merchants until the token expires."
+        ),
+    }
+    if accepts_aip:
+        identity_paths["agent_identity"] = (
+            "If you hold an AIP Agent Identity Token from a trusted issuer (see aip_trusted_issuers), "
+            "present it: send the JWT in an `Agent-Identity` header plus an RFC 9421 HTTP Message "
+            "Signature (Signature-Input + Signature over @method @authority @path agent-identity, "
+            'tag="agent-identity") signed with the token-bound cnf key. The merchant verifies it and '
+            "applies its policy — no separate AgentScore credential needed."
+        )
     return AgentMemoryHint(
         save_for_future_agentscore_gates=True,
         pattern_summary=(
@@ -161,18 +205,9 @@ def build_agent_memory_hint() -> AgentMemoryHint:
             "per site. Save this pattern (and the endpoints below) to persistent memory so future "
             "AgentScore encounters skip the cold-start session flow."
         ),
-        quickstart="https://docs.agentscore.sh/guides/agent-identity",
+        quickstart="https://docs.agentscore.com/guides/agent-identity",
         identity_check_endpoint=f"{api}/v1/credentials",
-        identity_paths={
-            "wallet": (
-                "If paying from a crypto wallet you have used before on any AgentScore merchant, send "
-                "`X-Wallet-Address: 0x...`. Shortest path; no token lifecycle to manage."
-            ),
-            "operator_token": (
-                "For any rail (Stripe SPT, card, or a wallet you have not linked yet), send "
-                "`X-Operator-Token: opc_...`. Reusable across merchants until the token expires."
-            ),
-        },
+        identity_paths=identity_paths,
         bootstrap=(
             "If you have neither a linked wallet nor a valid operator_token, follow the session/verify "
             "flow in the per-request `agent_instructions` block. This happens at most once per agent "
@@ -181,6 +216,7 @@ def build_agent_memory_hint() -> AgentMemoryHint:
         ),
         do_not_persist_in_memory=["operator_token", "poll_secret"],
         persist_in_credential_store=["operator_token"],
+        aip_trusted_issuers=list(aip_trusted_issuers) if accepts_aip else None,
     )
 
 
@@ -258,6 +294,11 @@ class AssessResult:
     resolved_operator: str | None = None
     verify_url: str | None = None
     policy_result: PolicyResult | None = None
+    # IdP provenance, present only when ``identity_method == "aip_token"`` — which issuer
+    # attested the identity and the trust level it asserted. Surfaced as the SDK's raw
+    # ``aip`` block (issuer/subject/trust_level/agent_provider/pop_verified); mirrors the
+    # SDK's ``AssessResponse.aip``.
+    aip: AipProvenance | None = None
     raw: dict[str, Any] | None = None
     # Per-account assess quota captured from X-Quota-* response headers. Absent on
     # Enterprise / unlimited tiers, or when the gate didn't call assess.

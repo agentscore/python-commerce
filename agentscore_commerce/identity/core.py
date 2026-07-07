@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from importlib.metadata import version as _pkg_version
 from typing import TYPE_CHECKING, Any, Literal, cast
+from urllib.parse import quote
 
 import httpx
 from agentscore import (
@@ -45,13 +47,13 @@ from agentscore_commerce.identity.types import (
 )
 
 if TYPE_CHECKING:
-    from agentscore.types import DecisionPolicy, Signer
+    from agentscore.types import AipProvenance, AipSignatureMaterial, DecisionPolicy, Signer
 
     from agentscore_commerce.identity.types import DenialReason
 
 _log = logging.getLogger(__name__)
 
-DEFAULT_BASE_URL = "https://api.agentscore.sh"
+DEFAULT_BASE_URL = "https://api.agentscore.com"
 DEFAULT_CACHE_SECONDS = 300
 
 
@@ -77,9 +79,10 @@ class AgentScoreCore:
         base_url: str = DEFAULT_BASE_URL,
         chain: str | None = None,
         user_agent: str | None = None,
+        aip_trusted_issuers: list[str] | None = None,
     ) -> None:
         if not api_key:
-            msg = "AgentScore API key is required. Get one at https://agentscore.sh/sign-up"
+            msg = "AgentScore API key is required. Get one at https://www.agentscore.com/sign-up"
             raise ValueError(msg)
 
         self.fail_open = fail_open
@@ -87,15 +90,29 @@ class AgentScoreCore:
         self._base_url = base_url
         # Public accessor so adapters can build agent_memory hints pointing at the same API.
         self.base_url = base_url
+        # Issuers whose AIP Agent Identity Tokens this gate accepts. When set, the missing-identity
+        # recovery instructions + agent_memory hint advertise the AIT path so agents holding one
+        # learn they can present it. Set by Checkout from gate.aip.trusted_issuers; the actual AIT
+        # verification happens at the edge (Checkout) before evaluate. Public so adapters can thread
+        # it into build_missing_identity_reason().
+        self.aip_trusted_issuers = aip_trusted_issuers
         self._chain = chain
         default_ua = f"agentscore-commerce/{_pkg_version('agentscore-commerce')}"
         self.user_agent = f"{user_agent} ({default_ua})" if user_agent else default_ua
         self._cache: TTLCache[AssessResult] = TTLCache(cache_seconds)
         # Parallel cache of the raw /v1/assess response dict — populated alongside the
-        # projected AssessResult cache so get_signer_verdict() can read signer_match +
-        # signer_sanctions directly off the wire without re-shaping them through the
-        # projector. Same TTL semantics as _cache.
-        self._raw_response_cache: TTLCache[dict[str, Any]] = TTLCache(cache_seconds)
+        # projected AssessResult cache (same signer-aware key) so a fresh response for a new
+        # signer never overwrites another signer's raw blob. Same TTL semantics as _cache.
+        # Signer verdicts (signer_match + signer_sanctions) from the most recent assess call that
+        # carried a signer, keyed by the normalized claimed wallet address. Kept OUTSIDE the TTL
+        # response cache: get_signer_verdict() is the gate's inline wallet-binding enforcement for
+        # the CURRENT request, so it must not depend on the TTL entry surviving (with
+        # cache_seconds=0 the entry expires within the same tick, which would non-deterministically
+        # drop the verdict and let a signer-mismatch fall through to settlement). The slot always
+        # holds the LATEST signer's verdict, so a 2nd request with a different signer (a cache miss
+        # under the signer-aware key) overwrites it — get_signer_verdict can never return a verdict
+        # computed for a stale signer. Mirrors the reference `lastSignerRaw`.
+        self._last_signer_raw: dict[str, dict[str, Any]] = {}
 
         self._policy: dict[str, Any] = {}
         if require_kyc is not None:
@@ -131,12 +148,41 @@ class AgentScoreCore:
         """
         return self._sdk._get_async_client()
 
-    def _cache_key(self, address: str | None = None, operator_token: str | None = None) -> str:
-        # operator_token is opaque ASCII — lowercasing is safe. Wallet addresses go through
-        # normalize_address so Solana base58 (case-sensitive) isn't corrupted into a cache miss.
-        if operator_token:
-            return operator_token.lower()
-        return normalize_address(address) if address else ""
+    def _cache_key(
+        self,
+        address: str | None = None,
+        operator_token: str | None = None,
+        aip_token: str | None = None,
+        signer: dict[str, str] | None = None,
+    ) -> str:
+        # AIT cache key: hash the raw token so the (short-lived) JWT isn't held verbatim as a
+        # dict key. AITs are seconds-to-minutes TTL anyway; this just dedupes repeated presents
+        # within the cache window. AIT takes precedence, then operator_token, then address.
+        if aip_token:
+            identity_key = f"aip:{hashlib.sha256(aip_token.encode()).hexdigest()}"
+        elif operator_token:
+            # operator_token is opaque ASCII — lowercasing is safe.
+            identity_key = operator_token.lower()
+        else:
+            # Wallet addresses go through normalize_address so Solana base58 (case-sensitive)
+            # isn't corrupted into a cache miss.
+            identity_key = normalize_address(address) if address else ""
+        # Fold the payment signer into the key whenever one is present on the request. The API's
+        # per-request signer_match + signer_sanctions verdicts (and the unconditional signer-OFAC
+        # screen) are computed for THIS signer; without the signer in the key, a 2nd request that
+        # claims the same identity but signs with a DIFFERENT wallet would hit the cache and return
+        # the prior signer's verdict — a sanctioned signer could ride a stale `clear` to settlement.
+        # Keying on the normalized signer makes a different signer a cache MISS that re-screens.
+        # Requests with no signer keep the identity-only key (operator-token / discovery legs).
+        # Every part is percent-encoded (delimiter-proof): the claimed X-Wallet-Address is
+        # attacker-controlled and normalize_address passes invalid input through verbatim, so a
+        # crafted address embedding the literal `|sig:` joiner could otherwise collide with a
+        # different (identity, signer) pair's key and poison its cached signer verdicts.
+        if signer is not None:
+            signer_addr = normalize_address(signer.get("address", ""))
+            signer_net = signer.get("network", "")
+            return f"{quote(identity_key, safe='')}|sig:{quote(signer_addr, safe='')}:{quote(signer_net, safe='')}"
+        return quote(identity_key, safe="")
 
     def _build_body(
         self,
@@ -144,6 +190,8 @@ class AgentScoreCore:
         chain: str | None = None,
         operator_token: str | None = None,
         signer: dict[str, str] | None = None,
+        aip_token: str | None = None,
+        aip_signature: AipSignatureMaterial | None = None,
     ) -> dict[str, Any]:
         """Construct the assess request body.
 
@@ -155,6 +203,12 @@ class AgentScoreCore:
             body["address"] = address
         if operator_token:
             body["operator_token"] = operator_token
+        # AIP Agent Identity Token path: the API re-verifies the IdP signature + RFC 9421
+        # proof-of-possession server-side and evaluates policy against the attested claims.
+        if aip_token:
+            body["aip_token"] = aip_token
+        if aip_signature is not None:
+            body["aip_signature"] = dict(aip_signature)
         effective_chain = chain or self._chain
         if effective_chain:
             body["chain"] = effective_chain
@@ -232,6 +286,12 @@ class AgentScoreCore:
         av_data = data.get("account_verification")
         account_verification = av_data if isinstance(av_data, dict) else None
 
+        # IdP provenance, present only when identity_method == "aip_token". Surfaced as the SDK's
+        # raw `aip` block (issuer/subject/trust_level/agent_provider/pop_verified); not re-shaped,
+        # same as account_verification / policy_result.
+        aip_data = data.get("aip")
+        aip = aip_data if isinstance(aip_data, dict) else None
+
         # SDK populates `quota` on the AssessResponse from X-Quota-* headers. Surface up
         # to adapters so merchants can monitor approach-to-cap proactively.
         quota_raw = data.get("quota")
@@ -255,6 +315,7 @@ class AgentScoreCore:
             resolved_operator=data.get("resolved_operator"),
             verify_url=data.get("verify_url"),
             policy_result=data.get("policy_result"),
+            aip=cast("AipProvenance | None", aip),
             quota=quota,
             raw=data,
         )
@@ -265,14 +326,24 @@ class AgentScoreCore:
         chain: str | None = None,
         operator_token: str | None = None,
         signer: dict[str, str] | None = None,
+        aip_token: str | None = None,
+        aip_signature: AipSignatureMaterial | None = None,
     ) -> AssessResult:
-        """Synchronous assess call with caching. Accepts address and/or operator_token.
+        """Synchronous assess call with caching. Accepts address, operator_token, or AIP token.
 
         When ``signer`` is provided (extracted by the adapter middleware from the
         inbound request's payment credential), the API composes ``signer_match`` and
         ``signer_sanctions`` verdicts on the response in one round trip.
+
+        ``aip_token`` (+ ``aip_signature``) supplies an AIP Agent Identity Token in place of
+        ``address`` / ``operator_token``: the API re-verifies the issuer signature AND the RFC 9421
+        proof-of-possession authoritatively (the edge is not trusted as the authority), then
+        evaluates policy against the attested claims. ``aip_token`` requires ``aip_signature``.
         """
-        key = self._cache_key(address, operator_token)
+        if aip_token is not None and aip_signature is None:
+            msg = "AgentScoreCore.check: aip_token requires aip_signature (RFC 9421 proof-of-possession material)."
+            raise ValueError(msg)
+        key = self._cache_key(address, operator_token, aip_token, signer)
 
         cached = self._cache.get(key)
         if cached is not None:
@@ -287,6 +358,8 @@ class AgentScoreCore:
                 chain=effective_chain,
                 policy=cast("DecisionPolicy | None", self._policy or None),
                 signer=cast("Signer | None", signer),
+                aip_token=aip_token,
+                aip_signature=aip_signature,
             )
         except SdkPaymentRequiredError as exc:
             raise PaymentRequiredError from exc
@@ -320,9 +393,9 @@ class AgentScoreCore:
         raw = cast("dict[str, Any]", data)
         result = self._project(raw)
         self._cache.set(key, result)
-        # Cache the raw response under the same key so get_signer_verdict() can read
+        # Cache the raw response under the same (signer-aware) key so get_signer_verdict() can read
         # signer_match + signer_sanctions verdicts that the projector doesn't expose.
-        self._raw_response_cache.set(key, raw)
+        self._stash_signer_raw(address, operator_token, aip_token, signer, raw)
         return result
 
     async def acheck(
@@ -331,12 +404,17 @@ class AgentScoreCore:
         chain: str | None = None,
         operator_token: str | None = None,
         signer: dict[str, str] | None = None,
+        aip_token: str | None = None,
+        aip_signature: AipSignatureMaterial | None = None,
     ) -> AssessResult:
-        """Asynchronous assess call with caching. Accepts address and/or operator_token.
+        """Asynchronous assess call with caching. Accepts address, operator_token, or AIP token.
 
-        See :meth:`check` for the ``signer`` contract.
+        See :meth:`check` for the ``signer`` and ``aip_token`` / ``aip_signature`` contracts.
         """
-        key = self._cache_key(address, operator_token)
+        if aip_token is not None and aip_signature is None:
+            msg = "AgentScoreCore.acheck: aip_token requires aip_signature (RFC 9421 proof-of-possession material)."
+            raise ValueError(msg)
+        key = self._cache_key(address, operator_token, aip_token, signer)
 
         cached = self._cache.get(key)
         if cached is not None:
@@ -350,6 +428,8 @@ class AgentScoreCore:
                 chain=effective_chain,
                 policy=cast("DecisionPolicy | None", self._policy or None),
                 signer=cast("Signer | None", signer),
+                aip_token=aip_token,
+                aip_signature=aip_signature,
             )
         except SdkPaymentRequiredError as exc:
             raise PaymentRequiredError from exc
@@ -375,9 +455,9 @@ class AgentScoreCore:
         raw = cast("dict[str, Any]", data)
         result = self._project(raw)
         self._cache.set(key, result)
-        # Cache the raw response under the same key so get_signer_verdict() can read
+        # Cache the raw response under the same (signer-aware) key so get_signer_verdict() can read
         # signer_match + signer_sanctions verdicts that the projector doesn't expose.
-        self._raw_response_cache.set(key, raw)
+        self._stash_signer_raw(address, operator_token, aip_token, signer, raw)
         return result
 
     def check_identity(
@@ -386,12 +466,19 @@ class AgentScoreCore:
         chain: str | None = None,
         signer: dict[str, str] | None = None,
     ) -> AssessResult:
-        """Convenience method to check using an AgentIdentity object."""
+        """Convenience method to check using an AgentIdentity object.
+
+        When ``identity.aip_token`` is set it's the sole identity input (the API re-verifies
+        the token + proof-of-possession and evaluates policy against the attested claims);
+        ``aip_signature`` is forwarded with it. See :meth:`check`.
+        """
         return self.check(
             address=identity.address,
             chain=chain,
             operator_token=identity.operator_token,
             signer=signer,
+            aip_token=identity.aip_token,
+            aip_signature=identity.aip_signature,
         )
 
     async def acheck_identity(
@@ -400,12 +487,71 @@ class AgentScoreCore:
         chain: str | None = None,
         signer: dict[str, str] | None = None,
     ) -> AssessResult:
-        """Async convenience method to check using an AgentIdentity object."""
+        """Async convenience method to check using an AgentIdentity object.
+
+        See :meth:`check_identity` for the AIP-token forwarding contract.
+        """
         return await self.acheck(
             address=identity.address,
             chain=chain,
             operator_token=identity.operator_token,
             signer=signer,
+            aip_token=identity.aip_token,
+            aip_signature=identity.aip_signature,
+        )
+
+    def _stash_signer_raw(
+        self,
+        address: str | None,
+        operator_token: str | None,
+        aip_token: str | None,
+        signer: dict[str, str] | None,
+        raw: dict[str, Any],
+    ) -> None:
+        """Stash the raw response in the dedicated signer slot for synchronous read-back.
+
+        Keyed by the normalized claimed wallet address. ONLY when the wallet is the EFFECTIVE
+        identity (no operator_token, no aip_token) AND a signer was supplied AND the response
+        actually carried signer verdicts — matching the gate's enforcement guard. With an
+        operator-token / AIT present, that identity wins and signer-match is deliberately NOT
+        enforced, so we must not surface a verdict for that wallet. Mirrors the reference implementation.
+        """
+        if (
+            address is not None
+            and operator_token is None
+            and aip_token is None
+            and signer is not None
+            and (raw.get("signer_match") is not None or raw.get("signer_sanctions") is not None)
+        ):
+            self._last_signer_raw[normalize_address(address)] = raw
+
+    def project_signer_verdict(self, raw: dict[str, Any] | None, claimed_address: str) -> SignerVerdict | None:
+        """Project ``signer_match`` + ``signer_sanctions`` from a SPECIFIC raw assess response.
+
+        Pure / request-scoped: takes the exact ``/v1/assess`` response dict THIS request got
+        (``AssessResult.raw``) and the claimed wallet — it reads NO shared state. Adapters call
+        this with their per-request raw and stash the result on the per-request state, so two
+        concurrent requests that claim the same wallet but sign with different wallets each see
+        their OWN verdict (the shared ``_last_signer_raw`` slot would race — see
+        :meth:`get_signer_verdict`). Returns ``None`` when the response carried no signer
+        verdicts (operator-token-only paths, discovery legs).
+        """
+        claimed_norm = normalize_address(claimed_address)
+        if not isinstance(raw, dict):
+            return None
+        signer_match = raw.get("signer_match")
+        signer_sanctions = raw.get("signer_sanctions")
+        if not signer_match and not signer_sanctions:
+            return None
+        actual_signer = signer_match.get("actual_signer") if isinstance(signer_match, dict) else None
+        signer_norm = actual_signer if isinstance(actual_signer, str) else claimed_norm
+        return SignerVerdict(
+            signer_match=(
+                self._project_signer_match(signer_match, claimed_norm, signer_norm)
+                if isinstance(signer_match, dict)
+                else None
+            ),
+            signer_sanctions=signer_sanctions if signer_sanctions else None,
         )
 
     def get_signer_verdict(self, claimed_address: str) -> SignerVerdict | None:
@@ -415,28 +561,24 @@ class AgentScoreCore:
         request — single round trip. Returns ``None`` when the gate didn't run with
         a signer (operator-token-only paths, discovery legs).
 
+        Reads the dedicated, non-expiring signer slot (keyed by normalized claimed address),
+        which holds the LATEST signer's verdict for that wallet. NOTE: this slot lives on the
+        SHARED core (the gate is module-scoped), so under concurrency two requests claiming the
+        same wallet with DIFFERENT signers race here — the verdict you read may have been
+        computed for the other request's signer. Adapters therefore do NOT use this method for
+        per-request enforcement; they stash the request-scoped verdict (projected from THIS
+        request's ``AssessResult.raw`` via :meth:`project_signer_verdict`) on the per-request
+        state and read it back from there. This method is retained for direct callers that hold a
+        per-request core (e.g. the one Checkout builds inside ``_run_gate``) and for backward
+        compatibility.
+
         Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the
         request — SDN wallet-address hits are already enforced by the gate
         (decision -> deny before the handler runs); merchant code typically only
         needs this for the signer_match wallet-binding verdict.
         """
-        claimed_norm = normalize_address(claimed_address)
-        key = self._cache_key(address=claimed_norm)
-        raw = self._raw_response_cache.get(key)
-        if not raw:
-            return None
-        signer_match = raw.get("signer_match") if isinstance(raw, dict) else None
-        signer_sanctions = raw.get("signer_sanctions") if isinstance(raw, dict) else None
-        if not signer_match and not signer_sanctions:
-            return None
-        actual_signer = signer_match.get("actual_signer") if isinstance(signer_match, dict) else None
-        signer_norm = actual_signer if isinstance(actual_signer, str) else claimed_norm
-        return SignerVerdict(
-            signer_match=(
-                self._project_signer_match(signer_match, claimed_norm, signer_norm) if signer_match else None
-            ),
-            signer_sanctions=signer_sanctions if signer_sanctions else None,
-        )
+        raw = self._last_signer_raw.get(normalize_address(claimed_address))
+        return self.project_signer_verdict(raw, claimed_address)
 
     def capture_wallet(
         self,
@@ -540,7 +682,7 @@ class QuotaExceededError(RuntimeError):
 class TokenDeniedError(Exception):
     """Raised when /v1/assess returns 401 token_expired.
 
-    Covers both revoked and TTL-expired credentials — the API deliberately doesn't
+    Covers both revoked and TTL-expired credentials — the API does not distinguish; it doesn't
     disclose which. Carries the full response body so the adapter can forward the
     auto-minted session fields (verify_url, session_id, poll_secret, poll_url,
     next_steps, agent_memory) to the agent instead of collapsing to wallet_not_trusted.

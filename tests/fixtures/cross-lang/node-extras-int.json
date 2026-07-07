@@ -15,12 +15,12 @@
       },
       "capabilities": {},
       "payment_handlers": {
-        "sh.agentscore.payment.stripe_spt": [
+        "com.agentscore.payment.stripe_spt": [
           {
             "id": "stripe",
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/payment-handlers/stripe_spt",
-            "schema": "https://agentscore.sh/schemas/payment-handlers/stripe_spt.json",
+            "spec": "https://www.agentscore.com/specification/payment-handlers/stripe_spt",
+            "schema": "https://www.agentscore.com/schemas/payment-handlers/stripe_spt.json",
             "config": {
               "profile_id": "abc",
               "count": 7
@@ -37,10 +37,10 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "8bY4p8JAZawYMyaOHz00B9cXv1sLsYEPclIhH56ZU9c"
+        "x": "I7rvE_IDa6lSuXs3fsDZ6ofc7mPBz751U0eVgiSpQ6M"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZXh0cmFzLWludC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtZXh0cmFzLWludC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiI4Ylk0cDhKQVphd1lNeWFPSHowMEI5Y1h2MXNMc1lFUGNsSWhINTZaVTljIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkV4dHJhcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnsic2guYWdlbnRzY29yZS5wYXltZW50LnN0cmlwZV9zcHQiOlt7ImNvbmZpZyI6eyJjb3VudCI6NywicHJvZmlsZV9pZCI6ImFiYyJ9LCJpZCI6InN0cmlwZSIsInNjaGVtYSI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvc3RyaXBlX3NwdC5qc29uIiwic3BlYyI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zcGVjaWZpY2F0aW9uL3BheW1lbnQtaGFuZGxlcnMvc3RyaXBlX3NwdCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL2UuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvbWNwLm9wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.9uvrpl0IE82nKBGWyLf5GvszZ3F0HL2TRs3Q9Gr3DlSwMKrS5TP3paVuwWg6b_CUHdDYKdDScwOcbSN4_ELnBw"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtZXh0cmFzLWludC1FZERTQSIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtZXh0cmFzLWludC1FZERTQSIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJJN3J2RV9JRGE2bFN1WHMzZnNEWjZvZmM3bVBCejc1MVUwZVZnaVNwUTZNIn1dLCJ1Y3AiOnsiY2FwYWJpbGl0aWVzIjp7fSwibmFtZSI6IkV4dHJhcyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnsiY29tLmFnZW50c2NvcmUucGF5bWVudC5zdHJpcGVfc3B0IjpbeyJjb25maWciOnsiY291bnQiOjcsInByb2ZpbGVfaWQiOiJhYmMifSwiaWQiOiJzdHJpcGUiLCJzY2hlbWEiOiJodHRwczovL3d3dy5hZ2VudHNjb3JlLmNvbS9zY2hlbWFzL3BheW1lbnQtaGFuZGxlcnMvc3RyaXBlX3NwdC5qc29uIiwic3BlYyI6Imh0dHBzOi8vd3d3LmFnZW50c2NvcmUuY29tL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy9zdHJpcGVfc3B0IiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vZS5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9tY3Aub3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In19.0XGWt1bJylGRqfcNZ8x0fhclsDYWkmom0puwRvZ0FzWLkAlpiXAEZQHC15pw4RdFae2-u7RQZNELZ5XyPdAqDw"
   },
   "jwks": {
     "keys": [
@@ -50,7 +50,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "8bY4p8JAZawYMyaOHz00B9cXv1sLsYEPclIhH56ZU9c"
+        "x": "I7rvE_IDa6lSuXs3fsDZ6ofc7mPBz751U0eVgiSpQ6M"
       }
     ]
   },

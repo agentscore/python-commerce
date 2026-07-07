@@ -7,7 +7,7 @@ from agentscore_commerce.challenge.agent_memory import (
     build_agent_memory_hint,
     first_encounter_agent_memory,
 )
-from agentscore_commerce.challenge.body import X402PaymentRequired, build_402_body
+from agentscore_commerce.challenge.body import X402PaymentRequired, X402ResourceInfo, build_402_body
 from agentscore_commerce.challenge.how_to_pay import build_how_to_pay
 from agentscore_commerce.challenge.identity import IdentityMode, SignerMatchResult, build_identity_metadata
 from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
@@ -31,6 +31,7 @@ __all__ = [
     "ShippingAddress",
     "SignerMatchResult",
     "X402PaymentRequired",
+    "X402ResourceInfo",
     "build_402_body",
     "build_accepted_methods",
     "build_agent_instructions",

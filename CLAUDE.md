@@ -121,7 +121,7 @@ Anonymous POST flows through to the handler unauthenticated and gets a 402 with 
 
 ### `compatible_clients` field on emitted 402s
 
-`build_agent_instructions` emits a `compatible_clients` field in the 402 body, derived automatically from `how_to_pay`: per-rail list of CLIs the AgentScore team has smoke-verified end-to-end. Vendors override with `build_agent_instructions(how_to_pay=how_to_pay, compatible_clients={...})` to add their own tested clients. Set to an empty dict `{}` to suppress the default. Same data is published as `core/docs/integrations/x402-clients.mdx` for human-side rationale + per-rail commands.
+`build_agent_instructions` emits a `compatible_clients` field in the 402 body, derived automatically from `how_to_pay`: per-rail list of CLIs the AgentScore team has smoke-verified end-to-end. Vendors override with `build_agent_instructions(how_to_pay=how_to_pay, compatible_clients={...})` to add their own tested clients. Set to an empty dict `{}` to suppress the default. Same data is published at https://docs.agentscore.com/integrations/x402-clients for human-side rationale + per-rail commands.
 
 ## Tooling
 
@@ -155,7 +155,6 @@ uv run pytest tests/
 - **Never commit .env files or secrets**
 - **Use PRs**: never push directly to main
 - **Helpers are protocol translations + configurable opinions, not opinionated frameworks**
-- **Cross-language API parity**: keep the surface area identical between the node and python flavors so vendors switching languages have the same mental model
 
 ## Releasing
 

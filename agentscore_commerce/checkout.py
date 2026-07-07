@@ -66,16 +66,18 @@ merchant wraps it in their framework's response shape.
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
 import json
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 from agentscore_commerce._headers import normalize_headers_to_lowercase
 from agentscore_commerce._mppx_receipt import extract_mppx_receipt_header_from_raw
+from agentscore_commerce.aip.jwks import AGENTSCORE_CANONICAL_ISSUER, canonicalize_issuer
 from agentscore_commerce.challenge.accepted_methods import build_accepted_methods
 from agentscore_commerce.challenge.agent_instructions import RailKey, build_agent_instructions
 from agentscore_commerce.challenge.agent_memory import first_encounter_agent_memory
@@ -106,6 +108,10 @@ from agentscore_commerce.payment.x402_validation import (
     verify_x402_request,
 )
 from agentscore_commerce.payment.zero_settle import zero_amount_carve_out
+
+if TYPE_CHECKING:
+    from agentscore_commerce.aip.jwks import JwksCache
+    from agentscore_commerce.aip.types import TrustLevel
 
 CheckoutRailSpec: TypeAlias = (
     TempoRailSpec | X402BaseRailSpec | SolanaMppRailSpec | StripeRailSpec | TempoSessionRailSpec
@@ -344,6 +350,111 @@ def get_identity_status(ctx: CheckoutContext) -> str:
 
 
 @dataclass
+class AipIssuerPolicy:
+    """Per-issuer compliance policy block for :attr:`AipGateConfig.issuer_policies`.
+
+    The same compliance fields as the gate, applied (as a whole-policy *replacement*, not a
+    merge) only to AITs from the matching issuer. An override of
+    ``AipIssuerPolicy(require_kyc=True, min_age=21)`` evaluates ONLY those two rules for that
+    issuer (sanctions / jurisdiction omitted -> not enforced for that issuer).
+    """
+
+    require_kyc: bool | None = None
+    require_sanctions_clear: bool | None = None
+    min_age: int | None = None
+    blocked_jurisdictions: list[str] | None = None
+    allowed_jurisdictions: list[str] | None = None
+
+
+@dataclass
+class AipGateConfig:
+    """AIP acceptance config for :attr:`CheckoutGateConfig.aip`.
+
+    When set and a settle-leg request carries an ``Agent-Identity`` header, the gate verifies
+    the AIT offline (issuer signature via the trusted-issuer JWKS + RFC 9421
+    proof-of-possession) BEFORE the assess call, then forwards the raw token to ``/v1/assess``
+    as ``aip_token`` so the same KYC / age / sanctions / jurisdiction policy evaluates against
+    the token's attested identity. A present-but-invalid AIT is a hard deny (the gate does NOT
+    fall through to wallet / operator-token). Requests with no ``Agent-Identity`` header use the
+    existing wallet / operator-token path unchanged.
+    """
+
+    trusted_issuers: list[str] | None = None
+    """ADDITIONAL external issuers to trust beyond AgentScore's own (e.g.
+    ``["https://issuer.example"]``), matched after canonicalization. AgentScore's canonical
+    issuer (:data:`AGENTSCORE_CANONICAL_ISSUER`) is ALWAYS trusted and never needs listing.
+    Omit / empty to accept only AgentScore-issued AITs."""
+    max_skew_seconds: float | None = None
+    """Clock-skew tolerance in seconds for the RFC 9421 signature window (and, as an override,
+    the AIT ``exp`` / ``iat``). Defaults to 60s for both when unset."""
+    authority: str | None = None
+    """Expected ``@authority`` (public hostname) the RFC 9421 signature must cover. When set,
+    the verifier binds the signature to this value instead of trusting the inbound ``Host``
+    header -- pin it to your real public host when behind a proxy that does not normalize
+    ``Host``, to prevent a captured AIT+signature from being replayed to a different virtual
+    host on the same origin."""
+    require_trust_level: TrustLevel | None = None
+    """Minimum ``trust_level`` an AIT must assert (autonomous < human_present <
+    human_confirmed) -- the spec's human-presence gate. Enforced at the edge from the verified
+    token; insufficient -> 403 weak_auth with ``required_trust_level``. Unset = any trust level
+    accepted."""
+    require_amr: list[str] | None = None
+    """Acceptable ``auth.amr`` methods (RFC 8176); the AIT must carry at least one (e.g.
+    ``["face", "fpt", "hwk"]`` to require strong human auth). Insufficient -> 403 weak_auth with
+    ``required_amr``. Unset = not enforced."""
+    issuer_policies: dict[str, AipIssuerPolicy] | None = None
+    """Per-issuer compliance policy override, keyed by issuer URL (canonicalized before
+    lookup). When a request's AIT is verified and its ``iss`` matches a key here, that block
+    REPLACES the gate's default policy fields for that request -- letting a merchant apply
+    different rules by issuer (e.g. full compliance for its own AITs, a relaxed set for a
+    partner issuer). The replacement is whole-policy, not a merge. Issuers NOT listed use the
+    gate's default policy unchanged. Only the AIT path consults this -- wallet / operator-token
+    requests are unaffected."""
+
+
+def _aip_trusted_issuer_set(cfg: AipGateConfig) -> list[str]:
+    """The effective trusted-issuer list for an :class:`AipGateConfig` (canonical + externals)."""
+    return build_aip_trusted_issuers(cfg.trusted_issuers)
+
+
+def _aip_required_claims(policy: AipIssuerPolicy) -> list[str]:
+    """Project the gate's effective compliance policy onto the AIT identity claims it requires.
+
+    For the ``required_claims`` escalation hint on an ``insufficient_claims`` AIP denial. Mirrors
+    the claim names the API checks an AIT against (``id_verified`` / ``sanctions_clear`` /
+    ``age_over_<N>`` / ``jurisdiction``). Empty when the policy is identity-only.
+    """
+    claims: list[str] = []
+    if policy.require_kyc:
+        claims.append("id_verified")
+    if policy.require_sanctions_clear:
+        claims.append("sanctions_clear")
+    if policy.min_age is not None:
+        claims.append(f"age_over_{policy.min_age}")
+    if policy.blocked_jurisdictions is not None or policy.allowed_jurisdictions is not None:
+        claims.append("jurisdiction")
+    return claims
+
+
+def _resolve_issuer_policy(
+    issuer_policies: dict[str, AipIssuerPolicy],
+    iss: str,
+) -> AipIssuerPolicy | None:
+    """Resolve the per-issuer policy override for ``iss``, matched on the canonical issuer.
+
+    Keys are canonicalized before comparison so a trailing-slash key still applies. Returns
+    ``None`` when no key canonicalizes to ``iss``.
+    """
+    target = canonicalize_issuer(iss)
+    if target is None:
+        return None
+    for key, policy in issuer_policies.items():
+        if canonicalize_issuer(key) == target:
+            return policy
+    return None
+
+
+@dataclass
 class CheckoutGateConfig:
     """Optional gate configuration for :class:`Checkout`.
 
@@ -372,7 +483,7 @@ class CheckoutGateConfig:
 
     api_key: str
     """AgentScore API key. Required when ``run_gate`` is omitted."""
-    base_url: str = "https://api.agentscore.sh"
+    base_url: str = "https://api.agentscore.com"
     """AgentScore API base URL. Override for self-hosted / staging deployments."""
     merchant_name: str | None = None
     """Surfaced on auto-minted verification sessions (``product_name`` field) so
@@ -414,6 +525,20 @@ class CheckoutGateConfig:
     Receives ``(ctx, denial_reason)``; returns a dict with ``{status, body,
     headers?}`` to override the canonical body, or ``None`` to keep it. Use this
     to map gate denial codes to merchant-specific body shapes."""
+    aip: AipGateConfig | None = None
+    """Accept AIP Agent Identity Tokens (AITs) on this route. When set and a request carries an
+    ``Agent-Identity`` header, the gate verifies the token offline (issuer signature via the
+    trusted-issuer JWKS + RFC 9421 proof-of-possession) BEFORE the assess call, then sends the
+    raw token to ``/v1/assess`` as ``aip_token`` so the same KYC / age / sanctions / jurisdiction
+    policy evaluates against the token's attested identity. A present-but-invalid AIT is a hard
+    deny (the gate does NOT fall through to wallet / operator-token). Requests with no
+    ``Agent-Identity`` header use the existing wallet / operator-token path unchanged.
+
+    Ignored when ``run_gate`` is also set (a custom gate fully owns the flow). Without an
+    ``api_key``, a verified AIT is honored offline for identity-only gates, but a gate that
+    declares policy fields (KYC / age / sanctions / jurisdiction) without an ``api_key`` fails
+    closed (``aip_policy_requires_api_key``) since policy can only be evaluated via
+    ``/v1/assess``."""
     run_gate: Callable[[CheckoutContext], Any] | None = None
     """Full escape hatch. When set, replaces the SDK's gate flow entirely. Other
     fields above are ignored. Returns ``None`` on allow, or a dict with
@@ -544,6 +669,25 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+def _resolve_resource_url(request: CheckoutRequest) -> str:
+    """Resource URL for the x402 402, scheme-corrected for TLS-terminating edge proxies.
+
+    Behind ALB / CloudFront the inbound ``request.url`` is ``http://``; x402 discovery
+    requires ``https://``, so honor ``X-Forwarded-Proto`` (the proxy's original scheme).
+    """
+    fwd = request.headers.get("x-forwarded-proto") or request.headers.get("X-Forwarded-Proto")
+    if fwd:
+        proto = fwd.split(",")[0].strip()
+        if proto:
+            from urllib.parse import urlparse, urlunparse
+
+            try:
+                return urlunparse(urlparse(request.url)._replace(scheme=proto))
+            except ValueError:
+                pass
+    return request.url
+
+
 def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
     """Compose the identity_metadata block from request + assess state.
 
@@ -643,6 +787,7 @@ class Checkout:
         zero_settle_carve_out: bool = False,
         gate: CheckoutGateConfig | None = None,
         discovery_extensions: dict[str, Any] | None = None,
+        resource_info: dict[str, Any] | None = None,
         discovery_probe: DiscoveryProbeConfig | None = None,
     ) -> None:
         # Auto-derive x402_server when not supplied: rails has an X402BaseRailSpec
@@ -706,7 +851,14 @@ class Checkout:
         self.is_cached_address = is_cached_address
         self.zero_settle_carve_out = zero_settle_carve_out
         self.gate = gate
+        # Lazily-built JWKS cache for AIP verification, shared across requests so issuer keys are
+        # fetched once and cached (per the verifier's hard 24h cap). Built on first AIT.
+        self._aip_jwks: JwksCache | None = None
         self.discovery_extensions = discovery_extensions
+        # Optional x402 v2 ResourceInfo metadata (keys are the wire field names:
+        # serviceName / tags / iconUrl / description) advertised on the 402, in both
+        # the body and the PAYMENT-REQUIRED header. url + mimeType are auto-filled.
+        self.resource_info = resource_info
         self.discovery_probe = discovery_probe
         """Per-endpoint x402 ``extensions`` block emitted on the 402 body. Merge
         outputs of ``build_bazaar_discovery_payload({...})`` (or other extension
@@ -929,8 +1081,6 @@ class Checkout:
             if isinstance(state, dict):
                 ctx.state = state
 
-        ctx.pricing = await _maybe_await(self.compute_pricing(ctx))
-
         # Per-request compliance: runs on the settle leg only (anonymous
         # discovery passes through to 402).
         #
@@ -949,6 +1099,12 @@ class Checkout:
             )
             if gate_result is not None:
                 return gate_result
+
+        # Pricing is computed AFTER the gate (computed after the gate -> computePricing
+        # order) so identity-aware pricing hooks see the gate's verdict (ctx.identity_status /
+        # ctx.request.assess), not "anonymous". The gate is pure identity and never reads
+        # ctx.pricing; every pricing consumer (zero-settle, settle, 402) runs below here.
+        ctx.pricing = await _maybe_await(self.compute_pricing(ctx))
 
         # Zero-amount carve-out: CDP rejects EIP-3009 with value=0 and pympp's
         # tempo intents reject ``proof`` payloads. When pricing is $0 AND a
@@ -985,23 +1141,25 @@ class Checkout:
                 pass
         return await self._emit_402(ctx, mppx_headers=mppx_headers)
 
-    def _invalid_body_envelope(self) -> dict[str, Any]:
-        """Canonical 400 ``invalid_body`` body.
-
-        Framework-agnostic dict so per-framework adapters wrap it in their
-        native Response type.
-        """
-        msg = "Request body must be valid JSON."
-        return build_validation_error(
-            code="invalid_body",
-            message=msg,
-            next_steps={"action": "fix_request", "user_message": msg},
-        )
-
     @staticmethod
     def _extra_headers(headers: dict[str, str]) -> dict[str, str]:
         """Strip ``Content-Type`` (case-insensitive); framework JSON helpers set it themselves."""
         return {k: v for k, v in headers.items() if k.lower() != "content-type"}
+
+    @staticmethod
+    def _render_content_type(headers: dict[str, str]) -> str:
+        """Resolve the response Content-Type for a framework renderer.
+
+        Honors an explicitly-set ``content-type`` from the result headers (the AIP deny paths set
+        ``application/problem+json`` so both the edge-deny and the policy-deny superset
+        content-negotiate as RFC 9457), and falls back to ``application/json`` for every other
+        response. Non-AIP paths never set a content-type header, so this leaves them on the JSON
+        default untouched.
+        """
+        for k, v in headers.items():
+            if k.lower() == "content-type":
+                return v
+        return "application/json"
 
     async def handle_fastapi(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
         """FastAPI / Starlette adapter; returns a ``JSONResponse``.
@@ -1020,7 +1178,11 @@ class Checkout:
             try:
                 parsed_body = await request.json()
             except (ValueError, TypeError):
-                return JSONResponse(status_code=400, content=self._invalid_body_envelope())
+                # Empty / unparseable body must reach handle(), not 400 before it: x402
+                # discovery validators probe with an empty body and no payment header and
+                # require the 402 challenge. Treat it as {} and let handle() decide; body
+                # validation runs on the paid leg (pre_validate / gate).
+                parsed_body = {}
         else:
             parsed_body = body
         result = await self.handle(
@@ -1037,6 +1199,7 @@ class Checkout:
             content=result.body,
             status_code=result.status,
             headers=self._extra_headers(result.headers),
+            media_type=self._render_content_type(result.headers),
         )
 
     async def handle_aiohttp(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
@@ -1051,7 +1214,8 @@ class Checkout:
             try:
                 parsed_body = await request.json()
             except (ValueError, TypeError):
-                return web.json_response(self._invalid_body_envelope(), status=400)
+                # See handle_fastapi: empty / unparseable body falls through to the paywall.
+                parsed_body = {}
         else:
             parsed_body = body
         result = await self.handle(
@@ -1064,7 +1228,12 @@ class Checkout:
                 raw=request,
             ),
         )
-        return web.json_response(result.body, status=result.status, headers=self._extra_headers(result.headers))
+        return web.json_response(
+            result.body,
+            status=result.status,
+            headers=self._extra_headers(result.headers),
+            content_type=self._render_content_type(result.headers),
+        )
 
     async def handle_sanic(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
         """Sanic adapter; returns ``sanic.response.HTTPResponse``.
@@ -1078,7 +1247,8 @@ class Checkout:
             try:
                 parsed_body = request.json or {}
             except Exception:
-                return sanic_json(self._invalid_body_envelope(), status=400)
+                # See handle_fastapi: empty / unparseable body falls through to the paywall.
+                parsed_body = {}
         else:
             parsed_body = body
         result = await self.handle(
@@ -1091,7 +1261,12 @@ class Checkout:
                 raw=request,
             ),
         )
-        return sanic_json(result.body, status=result.status, headers=self._extra_headers(result.headers))
+        return sanic_json(
+            result.body,
+            status=result.status,
+            headers=self._extra_headers(result.headers),
+            content_type=self._render_content_type(result.headers),
+        )
 
     def handle_flask(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
         """Flask adapter; returns a ``flask.Response``.
@@ -1107,9 +1282,8 @@ class Checkout:
         if body is None:
             parsed_body = request.get_json(silent=True)
             if parsed_body is None:
-                resp = jsonify(self._invalid_body_envelope())
-                resp.status_code = 400
-                return resp
+                # See handle_fastapi: empty / unparseable body falls through to the paywall.
+                parsed_body = {}
         else:
             parsed_body = body
         checkout_request = CheckoutRequest(
@@ -1123,6 +1297,8 @@ class Checkout:
         result = async_to_sync(self.handle)(checkout_request)
         resp = jsonify(result.body)
         resp.status_code = result.status
+        # Honor an explicit content-type (AIP problem+json); jsonify defaults to application/json.
+        resp.content_type = self._render_content_type(result.headers)
         for k, v in self._extra_headers(result.headers).items():
             resp.headers[k] = v
         return resp
@@ -1143,7 +1319,8 @@ class Checkout:
             try:
                 parsed_body = _json.loads(request.body) if request.body else {}
             except (ValueError, TypeError):
-                return JsonResponse(self._invalid_body_envelope(), status=400)
+                # See handle_fastapi: empty / unparseable body falls through to the paywall.
+                parsed_body = {}
         else:
             parsed_body = body
         checkout_request = CheckoutRequest(
@@ -1155,7 +1332,12 @@ class Checkout:
             raw=request,
         )
         result = async_to_sync(self.handle)(checkout_request)
-        return JsonResponse(result.body, status=result.status, headers=self._extra_headers(result.headers))
+        return JsonResponse(
+            result.body,
+            status=result.status,
+            headers=self._extra_headers(result.headers),
+            content_type=self._render_content_type(result.headers),
+        )
 
     # ─────────────────────────────────────────────────────────────────────
     # mount_ucp_routes_<framework> — register `/.well-known/ucp` + `/jwks.json`
@@ -1419,6 +1601,172 @@ class Checkout:
         app.add_route(_preflight, ucp_path, methods=["OPTIONS"], name="agentscore_ucp_options")
         app.add_route(_preflight, jwks_path, methods=["OPTIONS"], name="agentscore_jwks_options")
 
+    def _get_aip_jwks(self, cfg: AipGateConfig) -> JwksCache:
+        """Resolve the lazily-built JWKS cache for AIP verification.
+
+        Built once on first AIT and shared across requests so issuer keys are fetched once and
+        cached. :class:`JwksCache` merges AgentScore's canonical issuer itself, so only the
+        merchant's external issuers (if any) are passed.
+        """
+        if self._aip_jwks is None:
+            from agentscore_commerce.aip.jwks import JwksCache
+
+            self._aip_jwks = (
+                JwksCache(trusted_issuers=cfg.trusted_issuers) if cfg.trusted_issuers is not None else JwksCache()
+            )
+        return self._aip_jwks
+
+    async def _run_aip_assess(
+        self,
+        ctx: CheckoutContext,
+        gate: CheckoutGateConfig,
+        eff_policy: AipIssuerPolicy,
+        aip_token: str,
+        aip_signature: dict[str, str] | None,
+    ) -> CheckoutResult | None:
+        """Forward a verified AIT to /v1/assess and map the decision to allow / deny.
+
+        The edge already verified the issuer signature + RFC 9421 PoP (fail-fast); the API
+        re-verifies PoP authoritatively and evaluates ``eff_policy`` against the token's attested
+        claims. Returns ``None`` on allow (stamping ``identity_status='verified'`` on
+        ``ctx.assess``); a denial :class:`CheckoutResult` otherwise. Compliance fields come from
+        ``eff_policy`` — the per-issuer override for the verified AIT's issuer when configured,
+        else the gate defaults (a whole-policy replacement, mirroring node).
+        """
+        from agentscore.errors import (
+            AgentScoreError,
+            InvalidCredentialError,
+            TokenExpiredError,
+        )
+
+        from agentscore_commerce.identity.core import AgentScoreCore
+        from agentscore_commerce.identity.types import DenialReason
+
+        assert gate.api_key is not None  # noqa: S101  # only reached on the api_key path.
+        core_kwargs: dict[str, Any] = {
+            "api_key": gate.api_key,
+            "base_url": gate.base_url,
+            "fail_open": gate.fail_open,
+            "cache_seconds": gate.cache_seconds,
+        }
+        if gate.user_agent is not None:
+            core_kwargs["user_agent"] = gate.user_agent
+        if gate.chain is not None:
+            core_kwargs["chain"] = gate.chain
+        if eff_policy.require_kyc is not None:
+            core_kwargs["require_kyc"] = eff_policy.require_kyc
+        if eff_policy.require_sanctions_clear is not None:
+            core_kwargs["require_sanctions_clear"] = eff_policy.require_sanctions_clear
+        if eff_policy.min_age is not None:
+            core_kwargs["min_age"] = eff_policy.min_age
+        if eff_policy.blocked_jurisdictions is not None:
+            core_kwargs["blocked_jurisdictions"] = eff_policy.blocked_jurisdictions
+        if eff_policy.allowed_jurisdictions is not None:
+            core_kwargs["allowed_jurisdictions"] = eff_policy.allowed_jurisdictions
+        core = AgentScoreCore(**core_kwargs)
+
+        # Extract the payment signer (when present) so the API can OFAC-screen the crypto-rail
+        # signer alongside the AIT. Signer-match enforcement is NOT applied on the AIT path: the
+        # identity is the token (PoP-bound via cnf), and assess is keyed by aip_token, so there is
+        # no address-keyed signer verdict to read (the wallet binding for AITs is the IdP's
+        # payment.signer claim, enforced server-side).
+        from agentscore_commerce.payment.signer import extract_payment_signer, read_x402_payment_header
+
+        x402_header = read_x402_payment_header(ctx.request.headers)
+        authorization_header: str | None = None
+        for header_key, header_value in ctx.request.headers.items():
+            if header_key.lower() == "authorization":
+                authorization_header = header_value
+                break
+        signer = extract_payment_signer(x402_header, authorization_header=authorization_header)
+        signer_arg = {"address": signer.address, "network": signer.network} if signer is not None else None
+
+        try:
+            result = await core.acheck(
+                aip_token=aip_token,
+                aip_signature=cast("Any", aip_signature),
+                signer=signer_arg,
+            )
+        except (TokenExpiredError, InvalidCredentialError) as err:
+            reason = DenialReason(
+                code="invalid_credential" if isinstance(err, InvalidCredentialError) else "token_expired",
+                message=str(err),
+            )
+            return await self._aip_denial_result(ctx, gate, eff_policy, reason)
+        except (AgentScoreError, Exception) as err:
+            # Fail-closed (strict liability): API outage / network failure → 503 api_error.
+            reason = DenialReason(code="api_error", message=str(err))
+            return await self._aip_denial_result(ctx, gate, eff_policy, reason)
+
+        if not result.allow:
+            reason = DenialReason(
+                code="wallet_not_trusted",
+                reasons=list(result.reasons or []),
+                decision=result.decision,
+            )
+            return await self._aip_denial_result(ctx, gate, eff_policy, reason)
+
+        # Allow: stamp identity_status so downstream hooks see the verified AIT identity.
+        assess = dict(ctx.request.assess or {})
+        assess["identity_status"] = "verified"
+        ctx.request = CheckoutRequest(
+            method=ctx.request.method,
+            url=ctx.request.url,
+            headers=ctx.request.headers,
+            body=ctx.request.body,
+            assess=assess,
+            raw=ctx.request.raw,
+        )
+        return None
+
+    async def _aip_denial_result(
+        self,
+        ctx: CheckoutContext,
+        gate: CheckoutGateConfig,
+        eff_policy: AipIssuerPolicy,
+        reason: Any,
+    ) -> CheckoutResult:
+        """Build the AIT-path denial CheckoutResult.
+
+        ``on_denied`` runs FIRST (node parity): when it returns an override it fully owns the body,
+        so no superset wrapping happens. Otherwise the AgentScore denial body is emitted as an
+        RFC 9457 + AIP-spec SUPERSET (``application/problem+json``) — both schemes at once: the rich
+        AgentScore ``{ error, agent_instructions, ... }`` AND the spec's ``type``/``title``/
+        ``status``/``detail`` (+ escalation). The wallet / operator-token paths never reach here, so
+        they keep the bare AgentScore body + ``application/json``.
+        """
+        from agentscore_commerce.aip.gate import AipErrorRequirements, build_aip_policy_deny_body
+        from agentscore_commerce.identity._denial import denial_reason_status
+        from agentscore_commerce.identity._response import denial_reason_to_body
+
+        canonical_body = denial_reason_to_body(reason)
+        if gate.on_denied is not None:
+            custom = await _maybe_await(gate.on_denied(ctx, reason))
+            if isinstance(custom, dict) and "body" in custom:
+                return CheckoutResult(
+                    status=custom.get("status", denial_reason_status(reason)),
+                    body=custom.get("body") or canonical_body,
+                    headers={},
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase="gate_denied",
+                )
+        requirements = AipErrorRequirements(
+            trusted_issuers=_aip_trusted_issuer_set(gate.aip) if gate.aip is not None else None,
+            required_claims=_aip_required_claims(eff_policy),
+            required_trust_level=gate.aip.require_trust_level if gate.aip is not None else None,
+            required_amr=gate.aip.require_amr if gate.aip is not None else None,
+        )
+        superset = build_aip_policy_deny_body(reason.code, reason.reasons, canonical_body, requirements)
+        return CheckoutResult(
+            status=int(superset["status"]),
+            body=superset,
+            headers={"content-type": "application/problem+json"},
+            reference_id=ctx.reference_id,
+            settled=False,
+            settle_phase="gate_denied",
+        )
+
     async def _run_gate(self, ctx: CheckoutContext) -> CheckoutResult | None:
         """Run the per-request gate.
 
@@ -1438,25 +1786,176 @@ class Checkout:
             return None
 
         gate = self.gate
-        # 1. run_gate escape hatch — replaces everything else.
+        # 1. run_gate escape hatch — replaces everything else (also bypasses the gate.aip AIP
+        #    pre-step below; a custom gate owns AIT verification too, so run_gate and gate.aip
+        #    are mutually exclusive).
         if gate.run_gate is not None:
             result = await _maybe_await(gate.run_gate(ctx))
             return self._coerce_run_gate_result(ctx, result)
+
+        # AIP pre-step — runs BEFORE the no-api_key fallback so a present-but-invalid AIT is
+        # always a hard deny, and a cryptographically verified AIT is honored even on an
+        # offline-only gate. The RFC 9421 proof-of-possession can only be checked here at the
+        # edge, where the signed HTTP message lives. A valid AIT becomes the sole identity (wins
+        # over wallet / operator-token).
+        from agentscore_commerce.aip.request import has_agent_identity_header_parts
+
+        headers_lower = normalize_headers_to_lowercase(ctx.request.headers)
+        aip_token: str | None = None
+        aip_issuer: str | None = None
+        aip_signature: dict[str, str] | None = None
+        if gate.aip is not None and has_agent_identity_header_parts(headers_lower):
+            from agentscore_commerce.aip.gate import (
+                AipErrorRequirements,
+                AipGateOptions,
+                build_aip_error_body,
+                build_aip_weak_auth_body,
+                check_trust_requirements,
+                verify_ait_parts,
+            )
+            from agentscore_commerce.aip.request import VerifyContextParts
+
+            parts: VerifyContextParts = {
+                "method": ctx.request.method,
+                "url": ctx.request.url,
+                "headers": headers_lower,
+            }
+            if gate.aip.authority is not None:
+                parts["authority"] = gate.aip.authority
+            opts = AipGateOptions(
+                jwks=self._get_aip_jwks(gate.aip),
+                max_skew_seconds=gate.aip.max_skew_seconds,
+                require_trust_level=gate.aip.require_trust_level,
+                require_amr=gate.aip.require_amr,
+                trusted_issuers=_aip_trusted_issuer_set(gate.aip),
+            )
+            aip_result = await verify_ait_parts(parts, opts)
+            if not aip_result.ok or aip_result.ait is None:
+                assert aip_result.failure is not None  # noqa: S101  # ok=False -> failure is set.
+                body = build_aip_error_body(
+                    aip_result.failure,
+                    AipErrorRequirements(
+                        trusted_issuers=_aip_trusted_issuer_set(gate.aip),
+                        required_trust_level=gate.aip.require_trust_level,
+                        required_amr=gate.aip.require_amr,
+                    ),
+                )
+                status = int(body.get("status", 403))
+                resp_headers = {"content-type": "application/problem+json"}
+                # 503 = the IdP's JWKS was unreachable (transient infra, not a bad token). Hint a
+                # short backoff so agents retry rather than uselessly re-signing.
+                if status == 503:
+                    resp_headers["retry-after"] = "5"
+                return CheckoutResult(
+                    status=status,
+                    body=body,
+                    headers=resp_headers,
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase="gate_denied",
+                )
+            ait = aip_result.ait
+            aip_token = ait.token
+            aip_issuer = ait.iss
+            aip_signature = dataclasses.asdict(ait.signature_material)
+
+            # Enforce the merchant's trust_level / auth.amr requirement (the spec's human-presence
+            # gate). Verification-derived (carried in the verified token), so enforced here at the
+            # edge — insufficient → weak_auth (403) with required_* so the agent can step up.
+            weak_detail = check_trust_requirements(ait.payload, gate.aip.require_trust_level, gate.aip.require_amr)
+            if weak_detail is not None:
+                body = build_aip_weak_auth_body(
+                    detail=weak_detail,
+                    required_trust_level=gate.aip.require_trust_level,
+                    required_amr=gate.aip.require_amr,
+                    trusted_issuers=_aip_trusted_issuer_set(gate.aip),
+                )
+                return CheckoutResult(
+                    status=403,
+                    body=body,
+                    headers={"content-type": "application/problem+json"},
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase="gate_denied",
+                )
+
+        # Resolve the per-issuer policy override (if any) for the verified AIT's issuer. Matched
+        # on the canonicalized issuer so keys line up with the trust list's canonicalization. When
+        # set, it REPLACES the gate's default compliance policy for this request. The effective
+        # compliance fields: the issuer override when present, else the gate defaults.
+        issuer_policy: AipIssuerPolicy | None = (
+            _resolve_issuer_policy(gate.aip.issuer_policies, aip_issuer)
+            if aip_issuer is not None and gate.aip is not None and gate.aip.issuer_policies is not None
+            else None
+        )
+        eff_policy: AipIssuerPolicy = issuer_policy or AipIssuerPolicy(
+            require_kyc=gate.require_kyc,
+            require_sanctions_clear=gate.require_sanctions_clear,
+            min_age=gate.min_age,
+            blocked_jurisdictions=gate.blocked_jurisdictions,
+            allowed_jurisdictions=gate.allowed_jurisdictions,
+        )
 
         # Gate configured without an API key — full policy enforcement requires
         # /v1/assess access, which we can't reach. Fall through to wallet OFAC
         # SDN enforcement (the strict-liability default) so the merchant still
         # gets the basic protection layer instead of silently allowing.
         if not gate.api_key:
+            if aip_token is not None:
+                # A cryptographically verified AIT is a complete offline *identity* check (issuer
+                # signature + RFC 9421 PoP). But compliance *policy* is evaluated against the
+                # token's claims by /v1/assess, which needs an api_key. If the merchant declared
+                # policy fields without an api_key we cannot enforce them — fail closed rather than
+                # silently allow a verified-but-non-compliant identity. Identity-only gates (no
+                # policy fields) are satisfied by the verified AIT alone.
+                has_policy = bool(
+                    eff_policy.require_kyc
+                    or eff_policy.require_sanctions_clear
+                    or eff_policy.min_age is not None
+                    or eff_policy.blocked_jurisdictions is not None
+                    or eff_policy.allowed_jurisdictions is not None
+                )
+                if has_policy:
+                    return CheckoutResult(
+                        status=403,
+                        body={
+                            "error": {
+                                "code": "aip_policy_requires_api_key",
+                                "message": (
+                                    "This gate declares compliance policy (KYC / age / sanctions / "
+                                    "jurisdiction) but has no AgentScore api_key, so the Agent "
+                                    "Identity Token's claims cannot be evaluated. Configure "
+                                    "gate.api_key to enable policy enforcement on AITs."
+                                ),
+                            },
+                        },
+                        headers={},
+                        reference_id=ctx.reference_id,
+                        settled=False,
+                        settle_phase="gate_denied",
+                    )
+                return None
             return await self._run_wallet_sanctions_only(ctx)
 
+        # A verified AIT is the sole identity (wins over wallet / operator-token): forward the
+        # token + RFC 9421 signature material to /v1/assess so the API re-verifies PoP
+        # authoritatively and evaluates the effective policy against the token's attested claims.
+        if aip_token is not None:
+            return await self._run_aip_assess(ctx, gate, eff_policy, aip_token, aip_signature)
+
         # 2. per_request_policy resolves per-product compliance (e.g. wine vs
-        # generic merch). Return None to skip the gate entirely for this request.
+        # generic merch). Returning None means "no per-product *identity* policy
+        # for this product" — but it must NOT skip the always-on wallet OFAC SDN
+        # floor. Route to _run_wallet_sanctions_only so a NULL-enforcement product
+        # still screens its payment signer (identical to the no-gate dispatch). The
+        # floor is a no-op for non-wallet flows (no api_key, or no extractable
+        # signer on Stripe SPT / card), so this never forces a wallet onto a
+        # free/card/no-signer settle.
         policy: Any = None
         if gate.per_request_policy is not None:
             policy = await _maybe_await(gate.per_request_policy(ctx))
             if policy is None:
-                return None
+                return await self._run_wallet_sanctions_only(ctx)
 
         from agentscore_commerce.identity.policy import (
             build_gate_from_policy,
@@ -1481,10 +1980,37 @@ class Checkout:
             merged_policy.update(policy)
         if not merged_policy:
             merged_policy = {}
-        # `enforcement` is per-product (soft/hard); pull from the merged dict
-        # (per_request_policy is the only source) and remove before passing to
-        # build_gate_from_policy so it isn't treated as a policy field.
-        enforcement = merged_policy.pop("enforcement", None) if isinstance(merged_policy, dict) else None
+        # `enforcement` is per-product (soft/hard); read it for the soft/hard handling
+        # below but DO NOT remove it — build_gate_from_policy keys off `enforcement` to
+        # decide whether to build a gate at all (no enforcement => no gate), and the gate
+        # constructor reads only specific fields (require_*, min_age, jurisdictions), so
+        # leaving `enforcement` in the dict is harmless. Popping it here previously made
+        # build_gate_from_policy always return None, silently bypassing the gate.
+        #
+        # Static-gate default: a `Checkout(gate=CheckoutGateConfig(require_kyc=True, ...))`
+        # built from the static fields alone NEVER carries an `enforcement` key (that only
+        # comes from a per_request_policy hook). Without a default, `enforcement` would be
+        # None → build_gate_from_policy returns None → run_gate_with_enforcement(None, None)
+        # short-circuits to status="anonymous" (allow), silently bypassing ALL compliance.
+        # So when the merged policy declares ANY compliance gate field but no explicit
+        # enforcement, default to "hard" so the static gate fires. (The per_request_policy
+        # path supplies its own enforcement, including an intentional soft/None.) Node has
+        # no enforcement abstraction here — it builds the core and calls evaluate whenever
+        # policy fields are present (the reference gate); this default
+        # restores that always-fire behavior for the static-gate path.
+        enforcement = merged_policy.get("enforcement") if isinstance(merged_policy, dict) else None
+        if enforcement is None and any(
+            key in merged_policy
+            for key in (
+                "require_kyc",
+                "require_sanctions_clear",
+                "min_age",
+                "allowed_jurisdictions",
+                "blocked_jurisdictions",
+            )
+        ):
+            enforcement = "hard"
+            merged_policy["enforcement"] = enforcement
 
         # Use the merchant-supplied CreateSessionOnMissing when provided; else
         # auto-build one from the gate config so missing-identity denials still
@@ -1500,6 +2026,10 @@ class Checkout:
             api_key=gate.api_key,
             base_url=gate.base_url,
             create_session_on_missing=session,
+            # Surface AIP acceptance in the missing-identity recovery instructions +
+            # agent_memory hint so agents holding an AIT learn they can present it
+            # instead of bootstrapping a session.
+            aip_trusted_issuers=_aip_trusted_issuer_set(gate.aip) if gate.aip is not None else None,
         )
         if ctx.request.raw is None:
             msg = (
@@ -1529,12 +2059,37 @@ class Checkout:
                 settled=False,
                 settle_phase="gate_denied",
             )
+        # Post-allow signer-match enforcement (mirrors the reference Checkout.runGate). The
+        # gate's primary /v1/assess call composed a signer_match verdict when a payment signer
+        # was extracted; a non-`pass` verdict means the payment signer doesn't match the claimed
+        # wallet (or a same-operator linked wallet). Convert it into a 403 here so Checkout
+        # enforces wallet-signer binding inline — without this, python settles a mismatch that
+        # node blocks. Enforcement applies ONLY to the wallet identity path: on the AIT path the
+        # identity is the token (PoP-bound, assess keyed by aip_token, no address-keyed verdict),
+        # and on the operator-token path the operator-token wins and signer-match is deliberately
+        # not enforced. `gate_instance._client` is request-local (built fresh per call by
+        # build_gate_from_policy), so get_signer_verdict reads THIS request's verdict, not a
+        # raced shared slot.
+        wallet_address = ctx.request.headers.get("x-wallet-address") or ctx.request.headers.get("X-Wallet-Address")
+        operator_token_header = ctx.request.headers.get("x-operator-token") or ctx.request.headers.get(
+            "X-Operator-Token"
+        )
+        if (
+            result.status == "verified"
+            and aip_token is None
+            and wallet_address
+            and not operator_token_header
+            and gate_instance is not None
+        ):
+            signer_denial = await self._enforce_signer_match(ctx, gate, gate_instance, wallet_address)
+            if signer_denial is not None:
+                return signer_denial
+
         # Stash ctx.capture_wallet so on_settled can bind the signer wallet to
         # the operator credential without needing a framework-specific context.
         # No-op when the request was wallet-authenticated (no operator_token).
-        operator_token = ctx.request.headers.get("x-operator-token") or ctx.request.headers.get("X-Operator-Token")
-        if operator_token:
-            self._set_capture_wallet(ctx, operator_token=operator_token, gate=gate)
+        if operator_token_header:
+            self._set_capture_wallet(ctx, operator_token=operator_token_header, gate=gate)
 
         assess = dict(ctx.request.assess or {})
         assess["identity_status"] = result.status
@@ -1548,6 +2103,65 @@ class Checkout:
         )
         return None
 
+    async def _enforce_signer_match(
+        self,
+        ctx: CheckoutContext,
+        gate: CheckoutGateConfig,
+        gate_instance: Any,
+        wallet_address: str,
+    ) -> CheckoutResult | None:
+        """Convert a non-``pass`` signer_match verdict into a 403, or ``None`` to allow.
+
+        Reads the request-local signer verdict the gate composed (``gate_instance._client``
+        is built fresh per request, so this is race-free) and maps a wallet_signer_mismatch /
+        wallet_auth_requires_wallet_signing verdict onto the canonical 403 body via
+        ``denial_reason_to_body`` — byte-for-byte the SAME path + shape the reference implementation's
+        ``Checkout.runGate`` emits (an ``agent_instructions`` recovery container, not the
+        standalone ``build_signer_mismatch_body`` helper's ``next_steps`` container). Runs the
+        gate's ``on_denied`` reshaper if configured. Returns ``None`` when the verdict is ``pass``
+        or absent (no signer was on the request).
+        """
+        from agentscore_commerce.identity._response import denial_reason_to_body
+        from agentscore_commerce.identity.types import DenialReason
+
+        verdict = gate_instance._client.get_signer_verdict(wallet_address)
+        signer_match = verdict.signer_match if verdict is not None else None
+        if signer_match is None or signer_match.kind == "pass":
+            return None
+
+        # Project the verdict onto a DenialReason, mirroring the reference Checkout.runGate.
+        if signer_match.kind == "wallet_auth_requires_wallet_signing":
+            reason = DenialReason(
+                code="wallet_auth_requires_wallet_signing",
+                expected_signer=signer_match.claimed_wallet,
+                agent_instructions=signer_match.agent_instructions,
+            )
+        else:
+            reason = DenialReason(
+                code="wallet_signer_mismatch",
+                claimed_operator=signer_match.claimed_operator,
+                actual_signer_operator=signer_match.actual_signer_operator,
+                expected_signer=signer_match.expected_signer,
+                actual_signer=signer_match.actual_signer,
+                linked_wallets=signer_match.linked_wallets or [],
+                agent_instructions=signer_match.agent_instructions,
+            )
+        denial_body = denial_reason_to_body(reason)
+        denial_status = 403
+        if gate.on_denied is not None:
+            custom = await _maybe_await(gate.on_denied(ctx, denial_body))
+            if isinstance(custom, dict) and "body" in custom:
+                denial_body = custom.get("body") or denial_body
+                denial_status = custom.get("status", denial_status)
+        return CheckoutResult(
+            status=denial_status,
+            body=denial_body,
+            headers={},
+            reference_id=ctx.reference_id,
+            settled=False,
+            settle_phase="gate_denied",
+        )
+
     async def _run_wallet_sanctions_only(self, ctx: CheckoutContext) -> CheckoutResult | None:
         """Wallet OFAC SDN enforcement.
 
@@ -1560,7 +2174,7 @@ class Checkout:
           - ``AGENTSCORE_API_KEY`` — required. No key → one-time warning + skip
             (dev/testnet pattern; production should always configure a key).
           - ``AGENTSCORE_BASE_URL`` — optional override for staging/dev API
-            (e.g. ``https://api-dev.agentscore.sh`` or ``http://localhost:3002``).
+            (e.g. ``https://api.staging.example`` or ``http://localhost:3002``).
 
         Stripe SPT (no extractable wallet signer) → skip silently; Stripe runs
         its own OFAC screen on the buyer's Stripe account at customer creation.
@@ -1728,9 +2342,12 @@ class Checkout:
         ``tx_hash`` is ``None``.
         """
         if has_x402_header(ctx.request.headers):
+            # Honor per-request minted recipients on the zero-settle path too (parity with
+            # _handle_x402 / node's handleZeroSettle, which runs post-resolveRecipientsForCtx).
+            await self._resolve_recipients(ctx)
             verified = await verify_x402_request(
                 headers=ctx.request.headers,
-                is_cached_address=self._async_is_cached_address,
+                is_cached_address=lambda addr: self._async_is_cached_address(addr, ctx),
                 accepted_network=self._x402_base_network or "",
             )
             if not isinstance(verified, VerifyX402RequestSuccess):
@@ -1774,13 +2391,57 @@ class Checkout:
         )
         return await self._build_success(ctx, outcome)
 
-    async def _async_is_cached_address(self, addr: str) -> bool:
-        if self.is_cached_address is None:
+    async def _async_is_cached_address(self, addr: str, ctx: CheckoutContext | None = None) -> bool:
+        # Security: the signed ``payTo`` is agent-controlled (it rides in the X-Payment header the
+        # agent constructs). If we accept it blindly, an agent can re-point settlement at a wallet
+        # it owns and drain funds the merchant expected to receive. So bind it to the recipient the
+        # merchant actually advertised, in precedence order:
+        #   1. merchant supplied is_cached_address (per-order minted addresses, e.g. Stripe
+        #      multichain) → delegate; the merchant owns the cache that proves THIS payTo was minted
+        #      for THIS order.
+        #   2. per-request minted recipient (``ctx.recipients["x402_base"]`` from mint_recipients) →
+        #      bind to it. A rail can carry BOTH a static recipient AND mint_recipients (the static
+        #      recipient is the discovery/sentinel default; the per-request mint is the real payTo).
+        #      Binding to the construction-time static set here would reject the legit minted payTo,
+        #      so the per-request recipient wins — exactly as the compute-first path already does
+        #      (checkout_compute_first ``expected_pay_to = recipients["x402_base"]``).
+        #   3. otherwise (static-treasury rail) → accept ONLY the configured x402_base recipient.
+        # Mirrors the reference payTo-binding fix.
+        if self.is_cached_address is not None:
+            out = self.is_cached_address(addr)
+            if inspect.isawaitable(out):
+                return await out
+            return bool(out)
+        minted = ctx.recipients.get("x402_base") if ctx is not None else None
+        if minted is not None and minted.strip():
+            return addr.lower() == minted.lower()
+        static_recipient = await self._resolve_static_x402_recipient()
+        if static_recipient is None:
+            # No x402_base rail / no resolvable static recipient — nothing to bind against. Keep
+            # the prior permissive behavior so non-x402 / dynamically-recipient setups are unaffected.
             return True
-        out = self.is_cached_address(addr)
-        if inspect.isawaitable(out):
-            return await out
-        return bool(out)
+        return addr.lower() == static_recipient.lower()
+
+    async def _resolve_static_x402_recipient(self) -> str | None:
+        """Resolve the configured x402_base rail's recipient to a concrete address (or None).
+
+        Returns ``None`` when there is no ``X402BaseRailSpec`` configured OR when its recipient
+        resolves to an empty/blank string. The empty-string ``recipient=""`` is the documented
+        per-order-mint sentinel (``build_default_checkout_rails``): the real address is minted per
+        request via ``mint_recipients`` and lives in ``ctx.recipients``, never on the spec. Treating
+        it as "no static recipient" (→ permissive fallthrough) mirrors the reference implementation's
+        ``staticRecipient`` ``r.length > 0`` guard; without it, ``addr.lower() == ""`` rejects EVERY
+        honest minted payTo. Resolves a ``RecipientLike`` (str / sync / async factory) so callable
+        static recipients still bind.
+        """
+        from agentscore_commerce.payment.rail_spec import resolve_recipient
+
+        for spec in self.rails.values():
+            if isinstance(spec, X402BaseRailSpec):
+                resolved = await resolve_recipient(spec.recipient)
+                # Empty/blank sentinel → nothing static to bind against.
+                return resolved if resolved and resolved.strip() else None
+        return None
 
     async def _mint_reference_id(self, request: CheckoutRequest) -> str:
         if self.mint_reference_id is None:
@@ -1802,9 +2463,14 @@ class Checkout:
         if ctx.pricing is None or self._x402_base_network is None:
             msg = "Checkout._handle_x402: missing pricing or x402 rail config"
             raise RuntimeError(msg)
+        # Resolve per-request recipients BEFORE binding the payTo so a rail that mints a fresh
+        # recipient per order (mint_recipients) binds to the minted address, not the construction-
+        # time static sentinel. Idempotent (no-op once ctx.recipients is populated); node resolves
+        # the same way before dispatch (Checkout.handle → resolveRecipientsForCtx → handleX402).
+        await self._resolve_recipients(ctx)
         verified = await verify_x402_request(
             headers=ctx.request.headers,
-            is_cached_address=self._async_is_cached_address,
+            is_cached_address=lambda addr: self._async_is_cached_address(addr, ctx),
             accepted_network=self._x402_base_network,
         )
         if not isinstance(verified, VerifyX402RequestSuccess):
@@ -1828,7 +2494,7 @@ class Checkout:
                 "maxTimeoutSeconds": 300,
             },
             resource_meta={
-                "url": ctx.request.url,
+                "url": _resolve_resource_url(ctx.request),
                 "description": "Agent purchase via x402",
                 "mimeType": "application/json",
             },
@@ -1895,6 +2561,12 @@ class Checkout:
         if self.compose_mppx is None:
             msg = "Checkout._handle_mppx: compose_mppx hook not configured"
             raise RuntimeError(msg)
+        # Resolve per-request recipients BEFORE composing so a mint_recipients-based MPP merchant
+        # sees ctx.recipients populated in both compose_mppx and on_settled on the settle leg.
+        # Idempotent (no-op once ctx.recipients is populated); matches the sibling handlers
+        # (_handle_x402 / _handle_zero_settle / _emit_402) and node, which resolves before dispatch
+        # (Checkout.handle -> resolveRecipientsForCtx -> handleMppx).
+        await self._resolve_recipients(ctx)
         composed: MppxComposeOutcome = await _maybe_await(self.compose_mppx(ctx))
         if composed.status == 200:
             receipt_method: str | None = None
@@ -2020,7 +2692,7 @@ class Checkout:
         # Build x402 accepts BEFORE the body so they appear both in the rich body
         # (agents read JSON) AND in the PAYMENT-REQUIRED header (x402-spec clients).
         x402_accepts: list[Any] = []
-        x402_resource: dict[str, str] | None = None
+        x402_resource: dict[str, Any] | None = None
         x402_network = self._x402_base_network
         if self._x402_server_available() and x402_network:
             from agentscore_commerce.payment.x402_server import build_x402_accepts_for_402
@@ -2042,7 +2714,9 @@ class Checkout:
                             max_timeout_seconds=300,
                         )
                     )
-                    x402_resource = {"url": ctx.request.url, "mimeType": "application/json"}
+                    x402_resource = {"url": _resolve_resource_url(ctx.request), "mimeType": "application/json"}
+                    if self.resource_info:
+                        x402_resource.update(self.resource_info)
                 except Exception:
                     # Facilitator/scheme build failure: drop x402 from accepts but
                     # keep other rails in the body. Merchant logs internally.
@@ -2053,6 +2727,18 @@ class Checkout:
         # + linked_wallets at discovery instead of at the 403 on retry.
         identity_metadata = _resolve_identity_metadata(ctx)
 
+        # Enrich the declared Bazaar discovery extension with the request method +
+        # route so info.input.method (required by the v2 discovery schema) and
+        # routeTemplate populate, matching the reference x402 server flow.
+        from urllib.parse import urlparse
+
+        from agentscore_commerce.discovery.bazaar import enrich_bazaar_discovery_extensions
+
+        request_path = urlparse(_resolve_resource_url(ctx.request)).path or ctx.request.url
+        enriched_extensions = enrich_bazaar_discovery_extensions(
+            self.discovery_extensions, method=ctx.request.method, path=request_path
+        )
+
         body = build_402_body(
             accepted_methods=accepted,
             agent_instructions=build_agent_instructions(how_to_pay=how_to_pay),
@@ -2062,14 +2748,25 @@ class Checkout:
             retry_body=ctx.request.body,
             # Merchants without an identity-bearing gate get a clean 402: no
             # AgentScore-identity bootstrap describing a verification flow they
-            # don't run. Wallet OFAC (the always-on default) doesn't need it.
-            agent_memory=first_encounter_agent_memory(first_encounter=self._has_identity_gate()),
+            # don't run. Wallet OFAC (the always-on default) doesn't need it. When
+            # the merchant accepts AIP, advertise the agent_identity path too
+            # (AgentScore's own issuer is always trusted, so this fires even with
+            # no external issuers).
+            agent_memory=first_encounter_agent_memory(
+                first_encounter=self._has_identity_gate(),
+                aip_trusted_issuers=(
+                    _aip_trusted_issuer_set(self.gate.aip)
+                    if self.gate is not None and self.gate.aip is not None
+                    else None
+                ),
+            ),
             product=ctx.pricing.product,
             extra=ctx.pricing.body_extras,
             x402=X402PaymentRequired(
                 version=2,
                 accepts=x402_accepts,
-                extensions=self.discovery_extensions or None,
+                resource=x402_resource,
+                extensions=enriched_extensions or None,
             )
             if x402_accepts
             else None,
@@ -2081,6 +2778,7 @@ class Checkout:
                 "x402_version": 2,
                 "accepts": x402_accepts,
                 "resource": x402_resource,
+                "extensions": enriched_extensions or None,
             }
 
         respond = respond_402(
@@ -2287,6 +2985,30 @@ def _apply_recipient_overrides(
     return out
 
 
+def build_aip_trusted_issuers(external_issuers: list[str] | None = None) -> list[str]:
+    """The effective AIP trusted-issuer list.
+
+    AgentScore's canonical issuer (ALWAYS trusted) plus any external issuers, de-duped
+    after canonicalization. Use this for the ``agent_memory`` hint and any presentation
+    surface (llms.txt / mpp.json / skill.md) that advertises AIP acceptance, so a merchant
+    relying solely on AgentScore AITs (no external issuers) still advertises the
+    ``agent_identity`` path. Trust enforcement itself lives in ``JwksCache``, which merges
+    the canonical issuer independently.
+    """
+    out = [AGENTSCORE_CANONICAL_ISSUER, *(external_issuers or [])]
+    # De-dupe on canonical form so an explicit ``https://www.agentscore.com`` (or
+    # trailing-slash variant) doesn't double up; keep the first-seen original string
+    # for each canonical key.
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for iss in out:
+        key = canonicalize_issuer(iss) or iss
+        if key not in seen:
+            seen.add(key)
+            deduped.append(iss)
+    return deduped
+
+
 __all__ = [
     "Checkout",
     "CheckoutContext",
@@ -2297,4 +3019,5 @@ __all__ = [
     "PricingResult",
     "Respond402Result",
     "SettleOutcome",
+    "build_aip_trusted_issuers",
 ]

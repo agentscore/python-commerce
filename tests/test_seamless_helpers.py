@@ -19,7 +19,7 @@ import contextlib as _contextlib
 import json
 import os
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -612,7 +612,7 @@ async def test_handle_aiohttp_returns_402_on_discovery_leg() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_aiohttp_returns_invalid_body_envelope_when_body_missing() -> None:
+async def test_handle_aiohttp_missing_body_falls_through_to_402() -> None:
     pytest.importorskip("aiohttp")
     from aiohttp.test_utils import make_mocked_request
 
@@ -627,7 +627,7 @@ async def test_handle_aiohttp_returns_invalid_body_envelope_when_body_missing() 
             raise ValueError("not json")
 
     resp = await checkout.handle_aiohttp(_NoJsonReq())
-    assert resp.status == 400
+    assert resp.status == 402
     _ = make_mocked_request  # ruff
 
 
@@ -771,8 +771,83 @@ async def test_gate_run_gate_returning_unexpected_type_raises() -> None:
 
 
 @pytest.mark.asyncio
-async def test_gate_per_request_policy_none_skips_gate(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`per_request_policy(ctx) → None` skips the gate entirely → settle proceeds."""
+async def test_gate_per_request_policy_none_routes_to_wallet_ofac_floor_denies_sdn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`per_request_policy(ctx) → None` no longer skips the gate — it falls through
+    to the always-on wallet OFAC SDN floor. With an api_key + a wallet-signed
+    payment, the floor screens the signer and DENIES an OFAC-SDN signer."""
+    from agentscore_commerce.checkout import CheckoutGateConfig
+    from agentscore_commerce.payment.signer import PaymentSigner
+
+    async def _policy(_ctx: Any) -> None:
+        return None
+
+    gate = CheckoutGateConfig(api_key="k", per_request_policy=_policy)
+    checkout = _checkout_with_gate(gate)
+    sdn_signer = PaymentSigner(address="0xdead000000000000000000000000000000000bad", network="evm")
+    with (
+        patch("agentscore_commerce.payment.signer.extract_payment_signer", return_value=sdn_signer),
+        patch(
+            "agentscore_commerce.api.AgentScore.aassess",
+            new=AsyncMock(return_value={"decision": "deny", "decision_reasons": ["sanctions_flagged"]}),
+        ) as mock_aassess,
+    ):
+        result = await checkout.handle(
+            CheckoutRequest(
+                method="POST",
+                url="https://api.example/purchase",
+                headers={"authorization": "Payment <opaque>"},
+                body={},
+            ),
+        )
+    # Floor fired and denied on the SDN signer — settle must NOT proceed.
+    mock_aassess.assert_called_once()
+    assert result.status == 403
+    assert result.settled is False
+
+
+@pytest.mark.asyncio
+async def test_gate_per_request_policy_none_routes_to_wallet_ofac_floor_allows_clean(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`per_request_policy(ctx) → None` → wallet OFAC floor; a CLEAN signer passes
+    the floor and settle proceeds to 200."""
+    from agentscore_commerce.checkout import CheckoutGateConfig
+    from agentscore_commerce.payment.signer import PaymentSigner
+
+    async def _policy(_ctx: Any) -> None:
+        return None
+
+    gate = CheckoutGateConfig(api_key="k", per_request_policy=_policy)
+    checkout = _checkout_with_gate(gate)
+    clean_signer = PaymentSigner(address="0xaaa0000000000000000000000000000000000099", network="evm")
+    with (
+        patch("agentscore_commerce.payment.signer.extract_payment_signer", return_value=clean_signer),
+        patch(
+            "agentscore_commerce.api.AgentScore.aassess",
+            new=AsyncMock(return_value={"decision": "allow", "decision_reasons": []}),
+        ) as mock_aassess,
+    ):
+        result = await checkout.handle(
+            CheckoutRequest(
+                method="POST",
+                url="https://api.example/purchase",
+                headers={"authorization": "Payment <opaque>"},
+                body={},
+            ),
+        )
+    mock_aassess.assert_called_once()
+    assert result.status == 200
+
+
+@pytest.mark.asyncio
+async def test_gate_per_request_policy_none_floor_skips_without_signer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`per_request_policy(ctx) → None` → wallet OFAC floor; with NO extractable
+    signer (Stripe SPT / card / no crypto payment) the floor is a no-op — no
+    forced wallet, no assess call, settle proceeds to 200."""
     from agentscore_commerce.checkout import CheckoutGateConfig
 
     async def _policy(_ctx: Any) -> None:
@@ -780,14 +855,20 @@ async def test_gate_per_request_policy_none_skips_gate(monkeypatch: pytest.Monke
 
     gate = CheckoutGateConfig(api_key="k", per_request_policy=_policy)
     checkout = _checkout_with_gate(gate)
-    result = await checkout.handle(
-        CheckoutRequest(
-            method="POST",
-            url="https://api.example/purchase",
-            headers={"authorization": "Payment <opaque>"},
-            body={},
-        ),
-    )
+    with (
+        patch("agentscore_commerce.payment.signer.extract_payment_signer", return_value=None),
+        patch("agentscore_commerce.api.AgentScore.aassess", new=AsyncMock()) as mock_aassess,
+    ):
+        result = await checkout.handle(
+            CheckoutRequest(
+                method="POST",
+                url="https://api.example/purchase",
+                headers={"authorization": "Payment <opaque>"},
+                body={},
+            ),
+        )
+    # No signer → floor never reaches /v1/assess; nothing forced.
+    mock_aassess.assert_not_called()
     assert result.status == 200
 
 

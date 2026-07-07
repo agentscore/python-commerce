@@ -3,7 +3,7 @@
 A *policy* is a small bag of fields describing what identity the merchant
 wants verified for a given resource:
 
-- ``enforcement``:  ``"hard"`` (today's wine path — 403 on miss) or ``"soft"``
+- ``enforcement``:  ``"hard"`` (the regulated-goods path — 403 on miss) or ``"soft"``
                     (gate denial is swallowed; the order completes with a
                     degraded ``identity_status``). ``None`` = no gate at all.
 - ``require_kyc`` / ``require_sanctions_clear`` / ``min_age``: passed through
@@ -54,6 +54,7 @@ class PolicyBlock(TypedDict, total=False):
     require_kyc: bool
     require_sanctions_clear: bool
     min_age: int
+    blocked_jurisdictions: list[str]
     allowed_jurisdictions: list[str]
     allowed_shipping_countries: list[str]
     allowed_shipping_states: list[str]
@@ -78,12 +79,49 @@ class GateResult:
     denial_body: dict[str, Any] | None = None
 
 
+# OFAC SDN denial reasons. These are strict-liability: soft enforcement may downgrade
+# KYC / age / jurisdiction misses (the merchant accepts the order with a degraded
+# identity_status), but it must NEVER swallow a sanctions deny — falsely settling for a
+# sanctioned wallet is an OFAC violation regardless of the merchant's soft posture. The API
+# emits `sanctions_flagged` in `decision_reasons` for BOTH the operator/wallet SDN hit and
+# the payment-signer OFAC SDN hit; `sanctions_check_unavailable` is the fail-closed
+# unavailable-lookup variant (a missing screen on a strict rail is also a hard deny). Match
+# the canonical strings from `the AgentScore API`.
+_SANCTIONS_DENIAL_REASONS: frozenset[str] = frozenset(
+    {
+        "sanctions_flagged",
+        "sanctions_check_unavailable",
+    }
+)
+
+
+def _is_sanctions_denial(body: Mapping[str, Any] | None) -> bool:
+    """True when a gate denial body indicates an OFAC SDN sanctions hit (or unavailable screen).
+
+    Inspects the flat denial body emitted by ``denial_reason_to_body``: a
+    ``wallet_not_trusted`` (or signer-sanctions) deny carries the sanctions reason in
+    ``reasons`` / ``decision_reasons``. Used by :func:`run_gate_with_enforcement` so soft
+    mode can downgrade non-sanctions denials while leaving a sanctions deny terminal.
+    """
+    if not isinstance(body, dict):
+        return False
+    for key in ("reasons", "decision_reasons"):
+        raw = body.get(key)
+        if isinstance(raw, (list, tuple)) and any(r in _SANCTIONS_DENIAL_REASONS for r in raw):
+            return True
+    # The signer-sanctions SDN deny may also surface as a top-level error code.
+    error = body.get("error")
+    code = error.get("code") if isinstance(error, dict) else None
+    return code in _SANCTIONS_DENIAL_REASONS
+
+
 def build_gate_from_policy(
     policy: Mapping[str, Any] | None,
     *,
     api_key: str,
-    base_url: str = "https://api.agentscore.sh",
+    base_url: str = "https://api.agentscore.com",
     create_session_on_missing: CreateSessionOnMissing | None = None,
+    aip_trusted_issuers: list[str] | None = None,
 ) -> AgentScoreGate | None:
     """Build a per-request :class:`AgentScoreGate` from a :class:`PolicyBlock`-shaped mapping.
 
@@ -109,8 +147,10 @@ def build_gate_from_policy(
         require_kyc=policy.get("require_kyc"),
         require_sanctions_clear=policy.get("require_sanctions_clear"),
         min_age=policy.get("min_age"),
+        blocked_jurisdictions=policy.get("blocked_jurisdictions"),
         allowed_jurisdictions=policy.get("allowed_jurisdictions"),
         create_session_on_missing=create_session_on_missing,
+        aip_trusted_issuers=aip_trusted_issuers,
     )
 
 
@@ -123,24 +163,42 @@ async def run_gate_with_enforcement(
     """Run the gate respecting the enforcement mode.
 
     - ``gate is None`` or ``enforcement is None``: no gate fires; status="anonymous".
-    - ``enforcement="hard"`` + gate raises HTTPException: status="denied"; caller
-      must return ``denial_status`` + ``denial_body`` as the response.
-    - ``enforcement="soft"`` + gate raises HTTPException: swallow the denial;
-      status="unverified".
+    - ``enforcement="hard"`` + gate denies (raises ``_GateDenialError`` or
+      ``HTTPException``): status="denied"; caller returns ``denial_status`` +
+      ``denial_body``.
+    - ``enforcement="soft"`` + gate denies: swallow the denial; status="unverified".
     - gate accepts: status="verified".
+
+    **Sanctions are never swallowed.** Soft mode is a commercial knob — it lets a merchant
+    accept an order from an agent that didn't satisfy KYC / age / jurisdiction (stamping a
+    degraded ``identity_status`` for ops). But an OFAC SDN sanctions deny is strict-liability:
+    settling for a sanctioned wallet is a violation regardless of the merchant's posture. So a
+    denial whose body indicates sanctions (:func:`_is_sanctions_denial`) returns
+    ``status="denied"`` even under ``enforcement="soft"``; soft only downgrades the
+    non-sanctions reasons.
     """
     if gate is None or enforcement is None:
         return GateResult(status="anonymous")
 
-    # Local import keeps this module importable without FastAPI installed
+    # Local imports keep this module importable without FastAPI installed
     # for vendors who only use the policy types.
     from fastapi import HTTPException
 
+    from agentscore_commerce.identity.fastapi import _GateDenialError
+
     try:
         await gate(request)
+    except _GateDenialError as exc:
+        # Post-flatten the gate raises a FLAT _GateDenialError (not HTTPException).
+        # Convert it to a GateResult so soft mode can swallow the denial and hard mode
+        # can propagate the flat body — same contract as the HTTPException path below.
+        # A sanctions deny stays terminal in BOTH modes (see _is_sanctions_denial).
+        if enforcement == "hard" or _is_sanctions_denial(exc.body):
+            return GateResult(status="denied", denial_status=exc.status, denial_body=exc.body)
+        return GateResult(status="unverified", denial_status=exc.status, denial_body=exc.body)
     except HTTPException as exc:
         body = exc.detail if isinstance(exc.detail, dict) else {"error": {"message": str(exc.detail)}}
-        if enforcement == "hard":
+        if enforcement == "hard" or _is_sanctions_denial(body):
             return GateResult(status="denied", denial_status=exc.status_code, denial_body=body)
         return GateResult(status="unverified", denial_status=exc.status_code, denial_body=body)
     return GateResult(status="verified")

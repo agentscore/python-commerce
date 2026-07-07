@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
+from agentscore_commerce.aip.gate import (
+    AipGateOptions,
+    build_aip_error_body,
+    evaluate_aip_parts,
+)
 from agentscore_commerce.identity._denial import (
     denial_reason_status,
     is_fixable_denial,
@@ -39,9 +45,15 @@ from agentscore_commerce.payment.signer import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Coroutine
 
     from flask import Flask, Request, Response
+
+    from agentscore_commerce.aip.gate import AipErrorBody, AipGateEvaluation
+    from agentscore_commerce.aip.jwks import JwksCache
+    from agentscore_commerce.aip.request import VerifyContextParts
+    from agentscore_commerce.aip.types import TrustLevel
+    from agentscore_commerce.aip.verify import VerifiedAit
 
 DEFAULT_ADDRESS_HEADER = "x-wallet-address"
 DEFAULT_TOKEN_HEADER = "x-operator-token"
@@ -50,13 +62,36 @@ ASSESS_STATE_KEY = "agentscore"
 
 __all__ = [
     "agentscore_gate",
+    "aip_gate",
     "capture_wallet",
     "conditional_agentscore_gate",
+    "conditional_aip_gate",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
+    "get_verified_ait",
 ]
+
+
+def _run_aip_sync(coro: Coroutine[Any, Any, AipGateEvaluation]) -> AipGateEvaluation:
+    """Run the async AIP evaluation from Flask's sync ``before_request``.
+
+    Flask's WSGI request path is synchronous but :func:`evaluate_aip_parts` is a coroutine.
+    The default :class:`~agentscore_commerce.aip.jwks.JwksCache` fetcher opens a throwaway
+    ``httpx.AsyncClient`` per JWKS fetch (no loop affinity) and the cache stores plain dicts, so
+    a fresh ``asyncio.run`` per request is safe. When called from inside a running loop
+    (async-Flask on ASGI), fall back to a dedicated thread so we never re-enter the loop.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(lambda: asyncio.run(coro)).result()
 
 
 def get_agentscore_data() -> dict[str, Any] | None:
@@ -134,7 +169,7 @@ def agentscore_gate(
     allowed_jurisdictions: list[str] | None = None,
     fail_open: bool = False,
     cache_seconds: int = 300,
-    base_url: str = "https://api.agentscore.sh",
+    base_url: str = "https://api.agentscore.com",
     chain: str | None = None,
     user_agent: str | None = None,
     extract_identity: Callable[[Request], AgentIdentity | None] | None = None,
@@ -146,6 +181,7 @@ def agentscore_gate(
     | None = None,
     create_session_on_missing: CreateSessionOnMissing | None = None,
     condition: Callable[[Request], bool] | None = None,
+    aip_trusted_issuers: list[str] | None = None,
 ) -> None:
     """Register AgentScore gate as a Flask before_request handler.
 
@@ -172,6 +208,7 @@ def agentscore_gate(
         base_url=base_url,
         chain=chain,
         user_agent=user_agent,
+        aip_trusted_issuers=aip_trusted_issuers,
     )
     _resolve_identity = extract_identity or _default_extract_identity
     _extract_chain = extract_chain or _default_extract_chain
@@ -210,7 +247,7 @@ def agentscore_gate(
         if not identity:
             if client.fail_open:
                 return None
-            denial_reason = build_missing_identity_reason()
+            denial_reason = build_missing_identity_reason(client.aip_trusted_issuers)
             if create_session_on_missing is not None:
                 session_reason = try_create_session_denial_reason_sync(
                     create_session_on_missing,
@@ -235,10 +272,15 @@ def agentscore_gate(
 
             if result.allow:
                 g.agentscore = result.raw
-                if result.quota is not None:
-                    state = getattr(g, "_agentscore_gate", None)
-                    if isinstance(state, dict):
+                state = getattr(g, "_agentscore_gate", None)
+                if isinstance(state, dict):
+                    if result.quota is not None:
                         state["quota"] = result.quota
+                    # Request-scope the signer verdict (see fastapi.get_signer_verdict): stash the
+                    # verdict projected from THIS request's raw response so a concurrent
+                    # same-wallet request with a different signer can't race the shared-core slot.
+                    if identity.address and signer_payload is not None:
+                        state["signer_verdict"] = client.project_signer_verdict(result.raw, identity.address)
                 return None
 
             # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
@@ -300,6 +342,9 @@ def get_signer_verdict() -> SignerVerdict | None:
     Reads gate state from Flask's ``g`` object. Returns ``None`` for operator-token-only
     requests, requests with no payment credential, or fail-open pass-throughs (no
     assess call). See :class:`SignerVerdict` for the verdict shape.
+
+    Reads the request-scoped verdict stashed by the gate (projected from THIS request's
+    assess response) — concurrency-safe against a sibling same-wallet request.
     """
     from flask import g
 
@@ -307,12 +352,9 @@ def get_signer_verdict() -> SignerVerdict | None:
         state = getattr(g, "_agentscore_gate", None)
     except RuntimeError:
         return None
-    if not state or not state.get("wallet_address"):
+    if not isinstance(state, dict):
         return None
-    client = state.get("client")
-    if client is None:
-        return None
-    return client.get_signer_verdict(state["wallet_address"])
+    return state.get("signer_verdict")
 
 
 def capture_wallet(
@@ -366,3 +408,122 @@ def conditional_agentscore_gate(app: Flask, **kwargs: Any) -> None:
 
     kwargs["condition"] = has_payment_header
     agentscore_gate(app, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
+# merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
+# Flask is WSGI (no request object the async verifier accepts directly), so the gate builds
+# raw request parts (method + url + header map) and runs the async ``evaluate_aip_parts`` on a
+# private event loop. ``get_verified_ait`` reads the token off Flask's request-scoped ``g``.
+# ---------------------------------------------------------------------------
+
+AIT_STATE_KEY = "_agentscore_ait"
+
+
+def get_verified_ait() -> VerifiedAit | None:
+    """Return the verified AIT the gate stashed on Flask's request-scoped ``g``.
+
+    Returns ``None`` outside a gated request, or when the conditional gate let an
+    unauthenticated request through.
+    """
+    from flask import g
+
+    try:
+        return getattr(g, AIT_STATE_KEY, None)
+    except RuntimeError:
+        return None
+
+
+def aip_gate(
+    app: Flask,
+    *,
+    jwks: JwksCache,
+    now: float | None = None,
+    max_skew_seconds: float | None = None,
+    require_trust_level: TrustLevel | None = None,
+    require_amr: list[str] | None = None,
+    required_claims: list[str] | None = None,
+    trusted_issuers: list[str] | None = None,
+    on_denied: Callable[
+        [Request, AipErrorBody],
+        tuple[dict[str, Any], int] | tuple[dict[str, Any], int, dict[str, str]],
+    ]
+    | None = None,
+    condition: Callable[[Request], bool] | None = None,
+) -> None:
+    """Register an AIP gate as a Flask ``before_request`` handler.
+
+    Verifies the IdP signature + RFC 9421 proof-of-possession + expiry + trust offline against
+    the issuer's published JWKS (no API round trip). On a verify/trust failure it returns the
+    RFC 9457 ``application/problem+json`` body; on success it stashes the verified token on ``g``
+    for :func:`get_verified_ait`.
+
+    Usage::
+
+        from flask import Flask
+        from agentscore_commerce.aip import JwksCache
+        from agentscore_commerce.identity.flask import aip_gate
+
+        app = Flask(__name__)
+        aip_gate(app, jwks=JwksCache(trusted_issuers=["https://issuer.example"]))
+    """
+    from flask import g, jsonify
+    from flask import request as flask_request
+
+    opts = AipGateOptions(
+        jwks=jwks,
+        now=now,
+        max_skew_seconds=max_skew_seconds,
+        require_trust_level=require_trust_level,
+        require_amr=require_amr,
+        required_claims=required_claims,
+        trusted_issuers=trusted_issuers,
+    )
+
+    def _deny(body: AipErrorBody) -> tuple[Response, int]:
+        if on_denied is not None:
+            result = on_denied(flask_request, body)
+            headers: dict[str, str] = {}
+            if len(result) == 3:
+                resp_body, status, headers = cast("tuple[dict, int, dict[str, str]]", result)
+            else:
+                resp_body, status = cast("tuple[dict, int]", result)
+            response = jsonify(resp_body)
+            for k, v in headers.items():
+                response.headers[k] = v
+            return response, status
+        response = jsonify(body)
+        response.headers["Content-Type"] = "application/problem+json"
+        return response, int(body.get("status", 401))
+
+    @app.before_request
+    def _aip_check() -> Response | tuple[Response, int] | None:
+        if condition is not None and not condition(flask_request):
+            return None
+        parts: VerifyContextParts = {
+            "method": flask_request.method,
+            "url": flask_request.url,
+            "headers": dict(flask_request.headers),
+        }
+        evaluation = _run_aip_sync(evaluate_aip_parts(parts, opts))
+        if not evaluation.ok:
+            return _deny(evaluation.body or build_aip_error_body("malformed_token"))
+        g._agentscore_ait = evaluation.ait
+        return None
+
+
+def conditional_aip_gate(app: Flask, **kwargs: Any) -> None:
+    """Register :func:`aip_gate` to verify only when an ``Agent-Identity`` header is present.
+
+    Requests without the header flow through unauthenticated; requests that carry one must
+    pass full verification. Accepts the same kwargs as :func:`aip_gate`.
+    """
+    from agentscore_commerce.aip.request import has_agent_identity_header_parts
+
+    def _has_header(request: Request) -> bool:
+        return has_agent_identity_header_parts(dict(request.headers))
+
+    kwargs["condition"] = _has_header
+    aip_gate(app, **kwargs)

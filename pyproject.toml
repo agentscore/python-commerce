@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentscore-commerce"
-version = "2.4.0"
+version = "2.5.0"
 description = "Agent commerce SDK for Python — identity middleware (FastAPI, Flask, Django, AIOHTTP, Sanic, ASGI) + payment helpers + 402 builders + discovery + Stripe multichain. The full merchant-side toolkit for AgentScore-powered agent commerce."
 readme = "README.md"
 license = "MIT"
@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 keywords = ["agentscore", "agent-commerce", "agentic-payments", "402", "x402", "mpp", "machine-payments-protocol", "fastapi", "starlette", "flask", "django", "aiohttp", "sanic", "middleware", "trust", "reputation", "kyc", "identity", "stripe", "tempo", "solana", "base", "ai-agent"]
 dependencies = [
     "httpx>=0.25.0,<1.0.0",
-    "agentscore-py>=2.4.0",
+    "agentscore-py>=2.5.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -47,7 +47,7 @@ ucp = ["joserfc>=1.0.0,<2"]
 redis = ["redis>=5.0,<8"]
 
 [project.urls]
-Homepage = "https://agentscore.sh"
+Homepage = "https://www.agentscore.com"
 Repository = "https://github.com/agentscore/python-commerce"
 Issues = "https://github.com/agentscore/python-commerce/issues"
 
@@ -89,6 +89,7 @@ include = ["agentscore_commerce"]
 ignore_names = [
     "scope", "receive", "send",  # ASGI middleware __call__ signature
     "ex", "seconds",  # _RedisLike Protocol method params
+    "default",  # HeadersLike.get Protocol stub param (mirrors Mapping.get)
     "AgentScoreGate", "AssessResult", "DenialReason", "OperatorVerification",
     "DecisionPolicy", "Signer",  # TYPE_CHECKING string-cast references
 ]
@@ -111,3 +112,10 @@ required-version = ">=0.11.0"
 # undocumented `fastar` typosquat dependency. Pin away from it until a clean
 # release supersedes it on PyPI.
 constraint-dependencies = ["fastapi!=0.136.3"]
+
+# The AIP port depends on agentscore-py>=2.5.0 (assess(aip_token=, aip_signature=)
+# + types.AipProvenance/AipSignatureMaterial). 2.5.0 is the unpublished sibling
+# SDK (still local while AIP stays unreleased), so resolve it from the sibling
+# checkout. Drop this source once agentscore-py 2.5.0 is on PyPI.
+[tool.uv.sources]
+agentscore-py = { path = "../python-sdk", editable = true }

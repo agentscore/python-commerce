@@ -525,9 +525,24 @@ class ComputeFirstCheckout:
         price_cents: int,
         recipients: dict[str, str],
     ) -> tuple[int, dict[str, Any], dict[str, str]]:
+        # Security: the signed ``payTo`` is agent-controlled (it rides in the X-Payment header). If
+        # accepted blindly, an agent can re-point settlement at a wallet it owns and drain funds the
+        # merchant expected to receive. Bind it to the recipient THIS endpoint resolved for the
+        # request (``recipients["x402_base"]`` — already minted/static-resolved in
+        # _mint_and_resolve_recipients), accepting the payTo only when it matches (case-insensitive
+        # EVM compare). Mirrors the reference payTo-binding fix. When no x402_base recipient was
+        # resolved (no rail), keep the prior permissive behavior — there's nothing to bind against.
+        expected_pay_to = recipients.get("x402_base")
+
+        async def _bind_pay_to(addr: str) -> bool:
+            # No resolved x402_base recipient (no rail) → nothing to bind against; stay permissive.
+            if expected_pay_to is None:
+                return True
+            return addr.lower() == expected_pay_to.lower()
+
         verified = await verify_x402_request(
             headers=request.headers,
-            is_cached_address=lambda _addr: _true(),
+            is_cached_address=_bind_pay_to,
             accepted_network=(self.rails.x402_base.network if self.rails.x402_base else "eip155:8453"),
         )
         if not isinstance(verified, VerifyX402RequestSuccess):
@@ -1008,7 +1023,3 @@ def _json_dumps(body: dict[str, Any]) -> str:
     import json
 
     return json.dumps(body, separators=(",", ":"), sort_keys=True)
-
-
-async def _true() -> bool:
-    return True

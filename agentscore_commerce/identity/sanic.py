@@ -6,6 +6,11 @@ from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
+from agentscore_commerce.aip.gate import (
+    AipGateOptions,
+    build_aip_error_body,
+    evaluate_aip_request,
+)
 from agentscore_commerce.identity._denial import (
     denial_reason_status,
     is_fixable_denial,
@@ -43,6 +48,11 @@ if TYPE_CHECKING:
 
     from sanic import HTTPResponse, Request, Sanic
 
+    from agentscore_commerce.aip.gate import AipErrorBody
+    from agentscore_commerce.aip.jwks import JwksCache
+    from agentscore_commerce.aip.types import TrustLevel
+    from agentscore_commerce.aip.verify import VerifiedAit
+
 DEFAULT_ADDRESS_HEADER = "x-wallet-address"
 DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_ATTR = "_agentscore_gate"
@@ -56,12 +66,15 @@ def _mark_degraded_sanic(request: Request, infra_reason: str) -> None:
 
 __all__ = [
     "agentscore_gate",
+    "aip_gate",
     "capture_wallet",
     "conditional_agentscore_gate",
+    "conditional_aip_gate",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
+    "get_verified_ait",
 ]
 
 
@@ -131,7 +144,7 @@ def agentscore_gate(
     allowed_jurisdictions: list[str] | None = None,
     fail_open: bool = False,
     cache_seconds: int = 300,
-    base_url: str = "https://api.agentscore.sh",
+    base_url: str = "https://api.agentscore.com",
     chain: str | None = None,
     user_agent: str | None = None,
     extract_identity: Callable[[Request], AgentIdentity | None] | None = None,
@@ -143,6 +156,7 @@ def agentscore_gate(
     | None = None,
     create_session_on_missing: CreateSessionOnMissing | None = None,
     condition: Callable[[Request], bool] | None = None,
+    aip_trusted_issuers: list[str] | None = None,
 ) -> None:
     """Register AgentScore gate as a Sanic request middleware.
 
@@ -168,6 +182,7 @@ def agentscore_gate(
         base_url=base_url,
         chain=chain,
         user_agent=user_agent,
+        aip_trusted_issuers=aip_trusted_issuers,
     )
     _resolve_identity = extract_identity or _default_extract_identity
     _extract_chain = extract_chain or _default_extract_chain
@@ -209,7 +224,7 @@ def agentscore_gate(
                 )
                 if session_reason is not None:
                     return _deny_response(request, session_reason)
-            return _deny_response(request, build_missing_identity_reason())
+            return _deny_response(request, build_missing_identity_reason(client.aip_trusted_issuers))
 
         chain_override = _extract_chain(request)
 
@@ -225,10 +240,15 @@ def agentscore_gate(
 
             if result.allow:
                 request.ctx.agentscore = result.raw
-                if result.quota is not None:
-                    state = getattr(request.ctx, GATE_STATE_ATTR, None)
-                    if isinstance(state, dict):
+                state = getattr(request.ctx, GATE_STATE_ATTR, None)
+                if isinstance(state, dict):
+                    if result.quota is not None:
                         state["quota"] = result.quota
+                    # Request-scope the signer verdict (see fastapi.get_signer_verdict): stash the
+                    # verdict projected from THIS request's raw response so a concurrent
+                    # same-wallet request with a different signer can't race the shared-core slot.
+                    if identity.address and signer_payload is not None:
+                        state["signer_verdict"] = client.project_signer_verdict(result.raw, identity.address)
                 return None
 
             # Fixable compliance denials (kyc_required, kyc_pending, kyc_failed) get the
@@ -291,14 +311,14 @@ def get_signer_verdict(request: Request) -> SignerVerdict | None:
 
     Returns ``None`` for operator-token-only requests, for requests with no payment
     credential, or for fail-open pass-throughs (no assess call).
+
+    Reads the request-scoped verdict stashed by the gate (projected from THIS request's
+    assess response) — concurrency-safe against a sibling same-wallet request.
     """
     state = getattr(request.ctx, GATE_STATE_ATTR, None)
-    if not state or not state.get("wallet_address"):
+    if not isinstance(state, dict):
         return None
-    client = state.get("client")
-    if client is None:
-        return None
-    return client.get_signer_verdict(state["wallet_address"])
+    return state.get("signer_verdict")
 
 
 async def capture_wallet(
@@ -341,3 +361,96 @@ def conditional_agentscore_gate(app: Sanic, **kwargs: Any) -> None:
 
     kwargs["condition"] = has_payment_header
     agentscore_gate(app, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
+# merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
+# Sanic's ``Request`` exposes method / url / headers, so this verifies straight off the
+# request via ``evaluate_aip_request``. ``get_verified_ait`` reads the token off ``request.ctx``.
+# ---------------------------------------------------------------------------
+
+AIT_STATE_ATTR = "_agentscore_ait"
+
+
+def get_verified_ait(request: Request) -> VerifiedAit | None:
+    """Return the verified AIT attached to ``request.ctx`` by :func:`aip_gate`.
+
+    Returns ``None`` when the request wasn't AIP-gated, or the conditional gate let an
+    unauthenticated request through.
+    """
+    return getattr(request.ctx, AIT_STATE_ATTR, None)
+
+
+def aip_gate(
+    app: Sanic,
+    *,
+    jwks: JwksCache,
+    now: float | None = None,
+    max_skew_seconds: float | None = None,
+    require_trust_level: TrustLevel | None = None,
+    require_amr: list[str] | None = None,
+    required_claims: list[str] | None = None,
+    trusted_issuers: list[str] | None = None,
+    on_denied: Callable[[Request, AipErrorBody], HTTPResponse] | None = None,
+    condition: Callable[[Request], bool] | None = None,
+) -> None:
+    """Register an AIP gate as a Sanic request middleware.
+
+    Verifies the IdP signature + RFC 9421 proof-of-possession + expiry + trust offline against
+    the issuer's published JWKS (no API round trip). On a verify/trust failure it short-circuits
+    with the RFC 9457 ``application/problem+json`` body; on success it stashes the verified token
+    on ``request.ctx`` for :func:`get_verified_ait`.
+
+    Usage::
+
+        from sanic import Sanic
+        from agentscore_commerce.aip import JwksCache
+        from agentscore_commerce.identity.sanic import aip_gate, get_verified_ait
+
+        app = Sanic("myapp")
+        aip_gate(app, jwks=JwksCache(trusted_issuers=["https://issuer.example"]))
+    """
+    from sanic import response
+
+    opts = AipGateOptions(
+        jwks=jwks,
+        now=now,
+        max_skew_seconds=max_skew_seconds,
+        require_trust_level=require_trust_level,
+        require_amr=require_amr,
+        required_claims=required_claims,
+        trusted_issuers=trusted_issuers,
+    )
+
+    def _deny_response(request: Request, body: AipErrorBody) -> HTTPResponse:
+        if on_denied is not None:
+            return on_denied(request, body)
+        return response.json(
+            body,
+            status=int(body.get("status", 401)),
+            content_type="application/problem+json",
+        )
+
+    @app.middleware("request")
+    async def _aip_check(request: Request) -> HTTPResponse | None:
+        if condition is not None and not condition(request):
+            return None
+        evaluation = await evaluate_aip_request(request, opts)
+        if not evaluation.ok:
+            return _deny_response(request, evaluation.body or build_aip_error_body("malformed_token"))
+        setattr(request.ctx, AIT_STATE_ATTR, evaluation.ait)
+        return None
+
+
+def conditional_aip_gate(app: Sanic, **kwargs: Any) -> None:
+    """Register :func:`aip_gate` to verify only when an ``Agent-Identity`` header is present.
+
+    Requests without the header flow through unauthenticated; requests that carry one must
+    pass full verification. Accepts the same kwargs as :func:`aip_gate`.
+    """
+    from agentscore_commerce.aip.request import has_agent_identity_header
+
+    kwargs["condition"] = has_agent_identity_header
+    aip_gate(app, **kwargs)

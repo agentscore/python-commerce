@@ -1,5 +1,11 @@
 """Per-adapter coverage for ``get_signer_verdict`` — returns ``None`` when no signer was
-extracted (operator-token-only paths, no payment credential, missing gate state)."""
+extracted (operator-token-only paths, no payment credential, missing gate state).
+
+The verdict is REQUEST-SCOPED: the gate stashes ``state["signer_verdict"]`` (projected from
+THIS request's assess response) on the per-request state, and ``get_signer_verdict`` reads it
+back from there rather than calling the shared core (which would race a concurrent same-wallet
+request signing with a different wallet). These tests assert the read path; the concurrency
+guarantee is covered by ``test_signer_verdict_request_scoped.py``."""
 
 from __future__ import annotations
 
@@ -33,18 +39,20 @@ def test_asgi_get_signer_verdict_returns_none_for_operator_token_only() -> None:
     fake_client.get_signer_verdict.assert_not_called()
 
 
-def test_asgi_get_signer_verdict_delegates_to_client() -> None:
+def test_asgi_get_signer_verdict_reads_request_scoped_verdict() -> None:
     from agentscore_commerce.identity.middleware import GATE_STATE_KEY, get_signer_verdict
     from agentscore_commerce.identity.types import SignerVerdict
 
     sentinel = SignerVerdict(signer_match=None, signer_sanctions={"kind": "clear"})
     fake_client = MagicMock()
-    fake_client.get_signer_verdict.return_value = sentinel
     request = MagicMock()
-    request.scope = {"state": {GATE_STATE_KEY: {"client": fake_client, "wallet_address": WALLET}}}
+    request.scope = {
+        "state": {GATE_STATE_KEY: {"client": fake_client, "wallet_address": WALLET, "signer_verdict": sentinel}}
+    }
     verdict = get_signer_verdict(request)
     assert verdict is sentinel
-    fake_client.get_signer_verdict.assert_called_once_with(WALLET)
+    # Request-scoped: read off per-request state, never the shared core.
+    fake_client.get_signer_verdict.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -62,18 +70,19 @@ def test_fastapi_get_signer_verdict_returns_none_for_operator_token_only() -> No
     fake_client.get_signer_verdict.assert_not_called()
 
 
-def test_fastapi_get_signer_verdict_delegates_to_client() -> None:
+def test_fastapi_get_signer_verdict_reads_request_scoped_verdict() -> None:
     from agentscore_commerce.identity.fastapi import GATE_STATE_KEY, get_signer_verdict
     from agentscore_commerce.identity.types import SignerVerdict
 
     sentinel = SignerVerdict(signer_match=None, signer_sanctions=None)
     fake_client = MagicMock()
-    fake_client.get_signer_verdict.return_value = sentinel
     request = MagicMock()
-    setattr(request.state, GATE_STATE_KEY, {"client": fake_client, "wallet_address": WALLET})
+    setattr(
+        request.state, GATE_STATE_KEY, {"client": fake_client, "wallet_address": WALLET, "signer_verdict": sentinel}
+    )
     verdict = get_signer_verdict(request)
     assert verdict is sentinel
-    fake_client.get_signer_verdict.assert_called_once_with(WALLET)
+    fake_client.get_signer_verdict.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +105,7 @@ def test_flask_get_signer_verdict_returns_none_for_operator_token_only() -> None
     fake_client.get_signer_verdict.assert_not_called()
 
 
-def test_flask_get_signer_verdict_delegates_to_client() -> None:
+def test_flask_get_signer_verdict_reads_request_scoped_verdict() -> None:
     from flask import Flask
 
     from agentscore_commerce.identity.flask import get_signer_verdict
@@ -105,14 +114,17 @@ def test_flask_get_signer_verdict_delegates_to_client() -> None:
     sentinel = SignerVerdict(signer_match=None, signer_sanctions=None)
     app = Flask(__name__)
     fake_client = MagicMock()
-    fake_client.get_signer_verdict.return_value = sentinel
     with app.test_request_context("/"):
         from flask import g
 
-        g._agentscore_gate = {"client": fake_client, "wallet_address": WALLET}  # type: ignore[attr-defined]
+        g._agentscore_gate = {  # type: ignore[attr-defined]
+            "client": fake_client,
+            "wallet_address": WALLET,
+            "signer_verdict": sentinel,
+        }
         verdict = get_signer_verdict()
     assert verdict is sentinel
-    fake_client.get_signer_verdict.assert_called_once_with(WALLET)
+    fake_client.get_signer_verdict.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -130,18 +142,17 @@ def test_django_get_signer_verdict_returns_none_for_operator_token_only() -> Non
     fake_client.get_signer_verdict.assert_not_called()
 
 
-def test_django_get_signer_verdict_delegates_to_client() -> None:
+def test_django_get_signer_verdict_reads_request_scoped_verdict() -> None:
     from agentscore_commerce.identity.django import get_signer_verdict
     from agentscore_commerce.identity.types import SignerVerdict
 
     sentinel = SignerVerdict(signer_match=None, signer_sanctions=None)
     fake_client = MagicMock()
-    fake_client.get_signer_verdict.return_value = sentinel
     request = MagicMock()
-    request._agentscore_gate = {"client": fake_client, "wallet_address": WALLET}
+    request._agentscore_gate = {"client": fake_client, "wallet_address": WALLET, "signer_verdict": sentinel}
     verdict = get_signer_verdict(request)
     assert verdict is sentinel
-    fake_client.get_signer_verdict.assert_called_once_with(WALLET)
+    fake_client.get_signer_verdict.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -161,20 +172,19 @@ def test_aiohttp_get_signer_verdict_returns_none_for_operator_token_only() -> No
     fake_client.get_signer_verdict.assert_not_called()
 
 
-def test_aiohttp_get_signer_verdict_delegates_to_client() -> None:
+def test_aiohttp_get_signer_verdict_reads_request_scoped_verdict() -> None:
     from agentscore_commerce.identity.aiohttp import GATE_STATE_KEY, get_signer_verdict
     from agentscore_commerce.identity.types import SignerVerdict
 
     sentinel = SignerVerdict(signer_match=None, signer_sanctions=None)
     fake_client = MagicMock()
-    fake_client.get_signer_verdict.return_value = sentinel
     request = MagicMock()
     request.get.side_effect = lambda key: (
-        {"client": fake_client, "wallet_address": WALLET} if key == GATE_STATE_KEY else None
+        {"client": fake_client, "wallet_address": WALLET, "signer_verdict": sentinel} if key == GATE_STATE_KEY else None
     )
     verdict = get_signer_verdict(request)
     assert verdict is sentinel
-    fake_client.get_signer_verdict.assert_called_once_with(WALLET)
+    fake_client.get_signer_verdict.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -192,18 +202,17 @@ def test_sanic_get_signer_verdict_returns_none_for_operator_token_only() -> None
     fake_client.get_signer_verdict.assert_not_called()
 
 
-def test_sanic_get_signer_verdict_delegates_to_client() -> None:
+def test_sanic_get_signer_verdict_reads_request_scoped_verdict() -> None:
     from agentscore_commerce.identity.sanic import GATE_STATE_ATTR, get_signer_verdict
     from agentscore_commerce.identity.types import SignerVerdict
 
     sentinel = SignerVerdict(signer_match=None, signer_sanctions=None)
     fake_client = MagicMock()
-    fake_client.get_signer_verdict.return_value = sentinel
     request = MagicMock()
-    setattr(request.ctx, GATE_STATE_ATTR, {"client": fake_client, "wallet_address": WALLET})
+    setattr(request.ctx, GATE_STATE_ATTR, {"client": fake_client, "wallet_address": WALLET, "signer_verdict": sentinel})
     verdict = get_signer_verdict(request)
     assert verdict is sentinel
-    fake_client.get_signer_verdict.assert_called_once_with(WALLET)
+    fake_client.get_signer_verdict.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ Runnable, copy-pasteable example integrations covering the most common merchant 
 All eight examples follow the same rough shape:
 
 1. **Boot:** instantiate FastAPI, identity gate (if any), Stripe / facilitator clients (if any) via commerce factories
-2. **Discovery routes:** `/openapi.json` + `/.well-known/mpp.json` + `/llms.txt` (omitted in these focused examples; see node-commerce for the discovery wiring)
+2. **Discovery routes:** `/openapi.json` + `/.well-known/mpp.json` + `/llms.txt` (omitted in these focused examples; see the discovery module for the wiring)
 3. **Per-request:** identity gate → validate body → 402 challenge (built via commerce/challenge helpers) → settle payment → return result
 
 AgentScore Commerce keeps every step ~5–15 lines instead of ~50–150 lines. Vendors compose; the SDK wraps the protocol-correctness boilerplate.
@@ -44,7 +44,7 @@ These examples are intentionally thin on domain logic. Vendors plug in their own
 
 AgentScore Commerce handles the agent commerce protocol layer; everything else is your business.
 
-## Differences from node-commerce examples
+## Differences from the Node examples
 
 Python wraps `x402[evm]` and `pympp[server,tempo,stripe]` as peer deps; `@solana/mpp` has no Python equivalent today. Two implications:
 

@@ -95,6 +95,19 @@ def test_build_gate_passes_policy_fields() -> None:
     assert gate is not None
 
 
+def test_build_gate_threads_blocked_jurisdictions_to_the_gate() -> None:
+    # Regression: build_gate_from_policy previously read require_kyc / sanctions / min_age /
+    # allowed_jurisdictions but DROPPED blocked_jurisdictions, so a merchant blocklist never
+    # reached AgentScoreCore's policy and the API was never told to enforce it.
+    gate = build_gate_from_policy(
+        {"enforcement": "hard", "blocked_jurisdictions": ["IR", "KP"]},
+        api_key="ask_test",
+    )
+    assert gate is not None
+    # blocked_jurisdictions lands in the core's compiled policy → forwarded to /v1/assess.
+    assert gate._client._policy.get("blocked_jurisdictions") == ["IR", "KP"]
+
+
 # ── run_gate_with_enforcement ───────────────────────────────────────────────
 
 
@@ -145,6 +158,80 @@ async def test_run_gate_soft_handles_string_detail() -> None:
     result = await run_gate_with_enforcement(object(), fake_gate, enforcement="soft")
     assert result.status == "unverified"
     assert result.denial_body == {"error": {"message": "api error"}}
+
+
+@pytest.mark.asyncio
+async def test_run_gate_hard_converts_gate_denial_error() -> None:
+    # Post-flatten the gate raises a FLAT _GateDenialError (not HTTPException);
+    # run_gate_with_enforcement must convert it to a denied GateResult.
+    from agentscore_commerce.identity.fastapi import _GateDenialError
+
+    err = _GateDenialError({"error": {"code": "missing_identity"}}, 403)
+    fake_gate = AsyncMock(side_effect=err)
+    result = await run_gate_with_enforcement(object(), fake_gate, enforcement="hard")
+    assert result.status == "denied"
+    assert result.denial_status == 403
+    assert result.denial_body == {"error": {"code": "missing_identity"}}
+
+
+@pytest.mark.asyncio
+async def test_run_gate_soft_swallows_gate_denial_error() -> None:
+    # soft mode SWALLOWS a non-sanctions _GateDenialError (KYC/age/jurisdiction), stamping
+    # status="unverified" so the order completes with a degraded identity_status. (Sanctions
+    # are the sole exception — see test_run_gate_soft_does_not_swallow_sanctions_*.)
+    # run_gate_with_enforcement previously caught only HTTPException, so once the gate
+    # started raising the flat _GateDenialError, soft mode let the denial propagate.
+    from agentscore_commerce.identity.fastapi import _GateDenialError
+
+    err = _GateDenialError({"error": {"code": "wallet_not_trusted"}, "reasons": ["kyc_required"]}, 403)
+    fake_gate = AsyncMock(side_effect=err)
+    result = await run_gate_with_enforcement(object(), fake_gate, enforcement="soft")
+    assert result.status == "unverified"
+    assert result.denial_status == 403
+    assert result.denial_body == {"error": {"code": "wallet_not_trusted"}, "reasons": ["kyc_required"]}
+
+
+@pytest.mark.asyncio
+async def test_run_gate_soft_does_not_swallow_sanctions_gate_denial_error() -> None:
+    # CRITICAL: soft enforcement must NEVER swallow an OFAC SDN sanctions deny. A
+    # wallet_not_trusted deny whose reasons carry `sanctions_flagged` stays terminal
+    # (status="denied") even under soft, so a sanctioned wallet is never settled.
+    from agentscore_commerce.identity.fastapi import _GateDenialError
+
+    body = {"error": {"code": "wallet_not_trusted"}, "reasons": ["sanctions_flagged"]}
+    err = _GateDenialError(body, 403)
+    fake_gate = AsyncMock(side_effect=err)
+    result = await run_gate_with_enforcement(object(), fake_gate, enforcement="soft")
+    assert result.status == "denied"
+    assert result.denial_status == 403
+    assert result.denial_body == body
+
+
+@pytest.mark.asyncio
+async def test_run_gate_soft_does_not_swallow_sanctions_unavailable() -> None:
+    # The fail-closed unavailable-screen variant (`sanctions_check_unavailable`) is also a
+    # strict-liability deny — soft must not downgrade it to settled.
+    from agentscore_commerce.identity.fastapi import _GateDenialError
+
+    body = {"error": {"code": "wallet_not_trusted"}, "reasons": ["sanctions_check_unavailable"]}
+    err = _GateDenialError(body, 403)
+    fake_gate = AsyncMock(side_effect=err)
+    result = await run_gate_with_enforcement(object(), fake_gate, enforcement="soft")
+    assert result.status == "denied"
+    assert result.denial_body == body
+
+
+@pytest.mark.asyncio
+async def test_run_gate_soft_does_not_swallow_signer_sanctions_error_code() -> None:
+    # A signer-sanctions SDN deny that surfaces as a top-level error.code (not in reasons)
+    # is still recognised as a sanctions deny and stays terminal under soft.
+    from agentscore_commerce.identity.fastapi import _GateDenialError
+
+    body = {"error": {"code": "sanctions_flagged", "message": "signer on SDN list"}}
+    err = _GateDenialError(body, 403)
+    fake_gate = AsyncMock(side_effect=err)
+    result = await run_gate_with_enforcement(object(), fake_gate, enforcement="soft")
+    assert result.status == "denied"
 
 
 def test_module_exports_public_surface() -> None:

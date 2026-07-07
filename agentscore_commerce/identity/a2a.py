@@ -21,7 +21,7 @@ camelCase keys to match the canonical A2A wire format.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 _PROTOCOL_VERSION = "1.0"
 _DEFAULT_TRANSPORT = "JSONRPC"
@@ -35,6 +35,10 @@ A2A_DEFAULT_TRANSPORT = _DEFAULT_TRANSPORT
 UCP_A2A_EXTENSION_URI = "https://ucp.dev/2026-04-08/specification/reference"
 """Canonical UCP A2A extension URI — verifiers look for this exact URI in
 ``capabilities.extensions[]`` to detect UCP support on the agent card."""
+
+AIP_A2A_EXTENSION_URI = "https://www.agentscore.com/.well-known/agent-identity"
+"""Canonical URI for the AIP (Agentic Identity Protocol) A2A agent-card extension — points at the
+issuer-discovery well-known so a reader can resolve the protocol."""
 
 
 @dataclass
@@ -147,6 +151,44 @@ def ucp_a2a_extension(
         description="UCP support: this agent serves Universal Commerce Protocol bindings via the A2A transport.",
         required=required,
         params={"capabilities": capabilities or {}},
+    )
+
+
+def aip_a2a_extension(
+    *,
+    trusted_issuers: list[str] | None = None,
+    required_trust_level: Literal["autonomous", "human_present", "human_confirmed"] | None = None,
+    required_amr: list[str] | None = None,
+    required: bool = False,
+) -> A2AAgentCardExtension:
+    """Build the AIP entry for an A2A agent card's ``capabilities.extensions[]``.
+
+    Advertises that the agent accepts an Agent Identity Token (JWT) in an
+    ``Agent-Identity`` header plus an RFC 9421 proof-of-possession signature — so an
+    agent discovering via the agent-card learns it can present an AIT (matching what
+    the merchant's mpp.json / llms.txt / skill.md already advertise). Optional
+    ``required_trust_level`` / ``required_amr`` surface a gate's human-presence
+    requirement.
+    """
+    params: dict[str, Any] = {
+        "header": "Agent-Identity",
+        "signature": "RFC 9421",
+    }
+    if trusted_issuers:
+        params["trusted_issuers"] = trusted_issuers
+    if required_trust_level is not None:
+        params["required_trust_level"] = required_trust_level
+    if required_amr:
+        params["required_amr"] = required_amr
+    return A2AAgentCardExtension(
+        uri=AIP_A2A_EXTENSION_URI,
+        description=(
+            "AIP support: present an Agent Identity Token (JWT) in an Agent-Identity header plus an RFC 9421 "
+            "HTTP Message Signature (over @method @authority @path agent-identity) proving possession of the "
+            "token-bound cnf key. `agentscore-pay pay --identity aip` attaches it automatically."
+        ),
+        required=required,
+        params=params,
     )
 
 
@@ -368,6 +410,7 @@ def build_a2a_agent_card(
 __all__ = [
     "A2A_DEFAULT_TRANSPORT",
     "A2A_PROTOCOL_VERSION",
+    "AIP_A2A_EXTENSION_URI",
     "UCP_A2A_EXTENSION_URI",
     "A2AAgentCard",
     "A2AAgentCardCapabilities",
@@ -376,6 +419,7 @@ __all__ = [
     "A2AAgentInterface",
     "A2AAgentProvider",
     "A2AAgentSkill",
+    "aip_a2a_extension",
     "build_a2a_agent_card",
     "ucp_a2a_extension",
 ]

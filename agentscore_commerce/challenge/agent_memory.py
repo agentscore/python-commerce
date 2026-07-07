@@ -24,6 +24,7 @@ from agentscore_commerce.identity.types import AgentMemoryHint, build_agent_memo
 
 def first_encounter_agent_memory(
     first_encounter: bool,
+    aip_trusted_issuers: list[str] | None = None,
 ) -> AgentMemoryHint | None:
     """Return the ``agent_memory`` hint when this is a first encounter, otherwise ``None``.
 
@@ -38,13 +39,17 @@ def first_encounter_agent_memory(
             ),
         )
 
+    When the merchant accepts AIP, pass ``aip_trusted_issuers`` (AgentScore's canonical
+    issuer plus any externals) so the hint advertises the ``agent_identity`` path. Omit for
+    non-AIP merchants.
+
     Returning ``None`` means ``build_402_body`` cleanly skips the field instead of
     emitting ``agent_memory: null`` (which would imply "I tried but failed" rather than
     "didn't apply").
     """
     if not first_encounter:
         return None
-    return build_agent_memory_hint()
+    return build_agent_memory_hint(aip_trusted_issuers)
 
 
 __all__ = ["AgentMemoryHint", "build_agent_memory_hint", "first_encounter_agent_memory"]

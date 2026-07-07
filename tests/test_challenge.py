@@ -4,6 +4,7 @@ from agentscore_commerce.challenge import (
     PricingBlock,
     SignerMatchResult,
     X402PaymentRequired,
+    X402ResourceInfo,
     build_402_body,
     build_accepted_methods,
     build_agent_instructions,
@@ -253,3 +254,48 @@ def test_build_402_body_emits_extensions_when_present():
         ),
     )
     assert body["extensions"] == {"bazaar": {"discoverable": True}}
+
+
+def test_build_402_body_emits_resource_metadata_with_camelcase_keys():
+    """x402 v2 resource metadata is surfaced on body.resource with spec camelCase keys."""
+    body = build_402_body(
+        accepted_methods=[],
+        x402=X402PaymentRequired(
+            accepts=[{"scheme": "exact"}],
+            version=2,
+            resource=X402ResourceInfo(
+                url="https://api.example.com/enrich",
+                description="Company enrichment",
+                mime_type="application/json",
+                service_name="Example Enrich",
+                tags=["enrichment", "company"],
+                icon_url="https://api.example.com/icon.png",
+            ),
+        ),
+    )
+    assert body["resource"] == {
+        "url": "https://api.example.com/enrich",
+        "description": "Company enrichment",
+        "mimeType": "application/json",
+        "serviceName": "Example Enrich",
+        "tags": ["enrichment", "company"],
+        "iconUrl": "https://api.example.com/icon.png",
+    }
+
+
+def test_build_402_body_accepts_resource_as_raw_dict():
+    """A raw dict resource passes through verbatim (merchant pre-built the camelCase block)."""
+    body = build_402_body(
+        accepted_methods=[],
+        x402=X402PaymentRequired(
+            accepts=[{"scheme": "exact"}],
+            version=2,
+            resource={"url": "https://api.example.com/x", "mimeType": "application/json"},
+        ),
+    )
+    assert body["resource"] == {"url": "https://api.example.com/x", "mimeType": "application/json"}
+
+
+def test_build_402_body_omits_resource_when_absent():
+    body = build_402_body(accepted_methods=[], x402=X402PaymentRequired(accepts=[{}], version=2))
+    assert "resource" not in body

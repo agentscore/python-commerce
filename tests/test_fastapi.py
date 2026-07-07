@@ -17,9 +17,9 @@ from agentscore_commerce.identity.fastapi import (
 )
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 
-ASSESS_URL = "https://api.agentscore.sh/v1/assess"
-SESSIONS_URL = "https://api.agentscore.sh/v1/sessions"
-CAPTURE_URL = "https://api.agentscore.sh/v1/credentials/wallets"
+ASSESS_URL = "https://api.agentscore.com/v1/assess"
+SESSIONS_URL = "https://api.agentscore.com/v1/sessions"
+CAPTURE_URL = "https://api.agentscore.com/v1/credentials/wallets"
 
 
 def _mock_assess(decision: str = "allow", reasons: list[str] | None = None) -> respx.Route:
@@ -63,16 +63,16 @@ class TestDependency:
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 403
         body = resp.json()
-        # FastAPI wraps HTTPException detail in {"detail": {...}}.
-        assert body["detail"]["error"]["code"] == "wallet_not_trusted"
-        assert body["detail"]["reasons"] == ["kyc_required"]
+        # FLAT denial document — top-level keys, never nested under "detail".
+        assert body["error"]["code"] == "wallet_not_trusted"
+        assert body["reasons"] == ["kyc_required"]
 
     def test_missing_identity_returns_403(self):
         gate = AgentScoreGate(api_key="ask_test")
         client = TestClient(_make_app(gate))
         resp = client.get("/")
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"]["code"] == "missing_identity"
+        assert resp.json()["error"]["code"] == "missing_identity"
 
     def test_fail_open_allows_through_when_identity_missing(self):
         gate = AgentScoreGate(api_key="ask_test", fail_open=True)
@@ -96,7 +96,7 @@ class TestDependency:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"]["code"] == "payment_required"
+        assert resp.json()["error"]["code"] == "payment_required"
 
     @respx.mock
     def test_api_error_returns_403_api_error(self):
@@ -105,7 +105,7 @@ class TestDependency:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 503
-        assert resp.json()["detail"]["error"]["code"] == "api_error"
+        assert resp.json()["error"]["code"] == "api_error"
 
     @respx.mock
     def test_quota_exceeded_returns_503_when_fail_closed(self):
@@ -119,7 +119,7 @@ class TestDependency:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 503
-        body = resp.json()["detail"]
+        body = resp.json()
         assert body["error"]["code"] == "api_error"
         instructions = _json.loads(body["agent_instructions"])
         assert instructions["action"] == "contact_merchant"
@@ -265,7 +265,9 @@ class TestOnDenied:
         client = TestClient(_make_app(gate))
         resp = client.get("/")
         assert resp.status_code == 451
-        body = resp.json()["detail"]
+        body = resp.json()
+        # FLAT: the on_denied override body is emitted verbatim, not nested under "detail".
+        assert "detail" not in body
         assert body["blocked"] is True
         assert body["code"] == "missing_identity"
         assert body["custom"] == "yes"
@@ -312,7 +314,7 @@ class TestCreateSessionOnMissing:
                 200,
                 json={
                     "session_id": "sess_abc123",
-                    "verify_url": "https://agentscore.sh/verify/sess_abc123",
+                    "verify_url": "https://www.agentscore.com/verify/sess_abc123",
                     "poll_secret": "ps_secret",
                     "next_steps": {
                         "action": "deliver_verify_url_and_poll",
@@ -328,15 +330,15 @@ class TestCreateSessionOnMissing:
         client = TestClient(_make_app(gate))
         resp = client.get("/")
         assert resp.status_code == 403
-        detail = resp.json()["detail"]
-        assert detail["error"]["code"] == "identity_verification_required"
-        assert detail["session_id"] == "sess_abc123"
-        assert detail["verify_url"] == "https://agentscore.sh/verify/sess_abc123"
-        assert detail["poll_secret"] == "ps_secret"
+        body = resp.json()
+        assert body["error"]["code"] == "identity_verification_required"
+        assert body["session_id"] == "sess_abc123"
+        assert body["verify_url"] == "https://www.agentscore.com/verify/sess_abc123"
+        assert body["poll_secret"] == "ps_secret"
         # agent_instructions is the JSON-stringified next_steps from the API.
         import json as _json
 
-        parsed = _json.loads(detail["agent_instructions"])
+        parsed = _json.loads(body["agent_instructions"])
         assert parsed["action"] == "deliver_verify_url_and_poll"
         assert parsed["user_message"] == "please verify"
 
@@ -350,7 +352,7 @@ class TestCreateSessionOnMissing:
         client = TestClient(_make_app(gate))
         resp = client.get("/")
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"]["code"] == "missing_identity"
+        assert resp.json()["error"]["code"] == "missing_identity"
 
     @respx.mock
     def test_fixable_wallet_denial_bootstraps_session(self):
@@ -364,7 +366,7 @@ class TestCreateSessionOnMissing:
                 200,
                 json={
                     "session_id": "sess_kyc",
-                    "verify_url": "https://agentscore.sh/verify/sess_kyc",
+                    "verify_url": "https://www.agentscore.com/verify/sess_kyc",
                     "poll_secret": "ps_kyc",
                     "next_steps": {"action": "deliver_verify_url_and_poll"},
                 },
@@ -377,9 +379,9 @@ class TestCreateSessionOnMissing:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 403
-        detail = resp.json()["detail"]
-        assert detail["error"]["code"] == "identity_verification_required"
-        assert detail["session_id"] == "sess_kyc"
+        body = resp.json()
+        assert body["error"]["code"] == "identity_verification_required"
+        assert body["session_id"] == "sess_kyc"
 
     @respx.mock
     def test_unfixable_wallet_denial_returns_bare_wallet_not_trusted(self):
@@ -395,7 +397,7 @@ class TestCreateSessionOnMissing:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"]["code"] == "wallet_not_trusted"
+        assert resp.json()["error"]["code"] == "wallet_not_trusted"
         assert sessions_route.call_count == 0
 
     @respx.mock
@@ -409,7 +411,7 @@ class TestCreateSessionOnMissing:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"]["code"] == "wallet_not_trusted"
+        assert resp.json()["error"]["code"] == "wallet_not_trusted"
 
 
 class TestCaptureWallet:
@@ -559,7 +561,7 @@ class TestUserAgent:
 
 @respx.mock
 def test_fastapi_passes_through_token_expired():
-    respx.post("https://api.agentscore.sh/v1/assess").mock(
+    respx.post("https://api.agentscore.com/v1/assess").mock(
         return_value=httpx.Response(
             401,
             json={
@@ -578,15 +580,15 @@ def test_fastapi_passes_through_token_expired():
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.get("/", headers={"x-operator-token": "opc_exp"})
     assert resp.status_code == 401
-    # FastAPI wraps the denial body under HTTPException.detail.
-    detail = resp.json()["detail"]
-    assert detail["error"]["code"] == "token_expired"
-    assert json.loads(detail["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
+    # FLAT denial document — top-level keys, never nested under "detail".
+    body = resp.json()
+    assert body["error"]["code"] == "token_expired"
+    assert json.loads(body["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
 
 
 @respx.mock
 def test_fastapi_api_error_on_unexpected_exception():
-    respx.post("https://api.agentscore.sh/v1/assess").mock(
+    respx.post("https://api.agentscore.com/v1/assess").mock(
         side_effect=httpx.ConnectError("dns down"),
     )
     gate = AgentScoreGate(api_key="ak", fail_open=False)
@@ -599,13 +601,13 @@ def test_fastapi_api_error_on_unexpected_exception():
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.get("/", headers={"x-wallet-address": "0xabc"})
     assert resp.status_code == 503
-    assert resp.json()["detail"]["error"]["code"] == "api_error"
+    assert resp.json()["error"]["code"] == "api_error"
 
 
 class TestOnDeniedThreeTuple:
     def test_on_denied_three_tuple_sets_headers(self):
         """on_denied may return (body, status, headers); the gate threads headers
-        onto the HTTPException."""
+        onto the flat denial response."""
 
         def custom(_req, reason):
             return ({"code": reason.code}, 418, {"X-Custom": "teapot"})
@@ -615,7 +617,10 @@ class TestOnDeniedThreeTuple:
         resp = client.get("/")
         assert resp.status_code == 418
         assert resp.headers["X-Custom"] == "teapot"
-        assert resp.json()["detail"]["code"] == "missing_identity"
+        # FLAT: the (body, status, headers) override body is emitted verbatim.
+        body = resp.json()
+        assert "detail" not in body
+        assert body["code"] == "missing_identity"
 
 
 class TestSignerForwarding:
@@ -656,7 +661,7 @@ class TestInvalidCredentialAndPaymentFailOpen:
         client = TestClient(_make_app(gate))
         resp = client.get("/", headers={"X-Operator-Token": "opc_bad"})
         assert resp.status_code == 401
-        assert resp.json()["detail"]["error"]["code"] == "invalid_credential"
+        assert resp.json()["error"]["code"] == "invalid_credential"
 
     @respx.mock
     def test_payment_required_fail_open_passes_through(self):
@@ -781,4 +786,4 @@ class TestConditionalGate:
         client = TestClient(app)
         resp = client.post("/purchase", headers={"X-Wallet-Address": "0xabc", "X-Payment": "abc"})
         assert resp.status_code == 403
-        assert resp.json()["detail"]["error"]["code"] == "wallet_not_trusted"
+        assert resp.json()["error"]["code"] == "wallet_not_trusted"

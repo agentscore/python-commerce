@@ -14,11 +14,26 @@ class LlmsTxtSection(TypedDict):
 def llms_txt_identity_section(
     *,
     agentscore: bool = False,
+    aip: bool = False,
     compliance: dict[str, Any] | None = None,
 ) -> str:
-    """Generate the standard "## Identity" section for an AgentScore-gated merchant's llms.txt."""
+    """Generate the standard "## Identity" section for an AgentScore-gated merchant's llms.txt.
+
+    When ``aip`` is true, also advertise the AIP Agent Identity Token path. AgentScore's own
+    issuer is always trusted, so set this whenever the merchant has an AIP gate (even with no
+    external issuers).
+    """
     if not agentscore:
         return ""
+    aip_bullet = ""
+    if aip:
+        aip_bullet = (
+            "\n- **`Agent-Identity: <JWT>` + RFC 9421 signature** — present an Agent Identity Token (AIP) "
+            "from a trusted issuer (AgentScore is always trusted). Short-lived and bound to your key; sign "
+            "the request (`Signature-Input` + `Signature` over `@method @authority @path agent-identity`, "
+            "tag `agent-identity`) to prove possession. No long-lived token on the wire. Mint one with "
+            "`agentscore-pay identity-mint` or let `agentscore-pay pay --identity aip` attach it automatically."
+        )
     compliance_note = ""
     if compliance:
         c = compliance
@@ -40,7 +55,7 @@ def llms_txt_identity_section(
         "- **`X-Wallet-Address: 0x...` or base58** — works on signing rails (Tempo, x402, "
         "Solana MPP). The wallet you claim must sign the payment.\n"
         "- **`X-Operator-Token: opc_...`** — works on every rail, including Stripe SPT. "
-        "Reusable across AgentScore merchants until expiry.\n"
+        f"Reusable across AgentScore merchants until expiry.{aip_bullet}\n"
         "- **Neither** — you get a 403 with `verify_url`. Complete the session flow once and "
         f"reuse the resulting `opc_...` everywhere.{compliance_note}"
     )
@@ -217,7 +232,7 @@ def build_llms_txt(
     """Assemble a complete llms.txt document with optional AgentScore identity + payment boilerplate.
 
     ``agentscore_identity`` is a dict forwarded to :func:`llms_txt_identity_section`
-    (keys: ``agentscore``, ``compliance``). ``payment`` is a dict forwarded to
+    (keys: ``agentscore``, ``aip``, ``compliance``). ``payment`` is a dict forwarded to
     :func:`llms_txt_payment_section` (keys: ``rails``, ``app_url``, ``verbose``,
     ``tempo_network_name``, ``tempo_chain_id``).
     """

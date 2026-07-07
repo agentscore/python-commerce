@@ -24,6 +24,7 @@ from agentscore_commerce.identity import (
 API_KEY = "test-api-key"
 WALLET_A = "0x1111111111111111111111111111111111111111"
 WALLET_B = "0x2222222222222222222222222222222222222222"
+WALLET_C = "0x3333333333333333333333333333333333333333"
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +36,7 @@ def test_agent_memory_hint_has_core_fields() -> None:
     hint = build_agent_memory_hint()
     assert hint.save_for_future_agentscore_gates is True
     assert "AgentScore" in hint.pattern_summary
-    assert hint.identity_check_endpoint == "https://api.agentscore.sh/v1/credentials"
+    assert hint.identity_check_endpoint == "https://api.agentscore.com/v1/credentials"
     assert hint.list_wallets_endpoint is None
     assert "X-Wallet-Address" in hint.identity_paths["wallet"]
     assert "X-Operator-Token" in hint.identity_paths["operator_token"]
@@ -178,6 +179,90 @@ def test_get_signer_verdict_projects_cached_signer_match() -> None:
     assert verdict.signer_sanctions == {"kind": "clear"}
 
 
+def test_different_signer_same_identity_rescreens_within_cache_window() -> None:
+    """Cache-poisoning guard: the payment signer is folded into the assess cache key.
+
+    Two requests inside the cache window claim the SAME wallet but sign with DIFFERENT signers.
+    Because the signer is part of the cache key, the 2nd request is a cache MISS that re-hits the
+    API (re-screening the new signer) instead of returning the 1st signer's stale verdict. Without
+    this, a 2nd request signing with an OFAC-SDN wallet would ride the 1st's `signer_sanctions:
+    clear` to settlement, skipping the unconditional signer-OFAC screen.
+    """
+    client = AgentScoreCore(api_key=API_KEY)
+    # The mock returns a verdict keyed off the actual signer in the request body, so we can assert
+    # the 2nd response reflects the SECOND signer (not a replay of the first).
+    calls: list[dict[str, object]] = []
+
+    def fake_post(*_args: object, **kwargs: object) -> MagicMock:
+        body = kwargs.get("json") if isinstance(kwargs.get("json"), dict) else {}
+        calls.append(body)  # type: ignore[arg-type]
+        signer = body.get("signer") if isinstance(body, dict) else None
+        signer_addr = signer.get("address") if isinstance(signer, dict) else None
+        # WALLET_B is the clean signer (pass/clear); WALLET_C is the sanctioned signer.
+        is_sanctioned = signer_addr == WALLET_C
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        resp.json = lambda: {
+            "decision": "deny" if is_sanctioned else "allow",
+            "decision_reasons": ["sanctions_flagged"] if is_sanctioned else [],
+            "resolved_operator": "op_claimed",
+            "signer_match": {
+                "kind": "pass",
+                "claimed_operator": "op_claimed",
+                "signer_operator": "op_claimed",
+                "actual_signer": signer_addr,
+            },
+            "signer_sanctions": {"kind": "sdn_hit"} if is_sanctioned else {"kind": "clear"},
+        }
+        return resp
+
+    with patch.object(client._sync_client, "post", side_effect=fake_post):
+        # 1st request: same claimed wallet, CLEAN signer → clear.
+        client.check(address=WALLET_A, signer={"address": WALLET_B, "network": "evm"})
+        first = client.get_signer_verdict(WALLET_A)
+        # 2nd request within the cache window: SAME claimed wallet, DIFFERENT (sanctioned) signer.
+        client.check(address=WALLET_A, signer={"address": WALLET_C, "network": "evm"})
+        second = client.get_signer_verdict(WALLET_A)
+
+    # The 2nd request was NOT served from cache — the API was hit a second time and re-screened.
+    assert len(calls) == 2
+    assert calls[1]["signer"] == {"address": WALLET_C, "network": "evm"}
+    # The verdict slot reflects the SECOND signer's sanctions result, not a stale replay of the 1st.
+    assert first is not None and first.signer_sanctions == {"kind": "clear"}
+    assert second is not None and second.signer_sanctions == {"kind": "sdn_hit"}
+
+
+def test_same_signer_same_identity_is_a_cache_hit() -> None:
+    """Control for the cache-key change: an identical (identity, signer) pair still hits the cache.
+
+    A repeat of the exact same wallet+signer inside the window must NOT re-hit the API — otherwise
+    the signer-aware key would have defeated caching entirely.
+    """
+    client = AgentScoreCore(api_key=API_KEY)
+    calls: list[object] = []
+
+    def fake_post(*_args: object, **kwargs: object) -> MagicMock:
+        calls.append(kwargs.get("json"))
+        resp = MagicMock()
+        resp.is_success = True
+        resp.status_code = 200
+        resp.json = lambda: {
+            "decision": "allow",
+            "decision_reasons": [],
+            "resolved_operator": "op_claimed",
+            "signer_match": {"kind": "pass", "actual_signer": WALLET_B.lower()},
+            "signer_sanctions": {"kind": "clear"},
+        }
+        return resp
+
+    with patch.object(client._sync_client, "post", side_effect=fake_post):
+        client.check(address=WALLET_A, signer={"address": WALLET_B, "network": "evm"})
+        client.check(address=WALLET_A, signer={"address": WALLET_B, "network": "evm"})
+
+    assert len(calls) == 1
+
+
 def test_get_signer_verdict_returns_none_when_no_signer_blocks() -> None:
     """Operator-token-only paths leave signer_match + signer_sanctions absent."""
     client = AgentScoreCore(api_key=API_KEY)
@@ -296,7 +381,7 @@ def test_asgi_middleware_surfaces_token_denied_as_granular_denial() -> None:
     gated = AgentScoreGate(app, api_key=API_KEY)
 
     with respx.mock:
-        respx.post("https://api.agentscore.sh/v1/assess").mock(
+        respx.post("https://api.agentscore.com/v1/assess").mock(
             return_value=httpx.Response(
                 401,
                 json={
@@ -367,6 +452,54 @@ def test_build_missing_identity_reason_attaches_memory_hint() -> None:
     assert reason.code == "missing_identity"
     assert reason.agent_memory is not None
     assert reason.agent_memory.save_for_future_agentscore_gates is True
+
+
+def test_missing_identity_omits_aip_step_without_trusted_issuers() -> None:
+    """Non-AIP gate: instructions are the base 3-step probe with NO Agent-Identity step."""
+    from agentscore_commerce.identity._response import build_missing_identity_reason
+
+    reason = build_missing_identity_reason()
+    assert reason.agent_instructions is not None
+    steps = json.loads(reason.agent_instructions)["steps"]
+    assert len(steps) == 3
+    assert not any("Agent-Identity" in s for s in steps)
+    assert steps[0].startswith("If you have a wallet")
+
+
+def test_missing_identity_prepends_aip_step_with_trusted_issuers() -> None:
+    """AIP gate: the Agent-Identity step is PREPENDED ahead of the base probe steps.
+
+    Mirrors node-commerce's missing-identity instructions: when the gate accepts AIP, an agent
+    holding an AIT learns the one-round-trip path first, then the wallet/operator/session fallback.
+    """
+    from agentscore_commerce.identity._response import build_missing_identity_reason
+
+    issuers = ["https://www.agentscore.com", "https://issuer.example"]
+    reason = build_missing_identity_reason(issuers)
+    assert reason.agent_instructions is not None
+    instructions = json.loads(reason.agent_instructions)
+    steps = instructions["steps"]
+    # AIP step is prepended; base 3 steps follow.
+    assert len(steps) == 4
+    assert steps[0].startswith("If you hold an AIP Agent Identity Token from a trusted issuer")
+    # Both issuers are named in the AIP step, and the RFC 9421 PoP shape is described.
+    assert "https://www.agentscore.com, https://issuer.example" in steps[0]
+    assert 'tag="agent-identity"' in steps[0]
+    assert "cnf key" in steps[0]
+    # The original probe steps are preserved verbatim after the AIP step.
+    assert steps[1].startswith("If you have a wallet")
+    assert instructions["action"] == "probe_identity_then_session"
+
+
+def test_missing_identity_empty_issuer_list_omits_aip_step() -> None:
+    """An empty trusted-issuer list is treated as non-AIP (no Agent-Identity step)."""
+    from agentscore_commerce.identity._response import build_missing_identity_reason
+
+    reason = build_missing_identity_reason([])
+    assert reason.agent_instructions is not None
+    steps = json.loads(reason.agent_instructions)["steps"]
+    assert len(steps) == 3
+    assert not any("Agent-Identity" in s for s in steps)
 
 
 def test_build_missing_identity_reason_hints_probe_strategy() -> None:

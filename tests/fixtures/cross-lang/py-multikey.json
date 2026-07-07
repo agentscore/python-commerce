@@ -15,12 +15,12 @@
       },
       "capabilities": {},
       "payment_handlers": {
-        "sh.agentscore.payment.tempo": [
+        "com.agentscore.payment.tempo": [
           {
             "id": "tempo",
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/payment-handlers/tempo",
-            "schema": "https://agentscore.sh/schemas/payment-handlers/tempo.json",
+            "spec": "https://www.agentscore.com/specification/payment-handlers/tempo",
+            "schema": "https://www.agentscore.com/schemas/payment-handlers/tempo.json",
             "config": {
               "rail": "tempo-mainnet"
             }
@@ -36,7 +36,7 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "bmtxztAfkN74Ww0GbLWUvb8XWejGK4O2EK5zxKyMa9U"
+        "x": "03MTy3HxQJt8Uf_NwVUyeW2KoH7jqtcNsOCPj_J_1Ug"
       },
       {
         "kid": "py-multikey-new",
@@ -44,16 +44,16 @@
         "alg": "EdDSA",
         "use": "sig",
         "crv": "Ed25519",
-        "x": "6wXFCH8GTAnmlgr5TUd2W56-BxWQmJE_qYzoOQRsEWY"
+        "x": "k_ByJw5aRvuR4scFDA6I0ejWddek0UgjCwTQCz4_sO4"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW11bHRpa2V5LW5ldyIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiJibXR4enRBZmtONzRXdzBHYkxXVXZiOFhXZWpHSzRPMkVLNXp4S3lNYTlVIn0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1tdWx0aWtleS1uZXciLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiNndYRkNIOEdUQW5tbGdyNVRVZDJXNTYtQnhXUW1KRV9xWXpvT1FSc0VXWSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNdWx0aS1LZXkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7InNoLmFnZW50c2NvcmUucGF5bWVudC50ZW1wbyI6W3siY29uZmlnIjp7InJhaWwiOiJ0ZW1wby1tYWlubmV0In0sImlkIjoidGVtcG8iLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly9hZ2VudHNjb3JlLnNoL3NwZWNpZmljYXRpb24vcGF5bWVudC1oYW5kbGVycy90ZW1wbyIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwic2VydmljZXMiOnsiZGV2LnVjcC5zaG9wcGluZyI6W3siZW5kcG9pbnQiOiJodHRwczovL21rLmV4YW1wbGUuY29tL2FwaS91Y3AvbWNwIiwic2NoZW1hIjoiaHR0cHM6Ly91Y3AuZGV2L3NlcnZpY2VzL3Nob3BwaW5nL21jcC5vcGVucnBjLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly91Y3AuZGV2LzIwMjYtMDQtMDgvc3BlY2lmaWNhdGlvbi9vdmVydmlldyIsInRyYW5zcG9ydCI6Im1jcCIsInZlcnNpb24iOiIyMDI2LTA0LTA4In1dfSwidmVyc2lvbiI6IjIwMjYtMDQtMDgifX0.Au5GjUltaxdK2vhazvJ5VqpuM5wtxQgD7YtkPA3ij3_glwQ3jtqK-9qwP_I4fg35jJa2EH9SuQkCv2MVa4dJCg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6InB5LW11bHRpa2V5LW5ldyIsInR5cCI6ImFnZW50c2NvcmUtcHJvZmlsZStqd3MifQ.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6InB5LW11bHRpa2V5LW9sZCIsImt0eSI6Ik9LUCIsInVzZSI6InNpZyIsIngiOiIwM01UeTNIeFFKdDhVZl9Od1ZVeWVXMktvSDdqcXRjTnNPQ1BqX0pfMVVnIn0seyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJweS1tdWx0aWtleS1uZXciLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4Ijoia19CeUp3NWFSdnVSNHNjRkRBNkkwZWpXZGRlazBVZ2pDd1RRQ3o0X3NPNCJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6e30sIm5hbWUiOiJNdWx0aS1LZXkgTWVyY2hhbnQiLCJwYXltZW50X2hhbmRsZXJzIjp7ImNvbS5hZ2VudHNjb3JlLnBheW1lbnQudGVtcG8iOlt7ImNvbmZpZyI6eyJyYWlsIjoidGVtcG8tbWFpbm5ldCJ9LCJpZCI6InRlbXBvIiwic2NoZW1hIjoiaHR0cHM6Ly93d3cuYWdlbnRzY29yZS5jb20vc2NoZW1hcy9wYXltZW50LWhhbmRsZXJzL3RlbXBvLmpzb24iLCJzcGVjIjoiaHR0cHM6Ly93d3cuYWdlbnRzY29yZS5jb20vc3BlY2lmaWNhdGlvbi9wYXltZW50LWhhbmRsZXJzL3RlbXBvIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vbWsuZXhhbXBsZS5jb20vYXBpL3VjcC9tY3AiLCJzY2hlbWEiOiJodHRwczovL3VjcC5kZXYvc2VydmljZXMvc2hvcHBpbmcvbWNwLm9wZW5ycGMuanNvbiIsInNwZWMiOiJodHRwczovL3VjcC5kZXYvMjAyNi0wNC0wOC9zcGVjaWZpY2F0aW9uL292ZXJ2aWV3IiwidHJhbnNwb3J0IjoibWNwIiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9fQ.srT6Dfk3DDhPGlrAfY4hai2C_rDZR1SZzag1ZBpbXhclv6nVp2Di1cRc1aO5OWGp64VLmjNI9q6U6H7C4FN_Dw"
   },
   "jwks": {
     "keys": [
       {
         "crv": "Ed25519",
-        "x": "bmtxztAfkN74Ww0GbLWUvb8XWejGK4O2EK5zxKyMa9U",
+        "x": "03MTy3HxQJt8Uf_NwVUyeW2KoH7jqtcNsOCPj_J_1Ug",
         "kid": "py-multikey-old",
         "alg": "EdDSA",
         "use": "sig",
@@ -61,7 +61,7 @@
       },
       {
         "crv": "Ed25519",
-        "x": "6wXFCH8GTAnmlgr5TUd2W56-BxWQmJE_qYzoOQRsEWY",
+        "x": "k_ByJw5aRvuR4scFDA6I0ejWddek0UgjCwTQCz4_sO4",
         "kid": "py-multikey-new",
         "alg": "EdDSA",
         "use": "sig",

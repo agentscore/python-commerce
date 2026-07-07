@@ -9,7 +9,10 @@ from agentscore_commerce.discovery.agentscore_content import (
     purchase_mode_note,
     standard_endpoint_descriptions,
 )
-from agentscore_commerce.discovery.bazaar import build_bazaar_discovery_payload
+from agentscore_commerce.discovery.bazaar import (
+    build_bazaar_discovery_payload,
+    enrich_bazaar_discovery_extensions,
+)
 from agentscore_commerce.discovery.llms_txt import (
     LlmsTxtSection,
     build_llms_txt,
@@ -120,6 +123,7 @@ __all__ = [
     "build_well_known_x402",
     "compatible_clients_by_rails",
     "default_a2a_services",
+    "enrich_bazaar_discovery_extensions",
     "install_flask_noindex",
     "is_discovery_path",
     "is_discovery_probe_request",

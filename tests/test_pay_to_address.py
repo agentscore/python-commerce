@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import patch
@@ -13,6 +14,18 @@ from agentscore_commerce.stripe_multichain.pay_to_address import (
     create_pay_to_address_from_stripe_pi,
     mint_multichain_recipients,
 )
+
+
+def _mpp_installed() -> bool:
+    try:
+        return importlib.util.find_spec("mpp") is not None
+    except ModuleNotFoundError:
+        return False
+
+
+# These tests patch mpp.Credential, so they need the optional pympp (mppx
+# extra) peer dep importable; skip in minimal envs (CI installs --all-extras).
+pytestmark = pytest.mark.skipif(not _mpp_installed(), reason="pympp (mpp) extra not installed")
 
 
 @dataclass

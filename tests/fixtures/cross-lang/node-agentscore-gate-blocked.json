@@ -14,11 +14,11 @@
         ]
       },
       "capabilities": {
-        "sh.agentscore.identity": [
+        "com.agentscore.identity": [
           {
             "version": "2026-04-08",
-            "spec": "https://agentscore.sh/specification/identity",
-            "schema": "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+            "spec": "https://www.agentscore.com/specification/identity",
+            "schema": "https://www.agentscore.com/schemas/ucp/com-agentscore-identity-v1.json",
             "extends": [
               "dev.ucp.shopping.checkout",
               "dev.ucp.shopping.cart"
@@ -44,10 +44,10 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "ffpNqM2SBHyKorvO-lDKzycyMdh4AgMiOZsFjxj-hPU"
+        "x": "wPpJu8Vpk0eqf-T7Z5ePASHka8ZBGqd3wWm0_ETKBtM"
       }
     ],
-    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtYWdlbnRzY29yZS1nYXRlLWJsb2NrZWQtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtYWdlbnRzY29yZS1nYXRlLWJsb2NrZWQtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4IjoiZmZwTnFNMlNCSHlLb3J2Ty1sREt6eWN5TWRoNEFnTWlPWnNGanhqLWhQVSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6eyJzaC5hZ2VudHNjb3JlLmlkZW50aXR5IjpbeyJjb25maWciOnsiYmxvY2tlZF9qdXJpc2RpY3Rpb25zIjpbIktQIiwiSVIiLCJDVSJdLCJyZXF1aXJlX2t5YyI6dHJ1ZX0sImV4dGVuZHMiOlsiZGV2LnVjcC5zaG9wcGluZy5jaGVja291dCIsImRldi51Y3Auc2hvcHBpbmcuY2FydCJdLCJzY2hlbWEiOiJodHRwczovL2FnZW50c2NvcmUuc2gvc2NoZW1hcy91Y3Avc2gtYWdlbnRzY29yZS1pZGVudGl0eS12MS5qc29uIiwic3BlYyI6Imh0dHBzOi8vYWdlbnRzY29yZS5zaC9zcGVjaWZpY2F0aW9uL2lkZW50aXR5IiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJuYW1lIjoiQWdlbnRTY29yZSBHYXRlIEJsb2NrZWQtSnVyaXNkaWN0aW9ucyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnt9LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vdC5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9tY3Aub3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In19.wLBzWguXqHRyyD3md8nfKxdr2ge5eo7UfsYZ8yqArNay_lFx-q41T06FJCu0akan6hrjYoPymMVoDrHLD-GRAg"
+    "signature": "eyJhbGciOiJFZERTQSIsImtpZCI6Im5vZGUtYWdlbnRzY29yZS1nYXRlLWJsb2NrZWQtRWREU0EiLCJ0eXAiOiJhZ2VudHNjb3JlLXByb2ZpbGUrandzIn0.eyJzaWduaW5nX2tleXMiOlt7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im5vZGUtYWdlbnRzY29yZS1nYXRlLWJsb2NrZWQtRWREU0EiLCJrdHkiOiJPS1AiLCJ1c2UiOiJzaWciLCJ4Ijoid1BwSnU4VnBrMGVxZi1UN1o1ZVBBU0hrYThaQkdxZDN3V20wX0VUS0J0TSJ9XSwidWNwIjp7ImNhcGFiaWxpdGllcyI6eyJjb20uYWdlbnRzY29yZS5pZGVudGl0eSI6W3siY29uZmlnIjp7ImJsb2NrZWRfanVyaXNkaWN0aW9ucyI6WyJLUCIsIklSIiwiQ1UiXSwicmVxdWlyZV9reWMiOnRydWV9LCJleHRlbmRzIjpbImRldi51Y3Auc2hvcHBpbmcuY2hlY2tvdXQiLCJkZXYudWNwLnNob3BwaW5nLmNhcnQiXSwic2NoZW1hIjoiaHR0cHM6Ly93d3cuYWdlbnRzY29yZS5jb20vc2NoZW1hcy91Y3AvY29tLWFnZW50c2NvcmUtaWRlbnRpdHktdjEuanNvbiIsInNwZWMiOiJodHRwczovL3d3dy5hZ2VudHNjb3JlLmNvbS9zcGVjaWZpY2F0aW9uL2lkZW50aXR5IiwidmVyc2lvbiI6IjIwMjYtMDQtMDgifV19LCJuYW1lIjoiQWdlbnRTY29yZSBHYXRlIEJsb2NrZWQtSnVyaXNkaWN0aW9ucyBNZXJjaGFudCIsInBheW1lbnRfaGFuZGxlcnMiOnt9LCJzZXJ2aWNlcyI6eyJkZXYudWNwLnNob3BwaW5nIjpbeyJlbmRwb2ludCI6Imh0dHBzOi8vdC5leGFtcGxlLmNvbS9hcGkvdWNwL21jcCIsInNjaGVtYSI6Imh0dHBzOi8vdWNwLmRldi9zZXJ2aWNlcy9zaG9wcGluZy9tY3Aub3BlbnJwYy5qc29uIiwic3BlYyI6Imh0dHBzOi8vdWNwLmRldi8yMDI2LTA0LTA4L3NwZWNpZmljYXRpb24vb3ZlcnZpZXciLCJ0cmFuc3BvcnQiOiJtY3AiLCJ2ZXJzaW9uIjoiMjAyNi0wNC0wOCJ9XX0sInZlcnNpb24iOiIyMDI2LTA0LTA4In19.a0f6A30aXEz-r4a_d-FUKji_g0lh794nvAtulGDErS8VRfFCWYpp2m2bp-PYrnX6SuVYjZRRLR2u5AL0jvlZAA"
   },
   "jwks": {
     "keys": [
@@ -57,7 +57,7 @@
         "use": "sig",
         "crv": "Ed25519",
         "kty": "OKP",
-        "x": "ffpNqM2SBHyKorvO-lDKzycyMdh4AgMiOZsFjxj-hPU"
+        "x": "wPpJu8Vpk0eqf-T7Z5ePASHka8ZBGqd3wWm0_ETKBtM"
       }
     ]
   },

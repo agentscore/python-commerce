@@ -49,7 +49,7 @@ class TestHeaders:
 class TestCaptureWallet:
     @respx.mock
     def test_posts_to_wallets_endpoint_with_snake_case_body(self):
-        route = respx.post("https://api.agentscore.sh/v1/credentials/wallets").mock(
+        route = respx.post("https://api.agentscore.com/v1/credentials/wallets").mock(
             return_value=httpx.Response(200, json={"associated": True, "first_seen": True}),
         )
         client = _make_client()
@@ -65,7 +65,7 @@ class TestCaptureWallet:
 
     @respx.mock
     def test_omits_idempotency_key_when_empty_or_none(self):
-        route = respx.post("https://api.agentscore.sh/v1/credentials/wallets").mock(
+        route = respx.post("https://api.agentscore.com/v1/credentials/wallets").mock(
             return_value=httpx.Response(200, json={"associated": True, "first_seen": True}),
         )
         client = _make_client()
@@ -77,7 +77,7 @@ class TestCaptureWallet:
 
     @respx.mock
     def test_swallows_server_errors_silently(self):
-        respx.post("https://api.agentscore.sh/v1/credentials/wallets").mock(
+        respx.post("https://api.agentscore.com/v1/credentials/wallets").mock(
             return_value=httpx.Response(500, json={"error": {"code": "internal_error"}}),
         )
         client = _make_client()
@@ -86,7 +86,7 @@ class TestCaptureWallet:
 
     @respx.mock
     def test_swallows_network_errors_silently(self):
-        respx.post("https://api.agentscore.sh/v1/credentials/wallets").mock(
+        respx.post("https://api.agentscore.com/v1/credentials/wallets").mock(
             side_effect=httpx.ConnectError("boom"),
         )
         client = _make_client()
@@ -97,7 +97,7 @@ class TestCaptureWalletAsync:
     @pytest.mark.asyncio
     @respx.mock
     async def test_async_variant_posts_to_wallets_endpoint(self):
-        route = respx.post("https://api.agentscore.sh/v1/credentials/wallets").mock(
+        route = respx.post("https://api.agentscore.com/v1/credentials/wallets").mock(
             return_value=httpx.Response(200, json={"associated": True, "first_seen": True}),
         )
         client = _make_client()
@@ -114,7 +114,7 @@ class TestCaptureWalletAsync:
     @pytest.mark.asyncio
     @respx.mock
     async def test_async_swallows_errors_silently(self):
-        respx.post("https://api.agentscore.sh/v1/credentials/wallets").mock(
+        respx.post("https://api.agentscore.com/v1/credentials/wallets").mock(
             side_effect=httpx.ConnectError("boom"),
         )
         client = _make_client()
@@ -254,7 +254,7 @@ class TestParseResponseStatusCodes:
             client._parse_response(resp)
 
 
-ASSESS_URL = "https://api.agentscore.sh/v1/assess"
+ASSESS_URL = "https://api.agentscore.com/v1/assess"
 
 
 class TestCheckWithChain:
@@ -495,11 +495,11 @@ class TestVerifyUrlParsing:
         resp.json.return_value = {
             "decision": "deny",
             "decision_reasons": ["kyc_required"],
-            "verify_url": "https://agentscore.sh/verify/abc123",
+            "verify_url": "https://www.agentscore.com/verify/abc123",
         }
 
         result = client._parse_response(resp)
-        assert result.verify_url == "https://agentscore.sh/verify/abc123"
+        assert result.verify_url == "https://www.agentscore.com/verify/abc123"
 
     def test_verify_url_is_none_when_absent(self):
         client = _make_client()
@@ -542,7 +542,7 @@ class TestComplianceDenyIntegration:
                 "operator_type": None,
                 "verified_at": None,
             },
-            "verify_url": "https://agentscore.sh/verify/xyz789",
+            "verify_url": "https://www.agentscore.com/verify/xyz789",
             "resolved_operator": "0xoperator456",
             "chains": [
                 {
@@ -566,7 +566,7 @@ class TestComplianceDenyIntegration:
         assert result.decision == "deny"
         assert "kyc_required" in result.reasons
         assert "sanctions_flagged" in result.reasons
-        assert result.verify_url == "https://agentscore.sh/verify/xyz789"
+        assert result.verify_url == "https://www.agentscore.com/verify/xyz789"
         assert result.operator_verification is not None
         assert result.operator_verification.level == "none"
         assert result.resolved_operator == "0xoperator456"
@@ -703,6 +703,21 @@ class TestCacheKeyIdentity:
         key = client._cache_key(operator_token="OPC_UPPER")
         assert key == "opc_upper"
 
+    def test_cache_key_folds_in_the_signer_when_present(self):
+        client = _make_client()
+        with_signer = client._cache_key(address="0xABC", signer={"address": "0xDEF", "network": "base"})
+        without_signer = client._cache_key(address="0xABC")
+        assert with_signer != without_signer
+
+    def test_cache_key_is_delimiter_injection_proof(self):
+        # A crafted (invalid) claimed X-Wallet-Address embedding the literal `|sig:` joiner must
+        # NOT collide with the structured key of a real (identity, signer) pair — that collision
+        # would let the crafted identity poison the pair's cached signer verdicts.
+        client = _make_client()
+        crafted = client._cache_key(address="0xABC|sig:0xEVIL:base")
+        structured = client._cache_key(address="0xABC", signer={"address": "0xEVIL", "network": "base"})
+        assert crafted != structured
+
 
 class TestBuildBodyIdentity:
     def test_build_body_with_operator_token_only(self):
@@ -724,7 +739,7 @@ class TestBuildBodyIdentity:
         assert "operator_token" not in body
 
 
-ASSESS_URL = "https://api.agentscore.sh/v1/assess"
+ASSESS_URL = "https://api.agentscore.com/v1/assess"
 
 
 class TestInvalidCredential:

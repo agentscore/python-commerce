@@ -43,7 +43,8 @@ def payment_required_header(
     *,
     x402_version: Literal[1, 2],
     accepts: list[Any],
-    resource: dict[str, str] | None = None,
+    resource: dict[str, Any] | None = None,
+    extensions: dict[str, Any] | None = None,
 ) -> str:
     """Encode the standard x402 PAYMENT-REQUIRED header (base64-encoded JSON).
 
@@ -58,5 +59,10 @@ def payment_required_header(
     body: dict[str, Any] = {"x402Version": x402_version, "accepts": accepts}
     if resource is not None:
         body["resource"] = resource
+    # Per the x402 v2 HTTP transport spec the PaymentRequired object, INCLUDING
+    # extensions, must travel in the base64 PAYMENT-REQUIRED header (where Bazaar
+    # validators read it), not only in the response body.
+    if extensions:
+        body["extensions"] = extensions
     raw = json.dumps(body, separators=(",", ":")).encode()
     return base64.b64encode(raw).decode()

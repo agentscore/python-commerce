@@ -281,7 +281,7 @@ class TestCreateSessionOnMissing:
     def test_creates_session_denial_reason_when_configured(self):
         session_reason = DenialReason(
             code="identity_verification_required",
-            verify_url="https://agentscore.sh/verify/sess_abc",
+            verify_url="https://www.agentscore.com/verify/sess_abc",
             session_id="sess_abc",
             poll_secret="ps_secret",
             agent_instructions="please verify",
@@ -298,7 +298,7 @@ class TestCreateSessionOnMissing:
         assert resp.status == 403
         assert resp.json["error"]["code"] == "identity_verification_required"
         assert resp.json["session_id"] == "sess_abc"
-        assert resp.json["verify_url"] == "https://agentscore.sh/verify/sess_abc"
+        assert resp.json["verify_url"] == "https://www.agentscore.com/verify/sess_abc"
         assert resp.json["poll_secret"] == "ps_secret"
 
     def test_falls_back_to_missing_identity_on_session_helper_failure(self):
@@ -318,7 +318,7 @@ class TestCreateSessionOnMissing:
         kyc_result = AssessResult(allow=False, decision="deny", reasons=["kyc_required"], raw={})
         session_reason = DenialReason(
             code="identity_verification_required",
-            verify_url="https://agentscore.sh/verify/sess_kyc",
+            verify_url="https://www.agentscore.com/verify/sess_kyc",
             session_id="sess_kyc",
             poll_secret="ps_kyc",
         )
@@ -438,7 +438,7 @@ def test_sanic_passes_through_token_expired():
                     "error": {"code": "token_expired", "message": "invalid"},
                     "session_id": "sess_abc",
                     "poll_secret": "poll_xyz",
-                    "verify_url": "https://agentscore.sh/verify?session=sess_abc",
+                    "verify_url": "https://www.agentscore.com/verify?session=sess_abc",
                     "next_steps": {"action": "deliver_verify_url_and_poll"},
                 }
             )

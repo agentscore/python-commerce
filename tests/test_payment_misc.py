@@ -64,6 +64,33 @@ def test_payment_required_header_base64_encodes_json():
     assert decoded["resource"]["url"] == "https://x"
 
 
+def test_payment_required_header_emits_extensions_and_full_resource():
+    """Per x402 v2 spec the header carries extensions + the full ResourceInfo."""
+    h = payment_required_header(
+        x402_version=2,
+        accepts=[{"scheme": "exact"}],
+        resource={
+            "url": "https://x",
+            "mimeType": "application/json",
+            "serviceName": "Example API",
+            "tags": ["data", "enrichment"],
+            "iconUrl": "https://x/icon.png",
+        },
+        extensions={"com.coinbase.bazaar": {"info": {}, "schema": {}}},
+    )
+    decoded = json.loads(base64.b64decode(h))
+    assert decoded["resource"]["serviceName"] == "Example API"
+    assert decoded["resource"]["tags"] == ["data", "enrichment"]
+    assert decoded["resource"]["iconUrl"] == "https://x/icon.png"
+    assert decoded["extensions"] == {"com.coinbase.bazaar": {"info": {}, "schema": {}}}
+
+
+def test_payment_required_header_omits_empty_extensions():
+    h = payment_required_header(x402_version=2, accepts=[{"scheme": "exact"}], extensions={})
+    decoded = json.loads(base64.b64decode(h))
+    assert "extensions" not in decoded
+
+
 def test_payment_required_header_does_not_alias_accepts():
     """The header must NOT add a v1<->v2 amount alias.
 

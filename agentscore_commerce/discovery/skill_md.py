@@ -4,9 +4,8 @@ Emits a YAML-frontmatter + markdown body manifest describing a merchant's agent-
 contract: payment rails, compatible clients per rail, identity requirements as outcomes,
 shipping policy, endpoints, triggers, support links.
 
-Renders strictly agent-facing data — no ``fail_open``, no mount-strategy names, no KYC
-vendor names, no defense parameters, no idempotency construction. Internal posture stays
-in merchant runtime config.
+Renders strictly agent-facing data — only the public payment/identity contract an agent
+needs to act on. Merchant runtime configuration is not part of this shape.
 
 Spec compliance (https://agentskills.io/specification):
   * ``name`` validated against the spec regex (lowercase alphanumeric + hyphens, no
@@ -55,14 +54,17 @@ class SkillMdEndpoint(TypedDict):
 class SkillMdIdentityRequirements(TypedDict, total=False):
     """Agent-observable identity requirements only (kyc / age / jurisdictions / sanctions).
 
-    Internal posture (``fail_open``, mount strategy, KYC vendor) is intentionally not
-    part of this shape — agents act on outcomes, not implementation.
+    Merchant runtime configuration is not part of this shape — agents act on outcomes,
+    not implementation.
     """
 
     kyc_required: bool
     min_age: int | None
     allowed_jurisdictions: list[str] | None
     sanctions_clear: bool
+    # Whether the merchant accepts AIP Agent Identity Tokens (AgentScore is always a trusted
+    # issuer). When true, the Identity section documents the `Agent-Identity` + RFC 9421 path.
+    aip: bool
 
 
 class SkillMdShippingPolicy(TypedDict, total=False):
@@ -255,7 +257,7 @@ def _identity_section(input: _SkillCtx) -> str:
         reqs.append(f"{'/'.join(allowed)} only")
     if id_.get("sanctions_clear"):
         reqs.append("sanctions clear")
-    if not reqs:
+    if not reqs and not id_.get("aip"):
         return ""
     bootstrap = ""
     if input.identity_bootstrap_url:
@@ -263,6 +265,19 @@ def _identity_section(input: _SkillCtx) -> str:
             f"\n\nIf you don't have a Passport, fetch `{input.identity_bootstrap_url}` and "
             "follow the onboarding there first. Bring back the `opc_...` operator token in "
             "`X-Operator-Token` on every gated request."
+        )
+    if reqs:
+        req_line = f"This merchant uses AgentScore identity. Required: {', '.join(reqs)}.{bootstrap}"
+    else:
+        req_line = f"This merchant uses AgentScore identity.{bootstrap}"
+    aip_note = ""
+    if id_.get("aip"):
+        aip_note = (
+            "\n\nThis merchant accepts AIP Agent Identity Tokens. If you hold an AIT from a trusted issuer "
+            "(AgentScore is always trusted), present the JWT in an `Agent-Identity` header plus an RFC 9421 "
+            "HTTP Message Signature (`Signature-Input` + `Signature` over `@method @authority @path agent-identity`, "
+            "tag `agent-identity`) signed with the token-bound cnf key — it satisfies identity in one round trip, "
+            "no separate AgentScore credential needed. `agentscore-pay pay --identity aip` does this automatically."
         )
     denial_note = (
         "Denial bodies carry an `agent_instructions` block describing the recovery action "
@@ -273,7 +288,7 @@ def _identity_section(input: _SkillCtx) -> str:
         [
             "## Identity Prerequisite",
             "",
-            f"This merchant uses AgentScore identity. Required: {', '.join(reqs)}.{bootstrap}",
+            f"{req_line}{aip_note}",
             "",
             denial_note,
         ]
@@ -365,8 +380,7 @@ def build_skill_md(
     Output is YAML frontmatter (``name`` / ``description`` / optional ``license`` /
     ``compatibility`` / ``allowed-tools`` / ``metadata``) followed by markdown sections
     describing payment rails, identity requirements, endpoints, triggers, and support
-    links — exactly the agent-facing contract, with no internal posture (no
-    ``fail_open``, no mount-strategy names, no KYC vendor, no defense parameters).
+    links — exactly the agent-facing contract.
     """
     ctx = _SkillCtx(
         name=name,

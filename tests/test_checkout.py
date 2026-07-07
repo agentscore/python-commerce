@@ -10,6 +10,7 @@ Matrix:
 
 from __future__ import annotations
 
+import importlib.util
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import AsyncMock
@@ -23,12 +24,15 @@ from agentscore_commerce.checkout import (
     MppxComposeOutcome,
     PricingResult,
 )
+from agentscore_commerce.payment.default_rails import build_default_checkout_rails
 from agentscore_commerce.payment.rail_spec import (
     SolanaMppRailSpec,
     StripeRailSpec,
     TempoRailSpec,
     X402BaseRailSpec,
 )
+
+_X402_INSTALLED = importlib.util.find_spec("x402") is not None
 
 
 def _req(*, headers: dict[str, str] | None = None, body: dict[str, Any] | None = None) -> CheckoutRequest:
@@ -79,6 +83,7 @@ async def test_emit_402_mpp_only_no_x402() -> None:
     assert "payment-required" not in result.headers
 
 
+@pytest.mark.skipif(not _X402_INSTALLED, reason="x402 peer dep not installed")
 @pytest.mark.asyncio
 async def test_emit_402_all_rails_with_x402_payment_required() -> None:
     """Multi-rail merchant: every supported rail advertised, x402 PAYMENT-REQUIRED layered."""
@@ -114,6 +119,132 @@ async def test_emit_402_all_rails_with_x402_payment_required() -> None:
     result = await checkout.handle(_req())
     assert result.status == 402
     assert "payment-required" in result.headers
+
+
+@pytest.mark.asyncio
+async def test_emit_402_carries_resource_info_and_extensions_in_body_and_header() -> None:
+    """x402 v2: resource_info + discovery_extensions ride in both the body and the
+    base64 PAYMENT-REQUIRED header, where Bazaar validators read them."""
+    import base64
+    import json as _json
+
+    @dataclass
+    class _FakeX402Server:
+        def build_payment_requirements(self, config: Any) -> Any:
+            class _Req:
+                def model_dump(self, **_kwargs: Any) -> dict[str, Any]:
+                    return {
+                        "scheme": "exact",
+                        "network": config.network,
+                        "payTo": config.pay_to,
+                        "maxAmountRequired": "10000",
+                        "extra": {"name": "USD Coin", "version": "2"},
+                    }
+
+            return [_Req()]
+
+    checkout = Checkout(
+        rails={"x402_base": X402BaseRailSpec(recipient="0xbase")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
+        x402_server=_FakeX402Server(),
+        resource_info={
+            "serviceName": "Example Enrich",
+            "tags": ["data", "enrichment"],
+            "iconUrl": "https://ex.com/i.png",
+        },
+        discovery_extensions={"com.coinbase.bazaar": {"info": {}, "schema": {}}},
+    )
+    result = await checkout.handle(_req())
+    assert result.status == 402
+    assert result.body["resource"]["serviceName"] == "Example Enrich"
+    assert result.body["extensions"] == {"com.coinbase.bazaar": {"info": {}, "schema": {}}}
+    decoded = _json.loads(base64.b64decode(result.headers["payment-required"]))
+    assert decoded["resource"]["serviceName"] == "Example Enrich"
+    assert decoded["resource"]["tags"] == ["data", "enrichment"]
+    assert decoded["resource"]["iconUrl"] == "https://ex.com/i.png"
+    assert decoded["extensions"] == {"com.coinbase.bazaar": {"info": {}, "schema": {}}}
+
+
+@pytest.mark.asyncio
+async def test_emit_402_resource_url_is_https_behind_tls_terminating_proxy() -> None:
+    """Behind ALB / CloudFront the inbound url is http://; X-Forwarded-Proto: https
+    must yield an https resource.url (x402 discovery requires https)."""
+    import base64
+    import json as _json
+
+    @dataclass
+    class _FakeX402Server:
+        def build_payment_requirements(self, config: Any) -> Any:
+            class _Req:
+                def model_dump(self, **_kwargs: Any) -> dict[str, Any]:
+                    return {
+                        "scheme": "exact",
+                        "network": config.network,
+                        "payTo": config.pay_to,
+                        "maxAmountRequired": "10000",
+                        "extra": {"name": "USD Coin", "version": "2"},
+                    }
+
+            return [_Req()]
+
+    checkout = Checkout(
+        rails={"x402_base": X402BaseRailSpec(recipient="0xbase")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
+        x402_server=_FakeX402Server(),
+    )
+    request = CheckoutRequest(
+        method="POST",
+        url="http://api.example/purchase",
+        headers={"x-forwarded-proto": "https"},
+        body={},
+    )
+    result = await checkout.handle(request)
+    assert result.status == 402
+    decoded = _json.loads(base64.b64decode(result.headers["payment-required"]))
+    assert decoded["resource"]["url"] == "https://api.example/purchase"
+
+
+@pytest.mark.asyncio
+async def test_emit_402_enriches_bazaar_extension_with_request_method() -> None:
+    """info.input.method (required by the v2 discovery schema) is filled from the
+    request method on the declared Bazaar extension, in both body and header."""
+    import base64
+    import json as _json
+
+    @dataclass
+    class _FakeX402Server:
+        def build_payment_requirements(self, config: Any) -> Any:
+            class _Req:
+                def model_dump(self, **_kwargs: Any) -> dict[str, Any]:
+                    return {
+                        "scheme": "exact",
+                        "network": config.network,
+                        "payTo": config.pay_to,
+                        "maxAmountRequired": "10000",
+                        "extra": {"name": "USD Coin", "version": "2"},
+                    }
+
+            return [_Req()]
+
+    checkout = Checkout(
+        rails={"x402_base": X402BaseRailSpec(recipient="0xbase")},
+        url="https://api.example/company/base",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
+        x402_server=_FakeX402Server(),
+        discovery_extensions={
+            "bazaar": {
+                "info": {"input": {"type": "http", "bodyType": "json"}},
+                "schema": {"properties": {"input": {"required": ["type"]}}},
+            }
+        },
+    )
+    result = await checkout.handle(_req())
+    assert result.status == 402
+    assert result.body["extensions"]["bazaar"]["info"]["input"]["method"] == "POST"
+    decoded = _json.loads(base64.b64decode(result.headers["payment-required"]))
+    assert decoded["extensions"]["bazaar"]["info"]["input"]["method"] == "POST"
 
 
 @pytest.mark.asyncio
@@ -212,7 +343,7 @@ class _StubX402Server:
         }
 
 
-def _x402_headers_with_payload() -> dict[str, str]:
+def _x402_headers_with_payload(pay_to: str = "0x000000000000000000000000000000000000dEaD") -> dict[str, str]:
     import base64
     import json
 
@@ -221,12 +352,12 @@ def _x402_headers_with_payload() -> dict[str, str]:
         "scheme": "exact",
         "accepted": {
             "network": "eip155:8453",
-            "payTo": "0x000000000000000000000000000000000000dEaD",
+            "payTo": pay_to,
         },
         "payload": {
             "authorization": {
                 "from": "0xPAYER",
-                "to": "0x000000000000000000000000000000000000dEaD",
+                "to": pay_to,
             },
         },
     }
@@ -239,7 +370,9 @@ async def test_x402_settle_success_runs_on_settled_hook() -> None:
     """Goods seller: on_settled persists the order; success body merges reference_id."""
     on_settled = AsyncMock(return_value={"order_status": "queued"})
     checkout = Checkout(
-        rails={"x402_base": X402BaseRailSpec(recipient="0xTREASURY")},
+        # Recipient must equal the payload's signed payTo — the gate binds the agent-supplied payTo
+        # to the configured recipient (payTo-binding fix), so they must match for the settle to run.
+        rails={"x402_base": X402BaseRailSpec(recipient="0x000000000000000000000000000000000000dEaD")},
         url="https://api.example/purchase",
         compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
         x402_server=_StubX402Server(settle_success=True),
@@ -260,7 +393,8 @@ async def test_x402_settle_success_runs_on_settled_hook() -> None:
 async def test_x402_settle_failure_returns_4xx_with_phase() -> None:
     """Settle failure surfaces ``payment_proof_invalid`` + ``settle_phase`` for diagnostics."""
     checkout = Checkout(
-        rails={"x402_base": X402BaseRailSpec(recipient="0xTREASURY")},
+        # payTo-binding: recipient must equal the payload's signed payTo (see settle_success test).
+        rails={"x402_base": X402BaseRailSpec(recipient="0x000000000000000000000000000000000000dEaD")},
         url="https://api.example/purchase",
         compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
         x402_server=_StubX402Server(settle_success=False),
@@ -272,6 +406,128 @@ async def test_x402_settle_failure_returns_4xx_with_phase() -> None:
     assert result.settled is False
     assert result.settle_phase == "settle_failed"
     assert result.body["error"]["code"] == "payment_provider_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_x402_settle_rejects_agent_controlled_pay_to() -> None:
+    """payTo-binding (funds-drain guard): when the merchant uses a static-treasury x402 rail and
+    did NOT supply a custom is_cached_address, the agent-supplied signed payTo is bound to the
+    configured recipient. A payload pointing payTo at a wallet the AGENT controls is rejected
+    BEFORE settle, so funds can't be re-routed away from the merchant.
+    """
+    settled = AsyncMock()
+    checkout = Checkout(
+        rails={"x402_base": X402BaseRailSpec(recipient="0x000000000000000000000000000000000000dEaD")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
+        x402_server=_StubX402Server(settle_success=True),
+        on_settled=settled,
+    )
+    # Agent swaps payTo to a wallet it owns (valid EVM address ≠ the configured recipient).
+    attacker_pay_to = "0xAAaaAaAAaAaAaAAAAAaAAaaaAaAaaAAAaaaaAAaA"
+    result = await checkout.handle(_req(headers=_x402_headers_with_payload(pay_to=attacker_pay_to)))
+    assert result.status == 400
+    assert result.settled is False
+    assert result.settle_phase == "verify_failed"
+    # The settle never ran and on_settled never fired for the swapped recipient.
+    settled.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_x402_settle_custom_is_cached_address_still_honored() -> None:
+    """Merchants minting per-order deposit addresses pass their own is_cached_address; the
+    payTo-binding defers to it (so a minted payTo ≠ the static recipient still settles).
+    """
+    checkout = Checkout(
+        rails={"x402_base": X402BaseRailSpec(recipient="0x000000000000000000000000000000000000dEaD")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
+        x402_server=_StubX402Server(settle_success=True),
+        # Merchant attests this minted payTo belongs to this order — accept it even though it's
+        # not the static recipient.
+        is_cached_address=lambda addr: addr.lower() == "0xfeedfacefeedfacefeedfacefeedfacefeedface",
+    )
+    result = await checkout.handle(
+        _req(headers=_x402_headers_with_payload(pay_to="0xFEEDFACEfeedfacEFEEDFACEFEEDFACEFEEDFACE"))
+    )
+    assert result.status == 200
+    assert result.settled is True
+
+
+@pytest.mark.asyncio
+async def test_x402_default_rails_empty_recipient_sentinel_binds_to_minted_pay_to() -> None:
+    """Regression: the documented per-order-mint default — ``build_default_checkout_rails`` leaves
+    ``recipient=""`` (the sentinel) and the real payTo is minted per request via ``mint_recipients``.
+
+    Previously the empty-string sentinel passed through ``_resolve_static_x402_recipient`` and the
+    bind degraded to ``addr.lower() == ""`` → rejected EVERY honest minted payTo (400 verify_failed),
+    breaking the canonical x402 flow. The fix treats the blank sentinel as "no static recipient" and
+    binds to the per-request minted ``recipients["x402_base"]`` instead. So an honest minted payTo
+    settles while an attacker-swapped payTo is still rejected.
+    """
+    minted_pay_to = "0x000000000000000000000000000000000000dEaD"
+
+    def mint(_ctx: CheckoutContext) -> dict[str, str]:
+        return {"x402_base": minted_pay_to}
+
+    settled = AsyncMock(return_value={"ok": True})
+    checkout = Checkout(
+        # Default-rails shape: recipient="" sentinel, no is_cached_address. mint_recipients supplies
+        # the real per-order payTo at request time (Stripe-multichain pattern).
+        rails=build_default_checkout_rails(x402_base={}),
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
+        x402_server=_StubX402Server(settle_success=True),
+        mint_recipients=mint,
+        on_settled=settled,
+    )
+    # Honest minted payTo → accepted + settled.
+    ok = await checkout.handle(_req(headers=_x402_headers_with_payload(pay_to=minted_pay_to)))
+    assert ok.status == 200
+    assert ok.settled is True
+    settled.assert_awaited_once()
+
+    # Attacker swaps payTo to a wallet it controls → rejected BEFORE settle (funds-drain guard holds).
+    settled.reset_mock()
+    attacker = "0xAAaaAaAAaAaAaAAAAAaAAaaaAaAaaAAAaaaaAAaA"
+    bad = await checkout.handle(_req(headers=_x402_headers_with_payload(pay_to=attacker)))
+    assert bad.status == 400
+    assert bad.settled is False
+    assert bad.settle_phase == "verify_failed"
+    settled.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_x402_static_recipient_plus_mint_recipients_binds_to_minted() -> None:
+    """Regression (payTo bind B): a rail can carry BOTH a static recipient AND mint_recipients (the
+    static recipient is the discovery/sentinel default; the per-request mint is the real payTo).
+
+    Binding to the construction-time static recipient here would reject the legit minted payTo on the
+    settle path. The fix binds to the per-request ``recipients["x402_base"]`` (exactly as the
+    compute-first path already does), so the minted payTo settles and the now-stale static recipient
+    is rejected.
+    """
+    static_recipient = "0xc3128D86669e842573306CA82f60A005A41C44D4"
+    minted_pay_to = "0x000000000000000000000000000000000000dEaD"
+
+    def mint(_ctx: CheckoutContext) -> dict[str, str]:
+        return {"x402_base": minted_pay_to}
+
+    checkout = Checkout(
+        rails={"x402_base": X402BaseRailSpec(recipient=static_recipient)},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
+        x402_server=_StubX402Server(settle_success=True),
+        mint_recipients=mint,
+    )
+    # The per-request minted payTo settles...
+    minted_res = await checkout.handle(_req(headers=_x402_headers_with_payload(pay_to=minted_pay_to)))
+    assert minted_res.status == 200
+    assert minted_res.settled is True
+    # ...and the (now-stale) construction-time static recipient is rejected.
+    static_res = await checkout.handle(_req(headers=_x402_headers_with_payload(pay_to=static_recipient)))
+    assert static_res.status == 400
+    assert static_res.settled is False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -298,6 +554,41 @@ async def test_compose_mppx_returns_200_runs_on_settled() -> None:
     assert result.status == 200
     assert result.headers["payment-response"] == "ok"
     on_settled.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mppx_settle_leg_resolves_recipients_for_compose_and_on_settled() -> None:
+    """Regression (parity with node ``checkout.ts`` resolve-before-dispatch): a
+    ``mint_recipients``-based MPP merchant must see ``ctx.recipients`` populated in BOTH
+    ``compose_mppx`` and ``on_settled`` on the settle leg. ``_handle_mppx`` previously never called
+    ``_resolve_recipients`` (unlike the x402 / zero-settle / 402 handlers), so the per-request minted
+    recipient was missing for both hooks. The fix resolves up-front in ``_handle_mppx``."""
+    minted = "0x000000000000000000000000000000000000dEaD"
+    seen: dict[str, dict[str, str]] = {}
+
+    def mint(_ctx: CheckoutContext) -> dict[str, str]:
+        return {"tempo": minted}
+
+    async def compose(ctx: CheckoutContext) -> MppxComposeOutcome:
+        seen["compose"] = dict(ctx.recipients)
+        return MppxComposeOutcome(status=200, payment_response_header="ok")
+
+    async def on_settled(ctx: CheckoutContext, _outcome: object) -> None:
+        seen["on_settled"] = dict(ctx.recipients)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0xtempo")},
+        url="https://api.example/purchase",
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        mint_recipients=mint,
+        compose_mppx=compose,
+        on_settled=on_settled,
+    )
+    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    assert result.status == 200
+    # Both hooks saw the per-request minted recipient (not an empty dict).
+    assert seen["compose"] == {"tempo": minted}
+    assert seen["on_settled"] == {"tempo": minted}
 
 
 @pytest.mark.asyncio

@@ -43,7 +43,7 @@ class CreateSessionOnMissing:
     """
 
     api_key: str
-    base_url: str = "https://api.agentscore.sh"
+    base_url: str = "https://api.agentscore.com"
     context: str | None = None
     product_name: str | None = None
     # Per-request override of context / product_name. Receives the framework request

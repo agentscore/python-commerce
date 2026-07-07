@@ -29,7 +29,7 @@ from agentscore_commerce.checkout import (
 )
 from agentscore_commerce.payment.rail_spec import X402BaseRailSpec
 
-ASSESS_URL = "https://api.agentscore.sh/v1/assess"
+ASSESS_URL = "https://api.agentscore.com/v1/assess"
 RECIPIENT = "0x1111111111111111111111111111111111111111"
 SDN_WALLET = "0xdead000000000000000000000000000000000bad"
 CLEAN_WALLET = "0xaaa0000000000000000000000000000000000099"
@@ -86,6 +86,13 @@ def _reset_warned_flag() -> None:
     from agentscore_commerce._warnings import _reset_warned_no_api_key
 
     _reset_warned_no_api_key()
+
+
+@pytest.fixture(autouse=True)
+def _pin_agentscore_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the endpoint these tests mock so the wallet-OFAC path is independent
+    of the installed SDK's default base URL."""
+    monkeypatch.setenv("AGENTSCORE_BASE_URL", "https://api.agentscore.com")
 
 
 @pytest.mark.asyncio

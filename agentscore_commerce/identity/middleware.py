@@ -8,6 +8,12 @@ import httpx
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from agentscore_commerce.aip.gate import (
+    AipGateOptions,
+    build_aip_error_body,
+    evaluate_aip_request,
+)
+from agentscore_commerce.aip.request import has_agent_identity_header
 from agentscore_commerce.identity._denial import (
     denial_reason_status,
     is_fixable_denial,
@@ -45,6 +51,11 @@ if TYPE_CHECKING:
 
     from starlette.types import ASGIApp, Receive, Scope, Send
 
+    from agentscore_commerce.aip.gate import AipErrorBody
+    from agentscore_commerce.aip.jwks import JwksCache
+    from agentscore_commerce.aip.types import TrustLevel
+    from agentscore_commerce.aip.verify import VerifiedAit
+
 DEFAULT_ADDRESS_HEADER = "x-wallet-address"
 DEFAULT_TOKEN_HEADER = "x-operator-token"
 GATE_STATE_KEY = "__agentscore_gate"
@@ -58,12 +69,15 @@ def _mark_degraded_asgi(scope: Scope, infra_reason: str) -> None:
 
 __all__ = [
     "AgentScoreGate",
+    "AipGate",
     "ConditionalAgentScoreGate",
+    "ConditionalAipGate",
     "capture_wallet",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
+    "get_verified_ait",
 ]
 
 
@@ -119,6 +133,14 @@ async def _default_on_denied(_request: Request, reason: DenialReason) -> JSONRes
     return JSONResponse(denial_reason_to_body(reason), status_code=denial_reason_status(reason))
 
 
+async def _default_aip_on_denied(_request: Request, body: AipErrorBody) -> JSONResponse:
+    return JSONResponse(
+        body,
+        status_code=int(body.get("status", 401)),
+        media_type="application/problem+json",
+    )
+
+
 class AgentScoreGate:
     """ASGI middleware that gates requests based on AgentScore wallet reputation.
 
@@ -143,7 +165,7 @@ class AgentScoreGate:
         allowed_jurisdictions: list[str] | None = None,
         fail_open: bool = False,
         cache_seconds: int = 300,
-        base_url: str = "https://api.agentscore.sh",
+        base_url: str = "https://api.agentscore.com",
         chain: str | None = None,
         user_agent: str | None = None,
         extract_identity: Callable[[Request], AgentIdentity | None] | None = None,
@@ -151,6 +173,7 @@ class AgentScoreGate:
         on_denied: Callable[[Request, DenialReason], Awaitable[JSONResponse]] | None = None,
         create_session_on_missing: CreateSessionOnMissing | None = None,
         condition: Callable[[Request], bool] | None = None,
+        aip_trusted_issuers: list[str] | None = None,
     ) -> None:
         self.app = app
         self._condition = condition
@@ -166,6 +189,7 @@ class AgentScoreGate:
             base_url=base_url,
             chain=chain,
             user_agent=user_agent,
+            aip_trusted_issuers=aip_trusted_issuers,
         )
         self._extract_identity = extract_identity or _default_extract_identity
         self._extract_chain = extract_chain
@@ -208,7 +232,7 @@ class AgentScoreGate:
                     await response(scope, receive, send)
                     return
 
-            reason = build_missing_identity_reason()
+            reason = build_missing_identity_reason(self._client.aip_trusted_issuers)
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
             return
@@ -276,10 +300,15 @@ class AgentScoreGate:
 
         if result.allow:
             scope["state"] = {**scope.get("state", {}), "agentscore": result.raw}
-            if result.quota is not None:
-                state = scope["state"].get(GATE_STATE_KEY)
-                if isinstance(state, dict):
+            state = scope["state"].get(GATE_STATE_KEY)
+            if isinstance(state, dict):
+                if result.quota is not None:
                     state["quota"] = result.quota
+                # Request-scope the signer verdict (see fastapi.get_signer_verdict): stash the
+                # verdict projected from THIS request's raw response so a concurrent same-wallet
+                # request with a different signer can't race the shared-core slot.
+                if identity.address and signer_payload is not None:
+                    state["signer_verdict"] = self._client.project_signer_verdict(result.raw, identity.address)
             await self.app(scope, receive, send)
             return
 
@@ -326,14 +355,14 @@ def get_signer_verdict(request: Request) -> SignerVerdict | None:
     SDN wallet-address hits already flip the gate to ``decision=deny`` before the handler
     runs. Merchant code typically only reads ``signer_match`` for the wallet-binding
     verdict (e.g. via :func:`build_signer_mismatch_body`).
+
+    Reads the request-scoped verdict stashed by the gate (projected from THIS request's
+    assess response) — concurrency-safe against a sibling same-wallet request.
     """
     state = request.scope.get("state", {}).get(GATE_STATE_KEY)
-    if not state or not state.get("wallet_address"):
+    if not isinstance(state, dict):
         return None
-    client = state.get("client")
-    if client is None:
-        return None
-    return client.get_signer_verdict(state["wallet_address"])
+    return state.get("signer_verdict")
 
 
 async def capture_wallet(
@@ -381,4 +410,106 @@ class ConditionalAgentScoreGate(AgentScoreGate):
         from agentscore_commerce.payment.payment_header import has_payment_header
 
         kwargs["condition"] = has_payment_header
+        super().__init__(app, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
+# merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
+# Starlette's ``Request`` satisfies ``RequestLike``, so this ASGI middleware verifies
+# straight off the request via ``evaluate_aip_request``; denials render the RFC 9457
+# ``application/problem+json`` body. ``get_verified_ait`` reads the token off the scope state.
+# ---------------------------------------------------------------------------
+
+AIT_STATE_KEY = "__agentscore_ait"
+
+
+def get_verified_ait(request: Request) -> VerifiedAit | None:
+    """Return the verified AIT attached to the request scope by :class:`AipGate`.
+
+    Returns ``None`` when the request wasn't AIP-gated, or the conditional gate let an
+    unauthenticated request through.
+    """
+    state = request.scope.get("state") or {}
+    return state.get(AIT_STATE_KEY)
+
+
+class AipGate:
+    """ASGI middleware that requires a valid AIT on every request it guards.
+
+    Verifies the IdP signature + RFC 9421 proof-of-possession + expiry + trust offline
+    against the issuer's published JWKS (no API round trip). On a verify/trust failure it
+    short-circuits with the RFC 9457 ``application/problem+json`` body; on success it stashes
+    the verified token on the scope state for :func:`get_verified_ait`.
+
+    Usage with Starlette / FastAPI::
+
+        from agentscore_commerce.aip import JwksCache
+        from agentscore_commerce.identity.middleware import AipGate, get_verified_ait
+
+        app.add_middleware(AipGate, jwks=JwksCache(trusted_issuers=["https://issuer.example"]))
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        jwks: JwksCache,
+        now: float | None = None,
+        max_skew_seconds: float | None = None,
+        require_trust_level: TrustLevel | None = None,
+        require_amr: list[str] | None = None,
+        required_claims: list[str] | None = None,
+        trusted_issuers: list[str] | None = None,
+        on_denied: Callable[[Request, AipErrorBody], Awaitable[JSONResponse]] | None = None,
+        condition: Callable[[Request], bool] | None = None,
+    ) -> None:
+        self.app = app
+        self._condition = condition
+        self._opts = AipGateOptions(
+            jwks=jwks,
+            now=now,
+            max_skew_seconds=max_skew_seconds,
+            require_trust_level=require_trust_level,
+            require_amr=require_amr,
+            required_claims=required_claims,
+            trusted_issuers=trusted_issuers,
+        )
+        self._on_denied = on_denied or _default_aip_on_denied
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """ASGI entry point."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive, send)
+
+        if self._condition is not None and not self._condition(request):
+            await self.app(scope, receive, send)
+            return
+
+        evaluation = await evaluate_aip_request(request, self._opts)
+        if not evaluation.ok:
+            body = evaluation.body or build_aip_error_body("malformed_token")
+            response = await self._on_denied(request, body)
+            await response(scope, receive, send)
+            return
+
+        scope.setdefault("state", {})
+        scope["state"][AIT_STATE_KEY] = evaluation.ait
+        await self.app(scope, receive, send)
+
+
+class ConditionalAipGate(AipGate):
+    """ASGI middleware variant of :class:`AipGate` that verifies only when present.
+
+    Requests without an ``Agent-Identity`` header flow through unauthenticated; requests
+    that carry one must pass full verification. Accepts the same kwargs as :class:`AipGate`;
+    any ``condition`` kwarg is replaced with the ``Agent-Identity`` header check.
+    """
+
+    def __init__(self, app: ASGIApp, **kwargs: Any) -> None:
+        kwargs["condition"] = has_agent_identity_header
         super().__init__(app, **kwargs)

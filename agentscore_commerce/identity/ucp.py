@@ -5,7 +5,7 @@ shape matches the spec example: top-level ``{"ucp": {...}, "signing_keys": [...]
 envelope, with ``services`` / ``capabilities`` / ``payment_handlers`` as MAPS keyed by
 reverse-DNS name (UCP spec §3 + §6).
 
-AgentScore identity claims layer over UCP via the ``sh.agentscore.identity`` capability
+AgentScore identity claims layer over UCP via the ``com.agentscore.identity`` capability
 (vendor-namespaced; UCP doesn't define KYC/sanctions/age/jurisdiction natively).
 
 Pass the unsigned profile through :func:`sign_ucp_profile` to attach the
@@ -33,20 +33,20 @@ from agentscore_commerce.payment.rail_spec import (
 _DEFAULT_VERSION = "2026-04-08"
 
 # Reverse-DNS namespacing per UCP convention. The bare ``agentscore-identity`` form
-# fails the spec regex; vendor-namespacing under the ``sh.agentscore`` authority is
+# fails the spec regex; vendor-namespacing under the ``com.agentscore`` authority is
 # honest about the capability being our extension, not a UCP-canonical slot.
-AGENTSCORE_UCP_CAPABILITY = "sh.agentscore.identity"
+AGENTSCORE_UCP_CAPABILITY = "com.agentscore.identity"
 """Capability name AgentScore registers in the UCP profile. Consumers filter on this
 to find verified-buyer claims attached to the profile."""
 
 _AGENTSCORE_CAPABILITY_VERSION = "2026-04-08"
-_AGENTSCORE_DEFAULT_SPEC_URL = "https://agentscore.sh/specification/identity"
-_AGENTSCORE_DEFAULT_SCHEMA_URL = "https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json"
+_AGENTSCORE_DEFAULT_SPEC_URL = "https://www.agentscore.com/specification/identity"
+_AGENTSCORE_DEFAULT_SCHEMA_URL = "https://www.agentscore.com/schemas/ucp/com-agentscore-identity-v1.json"
 
 
 @dataclass
 class AgentScoreGatePolicy:
-    """Merchant gate policy declared on the UCP profile via ``sh.agentscore.identity``.
+    """Merchant gate policy declared on the UCP profile via ``com.agentscore.identity``.
 
     All fields optional; merchant declares which AgentScore checks the gate enforces.
     Snake-case field names match the AgentScore API's ``/v1/assess`` policy contract
@@ -371,7 +371,7 @@ def build_ucp_profile(
     reverse-DNS name. Pass through :func:`sign_ucp_profile` to attach a JWS
     signature for trust-mode verifiers.
 
-    Auto-injects ``sh.agentscore.identity`` as a vendor capability extending both
+    Auto-injects ``com.agentscore.identity`` as a vendor capability extending both
     ``dev.ucp.shopping.checkout`` and ``dev.ucp.shopping.cart`` when
     ``agentscore_gate`` is provided. The capability's ``config`` carries the
     merchant's static gate policy declaration (require_kyc / require_sanctions_clear
@@ -424,7 +424,7 @@ def build_ucp_profile(
         k: list(bindings) for k, bindings in (capabilities or {}).items()
     }
 
-    # Auto-inject `sh.agentscore.identity` capability when the merchant declares a gate
+    # Auto-inject `com.agentscore.identity` capability when the merchant declares a gate
     # policy. Static merchant-policy declaration only — no per-operator data on the public
     # profile. Per-operator identity attestation flows through the AP2 risk-signal endpoint
     # or per-request 4xx response bodies, not here. Multi-parent extension matching
@@ -475,8 +475,8 @@ def build_ucp_profile(
 # these constants; bumping a handler spec version is a one-line change here.
 
 _HANDLER_VERSION = "2026-04-08"
-_SPEC_BASE = "https://agentscore.sh/specification/payment-handlers"
-_SCHEMA_BASE = "https://agentscore.sh/schemas/payment-handlers"
+_SPEC_BASE = "https://www.agentscore.com/specification/payment-handlers"
+_SCHEMA_BASE = "https://www.agentscore.com/schemas/payment-handlers"
 
 
 # CAIP-2 → UCP-namespace network-name mapping. UCP payment_handler bindings publish
@@ -551,7 +551,7 @@ def mpp_payment_handler(
     *,
     networks: list[TempoRailSpec | SolanaMppRailSpec | TempoSessionRailSpec],
 ) -> dict[str, list[UCPPaymentHandlerBinding]]:
-    """Build the `sh.agentscore.payment.mpp` payment handler block for a UCP profile.
+    """Build the `com.agentscore.payment.mpp` payment handler block for a UCP profile.
 
     Pass any mix of `TempoRailSpec`, `SolanaMppRailSpec`, and `TempoSessionRailSpec`.
     Tempo + Solana SPL both flow through the MPP handler; tempo-session covers the
@@ -566,7 +566,7 @@ def mpp_payment_handler(
         }
     """
     return {
-        "sh.agentscore.payment.mpp": [
+        "com.agentscore.payment.mpp": [
             UCPPaymentHandlerBinding(
                 id="mpp",
                 version=_HANDLER_VERSION,
@@ -590,7 +590,7 @@ def x402_payment_handler(
     *,
     networks: list[X402BaseRailSpec],
 ) -> dict[str, list[UCPPaymentHandlerBinding]]:
-    """Build the `sh.agentscore.payment.x402` payment handler block for a UCP profile.
+    """Build the `com.agentscore.payment.x402` payment handler block for a UCP profile.
 
     Today only x402 on EVM (Base mainnet / sepolia) ships through this SDK; the
     `X402BaseRailSpec.network` defaults to `eip155:8453` (CAIP-2) and is converted to
@@ -604,7 +604,7 @@ def x402_payment_handler(
         }
     """
     return {
-        "sh.agentscore.payment.x402": [
+        "com.agentscore.payment.x402": [
             UCPPaymentHandlerBinding(
                 id="x402",
                 version=_HANDLER_VERSION,
@@ -617,7 +617,7 @@ def x402_payment_handler(
 
 
 def stripe_spt_payment_handler(*, spec: StripeRailSpec) -> dict[str, list[UCPPaymentHandlerBinding]]:
-    """Build the `sh.agentscore.payment.stripe_spt` payment handler block for a UCP profile.
+    """Build the `com.agentscore.payment.stripe_spt` payment handler block for a UCP profile.
 
     `spec.profile_id` is the merchant-side network identifier the agent's SPT is scoped
     to; advertised verbatim in the UCP profile so trust-mode verifiers know which Stripe
@@ -629,7 +629,7 @@ def stripe_spt_payment_handler(*, spec: StripeRailSpec) -> dict[str, list[UCPPay
         }
     """
     return {
-        "sh.agentscore.payment.stripe_spt": [
+        "com.agentscore.payment.stripe_spt": [
             UCPPaymentHandlerBinding(
                 id="stripe-spt",
                 version=_HANDLER_VERSION,

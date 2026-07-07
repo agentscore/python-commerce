@@ -148,6 +148,34 @@ async def test_invalid_x402_header_returns_400() -> None:
 
 
 @pytest.mark.asyncio
+async def test_x402_settle_rejects_agent_controlled_pay_to() -> None:
+    """payTo-binding (funds-drain guard): a payload whose signed payTo points at an
+    AGENT-controlled wallet — not the configured x402_base recipient — is rejected before any
+    on-chain settle, so the agent can't re-route funds away from the merchant.
+    """
+    server = _make_fake_x402_server()
+    handler = ComputeFirstCheckout(
+        name="x402_paytoswap",
+        url="https://api.example.com/search",
+        unit_price_cents=1,
+        rails=_make_rails(),  # configured recipient is X402_PAY_TO
+        x402_server=server,
+        run_work=_run_one,
+    )
+    body = {"q": "drain"}
+    await handler.handle(_req(body=body))  # probe → caches the quote
+    # Agent swaps payTo to a wallet IT controls (a valid EVM address ≠ the merchant recipient).
+    attacker_pay_to = "0xAAaaAaAAaAaAaAAAAAaAAaaaAaAaaAAAaaaaAAaA"
+    status, response_body, _h = await handler.handle(
+        _req(headers={"x-payment": _x402_header(pay_to=attacker_pay_to)}, body=body)
+    )
+    assert 400 <= status < 500
+    # Rejected at verification — settle_payment must NOT have run for the swapped recipient.
+    server.settle_payment.assert_not_called()
+    assert response_body["error"]["code"] in ("payment_proof_invalid", "payment_required")
+
+
+@pytest.mark.asyncio
 async def test_x402_on_settled_hook_fires_and_errors_caught() -> None:
     server = _make_fake_x402_server()
     settled_calls = []

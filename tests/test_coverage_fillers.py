@@ -12,6 +12,7 @@ from agentscore_commerce.discovery import (
     PaymentMethodConfig,
     build_bazaar_discovery_payload,
     build_well_known_mpp,
+    enrich_bazaar_discovery_extensions,
     llms_txt_identity_section,
     llms_txt_payment_section,
 )
@@ -39,6 +40,33 @@ def test_bazaar_payload_includes_all_optional_fields():
 def test_bazaar_payload_omits_empty_fields():
     payload = build_bazaar_discovery_payload()
     assert payload == {}
+
+
+def test_enrich_bazaar_fills_method_and_schema():
+    exts = {
+        "bazaar": {"info": {"input": {"type": "http"}}, "schema": {"properties": {"input": {"required": ["type"]}}}}
+    }
+    out = enrich_bazaar_discovery_extensions(exts, method="POST", path="/company/base")
+    assert out["bazaar"]["info"]["input"]["method"] == "POST"
+    assert "method" in out["bazaar"]["schema"]["properties"]["input"]["required"]
+    # original is not mutated
+    assert "method" not in exts["bazaar"]["info"]["input"]
+
+
+def test_enrich_bazaar_skips_mcp_and_missing_or_none():
+    # MCP discovery has no HTTP method → unchanged.
+    mcp = {"bazaar": {"info": {"input": {"type": "mcp"}}}}
+    assert enrich_bazaar_discovery_extensions(mcp, method="POST", path="/x") == mcp
+    # No bazaar key, non-dict declaration, and None → unchanged.
+    assert enrich_bazaar_discovery_extensions({"other": 1}, method="POST", path="/x") == {"other": 1}
+    assert enrich_bazaar_discovery_extensions({"bazaar": "nope"}, method="POST", path="/x") == {"bazaar": "nope"}
+    assert enrich_bazaar_discovery_extensions(None, method="POST", path="/x") is None
+
+
+def test_enrich_bazaar_sets_route_template_for_dynamic_path():
+    exts = {"bazaar": {"info": {"input": {"type": "http"}}, "schema": {}}}
+    out = enrich_bazaar_discovery_extensions(exts, method="POST", path="/items/:id")
+    assert out["bazaar"]["routeTemplate"] == "/items/:id"
 
 
 def test_well_known_mpp_includes_all_optional_blocks():

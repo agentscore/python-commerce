@@ -81,8 +81,8 @@ def _tempo_handler(config: dict[str, Any] | None = None) -> UCPPaymentHandlerBin
     h = UCPPaymentHandlerBinding(
         id="tempo",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/tempo",
-        schema="https://agentscore.sh/schemas/payment-handlers/tempo.json",
+        spec="https://www.agentscore.com/specification/payment-handlers/tempo",
+        schema="https://www.agentscore.com/schemas/payment-handlers/tempo.json",
     )
     if config is not None:
         h.config = config
@@ -93,8 +93,8 @@ def _x402_handler(networks: list[str]) -> UCPPaymentHandlerBinding:
     return UCPPaymentHandlerBinding(
         id="x402",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/x402",
-        schema="https://agentscore.sh/schemas/payment-handlers/x402.json",
+        spec="https://www.agentscore.com/specification/payment-handlers/x402",
+        schema="https://www.agentscore.com/schemas/payment-handlers/x402.json",
         config={"networks": networks},
     )
 
@@ -103,8 +103,8 @@ def _stripe_handler(config: dict[str, Any]) -> UCPPaymentHandlerBinding:
     return UCPPaymentHandlerBinding(
         id="stripe",
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/payment-handlers/stripe_spt",
-        schema="https://agentscore.sh/schemas/payment-handlers/stripe_spt.json",
+        spec="https://www.agentscore.com/specification/payment-handlers/stripe_spt",
+        schema="https://www.agentscore.com/schemas/payment-handlers/stripe_spt.json",
         config=config,
     )
 
@@ -133,8 +133,8 @@ def main() -> None:
         },
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
         payment_handlers={
-            "sh.agentscore.payment.tempo": [_tempo_handler({"rail": "tempo-mainnet", "chain_id": 4217})],
-            "sh.agentscore.payment.x402": [_x402_handler(["base-8453"])],
+            "com.agentscore.payment.tempo": [_tempo_handler({"rail": "tempo-mainnet", "chain_id": 4217})],
+            "com.agentscore.payment.x402": [_x402_handler(["base-8453"])],
         },
         name="ES256 Merchant",
     )
@@ -148,29 +148,29 @@ def main() -> None:
         services={"dev.ucp.shopping": [_shop_service_mcp("https://e.example.com")]},
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
         payment_handlers={
-            "sh.agentscore.payment.stripe_spt": [_stripe_handler({"profile_id": "abc", "count": 7})],
+            "com.agentscore.payment.stripe_spt": [_stripe_handler({"profile_id": "abc", "count": 7})],
         },
         name="Extras Merchant",
     )
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-extras-int", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-capability — hand-crafted vendor capability under sh.agentscore.identity.
+    # py-capability — hand-crafted vendor capability under com.agentscore.identity.
     kid = "py-capability-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
     custom_capability = UCPCapabilityBinding(
         version="2026-04-08",
-        spec="https://agentscore.sh/specification/identity",
-        schema="https://agentscore.sh/schemas/ucp/sh-agentscore-identity-v1.json",
+        spec="https://www.agentscore.com/specification/identity",
+        schema="https://www.agentscore.com/schemas/ucp/com-agentscore-identity-v1.json",
         # `extras` flat on the binding — kyc_required is a vendor field on this binding.
         extras={"kyc_required": True},
     )
     profile = build_ucp_profile(
         services={"dev.ucp.shopping": [_shop_service_mcp("https://c.example.com")]},
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
-        capabilities={"sh.agentscore.identity": [custom_capability]},
+        capabilities={"com.agentscore.identity": [custom_capability]},
         payment_handlers={
-            "sh.agentscore.payment.tempo": [_tempo_handler({"rail": "tempo-mainnet", "chain_id": 4217})],
+            "com.agentscore.payment.tempo": [_tempo_handler({"rail": "tempo-mainnet", "chain_id": 4217})],
         },
         name="Capability Merchant",
     )
@@ -184,7 +184,7 @@ def main() -> None:
         services={"dev.ucp.shopping": [_shop_service_mcp("https://日本.example.com")]},
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
         payment_handlers={
-            "sh.agentscore.payment.tempo": [_tempo_handler({"note": "メモ"})],
+            "com.agentscore.payment.tempo": [_tempo_handler({"note": "メモ"})],
         },
         name="Café 日本 🍷 Merchant",
     )
@@ -201,7 +201,7 @@ def main() -> None:
             UCPSigningKey.from_jwk(new_key.public_jwk),
         ],
         payment_handlers={
-            "sh.agentscore.payment.tempo": [_tempo_handler({"rail": "tempo-mainnet"})],
+            "com.agentscore.payment.tempo": [_tempo_handler({"rail": "tempo-mainnet"})],
         },
         name="Multi-Key Merchant",
     )
@@ -226,7 +226,7 @@ def main() -> None:
         services={"dev.ucp.shopping": [_shop_service_mcp("https://emoji.example.com")]},
         signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
         payment_handlers={
-            "sh.agentscore.payment.tempo": [_tempo_handler()],
+            "com.agentscore.payment.tempo": [_tempo_handler()],
         },
         name="Emoji Keys Merchant",
         extras={

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import patch
@@ -107,6 +108,38 @@ def _fake_stripe(addresses: dict[str, str]) -> Any:
             self.payment_intents = _PaymentIntentsAPI()
 
     return _Stripe()
+
+
+@pytest.mark.asyncio
+async def test_warns_on_rotating_solana_mint_and_static_takes_safe_path(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import agentscore_commerce.stripe_multichain.pay_to_address as pta
+
+    pta._warned_rotating_solana_mint = False
+
+    # Rotating: default networks include solana, no static_recipients -> warn.
+    cache = FakePiCache()
+    with caplog.at_level(logging.WARNING):
+        await mint_multichain_recipients(
+            authorization_header=None,
+            amount_cents=250,
+            stripe=_fake_stripe({"tempo": "0xT", "base": "0xB", "solana": "SOL1"}),
+            pi_cache=cache,  # type: ignore[arg-type]
+        )
+    assert any("solana" in r.getMessage().lower() and "static_recipients" in r.getMessage() for r in caplog.records)
+
+    # Static: solana is filtered out of the Stripe mint, served from static_recipients.
+    cache2 = FakePiCache()
+    res = await mint_multichain_recipients(
+        authorization_header=None,
+        amount_cents=250,
+        stripe=_fake_stripe({"tempo": "0xT2", "base": "0xB2"}),
+        pi_cache=cache2,  # type: ignore[arg-type]
+        networks=["tempo", "base", "solana"],
+        static_recipients={"solana": "STATICSOL"},
+    )
+    assert res.recipients["solana"] == "STATICSOL"
 
 
 @pytest.mark.asyncio

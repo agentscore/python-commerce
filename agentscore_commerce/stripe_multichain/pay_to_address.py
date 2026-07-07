@@ -17,6 +17,7 @@ leg still mints a fresh PaymentIntent for them.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +28,15 @@ from agentscore_commerce.stripe_multichain.payment_intent import (
 
 if TYPE_CHECKING:
     from agentscore_commerce.stripe_multichain.pi_cache import PiCache
+
+_logger = logging.getLogger(__name__)
+
+# Stripe-minted Solana deposit addresses rotate per PaymentIntent and have no
+# pre-existing USDC ATA. @solana/mpp >=0.6.0 will not create the primary
+# recipient's ATA in the charge transaction, so the settle fails simulation
+# (InstructionError [2, InvalidAccountData]). Warn once when a rotating Solana
+# recipient is about to be minted so the merchant isn't blindsided at settle.
+_warned_rotating_solana_mint = False
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -241,6 +251,17 @@ async def _mint_and_cache(
     Registers everything in the cache and returns (preferred_address, merged_map).
     """
     stripe_networks = [n for n in networks if n not in static_recipients]
+    global _warned_rotating_solana_mint
+    if "solana" in stripe_networks and not _warned_rotating_solana_mint:
+        _warned_rotating_solana_mint = True
+        _logger.warning(
+            "[stripe-multichain] Minting a per-PaymentIntent (rotating) Solana recipient. "
+            "Solana MPP settle fails on @solana/mpp >=0.6.0 for rotating recipients: the "
+            "client does not create the primary recipient ATA, so a fresh deposit address "
+            "has no token account to receive into. Use a static Solana recipient with a "
+            "pre-funded ATA (static_recipients={'solana': '<wallet>'}), or drop 'solana' "
+            "from networks."
+        )
     idempotency_key = f"pi-{order_id}-{amount_cents}" if order_id else None
     result = create_multichain_payment_intent(
         stripe=stripe,

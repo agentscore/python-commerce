@@ -87,6 +87,7 @@ from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_bl
 from agentscore_commerce.challenge.respond_402 import Respond402Result, respond_402
 from agentscore_commerce.challenge.validation_error import build_validation_error
 from agentscore_commerce.errors import CheckoutValidationError
+from agentscore_commerce.forwarded_proto import apply_forwarded_proto, read_forwarded_proto
 from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
 from agentscore_commerce.payment.mppx_failures import classify_mppx_failure
 from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
@@ -675,17 +676,7 @@ def _resolve_resource_url(request: CheckoutRequest) -> str:
     Behind ALB / CloudFront the inbound ``request.url`` is ``http://``; x402 discovery
     requires ``https://``, so honor ``X-Forwarded-Proto`` (the proxy's original scheme).
     """
-    fwd = request.headers.get("x-forwarded-proto") or request.headers.get("X-Forwarded-Proto")
-    if fwd:
-        proto = fwd.split(",")[0].strip()
-        if proto:
-            from urllib.parse import urlparse, urlunparse
-
-            try:
-                return urlunparse(urlparse(request.url)._replace(scheme=proto))
-            except ValueError:
-                pass
-    return request.url
+    return apply_forwarded_proto(request.url, read_forwarded_proto(request.headers))
 
 
 def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:

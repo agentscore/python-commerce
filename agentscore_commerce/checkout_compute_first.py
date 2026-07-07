@@ -48,6 +48,7 @@ from agentscore_commerce.challenge import (
 )
 from agentscore_commerce.discovery import build_success_next_steps
 from agentscore_commerce.errors import CheckoutValidationError
+from agentscore_commerce.forwarded_proto import apply_forwarded_proto, read_forwarded_proto
 from agentscore_commerce.payment.amounts import format_usd_cents
 from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
 from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
@@ -429,7 +430,9 @@ class ComputeFirstCheckout:
         headers = {"Content-Type": "application/json"}
         headers.update(mpp_challenge_headers)
         headers["PAYMENT-REQUIRED"] = payment_required_header(
-            x402_version=2, accepts=accepted, resource={"url": self.url}
+            x402_version=2,
+            accepts=accepted,
+            resource={"url": apply_forwarded_proto(request.url, read_forwarded_proto(request.headers))},
         )
         return 402, body_402, headers
 
@@ -560,7 +563,7 @@ class ComputeFirstCheckout:
                 "maxTimeoutSeconds": 300,
             },
             resource_meta={
-                "url": request.url,
+                "url": apply_forwarded_proto(request.url, read_forwarded_proto(request.headers)),
                 "description": f"Agent purchase via x402-exact ({self.name})",
                 "mimeType": "application/json",
             },

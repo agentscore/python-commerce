@@ -32,7 +32,7 @@ class TestBuildAipTrustedIssuers:
     def test_appends_externals_and_dedupes_the_canonical_issuer(self) -> None:
         out = build_aip_trusted_issuers(["https://issuer.example", "https://www.agentscore.com/"])
         assert AGENTSCORE_CANONICAL_ISSUER in out
-        assert "https://issuer.example" in out
+        assert any(i == "https://issuer.example" for i in out)
         assert len([i for i in out if i == AGENTSCORE_CANONICAL_ISSUER]) == 1
 
 

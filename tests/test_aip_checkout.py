@@ -60,14 +60,14 @@ class TestCheckoutBuildAipTrustedIssuers:
     def test_prepends_canonical_and_dedupes_after_canonicalization(self) -> None:
         out = build_aip_trusted_issuers(["https://issuer.example", "https://www.agentscore.com/"])
         assert out[0] == AGENTSCORE_CANONICAL_ISSUER
-        assert "https://issuer.example" in out
+        assert any(i == "https://issuer.example" for i in out)
         # trailing-slash duplicate of the canonical issuer collapses on its canonical form.
         assert len([i for i in out if i == AGENTSCORE_CANONICAL_ISSUER]) == 1
 
     def test_keeps_first_seen_original_string_for_each_canonical_key(self) -> None:
         # An external issuer passed verbatim is preserved exactly (not re-canonicalized in the output).
         out = build_aip_trusted_issuers(["https://Issuer.Example"])
-        assert "https://Issuer.Example" in out
+        assert any(i == "https://Issuer.Example" for i in out)
 
 
 # ── CheckoutGateConfig now exposes the AIP wiring (flip of the prior "not yet" pin) ──

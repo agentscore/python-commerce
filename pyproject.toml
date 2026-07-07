@@ -112,10 +112,3 @@ required-version = ">=0.11.0"
 # undocumented `fastar` typosquat dependency. Pin away from it until a clean
 # release supersedes it on PyPI.
 constraint-dependencies = ["fastapi!=0.136.3"]
-
-# The AIP port depends on agentscore-py>=2.5.0 (assess(aip_token=, aip_signature=)
-# + types.AipProvenance/AipSignatureMaterial). 2.5.0 is the unpublished sibling
-# SDK (still local while AIP stays unreleased), so resolve it from the sibling
-# checkout. Drop this source once agentscore-py 2.5.0 is on PyPI.
-[tool.uv.sources]
-agentscore-py = { path = "../python-sdk", editable = true }

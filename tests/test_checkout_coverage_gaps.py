@@ -174,7 +174,9 @@ async def test_zero_settle_x402_verify_failure_returns_4xx() -> None:
     result = await checkout.handle(_req(headers={"x-payment": "not-base64-json"}))
     assert 400 <= result.status < 500
     assert result.settled is False
-    assert result.settle_phase == "verify_failed"
+    # The wire-shape gate rejects an undecodable header before the
+    # zero-settle verify path is ever reached.
+    assert result.settle_phase == "credential_malformed"
 
 
 @pytest.mark.asyncio

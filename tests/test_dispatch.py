@@ -26,7 +26,10 @@ _FIXTURES: list[tuple[str, dict[str, str], str | None]] = [
     ("empty_values_dont_count", {"payment-signature": "", "x-payment": ""}, None),
     (
         "mpp_wins_when_both_present",
-        {"x-payment": "abc", "authorization": "Payment xyz"},
+        {
+            "x-payment": "abc",
+            "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19",
+        },
         "mpp",
     ),
     ("payment_without_space_is_not_mpp", {"authorization": "PaymentNoSpace"}, None),
@@ -57,7 +60,10 @@ def test_returns_x402_for_non_string_truthy_value() -> None:
 
 
 def test_does_not_mutate_input_headers() -> None:
-    headers = {"X-Payment": "abc", "Authorization": "Payment xyz"}
+    headers = {
+        "X-Payment": "abc",
+        "Authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19",
+    }
     detect_rail_from_headers(headers)
     # Keys preserved verbatim; helper only reads via a lowercase projection.
     assert "X-Payment" in headers

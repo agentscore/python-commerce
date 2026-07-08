@@ -21,9 +21,11 @@ from agentscore_commerce.payment.mppx_server import MppxRailSpec, create_mppx_se
 from agentscore_commerce.payment.network_kind import is_evm_network, is_solana_network
 from agentscore_commerce.payment.networks import NetworkFamily, network_family, networks
 from agentscore_commerce.payment.payment_header import (
+    MalformedPaymentCredential,
     has_mppx_header,
     has_payment_header,
     has_x402_header,
+    malformed_payment_credential,
 )
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
@@ -95,6 +97,7 @@ __all__ = [
     "X402_SUPPORTED_BASE_NETWORKS",
     "ClassifiedX402Error",
     "CustomScheme",
+    "MalformedPaymentCredential",
     "MppxRailSpec",
     "NetworkFamily",
     "PaymentHeadersRail",
@@ -148,6 +151,7 @@ __all__ = [
     "lazy_x402_server",
     "load_solana_fee_payer",
     "lookup_rail",
+    "malformed_payment_credential",
     "network_family",
     "networks",
     "parse_did_pkh_address",

@@ -90,7 +90,11 @@ from agentscore_commerce.errors import CheckoutValidationError
 from agentscore_commerce.forwarded_proto import apply_forwarded_proto, read_forwarded_proto
 from agentscore_commerce.payment.constants import STRIPE_MIN_CHARGE_USD
 from agentscore_commerce.payment.mppx_failures import classify_mppx_failure
-from agentscore_commerce.payment.payment_header import has_mppx_header, has_x402_header
+from agentscore_commerce.payment.payment_header import (
+    has_mppx_header,
+    has_x402_header,
+    malformed_payment_credential,
+)
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
     SolanaMppRailSpec,
@@ -752,6 +756,13 @@ class Checkout:
       CDP facilitator and pympp's tempo intents both reject $0 settles outright;
       this carve-out makes free-redemption flows work uniformly across rails.
       Default ``False`` (every payment header attempts a real settle).
+    * ``credential_pre_check``; reject payment credentials that fail the cheap
+      wire-shape check (not base64 JSON, not a token-shaped value) BEFORE any
+      merchant hook runs, so junk headers never trigger ``pre_validate`` /
+      pricing / recipient minting / the gate's assess call. Shape only —
+      signature and payTo verification stay on the settle path. Default
+      ``True``; set ``False`` for custom ``compose_mppx`` implementations that
+      accept non-standard credential encodings.
     """
 
     def __init__(
@@ -776,6 +787,7 @@ class Checkout:
         on_settled: OnSettledFn | None = None,
         is_cached_address: IsCachedAddressFn | None = None,
         zero_settle_carve_out: bool = False,
+        credential_pre_check: bool = True,
         gate: CheckoutGateConfig | None = None,
         discovery_extensions: dict[str, Any] | None = None,
         resource_info: dict[str, Any] | None = None,
@@ -841,6 +853,7 @@ class Checkout:
         self.on_settled = on_settled
         self.is_cached_address = is_cached_address
         self.zero_settle_carve_out = zero_settle_carve_out
+        self.credential_pre_check = credential_pre_check
         self.gate = gate
         # Lazily-built JWKS cache for AIP verification, shared across requests so issuer keys are
         # fetched once and cached (per the verifier's hard 24h cap). Built on first AIT.
@@ -1046,6 +1059,40 @@ class Checkout:
                     reference_id=ctx.reference_id,
                     settled=False,
                     settle_phase="discovery_probe",
+                )
+
+        # Credential shape gate: runs BEFORE pre_validate / the identity gate /
+        # pricing / recipient minting so a junk payment header cannot trigger
+        # merchant hooks (which may do paid upstream work) or burn an assess
+        # call. Shape only — real verification stays on the settle path, which
+        # needs per-request state the hooks produce. Scoped to the credential
+        # channels this Checkout actually dispatches on, so e.g. an x402 header
+        # at a Tempo-only merchant keeps its current discovery-leg behavior.
+        if self.credential_pre_check:
+            malformed = malformed_payment_credential(request.headers)
+            enforced = malformed is not None and (
+                (self._x402_server_available() and self._x402_base_network is not None)
+                if malformed.channel == "x402"
+                else self.compose_mppx is not None
+            )
+            if enforced and malformed is not None:
+                return CheckoutResult(
+                    status=400,
+                    body=build_validation_error(
+                        code="payment_proof_invalid",
+                        message=malformed.message,
+                        next_steps={
+                            "action": "regenerate_payment_credential",
+                            "user_message": (
+                                "The payment credential could not be decoded. "
+                                "Rebuild it from a fresh 402 challenge and retry."
+                            ),
+                        },
+                    ),
+                    headers={},
+                    reference_id=ctx.reference_id,
+                    settled=False,
+                    settle_phase="credential_malformed",
                 )
 
         # Pre-validate (optional): resolve merchant-specific per-request state

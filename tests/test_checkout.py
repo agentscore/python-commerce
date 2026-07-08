@@ -550,7 +550,13 @@ async def test_compose_mppx_returns_200_runs_on_settled() -> None:
         compose_mppx=compose_mppx,
         on_settled=on_settled,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 200
     assert result.headers["payment-response"] == "ok"
     on_settled.assert_awaited_once()
@@ -584,7 +590,13 @@ async def test_mppx_settle_leg_resolves_recipients_for_compose_and_on_settled() 
         compose_mppx=compose,
         on_settled=on_settled,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 200
     # Both hooks saw the per-request minted recipient (not an empty dict).
     assert seen["compose"] == {"tempo": minted}
@@ -606,7 +618,13 @@ async def test_compose_mppx_payment_receipt_header_surfaces_on_response() -> Non
         compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
         compose_mppx=compose_mppx,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 200
     assert result.headers["payment-receipt"] == receipt_header
 
@@ -622,7 +640,13 @@ async def test_compose_mppx_omitted_payment_receipt_header_emits_no_header() -> 
         compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
         compose_mppx=compose_mppx,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 200
     assert "payment-receipt" not in result.headers
 
@@ -647,7 +671,13 @@ async def test_compose_mppx_auto_extracts_receipt_header_from_raw_dict() -> None
         compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
         compose_mppx=compose_mppx,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 200
     assert result.headers["payment-receipt"] == "auto-from-raw-dict"
 
@@ -671,7 +701,13 @@ async def test_compose_mppx_auto_extracts_receipt_header_from_raw_tuple() -> Non
         compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
         compose_mppx=compose_mppx,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 200
     assert result.headers["payment-receipt"] == "auto-from-raw-tuple"
 
@@ -699,7 +735,13 @@ async def test_compose_mppx_explicit_payment_receipt_header_wins_over_raw() -> N
         compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
         compose_mppx=compose_mppx,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 200
     assert result.headers["payment-receipt"] == "explicit-value"
 
@@ -722,7 +764,13 @@ async def test_compose_mppx_receipt_to_header_that_throws_falls_through() -> Non
         compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
         compose_mppx=compose_mppx,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 200
     assert "payment-receipt" not in result.headers
 
@@ -744,7 +792,13 @@ async def test_compose_mppx_returns_402_on_settle_leg_rejects_credential() -> No
         compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
         compose_mppx=compose_mppx,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 400
     assert result.headers["www-authenticate"] == 'Payment id="ord_x"'
     assert result.body["error"]["code"] == "payment_proof_invalid"
@@ -770,7 +824,13 @@ async def test_compose_mppx_402_with_keychain_failure_surfaces_tempo_key_not_reg
         compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
         compose_mppx=compose_mppx,
     )
-    result = await checkout.handle(_req(headers={"authorization": "Payment id=abc"}))
+    result = await checkout.handle(
+        _req(
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
+    )
     assert result.status == 401
     assert result.body["error"]["code"] == "tempo_key_not_registered"
     assert result.settle_phase == "verify_failed"

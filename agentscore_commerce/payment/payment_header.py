@@ -15,7 +15,12 @@ Three credential channels are checked:
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
+import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -94,3 +99,63 @@ def has_mppx_header(request_or_headers: Any) -> bool:
     headers = _unwrap_headers(request_or_headers)
     auth = _read_header(headers, "authorization")
     return bool(isinstance(auth, str) and auth.startswith("Payment "))
+
+
+_JWT_SHAPE_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
+
+
+def _decodes_to_json_object(token: str) -> bool:
+    try:
+        padded = token + "=" * (-len(token) % 4)
+        try:
+            raw = base64.b64decode(padded, validate=False)
+        except (ValueError, binascii.Error):
+            raw = base64.urlsafe_b64decode(padded)
+        return isinstance(json.loads(raw.decode("utf-8")), dict)
+    except (ValueError, UnicodeDecodeError, binascii.Error):
+        return False
+
+
+@dataclass(frozen=True)
+class MalformedPaymentCredential:
+    """Which credential channel carried the malformed value, and why."""
+
+    channel: str  # "x402" | "mpp"
+    message: str
+
+
+def malformed_payment_credential(request_or_headers: Any) -> MalformedPaymentCredential | None:
+    """Wire-shape gate for payment credentials, cheap enough to run before any merchant hook.
+
+    A request whose payment header cannot possibly be a credential (not
+    base64/base64url JSON, not a JWT-shaped token) is rejected up front, so junk
+    headers never trigger per-request hooks (``pre_validate``, pricing,
+    recipient minting) or the identity-gate API call.
+
+    This is deliberately a SHAPE check only. Signature verification, payTo
+    binding, and challenge validation stay where they are (the x402 validator
+    and the MPP settle path) — those need per-request state the hooks produce.
+    A well-formed-but-invalid credential still reaches the real validators and
+    fails there.
+
+    Returns ``None`` when every present credential channel is plausibly shaped
+    (or no payment header is present).
+    """
+    headers = _unwrap_headers(request_or_headers)
+    x402_token = _read_header(headers, "payment-signature") or _read_header(headers, "x-payment")
+    if x402_token:
+        if not _decodes_to_json_object(x402_token):
+            return MalformedPaymentCredential(
+                channel="x402",
+                message="X-Payment header is not decodable base64 JSON.",
+            )
+        return None
+    auth = _read_header(headers, "authorization")
+    if isinstance(auth, str) and auth.startswith("Payment "):
+        token = auth[len("Payment ") :].strip()
+        if not token or (not _decodes_to_json_object(token) and not _JWT_SHAPE_RE.match(token)):
+            return MalformedPaymentCredential(
+                channel="mpp",
+                message=("Authorization: Payment credential is neither base64-encoded JSON nor a token-shaped value."),
+            )
+    return None

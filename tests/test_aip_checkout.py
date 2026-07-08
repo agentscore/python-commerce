@@ -137,7 +137,7 @@ def _req(headers: dict[str, str]) -> CheckoutRequest:
     return CheckoutRequest(
         method="POST",
         url=URL,
-        headers={"x-payment": "stub-x402-payload", **headers},
+        headers={"x-payment": "eyJzdHViIjogdHJ1ZX0=", **headers},
         body={"product_id": "p1", "quantity": 1},
     )
 
@@ -608,7 +608,7 @@ class TestCheckoutAipRendererHonorsProblemJson:
     async def test_edge_deny_renders_problem_json_through_fastapi_adapter(self) -> None:
         checkout = _make_checkout(CheckoutGateConfig(api_key="as_test_key", require_kyc=True, aip=AIP))
         request = _starlette_request(
-            {"x-payment": "stub-x402-payload", "agent-identity": "eyJhbGciOiJFZERTQSJ9.e30.sig"}
+            {"x-payment": "eyJzdHViIjogdHJ1ZX0=", "agent-identity": "eyJhbGciOiJFZERTQSJ9.e30.sig"}
         )
         resp = await checkout.handle_fastapi(request)
         assert resp.status_code == 401
@@ -620,7 +620,7 @@ class TestCheckoutAipRendererHonorsProblemJson:
         # The override is AIP-only: a missing-identity denial (no Agent-Identity header) through the
         # same renderer must stay on the application/json default, untouched.
         checkout = _make_checkout(CheckoutGateConfig(api_key="as_test_key", require_kyc=True, aip=AIP))
-        request = _starlette_request({"x-payment": "stub-x402-payload"})
+        request = _starlette_request({"x-payment": "eyJzdHViIjogdHJ1ZX0="})
         resp = await checkout.handle_fastapi(request)
         assert resp.media_type == "application/json"
         body = json.loads(resp.body)
@@ -797,7 +797,7 @@ class TestCheckoutStaticGateEnforcement:
         req = CheckoutRequest(
             method="POST",
             url=URL,
-            headers={"x-payment": "stub-x402-payload"},
+            headers={"x-payment": "eyJzdHViIjogdHJ1ZX0="},
             body={"product_id": "p1", "quantity": 1},
             raw=object(),
         )

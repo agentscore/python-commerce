@@ -2359,7 +2359,7 @@ class Checkout:
                 rail_key=self._x402_rail_key(),
                 tx_hash=None,
                 signer_address=carve.signer_address,
-                signer_network="evm" if carve.signer_address else None,
+                signer_network=carve.signer_network,
                 payment_response_header=None,
                 payment_receipt_header=None,
                 raw=verified,
@@ -2370,12 +2370,21 @@ class Checkout:
             rail="tempo",
             authorization_header=ctx.request.headers.get("authorization"),
         )
+        # No receipt is minted on the $0 path, so the receipt-method derivation in
+        # _handle_mppx can't run. Resolve the rails key from the bound credential's
+        # signer network instead of the primary-MPP default, so Solana zero-settles
+        # don't report under the Tempo key (and vice versa).
+        derived_key = (
+            self._rails_key_for_mppx_method("solana" if carve.signer_network == "solana" else "tempo")
+            if carve.signer_network is not None
+            else None
+        )
         outcome = SettleOutcome(
             rail="mpp",
-            rail_key=self._mpp_rail_key(),
+            rail_key=derived_key or self._mpp_rail_key(),
             tx_hash=None,
             signer_address=carve.signer_address,
-            signer_network="evm" if carve.signer_address else None,
+            signer_network=carve.signer_network,
             payment_response_header=None,
             payment_receipt_header=None,
             raw=None,

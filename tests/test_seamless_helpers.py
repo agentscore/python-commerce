@@ -1358,8 +1358,93 @@ async def test_handle_zero_settle_mpp_carve_out() -> None:
     # Carve-out returns 200 with tx_hash=None (no on-chain settle for $0).
     assert result.status == 200
     assert result.body.get("tx_hash") is None
-    # The rail_key was lifted from MPP path
+    # Opaque credential → no signer network recoverable → primary-MPP fallback.
     assert result.body.get("rail_key") in {"tempo", "tempo_mpp"}
+
+
+def _zero_settle_checkout(rails: dict[str, Any]) -> Any:
+    """Checkout wired for the $0 MPP carve-out with an on_settled that surfaces the outcome."""
+    from agentscore_commerce.checkout import Checkout, PricingResult
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.0)
+
+    async def _on_settled(_ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
+        return {
+            "order_id": "o-1",
+            "rail_key": outcome.rail_key,
+            "signer_network": outcome.signer_network,
+            "signer": outcome.signer_address,
+        }
+
+    async def _compose_mppx(_ctx: Any) -> MppxComposeOutcome:
+        return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment realm="t"'})
+
+    return Checkout(
+        rails=rails,
+        url="https://api.example/purchase",
+        compute_pricing=_pricing,
+        compose_mppx=_compose_mppx,
+        on_settled=_on_settled,
+        zero_settle_carve_out=True,
+    )
+
+
+def _mpp_auth_header(source: str) -> str:
+    return "Payment " + base64.b64encode(json.dumps({"source": source}).encode()).decode()
+
+
+@pytest.mark.asyncio
+async def test_zero_settle_rail_key_resolves_solana_from_credential() -> None:
+    """A Solana did:pkh credential resolves rail_key to the solana rail, not the tempo default."""
+    from agentscore_commerce.payment import SolanaMppRailSpec
+
+    solana_signer = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+    checkout = _zero_settle_checkout(
+        {
+            "tempo_charge": TempoRailSpec(recipient="0x" + "00" * 19 + "dEaD"),
+            "sol_rail": SolanaMppRailSpec(recipient="SoLa"),
+        }
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={
+                "authorization": _mpp_auth_header(f"did:pkh:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:{solana_signer}")
+            },
+            body={},
+        ),
+    )
+    assert result.status == 200
+    assert result.body.get("rail_key") == "sol_rail"
+    assert result.body.get("signer_network") == "solana"
+    assert result.body.get("signer") == solana_signer
+
+
+@pytest.mark.asyncio
+async def test_zero_settle_rail_key_resolves_tempo_even_when_solana_declared_first() -> None:
+    """_mpp_rail_key ordering never mislabels: the credential's network wins."""
+    from agentscore_commerce.payment import SolanaMppRailSpec
+
+    evm_signer = "0xeb2Ca790F72787c7e61bC6c861353a1e4ACDFCa5"
+    checkout = _zero_settle_checkout(
+        {
+            "sol_rail": SolanaMppRailSpec(recipient="SoLa"),
+            "tempo_charge": TempoRailSpec(recipient="0x" + "00" * 19 + "dEaD"),
+        }
+    )
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={"authorization": _mpp_auth_header(f"did:pkh:eip155:42431:{evm_signer}")},
+            body={},
+        ),
+    )
+    assert result.status == 200
+    assert result.body.get("rail_key") == "tempo_charge"
+    assert result.body.get("signer_network") == "evm"
 
 
 def test_handle_django_returns_402_on_discovery_leg(monkeypatch: pytest.MonkeyPatch) -> None:

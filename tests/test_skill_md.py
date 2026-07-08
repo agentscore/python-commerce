@@ -378,12 +378,12 @@ class TestTriggersSection:
 class TestOnboardingAndSupport:
     def test_emits_numbered_onboarding(self) -> None:
         cfg = _base()
-        cfg["onboarding_steps"] = ["Install agentscore-pay", "Get a Passport", "Pay any 402"]
+        cfg["onboarding_steps"] = ["Install agentscore-pay", "Get a Passport", "Pay any x402"]
         out = build_skill_md(**cfg)
         assert "## Onboarding Flow" in out
         assert "1. Install agentscore-pay" in out
         assert "2. Get a Passport" in out
-        assert "3. Pay any 402" in out
+        assert "3. Pay any x402" in out
 
     def test_emits_support_links(self) -> None:
         cfg = _base()

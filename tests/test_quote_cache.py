@@ -75,3 +75,47 @@ async def test_default_recipients_empty_when_omitted() -> None:
     quote = await cache.read(key)
     assert quote is not None
     assert quote.recipients == {}
+
+
+# ── create_result_cache (neutral primitive) ─────────────────────────────────
+
+
+def test_result_cache_body_hash_key_stable_across_key_order() -> None:
+    from agentscore_commerce.quote_cache import create_result_cache
+
+    cache = create_result_cache()
+    assert cache.body_hash_key("enrich", {"a": 1, "b": 2}) == cache.body_hash_key("enrich", {"b": 2, "a": 1})
+
+
+@pytest.mark.asyncio
+async def test_result_cache_stores_and_replays_arbitrary_json() -> None:
+    from agentscore_commerce.quote_cache import create_result_cache
+
+    cache = create_result_cache()
+    key = cache.body_hash_key("enrich", {"domain": "acme.com"})
+    assert await cache.read(key) is None
+    await cache.write(key, {"matches": ["a", "b"], "upstream_cost_usd": 0.04})
+    assert await cache.read(key) == {"matches": ["a", "b"], "upstream_cost_usd": 0.04}
+
+
+@pytest.mark.asyncio
+async def test_result_cache_expires_entries() -> None:
+    import asyncio
+
+    from agentscore_commerce.quote_cache import create_result_cache
+
+    cache = create_result_cache(ttl_ms=10)
+    key = cache.body_hash_key("enrich", {"q": "x"})
+    await cache.write(key, "value")
+    assert await cache.read(key) == "value"
+    await asyncio.sleep(0.025)
+    assert await cache.read(key) is None
+
+
+@pytest.mark.asyncio
+async def test_quote_cache_round_trips_through_the_result_primitive() -> None:
+    cache = create_quote_cache()
+    key = cache.body_hash_key("search", {"q": "acme"})
+    await cache.write(key, {"total": 2}, 150, recipients={"x402_base": "0xabc"})
+    quote = await cache.read(key)
+    assert quote == CachedQuote(body={"total": 2}, price_cents=150, recipients={"x402_base": "0xabc"})

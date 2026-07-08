@@ -2,16 +2,25 @@
 
 CDP rejects EIP-3009 ``transferWithAuthorization`` with ``value=0`` as
 ``invalid_payload``; pympp's tempo intents accept only ``hash`` and
-``transaction`` payload types (rejecting the ``proof`` payload that ``mppx``
-emits for $0 settles). Both upstream verify+settle paths fail when the
-authorized amount is zero, so merchants that drop the settle to $0 in a
+``transaction`` payload types — the wallet-bound ``proof`` payload that the
+mppx client emits for $0 settles (and that the mppx server verifies) has no
+pympp counterpart yet. Both upstream verify+settle paths therefore fail when
+the authorized amount is zero, so merchants that drop the settle to $0 in a
 redemption-code flow need a way to skip verify+settle entirely while still
 recovering the signer for wallet-capture attribution.
 
 ``zero_amount_carve_out`` is that path: parse the credential, lift the signer,
 return ``ZeroSettleResult(signer_address, signer_network, tx_hash=None)``.
 Identity is still authenticated by the merchant's gate above; the redemption
-code is single-use; nothing on-chain to verify.
+code is single-use; nothing on-chain to verify. The recovered signer block is
+UNAUTHENTICATED (parse-only) on the MPP path — treat it as an attribution
+hint, not a verified identity.
+
+Known divergence from the Node SDK: node-commerce delegates $0 Tempo settles
+to mppx's native zero-amount proof path (verified) and carves out only x402 +
+Solana. This module keeps the Tempo carve-out because pympp has no proof
+payload support; revisit when pympp ships it so both SDKs converge on
+upstream verification.
 """
 
 from __future__ import annotations

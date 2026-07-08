@@ -145,7 +145,13 @@ from agentscore_commerce.payment import (
     load_solana_fee_payer,
     read_x402_payment_header,
 )
-from agentscore_commerce.quote_cache import CachedQuote, QuoteCache, create_quote_cache
+from agentscore_commerce.quote_cache import (
+    CachedQuote,
+    QuoteCache,
+    ResultCache,
+    create_quote_cache,
+    create_result_cache,
+)
 
 try:
     __version__ = _pkg_version("agentscore-commerce")
@@ -208,6 +214,7 @@ __all__ = [
     "PolicyResult",
     "PricingResult",
     "QuoteCache",
+    "ResultCache",
     "SettleOutcome",
     "SignerNetwork",
     "SignerVerdict",
@@ -242,6 +249,7 @@ __all__ = [
     "compute_first_checkout",
     "create_default_on_denied",
     "create_quote_cache",
+    "create_result_cache",
     "default_read_only_on_denied",
     "denial_reason_status",
     "denial_reason_to_body",

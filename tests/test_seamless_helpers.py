@@ -272,7 +272,11 @@ async def test_make_mppx_compose_hook_lifts_signer_from_did_pkh_eip155() -> None
         amount_usd = 0.1
 
     class _Ctx:
-        request = _req({"authorization": "Payment somevalidcred"})
+        request = _req(
+            {
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
         pricing = _Pricing()
 
     out = await hook(_Ctx())
@@ -314,7 +318,11 @@ async def test_make_mppx_compose_hook_serializes_receipt_to_payment_receipt_head
         amount_usd = 0.1
 
     class _Ctx:
-        request = _req({"authorization": "Payment somevalidcred"})
+        request = _req(
+            {
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
         pricing = _Pricing()
 
     out = await hook(_Ctx())
@@ -349,7 +357,11 @@ async def test_make_mppx_compose_hook_omits_receipt_header_when_unavailable() ->
         amount_usd = 0.1
 
     class _Ctx:
-        request = _req({"authorization": "Payment somevalidcred"})
+        request = _req(
+            {
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            }
+        )
         pricing = _Pricing()
 
     out = await hook(_Ctx())
@@ -716,7 +728,9 @@ async def test_gate_run_gate_escape_hatch_allow_pass_through() -> None:
         CheckoutRequest(
             method="POST",
             url="https://api.example/purchase",
-            headers={"authorization": "Payment <opaque>"},
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            },
             body={"item": "wine"},
         ),
     )
@@ -738,7 +752,9 @@ async def test_gate_run_gate_escape_hatch_deny_returns_canonical_envelope() -> N
         CheckoutRequest(
             method="POST",
             url="https://api.example/purchase",
-            headers={"authorization": "Payment <opaque>"},
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            },
             body={},
         ),
     )
@@ -764,7 +780,9 @@ async def test_gate_run_gate_returning_unexpected_type_raises() -> None:
             CheckoutRequest(
                 method="POST",
                 url="https://api.example/purchase",
-                headers={"authorization": "Payment <opaque>"},
+                headers={
+                    "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+                },
                 body={},
             ),
         )
@@ -797,7 +815,9 @@ async def test_gate_per_request_policy_none_routes_to_wallet_ofac_floor_denies_s
             CheckoutRequest(
                 method="POST",
                 url="https://api.example/purchase",
-                headers={"authorization": "Payment <opaque>"},
+                headers={
+                    "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+                },
                 body={},
             ),
         )
@@ -833,7 +853,9 @@ async def test_gate_per_request_policy_none_routes_to_wallet_ofac_floor_allows_c
             CheckoutRequest(
                 method="POST",
                 url="https://api.example/purchase",
-                headers={"authorization": "Payment <opaque>"},
+                headers={
+                    "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+                },
                 body={},
             ),
         )
@@ -863,7 +885,9 @@ async def test_gate_per_request_policy_none_floor_skips_without_signer(
             CheckoutRequest(
                 method="POST",
                 url="https://api.example/purchase",
-                headers={"authorization": "Payment <opaque>"},
+                headers={
+                    "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+                },
                 body={},
             ),
         )
@@ -899,7 +923,9 @@ async def test_gate_on_denied_callback_reshapes_denial(monkeypatch: pytest.Monke
         CheckoutRequest(
             method="POST",
             url="https://api.example/purchase",
-            headers={"authorization": "Payment <opaque>"},
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            },
             body={},
             raw=object(),  # gate path requires `raw` to be set
         ),
@@ -960,7 +986,10 @@ async def test_gate_allow_attaches_capture_wallet(monkeypatch: pytest.MonkeyPatc
         CheckoutRequest(
             method="POST",
             url="https://api.example/purchase",
-            headers={"authorization": "Payment <opaque>", "x-operator-token": "opc_test_token"},
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19",
+                "x-operator-token": "opc_test_token",
+            },
             body={},
             raw=object(),
         ),
@@ -1036,7 +1065,9 @@ async def test_checkout_discovery_probe_skipped_when_payment_header_present() ->
         CheckoutRequest(
             method="POST",
             url="https://api.example/search",
-            headers={"authorization": "Payment <cred>"},
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            },
             body={},
         ),
     )
@@ -1308,7 +1339,10 @@ async def test_capture_wallet_closure_calls_acapture_wallet(monkeypatch: pytest.
         CheckoutRequest(
             method="POST",
             url="https://api.example/purchase",
-            headers={"authorization": "Payment <opaque>", "x-operator-token": "opc_test"},
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19",
+                "x-operator-token": "opc_test",
+            },
             body={},
             raw=object(),
         ),
@@ -1351,7 +1385,9 @@ async def test_handle_zero_settle_mpp_carve_out() -> None:
             method="POST",
             url="https://api.example/purchase",
             # MPP credential present + amount $0 → carve-out path; skips real mppx.charge.
-            headers={"authorization": "Payment <opaque-credential>"},
+            headers={
+                "authorization": "Payment eyJjaGFsbGVuZ2UiOiB7ImlkIjogImNoXzEiLCAicmVhbG0iOiAiYXBpLmV4YW1wbGUifSwgInBheWxvYWQiOiB7InR5cGUiOiAiaGFzaCIsICJoYXNoIjogIjB4YWJjIn19"
+            },
             body={"item": "wine"},
         ),
     )

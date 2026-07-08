@@ -2204,3 +2204,81 @@ def test_x_payment_info_from_checkout_merges_protocol_extras() -> None:
         p["mpp"] for p in ext["x-payment-info"]["protocols"] if p.get("mpp", {}).get("method") == "tempo"
     )
     assert tempo_entry["client_command"] == "agentscore-pay pay --chain tempo"
+
+
+@pytest.mark.asyncio
+async def test_zero_settle_repriced_hash_credential_settles_free() -> None:
+    """Repriced-to-zero pinning: an agent signs a hash credential against a
+    NONZERO quote and the merchant re-prices to $0 at settle (no-match flows).
+    The carve-out must absorb it: 200, no compose call, nothing charged. This
+    is the flow that regressed on node 2.6.4 when $0 settles were delegated
+    upstream; pympp has no proof payload type, so python must keep the
+    carve-out for every credential shape until it does."""
+    compose_calls: list[int] = []
+
+    async def _compose(_ctx: Any) -> MppxComposeOutcome:
+        compose_calls.append(1)
+        return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment id="x"'})
+
+    checkout = _zero_settle_checkout({"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dEaD")})
+    checkout.compose_mppx = _compose
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={
+                "authorization": "Payment "
+                + base64.b64encode(
+                    json.dumps(
+                        {
+                            "challenge": {"id": "ch_1", "realm": "api.example"},
+                            "payload": {"type": "hash", "hash": "0xabc"},
+                            "source": "did:pkh:eip155:42431:0xeb2Ca790F72787c7e61bC6c861353a1e4ACDFCa5",
+                        }
+                    ).encode()
+                ).decode()
+            },
+            body={},
+        ),
+    )
+    assert result.status == 200
+    assert result.body.get("signer") == "0xeb2ca790f72787c7e61bc6c861353a1e4acdfca5"
+    assert result.body.get("signer_network") == "evm"
+    assert compose_calls == []
+
+
+@pytest.mark.asyncio
+async def test_zero_settle_proof_credential_also_takes_carve_out_until_pympp_ships_proofs() -> None:
+    """A $0 PROOF credential currently takes the carve-out too (pympp cannot
+    verify proofs). When pympp ships proof support and python adds delegation,
+    this test must flip to assert the compose path runs; see the node SDK's
+    zero-settle routing for the target behavior."""
+    compose_calls: list[int] = []
+
+    async def _compose(_ctx: Any) -> MppxComposeOutcome:
+        compose_calls.append(1)
+        return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment id="x"'})
+
+    checkout = _zero_settle_checkout({"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dEaD")})
+    checkout.compose_mppx = _compose
+    result = await checkout.handle(
+        CheckoutRequest(
+            method="POST",
+            url="https://api.example/purchase",
+            headers={
+                "authorization": "Payment "
+                + base64.b64encode(
+                    json.dumps(
+                        {
+                            "challenge": {"id": "ch_1", "realm": "api.example"},
+                            "payload": {"type": "proof", "signature": "0x" + "ab" * 65},
+                            "source": "did:pkh:eip155:42431:0xeb2Ca790F72787c7e61bC6c861353a1e4ACDFCa5",
+                        }
+                    ).encode()
+                ).decode()
+            },
+            body={},
+        ),
+    )
+    assert result.status == 200
+    assert compose_calls == []

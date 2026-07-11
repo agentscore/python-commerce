@@ -85,7 +85,7 @@ def build_signer_mismatch_body(
     if result.kind == "pass":
         return None
 
-    learn_more = learn_more_url or "https://docs.agentscore.com/guides/agent-identity"
+    learn_more = learn_more_url or "https://docs.agentscore.com/passport"
 
     if result.kind == "wallet_signer_mismatch":
         linked = result.linked_wallets or []

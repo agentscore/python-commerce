@@ -4,14 +4,18 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 
-def agentscore_security_schemes() -> dict[str, Any]:
+def agentscore_security_schemes(*, aip: bool = False) -> dict[str, Any]:
     """Standard AgentScore identity security schemes for `components.securitySchemes`.
 
     Includes ``siwx`` (Sign-In With X) per the x402scan discovery spec so identity-gated
     operations can declare ``security: [{ "siwx": [] }]`` and stay classified as
     identity-only, not paid.
+
+    When ``aip`` is true, also advertise the AIP Agent Identity Token scheme. AgentScore's
+    own issuer is always trusted, so set this whenever the merchant has an AIP gate (even
+    with no external issuers).
     """
-    return {
+    schemes: dict[str, Any] = {
         "OperatorToken": {
             "type": "apiKey",
             "in": "header",
@@ -30,7 +34,9 @@ def agentscore_security_schemes() -> dict[str, Any]:
                 "(Tempo MPP, x402 EIP-3009 on Base, Solana MPP). The wallet you claim MUST sign the payment."
             ),
         },
-        "AgentIdentity": {
+    }
+    if aip:
+        schemes["AgentIdentity"] = {
             "type": "apiKey",
             "in": "header",
             "name": "Agent-Identity",
@@ -41,9 +47,9 @@ def agentscore_security_schemes() -> dict[str, Any]:
                 "agent-identity`, tag `agent-identity`) proving possession. A verified AIT is the sole identity "
                 "and is evaluated against the merchant policy via its attested claims."
             ),
-        },
-        "siwx": siwx_security_scheme(),
-    }
+        }
+    schemes["siwx"] = siwx_security_scheme()
+    return schemes
 
 
 def siwx_security_scheme() -> dict[str, Any]:
@@ -312,11 +318,12 @@ def agentscore_openapi_snippets(
     security: bool = True,
     denials: bool = True,
     payment_required: bool = True,
+    aip: bool = False,
 ) -> dict[str, Any]:
     """Returns a `components` snippet ready to merge into an OpenAPI document."""
     out: dict[str, Any] = {}
     if security:
-        out["securitySchemes"] = agentscore_security_schemes()
+        out["securitySchemes"] = agentscore_security_schemes(aip=aip)
     if denials or payment_required:
         schemas: dict[str, Any] = {}
         if denials:

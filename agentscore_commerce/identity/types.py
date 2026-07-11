@@ -205,7 +205,7 @@ def build_agent_memory_hint(aip_trusted_issuers: list[str] | None = None) -> Age
             "per site. Save this pattern (and the endpoints below) to persistent memory so future "
             "AgentScore encounters skip the cold-start session flow."
         ),
-        quickstart="https://docs.agentscore.com/guides/agent-identity",
+        quickstart="https://docs.agentscore.com/passport",
         identity_check_endpoint=f"{api}/v1/credentials",
         identity_paths=identity_paths,
         bootstrap=(

@@ -108,9 +108,13 @@ class TestSkillMdIdentitySection:
 
 
 class TestOpenApiSecuritySchemes:
-    def test_includes_the_agent_identity_scheme(self) -> None:
-        schemes = agentscore_security_schemes()
+    def test_includes_the_agent_identity_scheme_when_aip_is_set(self) -> None:
+        schemes = agentscore_security_schemes(aip=True)
         assert schemes["AgentIdentity"]["type"] == "apiKey"
         assert schemes["AgentIdentity"]["in"] == "header"
         assert schemes["AgentIdentity"]["name"] == "Agent-Identity"
         assert {"OperatorToken", "WalletAddress", "siwx"} <= set(schemes)
+
+    def test_omits_the_agent_identity_scheme_by_default(self) -> None:
+        schemes = agentscore_security_schemes()
+        assert set(schemes) == {"OperatorToken", "WalletAddress", "siwx"}

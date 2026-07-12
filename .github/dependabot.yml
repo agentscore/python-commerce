@@ -4,20 +4,34 @@ updates:
     directory: "/"
     cooldown:
       default-days: 1
+    commit-message:
+      prefix: "chore(deps)"
     labels: ["dependencies", "python"]
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:00"
       timezone: "America/New_York"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # ty is exact-pinned: pre-1.0 type checker whose new rules churn CI;
+      # bump deliberately, not in routine passes (2026-07-11)
+      - dependency-name: "ty"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     cooldown:
       default-days: 1
+    commit-message:
+      prefix: "chore(deps)"
     labels: ["dependencies", "ci"]
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:00"
       timezone: "America/New_York"
+    groups:
+      actions:
+        patterns: ["*"]

@@ -160,7 +160,7 @@ async def build_how_to_pay(
         amount_cents = round(total_num * 100)
         link_cli_blocked = amount_cents > 50000
         spt_context = (
-            f'Purchasing "{product_name}" via the agent commerce API. The user authorized this purchase '
+            f'Purchasing "{product_name}" via the agentic commerce API. The user authorized this purchase '
             f"through their AI agent for ${total_num}; charge to be settled via shared payment token over the "
             "Machine Payments Protocol."
         )

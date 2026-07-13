@@ -1,4 +1,4 @@
-"""Agent commerce SDK — identity middleware + payment helpers + 402 builders + discovery + Stripe multichain.
+"""Agentic commerce SDK — identity middleware + payment helpers + 402 builders + discovery + Stripe multichain.
 
 Submodules:
     agentscore_commerce.identity   - per-framework gate adapters

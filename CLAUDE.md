@@ -1,6 +1,6 @@
 # agentscore-commerce
 
-Agent commerce SDK for Python. The full merchant-side toolkit: identity gating + payment helpers + 402 builders + discovery + Stripe multichain. One install, submodule imports per concern.
+Agentic commerce SDK for Python. The full merchant-side toolkit: identity gating + payment helpers + 402 builders + discovery + Stripe multichain. One install, submodule imports per concern.
 
 Every helper is extracted from a real consumer, not speculated.
 

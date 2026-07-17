@@ -49,9 +49,11 @@ class HeadersLike(Protocol):
     repeated header. Both are case-insensitive for these implementations.
     """
 
-    def get(self, key: str, default: Any = ..., /) -> Any: ...
+    def get(self, key: str, /) -> str | None:
+        """First value for ``key`` (case-insensitive), or ``None`` if absent."""
 
-    def getlist(self, key: str) -> list[str]: ...
+    def getlist(self, key: str) -> list[str]:
+        """Every value for a repeated ``key``."""
 
 
 @runtime_checkable

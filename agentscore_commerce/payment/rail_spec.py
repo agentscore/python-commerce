@@ -124,29 +124,6 @@ class SolanaMppRailSpec:
     rpc_url: str | None = None
     signer: Any | None = None
     token_program: str | None = None
-    # Whether the recipient's ATA may be auto-created on first payment. Default True.
-    # When True (default), the SDK passes
-    # ``splits=[{"recipient": recipient, "amount": "0", "ataCreationRequired": True}]``
-    # to ``solana.charge``, putting the recipient in the MPP spec §13.6
-    # ``allowedAtaOwners`` allow-list. Required on ``@solana/mpp >= 0.6.0`` /
-    # ``pympp[solana] >= 0.6`` with a sponsored (fee-payer) setup — without it,
-    # every settle that emits a ``CreateIdempotent`` ATA instruction is rejected.
-    # On older runtimes the field is unknown and silently ignored, so the
-    # default is safe across versions.
-    #
-    # Opt out (``False``) only when every recipient's ATA is guaranteed to
-    # exist out-of-band (typically when the merchant pre-creates the ATA from
-    # an external wallet and refuses to let the fee-payer fund creation).
-    #
-    # Economic note: with rotating recipients (Stripe-multichain per-PI deposit
-    # addresses), the sponsor pays ~0.002 SOL (~$0.50) of rent per call into
-    # accounts the merchant can't close. Acceptable when settle amounts
-    # dominate ($50+); not viable for sub-dollar merchants.
-    #
-    # NOTE: SolanaMppRailSpec isn't yet wired through ``create_mppx_server``, so
-    # this field is data-only today. Merchants building the solana method directly
-    # via ``pympp`` should pass ``ata_creation_required`` to the charge factory.
-    ata_creation_required: bool = True
 
     def __post_init__(self) -> None:
         # Mirror X402BaseRailSpec: when ``network`` flips to the devnet CAIP-2 (or the

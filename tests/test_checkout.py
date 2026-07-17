@@ -778,8 +778,8 @@ async def test_compose_mppx_receipt_to_header_that_throws_falls_through() -> Non
 @pytest.mark.asyncio
 async def test_compose_mppx_returns_402_on_settle_leg_rejects_credential() -> None:
     """When the agent sends Authorization: Payment and mppx returns 402 (credential
-    rejected), Checkout maps that to 400 payment_proof_invalid + the fresh
-    WWW-Authenticate from mppx so the agent's retry signs against the new directive."""
+    rejected), Checkout returns that 402 with the fresh WWW-Authenticate from mppx
+    so the agent's retry signs against the new directive, not a dead-end 400."""
     compose_mppx = AsyncMock(
         return_value=MppxComposeOutcome(
             status=402,
@@ -799,7 +799,7 @@ async def test_compose_mppx_returns_402_on_settle_leg_rejects_credential() -> No
             }
         )
     )
-    assert result.status == 400
+    assert result.status == 402
     assert result.headers["www-authenticate"] == 'Payment id="ord_x"'
     assert result.body["error"]["code"] == "payment_proof_invalid"
     assert result.settle_phase == "verify_failed"

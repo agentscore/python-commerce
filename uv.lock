@@ -13,7 +13,7 @@ constraints = [{ name = "fastapi", specifier = "!=0.136.3" }]
 
 [[package]]
 name = "agentscore-commerce"
-version = "2.5.8"
+version = "2.5.9"
 source = { editable = "." }
 dependencies = [
     { name = "agentscore-py" },

@@ -47,7 +47,7 @@ def test_malformed_payment_credential_classifies_channels() -> None:
 
 
 @pytest.mark.asyncio
-async def test_junk_mpp_header_rejected_before_pre_validate_and_compose() -> None:
+async def test_junk_mpp_header_rechallenges_with_fresh_402_no_pre_validate() -> None:
     calls: list[str] = []
 
     async def _pre_validate(_ctx: Any) -> dict[str, Any]:
@@ -56,7 +56,7 @@ async def test_junk_mpp_header_rejected_before_pre_validate_and_compose() -> Non
 
     async def _compose(_ctx: Any) -> MppxComposeOutcome:
         calls.append("compose")
-        return MppxComposeOutcome(status=200)
+        return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment realm="fresh"'})
 
     checkout = Checkout(
         rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dEaD")},
@@ -66,14 +66,15 @@ async def test_junk_mpp_header_rejected_before_pre_validate_and_compose() -> Non
         compose_mppx=_compose,
     )
     result = await checkout.handle(_req({"authorization": "Payment total-garbage!!!"}))
-    assert result.status == 400
+    assert result.status == 402
     assert result.settle_phase == "credential_malformed"
-    assert result.body["error"]["code"] == "payment_proof_invalid"
-    assert calls == []
+    assert result.headers["www-authenticate"] == 'Payment realm="fresh"'
+    # The junk credential must not burn the merchant's paid probe.
+    assert "pre_validate" not in calls
 
 
 @pytest.mark.asyncio
-async def test_junk_x402_header_rejected_before_pre_validate() -> None:
+async def test_junk_x402_header_rechallenges_with_fresh_402_no_pre_validate() -> None:
     calls: list[str] = []
 
     async def _pre_validate(_ctx: Any) -> dict[str, Any]:
@@ -88,8 +89,11 @@ async def test_junk_x402_header_rejected_before_pre_validate() -> None:
         x402_server=object(),
     )
     result = await checkout.handle(_req({"x-payment": "!!!garbage!!!"}))
-    assert result.status == 400
+    assert result.status == 402
+    # A fresh challenge the agent can re-pay against, not a bare error body.
+    assert result.body["accepted_methods"] is not None
     assert result.settle_phase == "credential_malformed"
+    # Junk must not burn the merchant's paid probe.
     assert calls == []
 
 

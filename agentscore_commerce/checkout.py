@@ -1076,24 +1076,17 @@ class Checkout:
                 else self.compose_mppx is not None
             )
             if enforced and malformed is not None:
-                return CheckoutResult(
-                    status=400,
-                    body=build_validation_error(
-                        code="payment_proof_invalid",
-                        message=malformed.message,
-                        next_steps={
-                            "action": "regenerate_payment_credential",
-                            "user_message": (
-                                "The payment credential could not be decoded. "
-                                "Rebuild it from a fresh 402 challenge and retry."
-                            ),
-                        },
-                    ),
-                    headers={},
-                    reference_id=ctx.reference_id,
-                    settled=False,
-                    settle_phase="credential_malformed",
-                )
+                # Protocol-correct recovery: a junk credential gets a FRESH 402
+                # challenge (same shape as the discovery leg) so an x402/MPP
+                # client re-pays, instead of a dead-end 400 it cannot act on.
+                # Strip the malformed credential first (``_discovery_view``) so
+                # recipient minting + MPP compose take their fresh-mint /
+                # fresh-challenge path rather than binding the garbage and
+                # raising another 400. pre_validate and the gate/assess are
+                # skipped by construction here (a junk credential must never burn
+                # the merchant's paid probe or an identity API call).
+                result = await self._emit_fresh_challenge(self._discovery_view(ctx))
+                return dataclasses.replace(result, settle_phase="credential_malformed")
 
         # Pre-validate (optional): resolve merchant-specific per-request state
         # (product lookup, code resolution, shipping checks, ...). May raise
@@ -1162,22 +1155,10 @@ class Checkout:
         if has_mppx_header(request.headers) and self.compose_mppx is not None:
             return await self._handle_mppx(ctx)
 
-        # Discovery leg: if an MPP rail is configured (compose_mppx supplied), call
-        # it to mint a fresh ``WWW-Authenticate`` challenge that the agent needs to
-        # sign on the retry. The hook is contracted to return status=402 with the
-        # mppx-issued headers in this case; we propagate those into the rich 402.
-        mppx_headers: dict[str, str] = {}
-        if self.compose_mppx is not None:
-            try:
-                pre_composed = await _maybe_await(self.compose_mppx(ctx))
-                if pre_composed.status == 402:
-                    mppx_headers = dict(pre_composed.headers or {})
-            except Exception:  # noqa: S110
-                # Hook errors here only affect the optional MPP challenge; the 402
-                # still goes out with whatever rails resolved. Merchants log
-                # internally inside the hook itself, so we intentionally swallow.
-                pass
-        return await self._emit_402(ctx, mppx_headers=mppx_headers)
+        # Discovery leg: emit the fresh 402 challenge. compose_mppx (if
+        # configured) supplies the fresh ``WWW-Authenticate`` the agent signs on
+        # the retry; ``_emit_402`` resolves per-order recipients.
+        return await self._emit_fresh_challenge(ctx)
 
     @staticmethod
     def _extra_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -2659,11 +2640,15 @@ class Checkout:
                 settled=False,
                 settle_phase="verify_failed",
             )
+        # mppx already emitted a fresh challenge (in ``composed.headers``), so
+        # return it as a 402 the agent re-pays against, not a dead-end 400.
+        # x402/MPP clients version-route on the status code: a 402 triggers a
+        # retry with a new credential, a 400 aborts.
         return CheckoutResult(
-            status=400,
+            status=402,
             body=build_validation_error(
                 code="payment_proof_invalid",
-                message="MPP credential rejected; regenerate from a fresh 402 challenge.",
+                message="MPP credential rejected; regenerate from the fresh 402 challenge and retry.",
                 next_steps={"action": "regenerate_payment_credential"},
             ),
             headers=dict(composed.headers or {}),
@@ -2671,6 +2656,47 @@ class Checkout:
             settled=False,
             settle_phase="verify_failed",
         )
+
+    async def _emit_fresh_challenge(self, ctx: CheckoutContext) -> CheckoutResult:
+        """Emit a fresh 402 challenge (the discovery leg).
+
+        Factored out so the malformed-credential path can reuse it. Idempotent on
+        already-computed pricing / resolved recipients (``_emit_402`` resolves
+        recipients), so the normal discovery leg pays nothing extra.
+        """
+        if ctx.pricing is None:
+            ctx.pricing = await _maybe_await(self.compute_pricing(ctx))
+        mppx_headers: dict[str, str] = {}
+        if self.compose_mppx is not None:
+            try:
+                pre_composed = await _maybe_await(self.compose_mppx(ctx))
+                if pre_composed.status == 402:
+                    mppx_headers = dict(pre_composed.headers or {})
+            except Exception:  # noqa: S110
+                # The MPP challenge is optional; the 402 still goes out with
+                # whatever rails resolved. A junk credential in the raw request
+                # can make compose raise here, which is why it is best-effort.
+                pass
+        return await self._emit_402(ctx, mppx_headers=mppx_headers)
+
+    def _discovery_view(self, ctx: CheckoutContext) -> CheckoutContext:
+        """Return a copy of ``ctx`` with payment-credential headers removed.
+
+        Recipient minting and MPP compose then take their discovery (fresh-mint,
+        fresh-challenge) path instead of binding the inbound credential, turning a
+        malformed-credential request into a clean 402 re-challenge. Pricing and
+        recipients are reset so they mint fresh.
+        """
+        headers = {
+            k: v
+            for k, v in ctx.request.headers.items()
+            if not (
+                k.lower() in ("payment-signature", "x-payment")
+                or (k.lower() == "authorization" and v.startswith("Payment "))
+            )
+        }
+        request = dataclasses.replace(ctx.request, headers=headers)
+        return dataclasses.replace(ctx, request=request, pricing=None, recipients={})
 
     async def _emit_402(
         self,

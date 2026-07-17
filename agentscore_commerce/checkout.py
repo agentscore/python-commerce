@@ -709,6 +709,76 @@ def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
     return build_identity_metadata(mode="wallet", wallet=wallet, linked_wallets=linked_wallets)
 
 
+def _header_is_payment_credential(orig: Any, key: str) -> bool:
+    lk = key.lower()
+    if lk in ("payment-signature", "x-payment"):
+        return True
+    if lk == "authorization":
+        value = orig.get("authorization")
+        return isinstance(value, str) and value.startswith("Payment ")
+    return False
+
+
+class _StrippedHeaders:
+    """Read-only view over a framework ``headers`` mapping that hides credentials.
+
+    Hides the payment-credential headers (``x-payment`` / ``payment-signature`` /
+    an ``Authorization: Payment`` value) while supporting the ``.get`` / ``[]`` /
+    ``in`` / ``.items`` / iteration access patterns hooks use.
+    """
+
+    def __init__(self, orig: Any) -> None:
+        self._orig = orig
+
+    def get(self, key: str, default: Any = None) -> Any:
+        if _header_is_payment_credential(self._orig, key):
+            return default
+        return self._orig.get(key, default)
+
+    def __getitem__(self, key: str) -> Any:
+        if _header_is_payment_credential(self._orig, key):
+            raise KeyError(key)
+        return self._orig[key]
+
+    def __contains__(self, key: str) -> bool:
+        if _header_is_payment_credential(self._orig, key):
+            return False
+        return key in self._orig
+
+    def items(self) -> Any:
+        return [(k, v) for k, v in self._orig.items() if not _header_is_payment_credential(self._orig, k)]
+
+    def __iter__(self) -> Any:
+        return iter(k for k in self._orig if not _header_is_payment_credential(self._orig, k))
+
+
+class _RawHeaderStripProxy:
+    """Wrap the native request so ``.headers`` hides payment credentials.
+
+    Every other attribute (``.json``, ``.scope``, mppx's fetch surface, ...)
+    delegates to the original request unchanged.
+    """
+
+    def __init__(self, raw: Any, headers: _StrippedHeaders) -> None:
+        object.__setattr__(self, "_raw", raw)
+        object.__setattr__(self, "headers", headers)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(object.__getattribute__(self, "_raw"), name)
+
+
+def _strip_payment_headers_from_raw(raw: Any) -> Any:
+    """Return ``raw`` with the payment-credential headers hidden.
+
+    Hooks that read the native request (``ctx.request.raw``) on the malformed
+    re-challenge then see a discovery leg. Non-header-bearing ``raw`` (or
+    ``None``) passes through unchanged.
+    """
+    if raw is None or not hasattr(raw, "headers"):
+        return raw
+    return _RawHeaderStripProxy(raw, _StrippedHeaders(raw.headers))
+
+
 class Checkout:
     """High-level agent-commerce orchestrator.
 
@@ -2685,10 +2755,11 @@ class Checkout:
         Re-entering handle() with it treats the request as a discovery
         (no-credential) request: pre_validate + pricing + minting + compose run
         their fresh path, and the gate/assess and settle are skipped. Turns a
-        malformed-credential request into a clean 402 re-challenge. The raw
-        request is left intact; compose_mppx reads it only best-effort under a
-        try/except, while the stripped headers are what the shape check, gate
-        dispatch, and recipient minting read.
+        malformed-credential request into a clean 402 re-challenge. The native
+        request (``raw``) is stripped in lockstep with ``headers`` so hooks that
+        read ``ctx.request.raw`` (e.g. ``mint_multichain_recipients``, which
+        parses the MPP credential off the raw ``Authorization: Payment`` header)
+        also see a discovery leg instead of throwing on the junk credential.
         """
         headers = {
             k: v
@@ -2698,7 +2769,7 @@ class Checkout:
                 or (k.lower() == "authorization" and v.startswith("Payment "))
             )
         }
-        return dataclasses.replace(request, headers=headers)
+        return dataclasses.replace(request, headers=headers, raw=_strip_payment_headers_from_raw(request.raw))
 
     async def _emit_402(
         self,

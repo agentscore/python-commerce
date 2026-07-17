@@ -15,7 +15,30 @@ from agentscore_commerce.checkout import (
     MppxComposeOutcome,
     PricingResult,
 )
+from agentscore_commerce.errors import CheckoutValidationError
 from agentscore_commerce.payment import TempoRailSpec, X402BaseRailSpec, malformed_payment_credential
+
+
+class _RawHeaders:
+    """A framework-style headers mapping (case-insensitive .get) for a fake raw request."""
+
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self._m = {k.lower(): v for k, v in mapping.items()}
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._m.get(key.lower(), default)
+
+    def items(self) -> Any:
+        return list(self._m.items())
+
+    def __iter__(self) -> Any:
+        return iter(self._m)
+
+
+class _RawReq:
+    def __init__(self, headers: dict[str, str]) -> None:
+        self.headers = _RawHeaders(headers)
+
 
 VALID_MPP = (
     "Payment "
@@ -71,6 +94,54 @@ async def test_junk_mpp_header_rechallenges_with_fresh_402_discovery_flow() -> N
     assert result.headers["www-authenticate"] == 'Payment realm="fresh"'
     # Treated as a discovery request: pre_validate runs (pricing depends on its state).
     assert "pre_validate" in calls
+
+
+@pytest.mark.asyncio
+async def test_rechallenge_strips_credential_from_raw_request_too() -> None:
+    # Regression: the re-challenge must be a discovery leg for EVERY view of the
+    # request, including the native ``ctx.request.raw`` that hooks like
+    # ``mint_multichain_recipients`` read. A hook parsing the MPP credential off
+    # ``ctx.request.raw`` and raising on junk (the martin-estate shape) would
+    # otherwise turn the fresh-402 re-challenge back into a 401 dead end.
+    raw_auth_seen: dict[str, Any] = {}
+
+    async def _mint(ctx: Any) -> dict[str, str]:
+        raw = ctx.request.raw
+        auth = raw.headers.get("authorization") if raw is not None else None
+        raw_auth_seen["value"] = auth
+        if auth is not None and auth.startswith("Payment "):
+            raise CheckoutValidationError(
+                code="invalid_credential",
+                message="The Authorization: Payment header is not a valid MPP credential.",
+                action="retry_without_credential",
+                status=401,
+            )
+        return {"tempo": "0xtempo"}
+
+    async def _compose(_ctx: Any) -> MppxComposeOutcome:
+        return MppxComposeOutcome(status=402, headers={"www-authenticate": 'Payment realm="fresh"'})
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dEaD")},
+        url="https://api.example/purchase",
+        pre_validate=lambda _ctx: {},
+        compute_pricing=lambda _ctx: PricingResult(amount_usd=10.0),
+        compose_mppx=_compose,
+        mint_recipients=_mint,
+    )
+    req = CheckoutRequest(
+        method="POST",
+        url="https://api.example/purchase",
+        headers={"authorization": "Payment total-garbage!!!"},
+        body={"item": "wine"},
+        raw=_RawReq({"authorization": "Payment total-garbage!!!", "x-wallet-address": "0xabc"}),
+    )
+    result = await checkout.handle(req)
+    assert result.status == 402
+    assert result.settle_phase == "credential_malformed"
+    # The hook ran on the re-entry and saw a raw with the credential stripped;
+    # non-payment headers (x-wallet-address) still pass through.
+    assert raw_auth_seen["value"] is None
 
 
 @pytest.mark.asyncio

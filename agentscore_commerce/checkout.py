@@ -1076,16 +1076,16 @@ class Checkout:
                 else self.compose_mppx is not None
             )
             if enforced and malformed is not None:
-                # Protocol-correct recovery: a junk credential gets a FRESH 402
-                # challenge (same shape as the discovery leg) so an x402/MPP
-                # client re-pays, instead of a dead-end 400 it cannot act on.
-                # Strip the malformed credential first (``_discovery_view``) so
-                # recipient minting + MPP compose take their fresh-mint /
-                # fresh-challenge path rather than binding the garbage and
-                # raising another 400. pre_validate and the gate/assess are
-                # skipped by construction here (a junk credential must never burn
-                # the merchant's paid probe or an identity API call).
-                result = await self._emit_fresh_challenge(self._discovery_view(ctx))
+                # A junk credential is treated as a discovery request: strip it
+                # and re-enter handle() so pre_validate + pricing + recipient
+                # minting + compose all run their fresh path exactly as for a
+                # no-credential request. That yields a fresh 402 the agent
+                # re-pays against, not a dead-end 400, and not a 500 when
+                # compute_pricing reads state that pre_validate populates. The
+                # gate/assess and settle are skipped by construction: after
+                # stripping there is no payment header, so no re-trigger of this
+                # check (max one level of recursion) and no identity call.
+                result = await self.handle(self._strip_payment_headers(request))
                 return dataclasses.replace(result, settle_phase="credential_malformed")
 
         # Pre-validate (optional): resolve merchant-specific per-request state
@@ -2658,11 +2658,11 @@ class Checkout:
         )
 
     async def _emit_fresh_challenge(self, ctx: CheckoutContext) -> CheckoutResult:
-        """Emit a fresh 402 challenge (the discovery leg).
+        """Emit the discovery-leg 402.
 
-        Factored out so the malformed-credential path can reuse it. Idempotent on
-        already-computed pricing / resolved recipients (``_emit_402`` resolves
-        recipients), so the normal discovery leg pays nothing extra.
+        pre_validate + pricing already ran in the main flow before this is
+        reached; idempotent on already-computed pricing / resolved recipients
+        (``_emit_402`` resolves recipients), so it primes nothing twice.
         """
         if ctx.pricing is None:
             ctx.pricing = await _maybe_await(self.compute_pricing(ctx))
@@ -2679,24 +2679,26 @@ class Checkout:
                 pass
         return await self._emit_402(ctx, mppx_headers=mppx_headers)
 
-    def _discovery_view(self, ctx: CheckoutContext) -> CheckoutContext:
-        """Return a copy of ``ctx`` with payment-credential headers removed.
+    def _strip_payment_headers(self, request: CheckoutRequest) -> CheckoutRequest:
+        """Return a copy of the request with payment-credential headers removed.
 
-        Recipient minting and MPP compose then take their discovery (fresh-mint,
-        fresh-challenge) path instead of binding the inbound credential, turning a
-        malformed-credential request into a clean 402 re-challenge. Pricing and
-        recipients are reset so they mint fresh.
+        Re-entering handle() with it treats the request as a discovery
+        (no-credential) request: pre_validate + pricing + minting + compose run
+        their fresh path, and the gate/assess and settle are skipped. Turns a
+        malformed-credential request into a clean 402 re-challenge. The raw
+        request is left intact; compose_mppx reads it only best-effort under a
+        try/except, while the stripped headers are what the shape check, gate
+        dispatch, and recipient minting read.
         """
         headers = {
             k: v
-            for k, v in ctx.request.headers.items()
+            for k, v in request.headers.items()
             if not (
                 k.lower() in ("payment-signature", "x-payment")
                 or (k.lower() == "authorization" and v.startswith("Payment "))
             )
         }
-        request = dataclasses.replace(ctx.request, headers=headers)
-        return dataclasses.replace(ctx, request=request, pricing=None, recipients={})
+        return dataclasses.replace(request, headers=headers)
 
     async def _emit_402(
         self,

@@ -47,7 +47,7 @@ def test_malformed_payment_credential_classifies_channels() -> None:
 
 
 @pytest.mark.asyncio
-async def test_junk_mpp_header_rechallenges_with_fresh_402_no_pre_validate() -> None:
+async def test_junk_mpp_header_rechallenges_with_fresh_402_discovery_flow() -> None:
     calls: list[str] = []
 
     async def _pre_validate(_ctx: Any) -> dict[str, Any]:
@@ -69,12 +69,12 @@ async def test_junk_mpp_header_rechallenges_with_fresh_402_no_pre_validate() -> 
     assert result.status == 402
     assert result.settle_phase == "credential_malformed"
     assert result.headers["www-authenticate"] == 'Payment realm="fresh"'
-    # The junk credential must not burn the merchant's paid probe.
-    assert "pre_validate" not in calls
+    # Treated as a discovery request: pre_validate runs (pricing depends on its state).
+    assert "pre_validate" in calls
 
 
 @pytest.mark.asyncio
-async def test_junk_x402_header_rechallenges_with_fresh_402_no_pre_validate() -> None:
+async def test_junk_x402_header_rechallenges_with_fresh_402_discovery_flow() -> None:
     calls: list[str] = []
 
     async def _pre_validate(_ctx: Any) -> dict[str, Any]:
@@ -93,8 +93,31 @@ async def test_junk_x402_header_rechallenges_with_fresh_402_no_pre_validate() ->
     # A fresh challenge the agent can re-pay against, not a bare error body.
     assert result.body["accepted_methods"] is not None
     assert result.settle_phase == "credential_malformed"
-    # Junk must not burn the merchant's paid probe.
-    assert calls == []
+    # Discovery flow: pre_validate runs.
+    assert calls == ["pre_validate"]
+
+
+@pytest.mark.asyncio
+async def test_malformed_credential_runs_pre_validate_so_stateful_pricing_survives() -> None:
+    # Regression: compute_pricing reads state that pre_validate populates (the
+    # martin-estate shape). The malformed re-challenge must run pre_validate
+    # first, or pricing dereferences missing state and 500s.
+    async def _pre_validate(_ctx: Any) -> dict[str, Any]:
+        return {"product": {"price_cents": 4800}}
+
+    def _compute_pricing(ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=ctx.state["product"]["price_cents"] / 100)
+
+    checkout = Checkout(
+        rails={"x402_base": X402BaseRailSpec(recipient="0x" + "00" * 19 + "dEaD")},
+        url="https://api.example/purchase",
+        pre_validate=_pre_validate,
+        compute_pricing=_compute_pricing,
+        x402_server=object(),
+    )
+    result = await checkout.handle(_req({"x-payment": "not-decodable"}))
+    assert result.status == 402
+    assert result.body["accepted_methods"] is not None
 
 
 @pytest.mark.asyncio

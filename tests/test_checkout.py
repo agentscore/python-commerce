@@ -985,3 +985,15 @@ def test_rails_key_for_mppx_method_returns_none_when_rail_absent() -> None:
     assert checkout._rails_key_for_mppx_method("solana") is None
     assert checkout._rails_key_for_mppx_method("stripe") is None
     assert checkout._rails_key_for_mppx_method("tempo") == "tempo"
+
+
+def test_realm_from_url_derives_bare_host():
+    from agentscore_commerce.checkout import _realm_from_url
+
+    # Full endpoint URL -> bare host (matches the Node SDK's new URL(APP_URL).host),
+    # so the WWW-Authenticate realm is the protection space, not the full path.
+    assert _realm_from_url("https://agents.agentscore.com/purchase") == "agents.agentscore.com"
+    assert _realm_from_url("https://agents.example.com:8443/x/y") == "agents.example.com:8443"
+    # No parseable host: pass through unchanged.
+    assert _realm_from_url("agents.example.com") == "agents.example.com"
+    assert _realm_from_url("/purchase") == "/purchase"

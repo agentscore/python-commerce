@@ -149,6 +149,20 @@ def _spec_method_name(spec: CheckoutRailSpec) -> str:
     return "stripe/spt"  # StripeRailSpec is the only remaining variant in CheckoutRailSpec.
 
 
+def _realm_from_url(url: str) -> str:
+    """Derive the WWW-Authenticate ``realm`` from the checkout endpoint URL.
+
+    The realm identifies the protection space and, by convention (and to match the Node
+    SDK, which passes ``new URL(APP_URL).host``), is the bare host, not the full endpoint
+    URL. ``Checkout(url="https://agents.example.com/purchase")`` yields realm
+    ``agents.example.com``. Falls back to the input unchanged when it has no parseable host
+    (e.g. already a bare host, or a relative path).
+    """
+    from urllib.parse import urlparse
+
+    return urlparse(url).netloc or url
+
+
 @dataclass
 class CheckoutRequest:
     """Framework-neutral HTTP request input to :meth:`Checkout.handle`.
@@ -907,7 +921,7 @@ class Checkout:
                 getter = lazy_mppx_server(
                     rails=mpp_rails,
                     secret_key=mppx_secret_key,
-                    realm=url,
+                    realm=_realm_from_url(url),
                 )
                 compose_mppx = make_mppx_compose_hook(server_getter=getter)
 

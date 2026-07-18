@@ -76,6 +76,7 @@ from agentscore_commerce.payment.x402_settle import (
     coerce_resource_config,
     process_x402_settle,
     settle_result_to_json_bytes,
+    strip_unsigned_x402_payload_fields,
 )
 from agentscore_commerce.payment.x402_validation import (
     X402_SUPPORTED_BASE_NETWORKS,
@@ -164,6 +165,7 @@ __all__ = [
     "resolve_recipient",
     "settle_result_to_json_bytes",
     "settlement_override_header",
+    "strip_unsigned_x402_payload_fields",
     "usd_to_atomic",
     "validate_x402_network_config",
     "verify_x402_request",

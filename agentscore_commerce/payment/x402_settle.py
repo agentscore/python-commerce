@@ -301,6 +301,31 @@ def coerce_payment_payload(payload: Any) -> Any:
         return payload
 
 
+def strip_unsigned_x402_payload_fields(payload: Any) -> Any:
+    """Drop the non-signed ``extensions`` + ``resource`` blocks from a decoded X-Payment payload.
+
+    x402 clients echo the 402 challenge's ``extensions`` (Bazaar input schema) and ``resource``
+    into the payload alongside the signed ``payload`` + ``accepted``. Neither is part of the
+    EIP-3009 signature (which covers only ``payload.authorization``). The Coinbase facilitator's
+    ``/x402/verify`` validates the payment payload against its ``x402V2PaymentPayload`` schema,
+    which is ``{x402Version, payload, accepted}`` and admits neither ``extensions`` nor
+    ``resource``: their presence makes the payload match no union branch and CDP rejects it
+    (``must match one of [x402V2PaymentPayload, x402V1PaymentPayload]``). Routes whose echoed
+    Bazaar schema is large fail while small ones slip through, so it presents as route-dependent
+    but is one shape bug.
+
+    ``accepted`` (which ``verify_x402_request`` reads for network/payTo, and which CDP requires)
+    and every other field stay intact; only the two echoed challenge blocks are dropped, before
+    the payload is coerced to the typed model whose ``model_dump`` reaches the facilitator.
+    Non-dict payloads, and payloads carrying neither field, pass through unchanged.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    if "extensions" not in payload and "resource" not in payload:
+        return payload
+    return {k: v for k, v in payload.items() if k not in ("extensions", "resource")}
+
+
 async def process_x402_settle(
     *,
     x402_server: Any,
@@ -322,7 +347,9 @@ async def process_x402_settle(
     """
     server = x402_server
     coerced_config = coerce_resource_config(resource_config)
-    coerced_payload = coerce_payment_payload(payload)
+    # Drop the echoed extensions/resource blocks before coercion: CDP's verify schema admits
+    # neither, so their presence makes the payload match no union branch and settle fails.
+    coerced_payload = coerce_payment_payload(strip_unsigned_x402_payload_fields(payload))
 
     try:
         built_requirements = server.build_payment_requirements(coerced_config)

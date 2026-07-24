@@ -15,11 +15,6 @@ updates:
     groups:
       minor-patch:
         update-types: ["minor", "patch"]
-    ignore:
-      # ty is exact-pinned: pre-1.0 type checker whose new rules churn CI;
-      # bump deliberately, not in routine passes (2026-07-11)
-      - dependency-name: "ty"
-
   - package-ecosystem: "github-actions"
     directory: "/"
     cooldown:

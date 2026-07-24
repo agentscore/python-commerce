@@ -76,6 +76,7 @@ _gate = AgentScoreGate(
 # proving identity. Identity is verified at settle time on the retry leg.
 from agentscore_commerce.payment import has_payment_header
 
+
 async def gate_on_settle(request: Request) -> None:
     if not has_payment_header(request):
         return None
@@ -97,13 +98,21 @@ async def purchase(request: Request, assess=Depends(get_agentscore_data)):
 ```python
 from fastapi import FastAPI, Request
 from agentscore_commerce import (
-    Checkout, CheckoutGateConfig, DiscoveryProbeConfig, PricingResult, pricing_result,
-    SolanaMppRailSpec, StripeRailSpec, TempoRailSpec, X402BaseRailSpec,
+    Checkout,
+    CheckoutGateConfig,
+    DiscoveryProbeConfig,
+    PricingResult,
+    pricing_result,
+    SolanaMppRailSpec,
+    StripeRailSpec,
+    TempoRailSpec,
+    X402BaseRailSpec,
     validate_shipping_against_policy,
 )
 from agentscore_commerce.discovery import default_a2a_services
 
 app = FastAPI()
+
 
 async def _pre_validate(ctx):
     body = ctx.request.body or {}
@@ -116,6 +125,7 @@ async def _pre_validate(ctx):
     )
     return {"product": product}
 
+
 async def _compute_pricing(ctx) -> PricingResult:
     return pricing_result(
         subtotal_cents=ctx.state["product"]["price_cents"],
@@ -124,15 +134,17 @@ async def _compute_pricing(ctx) -> PricingResult:
         tax_state=ctx.state["product"]["tax_state"],
     )
 
+
 async def _on_settled(ctx, outcome):
     return {"ok": True, "order_id": ctx.reference_id, "tx_hash": outcome.tx_hash}
 
+
 checkout = Checkout(
     rails={
-        "tempo":     TempoRailSpec(recipient=os.environ["TEMPO_RECIPIENT"]),
+        "tempo": TempoRailSpec(recipient=os.environ["TEMPO_RECIPIENT"]),
         "x402_base": X402BaseRailSpec(recipient=os.environ["X402_BASE_RECIPIENT"], network="eip155:8453"),
-        "solana_mpp":SolanaMppRailSpec(recipient=os.environ["SOLANA_RECIPIENT"], network="solana:mainnet"),
-        "stripe":    StripeRailSpec(profile_id=os.environ["STRIPE_PROFILE_ID"]),
+        "solana_mpp": SolanaMppRailSpec(recipient=os.environ["SOLANA_RECIPIENT"], network="solana:mainnet"),
+        "stripe": StripeRailSpec(profile_id=os.environ["STRIPE_PROFILE_ID"]),
     },
     url="https://merchant.example/purchase",
     pre_validate=_pre_validate,
@@ -144,7 +156,10 @@ checkout = Checkout(
     gate=CheckoutGateConfig(
         api_key=os.environ["AGENTSCORE_API_KEY"],
         merchant_name="Merchant",
-        require_kyc=True, require_sanctions_clear=True, min_age=21, allowed_jurisdictions=["US"],
+        require_kyc=True,
+        require_sanctions_clear=True,
+        min_age=21,
+        allowed_jurisdictions=["US"],
     ),
     # Optional: empty-body POSTs without a payment header auto-route to a sample 402
     # so x402 crawlers (awal x402 details, x402-proxy, ...) can discover the surface.
@@ -164,6 +179,7 @@ checkout.mount_ucp_routes_fastapi(
     services=default_a2a_services(agent_card_url="https://merchant.example/.well-known/agent-card.json"),
     signing_kid="merchant-2026-05",
 )
+
 
 @app.post("/purchase")
 async def purchase(request: Request):
@@ -192,10 +208,18 @@ from agentscore_commerce.payment import (
 # Build paymentauth.org directives by symbolic rail name (decimals + currency from registry)
 directives = [
     build_payment_directive(
-        rail="tempo-mainnet", id="chg_t", realm="ex.com", recipient=TEMPO_ADDR, amount_usd=0.01,
+        rail="tempo-mainnet",
+        id="chg_t",
+        realm="ex.com",
+        recipient=TEMPO_ADDR,
+        amount_usd=0.01,
     ),
     build_payment_directive(
-        rail="x402-base-mainnet", id="chg_b", realm="ex.com", recipient=BASE_ADDR, amount_usd=0.01,
+        rail="x402-base-mainnet",
+        id="chg_b",
+        realm="ex.com",
+        recipient=BASE_ADDR,
+        amount_usd=0.01,
     ),
 ]
 www_auth = www_authenticate_header(directives)
@@ -229,7 +253,9 @@ from agentscore_commerce.challenge import (
 # build_accepted_methods + build_how_to_pay are async (they resolve per-order recipients).
 accepted = await build_accepted_methods(tempo=TempoRailSpec(recipient=TEMPO_ADDR))
 how_to_pay = await build_how_to_pay(
-    url="https://my.merchant/buy", retry_body_json="{}", total_usd="10.00",
+    url="https://my.merchant/buy",
+    retry_body_json="{}",
+    total_usd="10.00",
     rails={"tempo": TempoRailSpec(recipient=TEMPO_ADDR)},
 )
 body = build_402_body(
@@ -313,7 +339,7 @@ card = build_a2a_agent_card(
 # Google Universal Commerce Protocol. Publish at /.well-known/ucp.
 # Output shape: {"ucp": {"version", "services", "capabilities",
 # "payment_handlers", "name?", "supported_versions?"}, "signing_keys": [...]}
-#, services / capabilities / payment_handlers are MAPS keyed by reverse-DNS
+# , services / capabilities / payment_handlers are MAPS keyed by reverse-DNS
 # service / capability / handler name (UCP spec §3 + §6).
 profile = build_ucp_profile(
     name="My Service",
@@ -338,7 +364,9 @@ profile = build_ucp_profile(
     # binding inside the public profile. Static policy declaration only, no per-operator
     # claims. Per-operator identity attestation flows through the AP2 risk-signal endpoint.
     agentscore_gate=AgentScoreGatePolicy(
-        require_kyc=True, min_age=21, allowed_jurisdictions=["US"],
+        require_kyc=True,
+        min_age=21,
+        allowed_jurisdictions=["US"],
     ),
 )
 ```
@@ -452,6 +480,7 @@ from agentscore_commerce.payment import (
 # Boot-time guard. Raises if a configured network isn't supported.
 validate_x402_network_config(base_network=X402_BASE)
 
+
 @app.post("/purchase")
 async def purchase(request: Request):
     # Path A: agent presented an x402 X-Payment header
@@ -467,7 +496,13 @@ async def purchase(request: Request):
         settle = await process_x402_settle(
             x402_server=x402_server,
             payload=verified.payload,
-            resource_config={"scheme": "exact", "network": verified.signed_network, "price": f"${total}", "payTo": verified.signed_pay_to, "maxTimeoutSeconds": 300},
+            resource_config={
+                "scheme": "exact",
+                "network": verified.signed_network,
+                "price": f"${total}",
+                "payTo": verified.signed_pay_to,
+                "maxTimeoutSeconds": 300,
+            },
             resource_meta={"url": str(request.url), "mimeType": "application/json"},
         )
         classified = classify_x402_settle_result(settle)
@@ -475,7 +510,10 @@ async def purchase(request: Request):
             # Log raw `settle` server-side; return controlled phase-based response to the agent.
             logger.error("x402-settle failed phase=%s raw=%r", settle.phase, settle)
             return JSONResponse(
-                {"error": {"code": classified.code, "message": classified.message}, "next_steps": classified.next_steps},
+                {
+                    "error": {"code": classified.code, "message": classified.message},
+                    "next_steps": classified.next_steps,
+                },
                 status_code=classified.status,
             )
 
@@ -487,8 +525,18 @@ async def purchase(request: Request):
     # `body` is the dict from build_402_body; `x402` carries the payment_required_header kwargs.
     result = respond_402(
         mppx_challenge_headers=pympp_challenge_headers,
-        body=build_402_body(accepted_methods=accepted, agent_instructions=instructions, pricing=pricing, amount_usd=total, retry_body=body),
-        x402={"x402_version": 2, "accepts": x402_accepts, "resource": {"url": str(request.url), "mimeType": "application/json"}},
+        body=build_402_body(
+            accepted_methods=accepted,
+            agent_instructions=instructions,
+            pricing=pricing,
+            amount_usd=total,
+            retry_body=body,
+        ),
+        x402={
+            "x402_version": 2,
+            "accepts": x402_accepts,
+            "resource": {"url": str(request.url), "mimeType": "application/json"},
+        },
     )
     return JSONResponse(result.body, status_code=result.status, headers=result.headers)
 ```
@@ -503,6 +551,7 @@ from agentscore_commerce.identity.fastapi import AgentScoreGate, get_gate_degrad
 
 app = FastAPI()
 gate = AgentScoreGate(api_key=os.environ["AGENTSCORE_API_KEY"], fail_open=True)
+
 
 @app.post("/purchase", dependencies=[Depends(gate)])
 async def purchase(request: Request):

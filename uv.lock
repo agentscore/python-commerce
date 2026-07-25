@@ -13,7 +13,7 @@ constraints = [{ name = "fastapi", specifier = "!=0.136.3" }]
 
 [[package]]
 name = "agentscore-commerce"
-version = "2.5.13"
+version = "2.5.14"
 source = { editable = "." }
 dependencies = [
     { name = "agentscore-py" },
@@ -87,7 +87,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentscore-py", specifier = ">=2.5.2" },
+    { name = "agentscore-py", specifier = ">=2.6.0" },
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
     { name = "cdp-sdk", marker = "extra == 'coinbase'", specifier = ">=1.0,<2" },
     { name = "django", marker = "extra == 'django'", specifier = ">=4.0" },
@@ -131,14 +131,14 @@ dev = [
 
 [[package]]
 name = "agentscore-py"
-version = "2.5.3"
+version = "2.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/86/5ca3420c6f42e7df0ab49d6663a7c509ce9c33d32a2c2bd155aab435eb97/agentscore_py-2.5.3.tar.gz", hash = "sha256:8729c97814e1e34b909a4ddc2280e2a090ee71248c2f0a8b97b7ebbd95ea8f03", size = 63080, upload-time = "2026-07-22T16:38:28.478Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/77/7a/1a7c99cebb2c2d556b6ebae8df14123b6f758fe111449f23f0d2002d51fb/agentscore_py-2.6.0.tar.gz", hash = "sha256:3c45925fad63523b61b8da386674cec8bc9ed28fe79b7cddfc270d51e034b7aa", size = 63572, upload-time = "2026-07-25T04:59:07.573Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2e/91/e5275d38de0e3b5acc27521e6b5ac9f78f008341e1012bfe0b35bc00b6d4/agentscore_py-2.5.3-py3-none-any.whl", hash = "sha256:493c414390d51286e29808c2d9d52a75d1e6a77ae0afe89b4ccc0bdb1a6fc2ff", size = 21941, upload-time = "2026-07-22T16:38:27.19Z" },
+    { url = "https://files.pythonhosted.org/packages/78/16/0ca495c1792c6055bc8ce6be3b4fda485c7235d430edd7662815512137ff/agentscore_py-2.6.0-py3-none-any.whl", hash = "sha256:ce5ef635081e995dcf5e4e811824d8874e735968d638420269a29f2754e16ecb", size = 22034, upload-time = "2026-07-25T04:59:06.422Z" },
 ]
 
 [[package]]

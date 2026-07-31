@@ -48,9 +48,8 @@ jobs:
         run: pip install pip-audit
 
       - name: Audit dependencies
-        # `--ignore-vuln` allowlist mirrors `osv-scanner.toml` (e.g. PYSEC-2025-183;
-        # see that file for justifications). Keep both lists in sync.
+        # Any `--ignore-vuln` flag here mirrors `osv-scanner.toml`; keep both
+        # lists in sync, and drop an entry from both once it stops firing.
         run: |
           uv export --format requirements-txt --no-hashes > requirements.txt
-          pip-audit -r requirements.txt --disable-pip --no-deps \
-            --ignore-vuln PYSEC-2025-183
+          pip-audit -r requirements.txt --disable-pip --no-deps

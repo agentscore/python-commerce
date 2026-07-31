@@ -87,7 +87,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentscore-py", specifier = ">=2.6.0" },
+    { name = "agentscore-py", specifier = ">=2.6.1" },
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
     { name = "cdp-sdk", marker = "extra == 'coinbase'", specifier = ">=1.0,<2" },
     { name = "django", marker = "extra == 'django'", specifier = ">=4.0" },

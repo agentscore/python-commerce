@@ -21,7 +21,7 @@ The structured-field parsing here is deliberately narrow: it parses the AIP memb
 ``Signature-Input`` / ``Signature`` dictionaries (a parenthesized inner list + integer/string
 params, and a single byte-sequence value). It is not a general RFC 8941 parser.
 
-Byte-compatibility: this is a behaviour-exact port of the reference ``aip/http-signature.ts``.
+Byte-compatibility: this is a behavior-exact port of the reference ``aip/http-signature.ts``.
 A node/pay-signed proof-of-possession MUST verify here and vice versa. The signature base,
 component ordering, canonicalization, the standard (not base64url) base64 of the signature
 value, and the RFC 7638 thumbprint are all reproduced byte-for-byte.

@@ -18,7 +18,7 @@ Verifiers resolve an IdP's public keys from ``https://{iss}/.well-known/agent-id
 
 Pure-ish: the only I/O is the HTTP fetch, injectable for tests via ``fetch_impl``.
 
-This is a behaviour-exact port of the reference implementation; the canonicalization,
+This is a behavior-exact port of the reference implementation; the canonicalization,
 caching, and selection logic mirror that file line-for-line so an AIT verified by one SDK
 resolves the same key set in the other.
 """
@@ -225,7 +225,7 @@ class _HttpxResponse:
 class JwksCache:
     """JWKS resolver bound to a trusted-issuer allowlist.
 
-    One instance can serve many issuers; each issuer's key set is cached independently. Behaviour
+    One instance can serve many issuers; each issuer's key set is cached independently. Behavior
     mirrors the reference ``JwksCache``.
     """
 

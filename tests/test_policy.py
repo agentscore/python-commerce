@@ -224,7 +224,7 @@ async def test_run_gate_soft_does_not_swallow_sanctions_unavailable() -> None:
 @pytest.mark.asyncio
 async def test_run_gate_soft_does_not_swallow_signer_sanctions_error_code() -> None:
     # A signer-sanctions SDN deny that surfaces as a top-level error.code (not in reasons)
-    # is still recognised as a sanctions deny and stays terminal under soft.
+    # is still recognized as a sanctions deny and stays terminal under soft.
     from agentscore_commerce.identity.fastapi import _GateDenialError
 
     body = {"error": {"code": "sanctions_flagged", "message": "signer on SDN list"}}

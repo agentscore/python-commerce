@@ -1,12 +1,15 @@
 """Stripe SPT method wrapper for ``pympp`` server merchants.
 
 Wraps the ``mpp.methods.stripe.charge(...)`` boilerplate so vendors only declare config,
-not method instantiation. Returns the value vendors pass into ``Mppx.create(methods=[...])``.
+not method instantiation. Returns the value vendors pass into ``Mpp.create(method=...)``.
+
+``Mpp.create`` takes ONE method per server, so a merchant accepting Stripe SPT alongside
+another rail builds a separate ``Mpp`` per method rather than passing a list. This mirrors
+what ``create_mppx_server`` does.
 
 Example::
 
-    from mpp.server import Mppx
-    from mpp.methods.tempo import charge as tempo_charge
+    from mpp.server import Mpp
     from agentscore_commerce.stripe_multichain import create_mppx_stripe
 
     stripe_method = await create_mppx_stripe(
@@ -14,8 +17,8 @@ Example::
         secret_key=os.environ["STRIPE_SECRET_KEY"],
     )
 
-    mpp = Mppx.create(
-        methods=[tempo_charge(currency=USDC_TEMPO, recipient=...), stripe_method],
+    stripe_server = Mpp.create(
+        method=stripe_method,
         secret_key=os.environ["MPP_SECRET_KEY"],
     )
 
@@ -36,7 +39,7 @@ async def create_mppx_stripe(
     secret_key: str,
     payment_method_types: list[str] | None = None,
 ) -> Any:
-    """Build the Stripe SPT method instance for ``Mppx.create(methods=[...])``.
+    """Build the Stripe SPT method instance for ``Mpp.create(method=...)``.
 
     Args:
         profile_id: Stripe profile_id / network_id advertised in your ``stripe/charge``

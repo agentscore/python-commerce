@@ -3612,16 +3612,16 @@ wheels = [
 
 [[package]]
 name = "x402"
-version = "2.18.0"
+version = "2.19.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "nest-asyncio" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/8a/756c978d1c507ed6b65105affc630e31b7b6fe5783f60fc8d433554f20d8/x402-2.18.0.tar.gz", hash = "sha256:fb30d8de45c8add3a28109c38527843cd7038c9c4c764e761455fd58ccf58aa9", size = 2100275, upload-time = "2026-08-04T18:48:18.807Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/29/59/0239621ee26b3aea5a73922f9438c34910bcd8b32576768118d082cf7d10/x402-2.19.0.tar.gz", hash = "sha256:9e09d63930c0179324cb1861ff29ee600fe75b3db2a3e7f4667d7c4085f43778", size = 2101077, upload-time = "2026-08-11T22:05:46.683Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/ba/1160d9b83d4fdc105dfa0972953845710d30a36f3773c6f7acec4dea7a02/x402-2.18.0-py3-none-any.whl", hash = "sha256:11c337ae202811916af0e241ee2510803bfd2a4da906f7373f2a6ad6a983219e", size = 2233019, upload-time = "2026-08-04T18:48:16.876Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/fe/b11e7aef732cd61b8d2d17ba34aa3df916c17d77e7c9d5c7251fd3d4ea6b/x402-2.19.0-py3-none-any.whl", hash = "sha256:372de9c18ba1a0d39ca4c698147eee2b27fc43b9ea6f0287ca7e0a2a7d3bced2", size = 2233986, upload-time = "2026-08-11T22:05:44.582Z" },
 ]
 
 [package.optional-dependencies]

@@ -298,6 +298,13 @@ class AgentScoreGate:
             await response(scope, receive, send)
             return
 
+        # The pairwise account handle rides this same assess response. Stash it BEFORE the
+        # allow/deny branch: it is identity rather than a verdict, so a merchant recording a
+        # denial against the buyer needs it on the path where its handler never runs.
+        _handle_state = getattr(request.state, GATE_STATE_KEY, None)
+        if isinstance(_handle_state, dict):
+            _handle_state["operator_handle"] = self._client.project_operator_handle(result.raw)
+
         if result.allow:
             scope["state"] = {**scope.get("state", {}), "agentscore": result.raw}
             state = scope["state"].get(GATE_STATE_KEY)
@@ -513,3 +520,23 @@ class ConditionalAipGate(AipGate):
     def __init__(self, app: ASGIApp, **kwargs: Any) -> None:
         kwargs["condition"] = has_agent_identity_header
         super().__init__(app, **kwargs)
+
+
+def get_operator_handle(request: Request) -> str | None:
+    """Read the stable pairwise operator handle for the account behind this request's token.
+
+    This is what durable merchant state (prepaid balances first) should key on: it survives
+    the token rotating, expiring or being revoked, whereas anything keyed on the token
+    instance is stranded every time one rotates.
+
+    Synchronous and free. The handle rides the gate's existing ``/v1/assess`` call, so
+    reading it costs no extra round trip and nothing extra against the merchant's quota.
+
+    Returns ``None`` when the gate did not run, when no operator token was presented (wallet
+    or AIT paths), or when the API has no handle salt configured. Available on denied
+    requests too, so a merchant recording a denial against a buyer can still key it.
+    """
+    state = getattr(request.state, GATE_STATE_KEY, None)
+    if not isinstance(state, dict):
+        return None
+    return state.get("operator_handle")

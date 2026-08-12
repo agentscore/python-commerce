@@ -247,6 +247,13 @@ class AgentScoreMiddleware:
                 return self.get_response(request)
             return self._on_denied(request, DenialReason(code="api_error"))
 
+        # The pairwise account handle rides this same assess response. Stash it BEFORE the
+        # allow/deny branch: it is identity rather than a verdict, so a merchant recording a
+        # denial against the buyer needs it on the path where its handler never runs.
+        _handle_state = getattr(request, "_agentscore_gate", None)
+        if isinstance(_handle_state, dict):
+            _handle_state["operator_handle"] = self._client.project_operator_handle(result.raw)
+
         if result.allow:
             setattr(request, "agentscore", result.raw)  # noqa: B010 — dynamic attribute attach on HttpRequest
             state = getattr(request, "_agentscore_gate", None)
@@ -472,3 +479,23 @@ class ConditionalAipGateMiddleware(AipGateMiddleware):
 
         super().__init__(get_response)
         self._condition = lambda request: has_agent_identity_header_parts(dict(request.headers))
+
+
+def get_operator_handle(request: HttpRequest) -> str | None:
+    """Read the stable pairwise operator handle for the account behind this request's token.
+
+    This is what durable merchant state (prepaid balances first) should key on: it survives
+    the token rotating, expiring or being revoked, whereas anything keyed on the token
+    instance is stranded every time one rotates.
+
+    Synchronous and free. The handle rides the gate's existing ``/v1/assess`` call, so
+    reading it costs no extra round trip and nothing extra against the merchant's quota.
+
+    Returns ``None`` when the gate did not run, when no operator token was presented (wallet
+    or AIT paths), or when the API has no handle salt configured. Available on denied
+    requests too, so a merchant recording a denial against a buyer can still key it.
+    """
+    state = getattr(request, "_agentscore_gate", None)
+    if not isinstance(state, dict):
+        return None
+    return state.get("operator_handle")

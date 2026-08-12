@@ -87,6 +87,18 @@ Two identity types: wallet (`X-Wallet-Address`) and operator-token (`X-Operator-
 
 `get_signer_verdict(request)` (per-adapter) returns the cached `signer_match` + `signer_sanctions` verdicts the gate composed on its primary `/v1/assess` call (single round trip; merchants build a 403 with `build_signer_mismatch_body(result=verdict.signer_match)` when `kind != "pass"`).
 
+### Operator handle: what durable merchant state keys on
+
+`get_operator_handle(request)` (per-adapter; Flask takes no argument and reads `g`; `ctx.operator_handle` inside `Checkout` hooks) returns the stable pairwise `oph_...` handle for the ACCOUNT behind the request's operator token.
+
+**Key state on this, never on the token.** An `opc_` lives 24h and rotates silently off a 90-day refresh, so anything keyed on the token instance is stranded daily, and revoking a leaked token would forfeit a prepaid balance. The handle derives from the account, so rotation, expiry and revocation are all free. It is pairwise per consuming merchant, so the same buyer presents an unrelated handle at every store and handles never correlate across them.
+
+It rides the gate's existing `/v1/assess` response, so reading it costs **no extra round trip and nothing extra against the merchant's quota**. That is why the accessor is synchronous like `get_signer_verdict` rather than doing a lookup of its own.
+
+Returns `None` when the gate did not run, on wallet-authenticated paths (there is no operator token to resolve), or when the API has no handle salt configured. Available on **denied** requests too, so a merchant recording a denial against a buyer can still key it. It carries no compliance meaning: a registration-only (`sign_in`) credential resolves exactly like a KYC-backed one, so read the decision fields for policy.
+
+Anything that is not a well-formed `oph_` string reads as absent rather than being passed through, so a half-configured API can never hand a merchant a value it would write balance rows against. `project_operator_handle(raw)` in `identity/core.py` is the single derivation both the adapters and `Checkout` call.
+
 Captured wallets: `capture_wallet(...)` is fire-and-forget. Reads `operator_token` stashed during gating and POSTs to `/v1/credentials/wallets`. No-ops for wallet-authenticated requests.
 
 Wallet-signer-match + signer-sanctions: the gate adapter calls `extract_payment_signer(x402_header)` pre-evaluate and passes `signer={address, network}` to the SDK's `assess`. The API returns both `signer_match` (wallet-binding) and `signer_sanctions` (OFAC SDN wallet-address) on the same response; commerce caches the raw body alongside the projected verdicts so `get_signer_verdict` is a pure cache read. **Wallet-OFAC SDN enforcement on the `signer` block is unconditional** whenever a signer is present — no `policy.require_sanctions_clear` opt-in required. An SDN hit (or `sanctions_check_unavailable`) flips `decision -> deny` and the gate returns 403 before the handler runs.

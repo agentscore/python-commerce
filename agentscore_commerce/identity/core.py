@@ -57,6 +57,26 @@ DEFAULT_BASE_URL = "https://api.agentscore.com"
 DEFAULT_CACHE_SECONDS = 300
 
 
+def project_operator_handle(raw: dict[str, Any] | None) -> str | None:
+    """Project the stable pairwise operator handle from a raw ``/v1/assess`` response.
+
+    Pure, and the single derivation both the gate adapters and ``Checkout`` call: written
+    twice it would drift, and the failure is silent, since one spelling's handle simply
+    misses the other's rows and a buyer quietly grows a second balance.
+
+    Narrowed rather than cast. The field is absent whenever the request carried no operator
+    token, and absent is also what the API emits when its handle salt is unconfigured, so
+    anything that is not a usable ``oph_`` string must read as "no handle" instead of
+    becoming a state key.
+    """
+    if not isinstance(raw, dict):
+        return None
+    value = raw.get("operator_handle")
+    if isinstance(value, str) and value.startswith("oph_"):
+        return value
+    return None
+
+
 class AgentScoreCore:
     """Shared client for calling the AgentScore assess API.
 
@@ -524,6 +544,24 @@ class AgentScoreCore:
             and (raw.get("signer_match") is not None or raw.get("signer_sanctions") is not None)
         ):
             self._last_signer_raw[normalize_address(address)] = raw
+
+    def project_operator_handle(self, raw: dict[str, Any] | None) -> str | None:
+        """Project the stable pairwise operator handle from a raw ``/v1/assess`` response.
+
+        The handle is the identity durable merchant state (prepaid balances first) should
+        key on, because it survives the token rotating, expiring or being revoked: an
+        ``opc_`` lives 24h and rotates silently off a 90-day refresh, so anything keyed on
+        the token instance is stranded daily.
+
+        It rides the assess response the gate already fetches, so reading it costs no extra
+        round trip and nothing extra against the merchant's quota.
+
+        Narrowed rather than cast: the field is absent whenever the request carried no
+        operator token, and absent is also what the API emits when its handle salt is
+        unconfigured. Anything that is not a usable ``oph_`` string must read as "no handle"
+        instead of becoming a state key.
+        """
+        return project_operator_handle(raw)
 
     def project_signer_verdict(self, raw: dict[str, Any] | None, claimed_address: str) -> SignerVerdict | None:
         """Project ``signer_match`` + ``signer_sanctions`` from a SPECIFIC raw assess response.

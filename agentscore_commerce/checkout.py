@@ -339,6 +339,17 @@ class CheckoutContext:
     """Merchant-supplied per-request state, populated by :attr:`Checkout.pre_validate`.
     Other hooks read from here (e.g. ``ctx.state["product"]`` after pre_validate
     resolved it). Stays empty when no pre_validate is configured."""
+    operator_handle: str | None = None
+    """Stable pairwise handle for the ACCOUNT behind this request's operator token.
+
+    Set by Checkout's internal gate from the same ``/v1/assess`` response it already
+    fetched, so it costs no extra round trip and nothing extra against quota.
+
+    This is what durable merchant state should key on, prepaid balances above all: it
+    survives the token rotating, expiring or being revoked, whereas state keyed on the token
+    instance is stranded every time one rotates. ``None`` when no gate is configured, on
+    wallet or AIT paths, on anonymous discovery legs, or when the API has no handle salt.
+    """
     capture_wallet: Callable[..., Any] | None = None
     """Capture the signer wallet under the operator credential the gate resolved
     for this request. Set by Checkout's internal gate after a successful allow when
@@ -2187,6 +2198,11 @@ class Checkout:
             signer_denial = await self._enforce_signer_match(ctx, gate, gate_instance, wallet_address)
             if signer_denial is not None:
                 return signer_denial
+
+        # The pairwise account handle rides the same assess response the gate just used.
+        from agentscore_commerce.identity.core import project_operator_handle
+
+        ctx.operator_handle = project_operator_handle(ctx.request.assess)
 
         # Stash ctx.capture_wallet so on_settled can bind the signer wallet to
         # the operator credential without needing a framework-specific context.

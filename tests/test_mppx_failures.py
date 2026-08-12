@@ -37,3 +37,32 @@ def test_user_message_names_both_recovery_paths() -> None:
     msg = out.next_steps["user_message"]
     assert "tempo wallet login" in msg
     assert "Base" in msg or "Solana" in msg
+
+
+def test_solana_confirmation_timeout_is_pending_not_regenerate() -> None:
+    out = classify_mppx_failure("Transaction confirmation timeout")
+    assert out is not None
+    assert out.code == "payment_pending_confirmation"
+    # 504, not 402: a 402 would trigger x402 clients to auto-repay, the exact
+    # double-charge this guards.
+    assert out.status == 504
+    assert out.status != 402
+    assert out.next_steps["action"] != "regenerate_payment_credential"
+    assert out.next_steps["action"] == "check_settlement_before_retry"
+    assert out.extra["chain"] == "solana"
+    assert out.extra["broadcast"] is True
+
+
+def test_solana_confirmation_timeout_status_recovery_variant() -> None:
+    out = classify_mppx_failure("Transaction confirmation timeout (status recovery failed: RPC error)")
+    assert out is not None
+    assert out.code == "payment_pending_confirmation"
+
+
+def test_solana_confirmation_timeout_warns_against_double_pay() -> None:
+    out = classify_mppx_failure("Transaction confirmation timeout")
+    assert out is not None
+    msg = out.next_steps["user_message"].lower()
+    assert "confirmation timed out" in msg
+    assert "check your wallet balance" in msg
+    assert "not pay again" in msg or "only resubmit" in msg

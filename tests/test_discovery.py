@@ -248,6 +248,35 @@ def test_probe_response_with_resource_url() -> None:
     assert decoded["resource"]["url"] == "https://example.com/api"
 
 
+def test_probe_response_always_carries_resource_and_mirrors_extensions() -> None:
+    # v2 envelope validators (mppx, x402scan's shared engine) hard-require
+    # ``resource``; a resource-less sample header reads as "no valid x402 response".
+    import base64
+    import json as _json
+
+    from agentscore_commerce.discovery.probe import X402SampleProbe, build_discovery_probe_response
+
+    synthesized = build_discovery_probe_response(**_probe_opts(x402_sample=X402SampleProbe(networks=["eip155:84532"])))
+    decoded = _json.loads(base64.b64decode(synthesized.headers["payment-required"]).decode())
+    assert decoded["resource"]["url"].startswith("https://")
+    assert _json.loads(synthesized.body)["resource"] == decoded["resource"]
+
+    extensions = {"bazaar": {"info": {"input": {"type": "http", "method": "POST", "bodyType": "json"}}}}
+    explicit = build_discovery_probe_response(
+        **_probe_opts(
+            x402_sample=X402SampleProbe(
+                networks=["eip155:84532"],
+                resource={"url": "https://example.com/api", "serviceName": "Example", "mimeType": "application/json"},
+                extensions=extensions,
+            )
+        )
+    )
+    decoded = _json.loads(base64.b64decode(explicit.headers["payment-required"]).decode())
+    assert decoded["resource"]["serviceName"] == "Example"
+    assert decoded["extensions"] == extensions
+    assert _json.loads(explicit.body)["extensions"] == extensions
+
+
 def test_probe_response_with_docs_url() -> None:
     import json as _json
 

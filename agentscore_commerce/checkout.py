@@ -1136,6 +1136,38 @@ class Checkout:
             body_text = json.dumps(request.body) if request.body else ""
             if await is_discovery_probe_request(request.method, auth, body_text):
                 cfg = self.discovery_probe
+                # Default the sample envelope's ``resource`` and ``extensions`` from
+                # what the real 402 would emit (the checkout's own url + resource_info,
+                # and the enriched Bazaar extensions): v2 validators hard-require
+                # ``resource``, and discovery engines read the Bazaar example input to
+                # build valid bodies for their follow-up probes. Explicit values win.
+                x402_sample = cfg.x402_sample
+                if x402_sample is not None:
+                    from dataclasses import replace as _dc_replace
+                    from urllib.parse import urlparse as _urlparse
+
+                    from agentscore_commerce.discovery.bazaar import (
+                        enrich_bazaar_discovery_extensions,
+                    )
+
+                    default_resource = x402_sample.resource
+                    if default_resource is None and not x402_sample.resource_url:
+                        default_resource = {"url": self.url, "mimeType": "application/json"}
+                        if self.resource_info:
+                            default_resource.update(self.resource_info)
+                    default_extensions = x402_sample.extensions
+                    if default_extensions is None and self.discovery_extensions is not None:
+                        probe_path = _urlparse(self.url).path or self.url
+                        enriched = enrich_bazaar_discovery_extensions(
+                            self.discovery_extensions, method=request.method, path=probe_path
+                        )
+                        if enriched:
+                            default_extensions = enriched
+                    x402_sample = _dc_replace(
+                        x402_sample,
+                        resource=default_resource,
+                        extensions=default_extensions,
+                    )
                 probe = build_discovery_probe_response(
                     realm=cfg.realm,
                     sample_rail=cfg.sample_rail,
@@ -1145,7 +1177,7 @@ class Checkout:
                     ttl_seconds=cfg.ttl_seconds,
                     docs_url=cfg.docs_url,
                     message=cfg.message,
-                    x402_sample=cfg.x402_sample,
+                    x402_sample=x402_sample,
                 )
                 return CheckoutResult(
                     status=probe.status,

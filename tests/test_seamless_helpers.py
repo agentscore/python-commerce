@@ -1038,6 +1038,48 @@ async def test_checkout_discovery_probe_emits_sample_402_on_empty_body() -> None
 
 
 @pytest.mark.asyncio
+async def test_checkout_discovery_probe_inherits_resource_and_bazaar_extensions() -> None:
+    import base64
+    import json as _json
+
+    from agentscore_commerce import (
+        Checkout,
+        CheckoutRequest,
+        DiscoveryProbeConfig,
+        PricingResult,
+    )
+    from agentscore_commerce.discovery.probe import X402SampleProbe
+    from agentscore_commerce.payment.rail_spec import TempoRailSpec
+
+    async def _pricing(_ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=0.01)
+
+    checkout = Checkout(
+        rails={"tempo": TempoRailSpec(recipient="0x" + "00" * 19 + "dE")},
+        url="https://api.example/search",
+        compute_pricing=_pricing,
+        resource_info={"serviceName": "Example API"},
+        discovery_extensions={"bazaar": {"info": {"input": {"type": "http", "bodyType": "json", "body": {"q": "x"}}}}},
+        discovery_probe=DiscoveryProbeConfig(
+            realm="api.example",
+            sample_rail="tempo-mainnet",
+            sample_amount_usd=0.01,
+            sample_recipient="0xRecipient",
+            x402_sample=X402SampleProbe(networks=["eip155:8453"]),
+        ),
+    )
+    result = await checkout.handle(
+        CheckoutRequest(method="POST", url="https://api.example/search", headers={}, body={}),
+    )
+    assert result.status == 402
+    decoded = _json.loads(base64.b64decode(result.headers["payment-required"]).decode())
+    assert decoded["resource"]["url"] == "https://api.example/search"
+    assert decoded["resource"]["serviceName"] == "Example API"
+    assert "bazaar" in decoded["extensions"]
+    assert result.body["resource"] == decoded["resource"]
+
+
+@pytest.mark.asyncio
 async def test_checkout_discovery_probe_skipped_when_payment_header_present() -> None:
     from agentscore_commerce import (
         Checkout,

@@ -90,6 +90,17 @@ class X402SampleProbe:
     amount_atomic: str = "1000000"
     version: Literal[1, 2] = 2
     resource_url: str | None = None
+    resource: dict[str, Any] | None = None
+    """Full x402 v2 ResourceInfo for the sample envelope; overrides ``resource_url``.
+    When neither is set a minimal resource is synthesized from the realm: v2
+    envelope validators (mppx, x402scan's shared engine) hard-require ``resource``,
+    so a resource-less sample header reads as "no valid x402 response" however
+    correct the accepts are."""
+    extensions: dict[str, Any] | None = None
+    """x402 v2 ``extensions`` for the sample envelope (header AND body), e.g. the
+    Bazaar block with input/output schemas. Discovery validators read the example
+    input from here to build VALID bodies for their follow-up probes. ``Checkout``
+    fills this from its own ``discovery_extensions`` automatically."""
 
 
 @dataclass
@@ -143,12 +154,23 @@ def build_discovery_probe_response(
             ]
         # Emit the sample accepts as-is (no v1<->v2 amount alias) so the probe
         # sample matches what the real 402 emits; clients version-route on x402Version.
-        header_kwargs: dict[str, Any] = {"x402_version": x402v, "accepts": sample_accepts}
-        if x402_sample.resource_url:
-            header_kwargs["resource"] = {
-                "url": x402_sample.resource_url,
-                "mimeType": "application/json",
-            }
+        # The v2 envelope REQUIRES ``resource``: validators (mppx, x402scan's shared
+        # engine) refuse a resource-less PAYMENT-REQUIRED header outright, so when
+        # the caller supplied neither form, synthesize a minimal one from the realm.
+        if x402_sample.resource is not None:
+            resource = x402_sample.resource
+        elif x402_sample.resource_url:
+            resource = {"url": x402_sample.resource_url, "mimeType": "application/json"}
+        else:
+            realm_url = realm if realm.startswith("http") else f"https://{realm}"
+            resource = {"url": realm_url, "mimeType": "application/json"}
+        header_kwargs: dict[str, Any] = {
+            "x402_version": x402v,
+            "accepts": sample_accepts,
+            "resource": resource,
+        }
+        if x402_sample.extensions:
+            header_kwargs["extensions"] = x402_sample.extensions
         encoded = payment_required_header(**header_kwargs)
         headers["payment-required"] = encoded
         # Mirror the header's accepts in the body so clients that fall back from
@@ -156,6 +178,9 @@ def build_discovery_probe_response(
         decoded = json.loads(base64.b64decode(encoded).decode())
         body_obj["x402Version"] = x402v
         body_obj["accepts"] = decoded["accepts"]
+        body_obj["resource"] = decoded["resource"]
+        if "extensions" in decoded:
+            body_obj["extensions"] = decoded["extensions"]
 
     return DiscoveryProbeResponse(
         status=402,

@@ -89,7 +89,7 @@ Two identity types: wallet (`X-Wallet-Address`) and operator-token (`X-Operator-
 
 ### Operator handle: what durable merchant state keys on
 
-`get_operator_handle(request)` (per-adapter; Flask takes no argument and reads `g`; `ctx.operator_handle` inside `Checkout` hooks) returns the stable pairwise `oph_...` handle for the ACCOUNT behind the request's operator token.
+`get_operator_handle(request)` (per-adapter; Flask takes no argument and reads `g`; `ctx.operator_handle` inside `Checkout` hooks, readable from `compute_pricing` onward; the gate that populates it runs AFTER `pre_validate`, so a `pre_validate` read is always `None` and zero-settles whatever keys on it) returns the stable pairwise `oph_...` handle for the ACCOUNT behind the request's operator token.
 
 **Key state on this, never on the token.** An `opc_` lives 24h and rotates silently off a 90-day refresh, so anything keyed on the token instance is stranded daily, and revoking a leaked token would forfeit a prepaid balance. The handle derives from the account, so rotation, expiry and revocation are all free. It is pairwise per consuming merchant, so the same buyer presents an unrelated handle at every store and handles never correlate across them.
 

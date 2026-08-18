@@ -349,6 +349,12 @@ class CheckoutContext:
     survives the token rotating, expiring or being revoked, whereas state keyed on the token
     instance is stranded every time one rotates. ``None`` when no gate is configured, on
     wallet or AIT paths, on anonymous discovery legs, or when the API has no handle salt.
+
+    ORDERING: populated by the gate, which runs AFTER ``pre_validate``, so it is readable
+    from ``compute_pricing`` onward (``mint_recipients``, ``compose_mppx``, ``on_settled``
+    included) and ALWAYS ``None`` inside ``pre_validate``. A ``pre_validate`` read passes
+    every keyless-dev test and zero-settles every production request whose flow keys on it
+    (a live store shipped exactly that).
     """
     capture_wallet: Callable[..., Any] | None = None
     """Capture the signer wallet under the operator credential the gate resolved

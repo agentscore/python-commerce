@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentscore-commerce"
-version = "2.7.0"
+version = "2.7.1"
 description = "Agentic commerce SDK for Python: identity middleware (FastAPI, Flask, Django, AIOHTTP, Sanic, ASGI) + payment helpers + 402 builders + discovery + Stripe multichain. The full merchant-side toolkit for AgentScore-powered agentic commerce."
 readme = "README.md"
 license = "MIT"
@@ -108,7 +108,9 @@ filterwarnings = [
 
 [tool.uv]
 required-version = ">=0.11.0"
-# fastapi 0.136.3 is a malicious release (MAL-2026-4750): it injects an
-# undocumented `fastar` typosquat dependency. Pin away from it until a clean
-# release supersedes it on PyPI.
-constraint-dependencies = ["fastapi!=0.136.3"]
+# cdp-sdk, pytempo and x402 all require `web3` with no upper bound, so a bare
+# `uv lock --upgrade` walks onto whatever is newest, including a prerelease.
+# It did: web3 8.0.0b3 landed in this lock, and a published SDK must not ship a
+# beta to every consumer. Disallow prereleases outright rather than pinning one
+# package, since the same unbounded shape exists on several transitives.
+prerelease = "disallow"

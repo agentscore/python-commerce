@@ -1,6 +1,6 @@
 """High-level Checkout orchestrator; composes 402-emit + verify+settle.
 
-The Checkout primitive collapses the agent-commerce dance (emit 402 →
+The Checkout primitive collapses the agentic-commerce dance (emit 402 →
 verify+settle on retry → respond) into a single ``await
 checkout.handle(request)`` call. It services every merchant shape:
 
@@ -30,7 +30,7 @@ Domain-neutral by design: every per-request value is keyed by
 ``reference_id`` (a UUID minted on first contact). Goods merchants persist
 this as their order id; API merchants treat it as a per-call request id.
 
-Usage (goods seller, full agent-commerce flow)::
+Usage (goods seller, full agentic-commerce flow)::
 
     checkout = Checkout(
         rails={
@@ -811,7 +811,7 @@ def _strip_payment_headers_from_raw(raw: Any) -> Any:
 
 
 class Checkout:
-    """High-level agent-commerce orchestrator.
+    """High-level agentic-commerce orchestrator.
 
     Composes :func:`build_accepted_methods`, :func:`build_how_to_pay`,
     :func:`respond_402`, :func:`verify_x402_request`, and
@@ -1116,7 +1116,7 @@ class Checkout:
         return None
 
     async def handle(self, request: CheckoutRequest) -> CheckoutResult:
-        """One-call agent-commerce flow.
+        """One-call agentic-commerce flow.
 
         * x402 ``X-Payment`` header present → verify, settle via ``x402_server``,
           run ``on_settled`` hook, return 200 with the hook's body (or

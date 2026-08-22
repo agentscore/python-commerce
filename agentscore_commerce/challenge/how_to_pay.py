@@ -104,7 +104,7 @@ async def build_how_to_pay(
             "what_it_does": (
                 f"Hits this endpoint, receives this same 402, signs the MPP challenge on {network_name}, and "
                 "submits the credential back via Authorization: Payment. Either client (tempo request or "
-                "agentscore-pay pay --chain tempo) works — both run the full MPP handshake."
+                "agentscore-pay pay --chain tempo) works; both run the full MPP handshake."
             ),
         }
         if recommend == "both":
@@ -203,7 +203,7 @@ async def build_how_to_pay(
             )
         elif link_cli_blocked:
             stripe_block["note"] = (
-                "link-cli SPT path not available for this purchase — Stripe link-cli caps spend requests at $500.00 "
+                "link-cli SPT path not available for this purchase: Stripe link-cli caps spend requests at $500.00 "
                 f"($50000 cents); your total is ${total_num}. Use your own Stripe account with the SharedPaymentToken "
                 "API instead."
             )

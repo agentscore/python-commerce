@@ -28,7 +28,7 @@ def llms_txt_identity_section(
     aip_bullet = ""
     if aip:
         aip_bullet = (
-            "\n- **`Agent-Identity: <JWT>` + RFC 9421 signature** — present an Agent Identity Token (AIP) "
+            "\n- **`Agent-Identity: <JWT>` + RFC 9421 signature**: present an Agent Identity Token (AIP) "
             "from a trusted issuer (AgentScore is always trusted). Short-lived and bound to your key; sign "
             "the request (`Signature-Input` + `Signature` over `@method @authority @path agent-identity`, "
             "tag `agent-identity`) to prove possession. No long-lived token on the wire. Mint one with "
@@ -50,13 +50,13 @@ def llms_txt_identity_section(
             compliance_note = f"\n\nCompliance: {', '.join(parts)}."
     return (
         "## Identity\n\n"
-        "AgentScore identity is reusable across every AgentScore-gated merchant — one KYC, "
+        "AgentScore identity is reusable across every AgentScore-gated merchant: one KYC, "
         "no re-verification per site. Pick a header:\n\n"
-        "- **`X-Wallet-Address: 0x...` or base58** — works on signing rails (Tempo, x402, "
+        "- **`X-Wallet-Address: 0x...` or base58**: works on signing rails (Tempo, x402, "
         "Solana MPP). The wallet you claim must sign the payment.\n"
-        "- **`X-Operator-Token: opc_...`** — works on every rail, including Stripe SPT. "
+        "- **`X-Operator-Token: opc_...`**: works on every rail, including Stripe SPT. "
         f"Reusable across AgentScore merchants until expiry.{aip_bullet}\n"
-        "- **Neither** — you get a 403 with `verify_url`. Complete the session flow once and "
+        "- **Neither**: you get a 403 with `verify_url`. Complete the session flow once and "
         f"reuse the resulting `opc_...` everywhere.{compliance_note}"
     )
 
@@ -103,22 +103,22 @@ def _llms_txt_payment_section_compact(*, rails: list[str], app_url: str) -> str:
     rails_list = list(rails)
     if _has_rail_family(rails_list, "tempo-"):
         lines.append(
-            "- **Tempo USDC via MPP** — "
+            "- **Tempo USDC via MPP**: "
             f"`tempo request -X POST -H \"X-Operator-Token: opc_...\" --json '{{...}}' --max-spend N {app_url}`"
         )
     if _has_rail_family(rails_list, "x402-base-"):
         lines.append(
-            f"- **x402 USDC on Base** (EIP-3009) — `agentscore-pay pay POST {app_url} --chain base "
+            f"- **x402 USDC on Base** (EIP-3009): `agentscore-pay pay POST {app_url} --chain base "
             "-H \"X-Operator-Token: opc_...\" -d '{...}'`"
         )
     if _has_rail_family(rails_list, "mpp-solana-"):
         lines.append(
-            f"- **USDC on Solana** — `agentscore-pay pay POST {app_url} --chain solana "
+            f"- **USDC on Solana**: `agentscore-pay pay POST {app_url} --chain solana "
             "-H \"X-Operator-Token: opc_...\" -d '{...}'`"
         )
     if "stripe-spt" in rails_list:
         lines.append(
-            "- **Stripe Shared Payment Token** — agent mints SPT (own Stripe account scoped to networkId, "
+            "- **Stripe Shared Payment Token**: agent mints SPT (own Stripe account scoped to networkId, "
             "OR `link-cli spend-request create --credential-type shared_payment_token --network-id "
             "<profileId> ...`)"
         )

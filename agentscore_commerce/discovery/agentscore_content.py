@@ -101,7 +101,7 @@ def build_agentscore_onboarding_steps(
     compatible_fragment = ", ".join(hint for rail, hint in compatible_hints if rail in accepted_rails)
 
     compatible_clients_clause = (
-        f"the rails table also lists per-rail `compatible_clients` — {compatible_fragment}. "
+        f"the rails table also lists per-rail `compatible_clients`: {compatible_fragment}. "
         if compatible_fragment
         else ""
     )
@@ -114,7 +114,7 @@ def build_agentscore_onboarding_steps(
     )
     bootstrap_step = (
         "First-run only: bootstrap wallet + Passport. Run `agentscore-pay agent-guide --json` "
-        "for the canonical cold-start path — it walks `agentscore-pay init` "
+        "for the canonical cold-start path; it walks `agentscore-pay init` "
         "(creates keystore + per-chain wallet), `agentscore-pay passport login` "
         f"(one-time KYC{'; required for this merchant' if requires_kyc else ''}; "
         "the human completes a verify URL once and pay caches the operator_token), "
@@ -123,7 +123,7 @@ def build_agentscore_onboarding_steps(
     )
     stripe_fallback_step = (
         "If your only payment method is a Stripe / Link card (no crypto), install `@stripe/link-cli` "
-        "instead of agentscore-pay and use it on the SPT rail. Identity gating still applies — the "
+        "instead of agentscore-pay and use it on the SPT rail. Identity gating still applies: the "
         "merchant's 403 with `verify_url` lets you bootstrap a Passport even with no crypto wallet involved."
     )
     returning_user_step = (

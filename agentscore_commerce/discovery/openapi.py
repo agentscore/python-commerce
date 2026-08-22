@@ -233,7 +233,7 @@ def agentscore_denial_schemas() -> dict[str, Any]:
                 "token_expired → deliver_verify_url_and_poll, invalid_credential → "
                 "switch_token_or_restart_session, wallet_signer_mismatch → resign_or_switch_to_operator_token, "
                 "wallet_auth_requires_wallet_signing → switch_to_operator_token, wallet_not_trusted → "
-                "contact_support — UNFIXABLE compliance only (sanctions/age/jurisdiction_restricted); "
+                "contact_support, for UNFIXABLE compliance only (sanctions/age/jurisdiction_restricted); "
                 "fixable reasons re-route to identity_verification_required, payment_required → contact_merchant)."
             ),
         },
@@ -255,7 +255,7 @@ def agentscore_denial_schemas() -> dict[str, Any]:
                     "description": (
                         "Present for missing_identity / identity_verification_required / token_expired "
                         "denials. Agent shares this with the user to complete KYC or claim a wallet. "
-                        "Not present on wallet_not_trusted (UNFIXABLE compliance — re-verification "
+                        "Not present on wallet_not_trusted (UNFIXABLE compliance, so re-verification "
                         "won't change the outcome)."
                     ),
                 },

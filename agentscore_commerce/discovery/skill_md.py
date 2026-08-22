@@ -124,7 +124,7 @@ _RAIL_NOTES: dict[str, str] = {
         "USDC (SPL). Use `agentscore-pay pay --chain solana`; MPP credential goes in `Authorization: Payment`."
     ),
     "stripe": (
-        "Card via Link wallet. Use `@stripe/link-cli` — `agentscore-pay` emits the "
+        "Card via Link wallet. Use `@stripe/link-cli`; `agentscore-pay` emits the "
         "handoff hint when this rail is picked."
     ),
 }
@@ -141,7 +141,7 @@ def _validate(input: _SkillCtx) -> None:
         raise ValueError(f"build_skill_md: name must be 1-{_NAME_MAX} characters (got {len(n) if n else 0})")
     if not _NAME_RE.match(n):
         raise ValueError(
-            f'build_skill_md: name "{n}" is invalid — must be lowercase alphanumeric and hyphens, '
+            f'build_skill_md: name "{n}" is invalid: must be lowercase alphanumeric and hyphens, '
             "no leading/trailing/consecutive hyphens (agentskills.io spec)"
         )
     if not input.description:
@@ -232,7 +232,7 @@ def _payment_section(input: _SkillCtx) -> str:
             clients[r] = defaults.get(r, [])
     rows = ["| Rail | Notes | Compatible clients |", "|---|---|---|"]
     for r in input.accepted_rails:
-        client_list = ", ".join(clients.get(r, [])) or "—"
+        client_list = ", ".join(clients.get(r, [])) or "none"
         rows.append(f"| **{_RAIL_LABELS[r]}** | {_RAIL_NOTES[r]} | {client_list} |")
     intro = (
         "Each gated route returns a 402 with `WWW-Authenticate` + `PAYMENT-REQUIRED` "
@@ -276,12 +276,12 @@ def _identity_section(input: _SkillCtx) -> str:
             "\n\nThis merchant accepts AIP Agent Identity Tokens. If you hold an AIT from a trusted issuer "
             "(AgentScore is always trusted), present the JWT in an `Agent-Identity` header plus an RFC 9421 "
             "HTTP Message Signature (`Signature-Input` + `Signature` over `@method @authority @path agent-identity`, "
-            "tag `agent-identity`) signed with the token-bound cnf key — it satisfies identity in one round trip, "
+            "tag `agent-identity`) signed with the token-bound cnf key, satisfying identity in one round trip, "
             "no separate AgentScore credential needed. `agentscore-pay pay --identity aip` does this automatically."
         )
     denial_note = (
-        "Denial bodies carry an `agent_instructions` block describing the recovery action "
-        "— read the `action` field and follow it. See the identity-bootstrap skill for the "
+        "Denial bodies carry an `agent_instructions` block describing the recovery action. "
+        "Read the `action` field and follow it. See the identity-bootstrap skill for the "
         "canonical denial-code → action table."
     )
     return "\n".join(
@@ -375,7 +375,7 @@ def build_skill_md(
     support_links: list[SkillMdLink] | None = None,
     refresh_footer: bool = True,
 ) -> str:
-    """Render an agentskills.io-compatible ``skill.md`` for an agent-commerce merchant.
+    """Render an agentskills.io-compatible ``skill.md`` for an agentic-commerce merchant.
 
     Output is YAML frontmatter (``name`` / ``description`` / optional ``license`` /
     ``compatibility`` / ``allowed-tools`` / ``metadata``) followed by markdown sections

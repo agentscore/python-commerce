@@ -253,12 +253,16 @@ class TestPaymentSection:
         assert "rogue-cli" not in out
         assert "Stripe Shared Payment Token" not in out
 
-    def test_renders_em_dash_when_clients_empty(self) -> None:
+    def test_renders_none_when_clients_empty(self) -> None:
+        # "none" rather than an em-dash: this table is served on every store's
+        # skill.md, and the org rule bars em-dashes on external surfaces. Kept
+        # identical to the Node SDK, which renders the same table.
         cfg = _base()
         cfg["accepted_rails"] = ["x402_base"]
         cfg["compatible_clients"] = {"x402_base": []}
         out = build_skill_md(**cfg)
-        assert re.search("x402 on Base.+\\| —", out)
+        assert re.search(r"x402 on Base.+\| none", out)
+        assert "—" not in out
 
 
 class TestIdentitySection:

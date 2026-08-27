@@ -495,7 +495,17 @@ class ComputeFirstCheckout:
 
         if denial_reason is None:
             decision = result.get("decision") if isinstance(result, dict) else None
-            if decision == "deny":
+            # Fail closed on anything that is not an explicit allow. This branched
+            # on `decision == "deny"`, so every other value was permitted by
+            # structure: None from an unreadable response, and any decision the
+            # API adds later. The except above already denies on an outage, so
+            # letting an unreadable answer through contradicted that posture.
+            if decision is None:
+                denial_reason = DenialReason(
+                    code="api_error",
+                    message="assess returned no decision",
+                )
+            elif decision != "allow":
                 decision_reasons = list(result.get("decision_reasons") or []) if isinstance(result, dict) else []
                 denial_reason = DenialReason(
                     code="wallet_not_trusted",

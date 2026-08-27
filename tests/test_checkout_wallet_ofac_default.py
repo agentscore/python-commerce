@@ -125,6 +125,57 @@ async def test_clean_signer_with_no_gate_allows_settle_to_proceed(
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_missing_decision_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A response carrying no decision must DENY, not fall through as an allow.
+
+    This branched on `decision == "deny"`, so every other value was permitted by
+    structure: None from an unreadable response, and any decision the API adds
+    later. This path is strict-liability wallet OFAC screening and already denies
+    on an API outage, so treating an unreadable answer as a pass contradicted its
+    own posture.
+    """
+    monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
+    respx.post(ASSESS_URL).mock(return_value=httpx.Response(200, json={"decision_reasons": []}))
+    checkout = _checkout(gate=None)
+    request = _req(headers={"x-payment": _x402_payment_header(SDN_WALLET)})
+    result = await checkout.handle(request)
+    assert result.settled is False
+    assert "api_error" in str(result.body)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_null_decision_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit null decision is the same unreadable case as a missing one."""
+    monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
+    respx.post(ASSESS_URL).mock(return_value=httpx.Response(200, json={"decision": None, "decision_reasons": []}))
+    checkout = _checkout(gate=None)
+    request = _req(headers={"x-payment": _x402_payment_header(SDN_WALLET)})
+    result = await checkout.handle(request)
+    assert result.settled is False
+    assert "api_error" in str(result.body)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_unrecognised_decision_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A decision value we do not know is not an approval either.
+
+    Guards the forward case: adding a decision on the API side must not silently
+    open this gate on an already-released SDK.
+    """
+    monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
+    _mock_assess("review", reasons=[])
+    checkout = _checkout(gate=None)
+    request = _req(headers={"x-payment": _x402_payment_header(SDN_WALLET)})
+    result = await checkout.handle(request)
+    assert result.status == 403
+    assert result.settled is False
+    assert "wallet_not_trusted" in str(result.body)
+
+
+@pytest.mark.asyncio
 async def test_no_api_key_logs_warn_once_and_skips(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -136,6 +136,59 @@ async def test_sdn_signer_denies_before_x402_settle(
 
 
 @pytest.mark.asyncio
+async def test_missing_decision_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A response carrying no decision must DENY rather than settle.
+
+    This branched on `decision == "deny"`, so anything else was permitted by
+    structure, including None from an unreadable response. The except above
+    already denies on an outage, so letting an unreadable answer through
+    contradicted that posture, and here it would have settled a payment.
+    """
+    monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
+    fake_server = _make_fake_x402_server()
+    checkout = ComputeFirstCheckout(
+        name="search",
+        url="https://api.example.com/search",
+        unit_price_cents=1,
+        rails=_make_rails(),
+        x402_server=fake_server,
+        run_work=_run_one,
+    )
+    await checkout.handle(_req(body={"q": "x"}))
+    with patch(
+        "agentscore_commerce.api.AgentScore.aassess",
+        new=AsyncMock(return_value={"decision_reasons": []}),
+    ):
+        result = await checkout.handle(_req(headers={"x-payment": _x402_header()}, body={"q": "x"}))
+    assert result[1]["error"]["code"] == "api_error"
+    fake_server.verify_payment.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_unrecognised_decision_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A decision value we do not know is not an approval either."""
+    monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
+    fake_server = _make_fake_x402_server()
+    checkout = ComputeFirstCheckout(
+        name="search",
+        url="https://api.example.com/search",
+        unit_price_cents=1,
+        rails=_make_rails(),
+        x402_server=fake_server,
+        run_work=_run_one,
+    )
+    await checkout.handle(_req(body={"q": "x"}))
+    with patch(
+        "agentscore_commerce.api.AgentScore.aassess",
+        new=AsyncMock(return_value={"decision": "review", "decision_reasons": []}),
+    ):
+        result = await checkout.handle(_req(headers={"x-payment": _x402_header()}, body={"q": "x"}))
+    assert result[0] == 403
+    assert result[1]["error"]["code"] == "wallet_not_trusted"
+    fake_server.verify_payment.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_clean_signer_continues_to_settle(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
     fake_server = _make_fake_x402_server()

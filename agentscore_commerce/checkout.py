@@ -2413,7 +2413,26 @@ class Checkout:
             )
 
         decision = result.get("decision") if isinstance(result, dict) else None
-        if decision == "deny":
+
+        # Fail closed on anything that is not an explicit allow. This branched on
+        # `decision == "deny"`, so every other value was permitted by structure:
+        # None from an unreadable response, and any decision the API adds later.
+        # This path is strict-liability wallet OFAC screening and already denies
+        # on an API outage above, so treating an unreadable answer as a pass
+        # contradicted its own posture.
+        if decision is None:
+            reason = DenialReason(
+                code="api_error",
+                message="assess returned no decision",
+            )
+            return CheckoutResult(
+                status=denial_reason_status(reason),
+                body=denial_reason_to_body(reason),
+                headers={},
+                reference_id=ctx.reference_id,
+                settled=False,
+            )
+        if decision != "allow":
             decision_reasons = result.get("decision_reasons") or [] if isinstance(result, dict) else []
             reason = DenialReason(
                 code="wallet_not_trusted",

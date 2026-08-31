@@ -10,6 +10,7 @@ when the deps aren't present so the suite still runs in minimal envs.
 from __future__ import annotations
 
 import importlib.util
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -448,11 +449,13 @@ async def test_create_mppx_server_stripe_rail_resolves(monkeypatch: pytest.Monke
 
     ``create_mppx_stripe`` is stubbed because the installed pympp build doesn't ship a
     working ``stripe/charge`` factory; this exercises the stripe branch (resolve + break)
-    in ``create_mppx_server`` without depending on that peer-dep detail.
+    in ``create_mppx_server`` without depending on that peer-dep detail. pympp >=0.11's
+    ``Mpp.create`` reads ``.name`` off each method for its uniqueness check, so the stub
+    returns a method-shaped object carrying one rather than a bare ``object()``.
     """
 
     async def _fake_create_stripe(**_kwargs: Any) -> Any:
-        return object()
+        return SimpleNamespace(name="stripe")
 
     monkeypatch.setattr("agentscore_commerce.stripe_multichain.mppx_stripe.create_mppx_stripe", _fake_create_stripe)
     server = await create_mppx_server(

@@ -13,7 +13,7 @@ prerelease-mode = "disallow"
 
 [[package]]
 name = "agentscore-commerce"
-version = "2.8.0"
+version = "2.8.1"
 source = { editable = "." }
 dependencies = [
     { name = "agentscore-py" },
@@ -131,14 +131,14 @@ dev = [
 
 [[package]]
 name = "agentscore-py"
-version = "2.6.6"
+version = "2.6.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/2d/51bcf54136a51c82570a825fc65e554a46c08ed4f603ab95bcf4b028d5a0/agentscore_py-2.6.6.tar.gz", hash = "sha256:710b8f3c13f014911beb39913a526f99783d2a8e817beaf85771c8d9cc821210", size = 67383, upload-time = "2026-08-21T08:44:49.577Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/ed/e17e40adefb78114124dce1d9308a4a6c1bd8e374c1949940744e97385bd/agentscore_py-2.6.7.tar.gz", hash = "sha256:e042118046fefa3ccdf1f9e0059b4adb489e4654adc8355b7a7105b422141d94", size = 67558, upload-time = "2026-08-31T21:58:14.298Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/07/f9/824626fa733246fcba5d4ba985d7142708a5d719dca1b0a69a8db8ef237a/agentscore_py-2.6.6-py3-none-any.whl", hash = "sha256:27e8c412fa4ede62b5d06c6d4c1bbe6763a9deaef0e33390148c22dd317aa58b", size = 22378, upload-time = "2026-08-21T08:44:48.187Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/f1/b72dea059cd64e3133886f9aef32d335c7d37d611c36e4a49e1938c5c6b1/agentscore_py-2.6.7-py3-none-any.whl", hash = "sha256:4688f62d7d5d9848a6b1e42d3bee275a17ddf71342bef65b1bdf5d7177327a23", size = 22380, upload-time = "2026-08-31T21:58:13.069Z" },
 ]
 
 [[package]]

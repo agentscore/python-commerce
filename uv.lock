@@ -13,7 +13,7 @@ prerelease-mode = "disallow"
 
 [[package]]
 name = "agentscore-commerce"
-version = "2.8.1"
+version = "2.8.2"
 source = { editable = "." }
 dependencies = [
     { name = "agentscore-py" },
@@ -2487,14 +2487,15 @@ wheels = [
 
 [[package]]
 name = "pympp"
-version = "0.10.1"
+version = "0.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
+    { name = "rfc8785" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/68/71/2bcb7701570dcdeb779bf072af009a899206fc7c6dfc238b40f82bbf49d1/pympp-0.10.1.tar.gz", hash = "sha256:846ffee1cbf9109fef89694a7e3073e9f2114bed094d481ab3a93a108526dfe8", size = 171767, upload-time = "2026-08-09T15:45:32.489Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/b7/b030c30c6ef748bd1c38acbdc2237907918b55e5d47115b6e80e74f7fec2/pympp-0.11.0.tar.gz", hash = "sha256:5264850cc3b8c8e3610aac6efc1ac390120623a47f376fb0973bf433eac45855", size = 205469, upload-time = "2026-08-28T21:23:22.06Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0e/46/9adfc30b97e1851ce60ca333ec18a7481f78d2c7a661b2b30ac55979e2fc/pympp-0.10.1-py3-none-any.whl", hash = "sha256:878067e70dfa7509e0ce783c1f2e0ec5bfc279f84cb2fed030f2f3d0bf6faaf1", size = 95343, upload-time = "2026-08-09T15:45:31.444Z" },
+    { url = "https://files.pythonhosted.org/packages/72/50/756e7c2a5936125afa04a0b258637a50d5d5eeec8cbe5e93e39d5fc5e445/pympp-0.11.0-py3-none-any.whl", hash = "sha256:714cb93a3d4f4fba31f062545617876dc460a7bc712947a7f6910ea5f9afa262", size = 113199, upload-time = "2026-08-28T21:23:20.849Z" },
 ]
 
 [package.optional-dependencies]
@@ -2830,6 +2831,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/43/98/4e55c9c486404ec12373708d015ebce157966965a5ebe7f28ff2c784d41b/respx-0.23.1.tar.gz", hash = "sha256:242dcc6ce6b5b9bf621f5870c82a63997e8e82bc7c947f9ffe272b8f3dd5a780", size = 29243, upload-time = "2026-04-08T14:37:16.008Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1d/4a/221da6ca167db45693d8d26c7dc79ccfc978a440251bf6721c9aaf251ac0/respx-0.23.1-py2.py3-none-any.whl", hash = "sha256:b18004b029935384bccfa6d7d9d74b4ec9af73a081cc28600fffc0447f4b8c1a", size = 25557, upload-time = "2026-04-08T14:37:14.613Z" },
+]
+
+[[package]]
+name = "rfc8785"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/2f/fa1d2e740c490191b572d33dbca5daa180cb423c24396b856f5886371d8b/rfc8785-0.1.4.tar.gz", hash = "sha256:e545841329fe0eee4f6a3b44e7034343100c12b4ec566dc06ca9735681deb4da", size = 14321, upload-time = "2024-09-27T16:33:31.206Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4d/78/119878110660b2ad709888c8a1614fce7e2fab39080ab960656dc8605bf6/rfc8785-0.1.4-py3-none-any.whl", hash = "sha256:520d690b448ecf0703691c76e1a34a24ddcd4fc5bc41d589cb7c58ec651bcd48", size = 9240, upload-time = "2024-09-27T16:33:29.683Z" },
 ]
 
 [[package]]
@@ -3717,16 +3727,16 @@ wheels = [
 
 [[package]]
 name = "x402"
-version = "2.20.0"
+version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "nest-asyncio" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e1/a4/e886e8d3c4abbee38347cbb1f825bd5280f4829a4f62711487ba1d2f38ab/x402-2.20.0.tar.gz", hash = "sha256:0c929c18721f2edbdc13a8773eda3c4059f28ffdfc5b982c50542e5061286d76", size = 2111598, upload-time = "2026-08-18T22:22:06.01Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/fd/67a23df8e625ad4a103c9d46e68700e8a8280652a7c521151691fb9bbd51/x402-2.21.0.tar.gz", hash = "sha256:7a574422e2ee69e8f9ae0b55d9be36c28a453528c6ce89867c9c7537718a8837", size = 2131131, upload-time = "2026-08-27T20:50:54.734Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a0/94/60327de1cf7c0df65f49cb9f603e6e0e3e2fcfefd74e90d8bac2cdf9109b/x402-2.20.0-py3-none-any.whl", hash = "sha256:6e1c2e376e58b43cd25e4a7fcf5c94072cbb7b3c93056f6b796736b0dfe66cb6", size = 2247814, upload-time = "2026-08-18T22:22:04.353Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/a4/aee09dd594b3107613ca9322cf43c894e69d4d0b3fc0f69e2d0e5303c44b/x402-2.21.0-py3-none-any.whl", hash = "sha256:ec9e26af56f5761c79df8c73e2043884c82b790935e02284918028465efacb2b", size = 2267643, upload-time = "2026-08-27T20:50:52.332Z" },
 ]
 
 [package.optional-dependencies]

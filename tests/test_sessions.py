@@ -81,6 +81,24 @@ class TestSyncHelper:
         body = json.loads(route.calls[0].request.content)
         assert body["context"] == "purchase_flow"
         assert body["product_name"] == "Example Merchant"
+        assert "kind" not in body
+
+    @respx.mock
+    def test_forwards_kind_and_swaps_the_kyc_message_for_sign_in(self):
+        route = respx.post(SESSIONS_URL).mock(return_value=httpx.Response(200, json=SESSION_RESPONSE))
+        reason = try_create_session_denial_reason_sync(
+            CreateSessionOnMissing(api_key="ask_test", kind="sign_in"),
+            user_agent="agentscore-commerce/1.0",
+        )
+        import json
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["kind"] == "sign_in"
+        assert reason is not None
+        assert reason.code == "identity_verification_required"
+        assert reason.message is not None
+        assert "sign in with an AgentScore account" in reason.message
+        assert "KYC" not in reason.message
 
     @respx.mock
     def test_omits_context_and_product_name_when_not_provided(self):

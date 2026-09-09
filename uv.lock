@@ -22,7 +22,7 @@ wheels = [
 
 [[package]]
 name = "agentscore-commerce"
-version = "2.8.3"
+version = "2.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "agentscore-py" },
@@ -96,7 +96,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentscore-py", specifier = ">=2.6.8" },
+    { name = "agentscore-py", specifier = ">=2.6.9" },
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
     { name = "cdp-sdk", marker = "extra == 'coinbase'", specifier = ">=1.0,<2" },
     { name = "django", marker = "extra == 'django'", specifier = ">=4.0" },
@@ -140,14 +140,14 @@ dev = [
 
 [[package]]
 name = "agentscore-py"
-version = "2.6.8"
+version = "2.6.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/67/3f/10fcd23b00dfc4ed4a701dca48f9b64d5d2c895734c42244dbdede84cb07/agentscore_py-2.6.8.tar.gz", hash = "sha256:e650bc8107c81e02f5ea056f829f4dcc6b4c0feffccd5bcff61448e77b801124", size = 67559, upload-time = "2026-09-05T00:34:10.821Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/4a/5963efd290f3f8cd2dcd5c06ffa955fccdfa955bf774540e5c640bc68ac3/agentscore_py-2.6.9.tar.gz", hash = "sha256:8606753735560062722a6910191ddc9dfd5673f2e64c0556a2be51513170e3ff", size = 67815, upload-time = "2026-09-09T00:07:49.229Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/40/83/05d9d74b926ea5ee6228e7b08c07e5f2b9c2690f8402c2b1468ea15adb2e/agentscore_py-2.6.8-py3-none-any.whl", hash = "sha256:0f217280fd85d8bc95847d5918e41565596af71e8c0794a1437946d8bed4ab67", size = 22379, upload-time = "2026-09-05T00:34:09.444Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/1f/0ee13b46eecb4e27a6c8b0b7c91dd63df7ae31742f8e321228ee8c2eadc8/agentscore_py-2.6.9-py3-none-any.whl", hash = "sha256:9f584515742288f7dec4e0f19b869ae5b89b2e77fba97a97154c83a6d2ca140d", size = 22650, upload-time = "2026-09-09T00:07:47.931Z" },
 ]
 
 [[package]]

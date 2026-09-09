@@ -7,7 +7,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from agentscore import AgentScore, AgentScoreError
 
@@ -46,6 +46,13 @@ class CreateSessionOnMissing:
     base_url: str = "https://api.agentscore.com"
     context: str | None = None
     product_name: str | None = None
+    # Session kind sent to POST /v1/sessions. "kyc" (the API default) runs identity
+    # verification; "sign_in" is registration-only (the buyer signs in with an AgentScore
+    # account, no identity documents) and mints a sign_in-scoped credential. Use it when the
+    # gate runs with an EMPTY compliance policy and only needs an account to key state on
+    # (a prepaid balance, say): a KYC session there asks for documents nothing will check.
+    # The denial's default error.message follows the kind.
+    kind: Literal["kyc", "sign_in"] | None = None
     # Per-request override of context / product_name. Receives the framework request
     # object; returns a dict with optional "context" and/or "product_name" keys.
     get_session_options: Callable[[Any], _Hookable] | None = None
@@ -91,12 +98,22 @@ def _resolved_session_options(cfg: CreateSessionOnMissing, dynamic: Any) -> dict
         options["context"] = cfg.context
     if cfg.product_name is not None:
         options["product_name"] = cfg.product_name
+    if cfg.kind is not None:
+        options["kind"] = cfg.kind
     return _apply_dynamic_options(options, dynamic)
+
+
+SIGN_IN_REQUIRED_MESSAGE = (
+    "Sign-in is required to access this resource. Visit verify_url to sign in with an "
+    "AgentScore account (no identity documents), then poll poll_url for the operator token "
+    "and retry."
+)
 
 
 def _session_denial_reason(
     data: dict[str, Any],
     extra: dict[str, Any] | None = None,
+    kind: Literal["kyc", "sign_in"] | None = None,
 ) -> DenialReason | None:
     # Validate required fields before trusting the response. A misbehaving (or
     # mocked-wrong) API could 200 without session_id/poll_secret/verify_url, which
@@ -116,6 +133,9 @@ def _session_denial_reason(
     agent_instructions = json.dumps(next_steps) if next_steps else None
     return DenialReason(
         code="identity_verification_required",
+        # The per-code default message talks about KYC, which a sign_in session never runs;
+        # say what this session actually asks for so a merchant's default 403 is not a lie.
+        message=SIGN_IN_REQUIRED_MESSAGE if kind == "sign_in" else None,
         verify_url=data["verify_url"],
         session_id=data["session_id"],
         poll_secret=data["poll_secret"],
@@ -171,7 +191,7 @@ async def try_create_session_denial_reason(
             except Exception as err:
                 logger.warning("on_before_session hook failed: %s", err)
 
-        return _session_denial_reason(data, extra)
+        return _session_denial_reason(data, extra, cfg.kind)
     except Exception:
         return None
 
@@ -219,6 +239,6 @@ def try_create_session_denial_reason_sync(
             except Exception as err:
                 logger.warning("on_before_session hook failed: %s", err)
 
-        return _session_denial_reason(data, extra)
+        return _session_denial_reason(data, extra, cfg.kind)
     except Exception:
         return None

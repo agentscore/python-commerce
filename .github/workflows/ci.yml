@@ -23,6 +23,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: "0.12.13"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -51,7 +53,7 @@ jobs:
         run: uv run ty check -c 'src.include=["examples"]'
 
       - name: Vulture
-        run: uv run vulture agentscore_commerce/ --min-confidence 80
+        run: uv run vulture . --min-confidence 80 --exclude .venv
 
       - name: Tests
         run: uv run pytest tests/ -v --cov=agentscore_commerce --cov-report=term-missing

@@ -102,7 +102,7 @@ def build_402_body(
     if agent_memory is not None:
         # AgentMemoryHint is a dataclass; merchants pass it directly via
         # first_encounter_agent_memory(...). Convert here so JSONResponse /
-        # json.dumps can serialise without per-merchant boilerplate.
+        # json.dumps can serialize without per-merchant boilerplate.
         body["agent_memory"] = (
             asdict(agent_memory) if is_dataclass(agent_memory) and not isinstance(agent_memory, type) else agent_memory
         )

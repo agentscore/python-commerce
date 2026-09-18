@@ -331,7 +331,7 @@ class _StubX402Server:
 
     async def settle_payment(self, _payload: Any, _requirement: Any) -> Any:
         # ProcessX402Settle treats a falsy success as a settle_failed phase via the
-        # exception raised by settle_result_to_json_bytes when it tries to serialise
+        # exception raised by settle_result_to_json_bytes when it tries to serialize
         # an empty dict, so we shape the response as a plain JSON-serializable dict.
         if not self.settle_success:
             raise RuntimeError("settle rejected")

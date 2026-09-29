@@ -70,15 +70,17 @@ _gate = AgentScoreGate(
 )
 
 
-# Run the gate CONDITIONALLY: only when a payment credential is already attached.
-# Anonymous discovery (no payment header) flows through to the handler so any spec-
-# compliant x402 wallet can read the 402 challenge with rails + pricing without first
-# proving identity. Identity is verified at settle time on the retry leg.
-from agentscore_commerce.payment import has_payment_header
+# Run the gate CONDITIONALLY: when a payment credential is attached, or when the buyer asks
+# for a verification session with `X-Verification-Session: create` and no identity. Anonymous
+# discovery flows through to the handler so any spec-compliant x402 wallet can read the 402
+# challenge with rails + pricing without first proving identity; identity is verified at settle
+# time, or earlier on request. Advertise the early path by passing `build_identity_bootstrap()`
+# into your 402 body as `identity_bootstrap` (Checkout does this for you).
+from agentscore_commerce.payment import should_run_conditional_gate
 
 
 async def gate_on_settle(request: Request) -> None:
-    if not has_payment_header(request):
+    if not should_run_conditional_gate(request):
         return None
     return await _gate(request)
 

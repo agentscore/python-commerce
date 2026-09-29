@@ -752,6 +752,65 @@ class TestGetSignerVerdictEdgeCases:
 
 class TestConditionalGate:
     @respx.mock
+    def test_verification_session_header_runs_gate_and_returns_session_403(self):
+        """X-Verification-Session: create with no identity runs the gate before any payment."""
+        from agentscore_commerce.identity.fastapi import ConditionalAgentScoreGate
+
+        assess = _mock_assess("allow")
+        respx.post(SESSIONS_URL).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "sess_boot",
+                    "verify_url": "https://www.agentscore.com/verify?session=sess_boot",
+                    "poll_secret": "poll_boot",
+                    "poll_url": "https://api.agentscore.com/v1/sessions/sess_boot",
+                },
+            )
+        )
+        gate = ConditionalAgentScoreGate(
+            api_key="ask_test",
+            require_kyc=True,
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        app = FastAPI()
+
+        @app.post("/purchase", dependencies=[Depends(gate)])
+        async def purchase():
+            return {"ok": True}
+
+        resp = TestClient(app).post("/purchase", headers={"X-Verification-Session": "create"})
+        assert resp.status_code == 403
+        body = resp.json()
+        assert body["verify_url"] == "https://www.agentscore.com/verify?session=sess_boot"
+        assert body["session_id"] == "sess_boot"
+        assert assess.call_count == 0
+
+    @respx.mock
+    def test_verification_session_header_with_identity_flows_through(self):
+        """An identity header turns the session request back into an ordinary discovery leg."""
+        from agentscore_commerce.identity.fastapi import ConditionalAgentScoreGate
+
+        assess = _mock_assess("allow")
+        sessions = respx.post(SESSIONS_URL).mock(return_value=httpx.Response(500))
+        gate = ConditionalAgentScoreGate(
+            api_key="ask_test",
+            create_session_on_missing=CreateSessionOnMissing(api_key="ask_session"),
+        )
+        app = FastAPI()
+
+        @app.post("/purchase", dependencies=[Depends(gate)])
+        async def purchase():
+            return {"ok": True}
+
+        resp = TestClient(app).post(
+            "/purchase", headers={"X-Verification-Session": "create", "X-Operator-Token": "opc_x"}
+        )
+        assert resp.status_code == 200
+        assert assess.call_count == 0
+        assert sessions.call_count == 0
+
+    @respx.mock
     def test_discovery_leg_flows_through_unauthenticated(self):
         """ConditionalAgentScoreGate lets a no-credential discovery leg through without
         calling assess."""

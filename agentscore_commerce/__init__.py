@@ -13,8 +13,8 @@ Submodules:
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
+from agentscore_commerce.challenge.identity import build_identity_bootstrap
 from agentscore_commerce.checkout import (
-    VERIFICATION_SESSION_HEADER,
     Checkout,
     CheckoutContext,
     CheckoutGateConfig,
@@ -126,6 +126,8 @@ from agentscore_commerce.identity import (
 from agentscore_commerce.identity.sessions import CreateSessionOnMissing
 from agentscore_commerce.identity.types import PolicyCheck, PolicyResult
 from agentscore_commerce.payment import (
+    VERIFICATION_SESSION_HEADER,
+    VERIFICATION_SESSION_VALUE,
     PaymentSigner,
     SignerNetwork,
     SolanaMppRailSpec,
@@ -138,6 +140,7 @@ from agentscore_commerce.payment import (
     extract_payment_signer,
     extract_signer_for_precheck,
     format_usd_cents,
+    has_identity_header,
     has_mppx_header,
     has_payment_header,
     has_x402_header,
@@ -145,6 +148,8 @@ from agentscore_commerce.payment import (
     is_solana_network,
     load_solana_fee_payer,
     read_x402_payment_header,
+    requests_verification_session,
+    should_run_conditional_gate,
 )
 from agentscore_commerce.quote_cache import (
     CachedQuote,
@@ -170,6 +175,7 @@ __all__ = [
     "FIXABLE_DENIAL_REASONS",
     "UCP_A2A_EXTENSION_URI",
     "VERIFICATION_SESSION_HEADER",
+    "VERIFICATION_SESSION_VALUE",
     "A2AAgentCard",
     "A2AAgentCardCapabilities",
     "A2AAgentCardExtension",
@@ -243,6 +249,7 @@ __all__ = [
     "build_contact_support_next_steps",
     "build_default_checkout_rails",
     "build_gate_from_policy",
+    "build_identity_bootstrap",
     "build_jwks_response",
     "build_mppx_compose_rails",
     "build_signer_mismatch_body",
@@ -262,6 +269,7 @@ __all__ = [
     "format_usd_cents",
     "generate_ucp_signing_key",
     "get_identity_status",
+    "has_identity_header",
     "has_mppx_header",
     "has_payment_header",
     "has_x402_header",
@@ -275,9 +283,11 @@ __all__ = [
     "mpp_payment_handler",
     "pricing_result",
     "read_x402_payment_header",
+    "requests_verification_session",
     "run_gate_with_enforcement",
     "shipping_country_allowed",
     "shipping_state_allowed",
+    "should_run_conditional_gate",
     "sign_ucp_profile",
     "stripe_spt_payment_handler",
     "ucp_a2a_extension",

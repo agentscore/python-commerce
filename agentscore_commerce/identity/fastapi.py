@@ -472,16 +472,20 @@ class ConditionalAgentScoreGate:
 
         @app.post("/purchase", dependencies=[Depends(gate)])
         async def purchase(request: Request): ...
+
+    It also fires on an ``X-Verification-Session: create`` request with no identity and no
+    payment (:func:`~agentscore_commerce.payment.requests_verification_session`), so a buyer can
+    get a verify_url before paying.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        from agentscore_commerce.payment.payment_header import has_payment_header
+        from agentscore_commerce.payment.payment_header import should_run_conditional_gate
 
         self._inner = AgentScoreGate(*args, **kwargs)
-        self._has_payment_header = has_payment_header
+        self._should_run_gate = should_run_conditional_gate
 
     async def __call__(self, request: Request) -> None:
-        if not self._has_payment_header(request):
+        if not self._should_run_gate(request):
             return
         await self._inner(request)
 

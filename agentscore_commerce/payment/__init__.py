@@ -21,11 +21,16 @@ from agentscore_commerce.payment.mppx_server import MppxRailSpec, create_mppx_se
 from agentscore_commerce.payment.network_kind import is_evm_network, is_solana_network
 from agentscore_commerce.payment.networks import NetworkFamily, network_family, networks
 from agentscore_commerce.payment.payment_header import (
+    VERIFICATION_SESSION_HEADER,
+    VERIFICATION_SESSION_VALUE,
     MalformedPaymentCredential,
+    has_identity_header,
     has_mppx_header,
     has_payment_header,
     has_x402_header,
     malformed_payment_credential,
+    requests_verification_session,
+    should_run_conditional_gate,
 )
 from agentscore_commerce.payment.rail_spec import (
     RecipientLike,
@@ -95,6 +100,8 @@ from agentscore_commerce.payment.zero_settle import (
 __all__ = [
     "SETTLEMENT_OVERRIDES_HEADER",
     "USDC",
+    "VERIFICATION_SESSION_HEADER",
+    "VERIFICATION_SESSION_VALUE",
     "X402_SUPPORTED_BASE_NETWORKS",
     "ClassifiedX402Error",
     "CustomScheme",
@@ -143,6 +150,7 @@ __all__ = [
     "extract_signer_for_precheck",
     "extract_x402_signer",
     "format_usd_cents",
+    "has_identity_header",
     "has_mppx_header",
     "has_payment_header",
     "has_x402_header",
@@ -162,9 +170,11 @@ __all__ = [
     "rails",
     "read_x402_payment_header",
     "register_x402_schemes_v1_v2",
+    "requests_verification_session",
     "resolve_recipient",
     "settle_result_to_json_bytes",
     "settlement_override_header",
+    "should_run_conditional_gate",
     "strip_unsigned_x402_payload_fields",
     "usd_to_atomic",
     "validate_x402_network_config",

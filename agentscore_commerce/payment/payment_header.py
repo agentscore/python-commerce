@@ -80,6 +80,50 @@ def has_payment_header(request_or_headers: Any) -> bool:
     return bool(isinstance(auth, str) and auth.startswith("Payment "))
 
 
+VERIFICATION_SESSION_HEADER = "X-Verification-Session"
+"""Request header that asks an identity gate for a verification session without paying first.
+
+Opt-in so crawlers replaying a valid example body never mint sessions or pending orders.
+"""
+VERIFICATION_SESSION_VALUE = "create"
+
+
+def has_identity_header(request_or_headers: Any) -> bool:
+    """True when the request carries an identity header.
+
+    That is an operator token, a wallet address, or an AIP ``Agent-Identity`` token.
+    """
+    headers = _unwrap_headers(request_or_headers)
+    if _read_header(headers, "x-operator-token") or _read_header(headers, "x-wallet-address"):
+        return True
+    agent_identity = _read_header(headers, "agent-identity") or ""
+    return any(part.strip() for part in agent_identity.split(","))
+
+
+def requests_verification_session(request_or_headers: Any) -> bool:
+    """True when the request asks for a verification session before paying.
+
+    That is ``X-Verification-Session: create`` (case-insensitive) with no identity and no payment
+    credential.
+    """
+    headers = _unwrap_headers(request_or_headers)
+    value = _read_header(headers, VERIFICATION_SESSION_HEADER) or ""
+    return (
+        value.strip().lower() == VERIFICATION_SESSION_VALUE
+        and not has_identity_header(headers)
+        and not has_payment_header(headers)
+    )
+
+
+def should_run_conditional_gate(request_or_headers: Any) -> bool:
+    """Whether a conditional (settle-leg) identity gate should run.
+
+    True when a payment credential is attached, or when the request asks for a verification session
+    before paying.
+    """
+    return has_payment_header(request_or_headers) or requests_verification_session(request_or_headers)
+
+
 def has_x402_header(request_or_headers: Any) -> bool:
     """True when the request carries an x402 payment credential.
 

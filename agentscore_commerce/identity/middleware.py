@@ -411,12 +411,16 @@ class ConditionalAgentScoreGate(AgentScoreGate):
 
     Accepts the same kwargs as :class:`AgentScoreGate`; any ``condition`` kwarg
     is replaced with the payment-header check.
+
+    It also fires on an ``X-Verification-Session: create`` request with no identity and no
+    payment (:func:`~agentscore_commerce.payment.requests_verification_session`), so a buyer can
+    get a verify_url before paying.
     """
 
     def __init__(self, app: Any, **kwargs: Any) -> None:
-        from agentscore_commerce.payment.payment_header import has_payment_header
+        from agentscore_commerce.payment.payment_header import should_run_conditional_gate
 
-        kwargs["condition"] = has_payment_header
+        kwargs["condition"] = should_run_conditional_gate
         super().__init__(app, **kwargs)
 
 

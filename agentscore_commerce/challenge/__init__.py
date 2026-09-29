@@ -9,7 +9,12 @@ from agentscore_commerce.challenge.agent_memory import (
 )
 from agentscore_commerce.challenge.body import X402PaymentRequired, X402ResourceInfo, build_402_body
 from agentscore_commerce.challenge.how_to_pay import build_how_to_pay
-from agentscore_commerce.challenge.identity import IdentityMode, SignerMatchResult, build_identity_metadata
+from agentscore_commerce.challenge.identity import (
+    IdentityMode,
+    SignerMatchResult,
+    build_identity_bootstrap,
+    build_identity_metadata,
+)
 from agentscore_commerce.challenge.pricing import PricingBlock, build_pricing_block
 from agentscore_commerce.challenge.receipt import (
     ProductInfo,
@@ -37,6 +42,7 @@ __all__ = [
     "build_agent_instructions",
     "build_agent_memory_hint",
     "build_how_to_pay",
+    "build_identity_bootstrap",
     "build_identity_metadata",
     "build_pricing_block",
     "build_validation_error",

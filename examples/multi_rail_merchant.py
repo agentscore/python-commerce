@@ -40,7 +40,7 @@ Run: uvicorn examples.multi_rail_merchant:app --port 3000
 
 import os
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -154,7 +154,7 @@ async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
     success = build_success_next_steps(order_status_url=f"{APP_URL}/orders/{ctx.reference_id}")
     receipt = Receipt(
         id=ctx.reference_id,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         pricing=ctx.pricing.block,
         product=ProductInfo(name="Regulated Goods Cart"),
         payment_status="completed",

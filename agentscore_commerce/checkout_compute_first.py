@@ -33,7 +33,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -207,7 +207,7 @@ def _decimals_for_unit(unit_price_cents: float) -> int:
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _default_success_body(app_url: str) -> Callable[[SuccessBodyArgs], dict[str, Any]]:

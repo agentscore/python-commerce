@@ -364,10 +364,14 @@ def conditional_agentscore_gate(app: Sanic, **kwargs: Any) -> None:
 
     Discovery legs flow through to the handler unauthenticated; settle legs
     trigger the full gate.
-    """
-    from agentscore_commerce.payment.payment_header import has_payment_header
 
-    kwargs["condition"] = has_payment_header
+    It also fires on an ``X-Verification-Session: create`` request with no identity and no
+    payment (:func:`~agentscore_commerce.payment.requests_verification_session`), so a buyer can
+    get a verify_url before paying.
+    """
+    from agentscore_commerce.payment.payment_header import should_run_conditional_gate
+
+    kwargs["condition"] = should_run_conditional_gate
     agentscore_gate(app, **kwargs)
 
 

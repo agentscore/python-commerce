@@ -4,8 +4,9 @@ Creates a PaymentIntent with `payment_method_options.crypto.deposit_options.netw
 chains, returning the PI id + deposit addresses per network. Distinct from the Stripe SPT flow.
 """
 
-from dataclasses import dataclass
-from typing import Any, Protocol
+import threading
+from dataclasses import dataclass, field
+from typing import Any, Protocol, cast
 
 from agentscore_commerce.errors import CheckoutValidationError
 
@@ -27,10 +28,24 @@ class MultichainPaymentIntentResult:
 _DEFAULT_NETWORKS: tuple[str, ...] = ("tempo", "base", "solana")
 
 
+@dataclass
+class _Flight:
+    done: threading.Event = field(default_factory=threading.Event)
+    result: MultichainPaymentIntentResult | None = None
+    error: BaseException | None = None
+
+
+# Concurrent creates under one idempotency key collide at Stripe as a resource-specific 429
+# (``stripe-should-retry: false``). The call is synchronous, so the race exists across the worker
+# threads of a threaded server; identical requests racing there share the first call.
+_in_flight: dict[str, _Flight] = {}
+_in_flight_lock = threading.Lock()
+
+
 def create_multichain_payment_intent(
     *,
-    stripe: Any,  # StripeClientLike, kept loose so vendors can pass their actual `stripe.StripeClient`
-    amount: int,  # in cents (Stripe convention)
+    stripe: Any,
+    amount: int,
     currency: str = "usd",
     networks: list[str] | None = None,
     metadata: dict[str, str] | None = None,
@@ -39,7 +54,50 @@ def create_multichain_payment_intent(
     """Create a Stripe PaymentIntent with multichain crypto deposit_options.
 
     Returns the PI id + per-network deposit addresses. Raises if Stripe doesn't return any addresses.
+    Concurrent calls sharing an ``idempotency_key`` share one Stripe request.
     """
+    kwargs: dict[str, Any] = {
+        "stripe": stripe,
+        "amount": amount,
+        "currency": currency,
+        "networks": networks,
+        "metadata": metadata,
+        "idempotency_key": idempotency_key,
+    }
+    if idempotency_key is None:
+        return _create_multichain_payment_intent_once(**kwargs)
+    with _in_flight_lock:
+        flight = _in_flight.get(idempotency_key)
+        leader = flight is None
+        if flight is None:
+            flight = _Flight()
+            _in_flight[idempotency_key] = flight
+    if not leader:
+        flight.done.wait()
+        if flight.error is not None:
+            raise flight.error
+        return cast("MultichainPaymentIntentResult", flight.result)
+    try:
+        flight.result = _create_multichain_payment_intent_once(**kwargs)
+        return flight.result
+    except BaseException as err:
+        flight.error = err
+        raise
+    finally:
+        with _in_flight_lock:
+            _in_flight.pop(idempotency_key, None)
+        flight.done.set()
+
+
+def _create_multichain_payment_intent_once(
+    *,
+    stripe: Any,  # StripeClientLike, kept loose so vendors can pass their actual `stripe.StripeClient`
+    amount: int,  # in cents (Stripe convention)
+    currency: str = "usd",
+    networks: list[str] | None = None,
+    metadata: dict[str, str] | None = None,
+    idempotency_key: str | None = None,
+) -> MultichainPaymentIntentResult:
     resolved_networks = list(networks) if networks else list(_DEFAULT_NETWORKS)
     params: dict[str, Any] = {
         "amount": amount,

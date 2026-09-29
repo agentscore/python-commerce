@@ -261,3 +261,86 @@ async def test_create_mppx_stripe_missing_charge_factory(monkeypatch: pytest.Mon
             await mppx_stripe.create_mppx_stripe(profile_id="prof", secret_key="sk")
     finally:
         sys.modules.pop("mpp.methods.stripe", None)
+
+
+_SF_RESPONSE = {
+    "id": "pi_sf",
+    "next_action": {"crypto_display_details": {"deposit_addresses": {"tempo": {"address": "0xsf"}}}},
+}
+
+
+class _GatedAPI:
+    """Blocks every create() until released, so concurrent callers overlap inside the call."""
+
+    def __init__(self, fail_first: bool = False) -> None:
+        import threading
+
+        self.calls = 0
+        self._lock = threading.Lock()
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self._fail_first = fail_first
+
+    def create(self, params, idempotency_key=None):
+        with self._lock:
+            self.calls += 1
+            n = self.calls
+        self.entered.set()
+        self.release.wait(timeout=5)
+        if self._fail_first and n == 1:
+            raise RuntimeError("rate limited")
+        return _SF_RESPONSE
+
+
+def _run_concurrently(fn, count):
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=count) as pool:
+        return [pool.submit(fn) for _ in range(count)]
+
+
+def test_single_flight_shares_one_call_across_threads_with_the_same_key():
+    import time
+
+    api = _GatedAPI()
+    client = _FakeClient(api)
+    futures = _run_concurrently(
+        lambda: create_multichain_payment_intent(stripe=client, amount=100, idempotency_key="pi-same-100"), 3
+    )
+    assert api.entered.wait(timeout=5)
+    time.sleep(0.1)  # let the other threads reach the in-flight entry
+    api.release.set()
+    results = [f.result(timeout=5) for f in futures]
+    assert api.calls == 1
+    assert [r.payment_intent_id for r in results] == ["pi_sf", "pi_sf", "pi_sf"]
+
+
+def test_single_flight_does_not_share_unkeyed_or_distinct_keys():
+    api = _GatedAPI()
+    api.release.set()
+    client = _FakeClient(api)
+    create_multichain_payment_intent(stripe=client, amount=100, idempotency_key="pi-a-100")
+    create_multichain_payment_intent(stripe=client, amount=100, idempotency_key="pi-b-100")
+    create_multichain_payment_intent(stripe=client, amount=100)
+    create_multichain_payment_intent(stripe=client, amount=100)
+    create_multichain_payment_intent(stripe=client, amount=100, idempotency_key="pi-a-100")
+    assert api.calls == 5
+
+
+def test_single_flight_shares_a_failure_and_clears_the_key():
+    import time
+
+    api = _GatedAPI(fail_first=True)
+    client = _FakeClient(api)
+    futures = _run_concurrently(
+        lambda: create_multichain_payment_intent(stripe=client, amount=100, idempotency_key="pi-fail-100"), 2
+    )
+    assert api.entered.wait(timeout=5)
+    time.sleep(0.1)
+    api.release.set()
+    for f in futures:
+        with pytest.raises(RuntimeError, match="rate limited"):
+            f.result(timeout=5)
+    result = create_multichain_payment_intent(stripe=client, amount=100, idempotency_key="pi-fail-100")
+    assert result.payment_intent_id == "pi_sf"
+    assert api.calls == 2

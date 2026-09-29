@@ -714,6 +714,31 @@ def _resolve_resource_url(request: CheckoutRequest) -> str:
     return apply_forwarded_proto(request.url, read_forwarded_proto(request.headers))
 
 
+VERIFICATION_SESSION_HEADER = "X-Verification-Session"
+"""Request header that asks an identity-gated Checkout for a verification session without paying.
+
+The discovery 402 advertises it; a request carrying it and no identity or payment credential runs
+the gate, which answers with its session-bearing 403 (verify_url + poll data). Opt-in so crawlers
+replaying a valid example body never mint sessions or pending orders.
+"""
+_VERIFICATION_SESSION_VALUE = "create"
+
+
+def _carries_identity(headers_lower: Mapping[str, str]) -> bool:
+    from agentscore_commerce.aip.request import has_agent_identity_header_parts
+
+    return bool(
+        headers_lower.get("x-operator-token")
+        or headers_lower.get("x-wallet-address")
+        or has_agent_identity_header_parts(headers_lower)
+    )
+
+
+def _requests_verification_session(headers_lower: Mapping[str, str]) -> bool:
+    value = headers_lower.get(VERIFICATION_SESSION_HEADER.lower()) or ""
+    return value.strip().lower() == _VERIFICATION_SESSION_VALUE
+
+
 def _resolve_identity_metadata(ctx: CheckoutContext) -> dict[str, Any] | None:
     """Compose the identity_metadata block from request + assess state.
 
@@ -1257,7 +1282,14 @@ class Checkout:
         #     var when set; logs a warning and skips when no key is set
         #     (dev/testnet pattern).
         has_payment_header = has_x402_header(request.headers) or has_mppx_header(request.headers)
-        if has_payment_header:
+        request_headers_lower = normalize_headers_to_lowercase(request.headers)
+        bootstraps_session = (
+            not has_payment_header
+            and self._has_identity_gate()
+            and not _carries_identity(request_headers_lower)
+            and _requests_verification_session(request_headers_lower)
+        )
+        if has_payment_header or bootstraps_session:
             gate_result = (
                 await self._run_gate(ctx) if self.gate is not None else await self._run_wallet_sanctions_only(ctx)
             )
@@ -2959,6 +2991,23 @@ class Checkout:
         # wallet intent. Saves agents a round trip: they learn required_signer
         # + linked_wallets at discovery instead of at the 403 on retry.
         identity_metadata = _resolve_identity_metadata(ctx)
+        identity_bootstrap: dict[str, Any] | None = None
+        if self._has_identity_gate() and not _carries_identity(normalize_headers_to_lowercase(ctx.request.headers)):
+            identity_bootstrap = {
+                "header": VERIFICATION_SESSION_HEADER,
+                "value": _VERIFICATION_SESSION_VALUE,
+                "instructions": (
+                    "This purchase requires a verified identity. Without an operator token, repeat this same "
+                    f"request with the header {VERIFICATION_SESSION_HEADER}: {_VERIFICATION_SESSION_VALUE} and "
+                    "no payment credential. The response is a 403 carrying verify_url, session_id, poll_secret "
+                    "and poll_url: give verify_url to the buyer, poll poll_url for an operator_token, then pay "
+                    "with X-Operator-Token set."
+                ),
+            }
+        body_extra = {
+            **({"identity_bootstrap": identity_bootstrap} if identity_bootstrap else {}),
+            **(ctx.pricing.body_extras or {}),
+        }
 
         # Enrich the declared Bazaar discovery extension with the request method +
         # route so info.input.method (required by the v2 discovery schema) and
@@ -2994,7 +3043,7 @@ class Checkout:
                 ),
             ),
             product=ctx.pricing.product,
-            extra=ctx.pricing.body_extras,
+            extra=body_extra or None,
             x402=X402PaymentRequired(
                 version=2,
                 accepts=x402_accepts,

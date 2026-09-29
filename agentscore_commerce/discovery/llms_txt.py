@@ -56,7 +56,8 @@ def llms_txt_identity_section(
         "Solana MPP). The wallet you claim must sign the payment.\n"
         "- **`X-Operator-Token: opc_...`**: works on every rail, including Stripe SPT. "
         f"Reusable across AgentScore merchants until expiry.{aip_bullet}\n"
-        "- **Neither**: you get a 403 with `verify_url`. Complete the session flow once and "
+        "- **Neither**: send the purchase request with `X-Verification-Session: create` and no payment "
+        "credential, and the 403 carries `verify_url`. Complete the session flow once and "
         f"reuse the resulting `opc_...` everywhere.{compliance_note}"
     )
 

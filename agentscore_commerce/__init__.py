@@ -14,6 +14,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
 from agentscore_commerce.checkout import (
+    VERIFICATION_SESSION_HEADER,
     Checkout,
     CheckoutContext,
     CheckoutGateConfig,
@@ -168,6 +169,7 @@ __all__ = [
     "AIP_A2A_EXTENSION_URI",
     "FIXABLE_DENIAL_REASONS",
     "UCP_A2A_EXTENSION_URI",
+    "VERIFICATION_SESSION_HEADER",
     "A2AAgentCard",
     "A2AAgentCardCapabilities",
     "A2AAgentCardExtension",

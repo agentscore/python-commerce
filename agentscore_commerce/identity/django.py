@@ -109,7 +109,7 @@ def get_gate_quota_info(request: HttpRequest) -> GateQuotaInfo | None:
 
 
 class AgentScoreMiddleware:
-    """Django middleware that gates requests based on AgentScore wallet reputation.
+    """Django middleware that gates requests on the AgentScore assess decision.
 
     Usage in settings.py::
 

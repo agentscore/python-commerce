@@ -9,7 +9,7 @@ description = "Agentic commerce SDK for Python: identity middleware (FastAPI, Fl
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-keywords = ["agentscore", "agent-commerce", "agentic-payments", "402", "x402", "mpp", "machine-payments-protocol", "fastapi", "starlette", "flask", "django", "aiohttp", "sanic", "middleware", "trust", "reputation", "kyc", "identity", "stripe", "tempo", "solana", "base", "ai-agent"]
+keywords = ["agentscore", "agent-commerce", "agentic-payments", "402", "x402", "mpp", "machine-payments-protocol", "fastapi", "starlette", "flask", "django", "aiohttp", "sanic", "middleware", "trust", "kyc", "identity", "stripe", "tempo", "solana", "base", "ai-agent"]
 dependencies = [
     "httpx>=0.25.0,<1.0.0",
     "agentscore-py>=2.6.11",

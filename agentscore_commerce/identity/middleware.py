@@ -142,7 +142,7 @@ async def _default_aip_on_denied(_request: Request, body: AipErrorBody) -> JSONR
 
 
 class AgentScoreGate:
-    """ASGI middleware that gates requests based on AgentScore wallet reputation.
+    """ASGI middleware that gates requests on the AgentScore assess decision.
 
     Usage with Starlette / FastAPI::
 

@@ -46,6 +46,19 @@ def test_create_multichain_payment_intent_extracts_addresses():
     assert api.last_params["amount"] == 10000
 
 
+# Stripe's 2026-09-30.preview API rejects payment_method_types ("no longer supported");
+# allowed_payment_method_types is accepted on that version and on the earlier previews.
+def test_create_multichain_payment_intent_restricts_to_crypto_with_allowed_types():
+    response = {
+        "id": "pi_types",
+        "next_action": {"crypto_display_details": {"deposit_addresses": {"base": {"address": "0xb"}}}},
+    }
+    api = _FakeAPI(response)
+    create_multichain_payment_intent(stripe=_FakeClient(api), amount=100)
+    assert api.last_params["allowed_payment_method_types"] == ["crypto"]
+    assert "payment_method_types" not in api.last_params
+
+
 def test_create_multichain_payment_intent_raises_when_no_addresses():
     from agentscore_commerce.errors import CheckoutValidationError
 

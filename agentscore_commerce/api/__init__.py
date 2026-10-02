@@ -4,7 +4,7 @@ Vendors install only ``agentscore-commerce`` and reach everything from the under
 ``agentscore-py`` here. Don't add ``agentscore-py`` as a separate dep; the two can
 drift versions and cause subtle type mismatches.
 
-Use this for: programmatic API calls (sessions, credentials, reputation) and the
+Use this for: programmatic API calls (assess, sessions, credentials) and the
 test-mode address fixtures for integration tests.
 """
 

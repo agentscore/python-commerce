@@ -102,7 +102,7 @@ def _create_multichain_payment_intent_once(
     params: dict[str, Any] = {
         "amount": amount,
         "currency": currency,
-        "payment_method_types": ["crypto"],
+        "allowed_payment_method_types": ["crypto"],
         "payment_method_data": {"type": "crypto"},
         "payment_method_options": {
             "crypto": {"mode": "deposit", "deposit_options": {"networks": resolved_networks}},

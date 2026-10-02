@@ -12,11 +12,6 @@ if TYPE_CHECKING:
     # doesn't re-shape them into local dataclasses, same as policy_result / account_verification.
     from agentscore.types import AipProvenance, AipSignatureMaterial
 
-# Reputation-API types (Activity, Classification, Identity, Reputation, ScoreDetail,
-# Grade, ScoreStatus) live in agentscore-py — not re-exported here. Commerce SDK is
-# scoped to gate + payment + 402 + discovery; reputation lookups belong to the
-# AgentScore SDK. Import via `from agentscore import Activity, Classification, ...`.
-
 DenialCode = Literal[
     "wallet_not_trusted",
     "missing_identity",

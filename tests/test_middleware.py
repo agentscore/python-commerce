@@ -398,7 +398,7 @@ def test_middleware_get_gate_degraded_state_returns_infra_reason_when_degraded()
 def test_middleware_quota_exceeded_returns_503_when_fail_closed():
     """429 from /v1/assess gets dedicated handling; with fail_open=False (default) it
     surfaces as 503 api_error to the buyer with quota-specific contact_merchant
-    instructions (NOT retry_with_backoff — quota won't recover from retry)."""
+    instructions (NOT retry_with_backoff: quota won't recover from retry)."""
     respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
 
     app = _make_app()
@@ -506,7 +506,7 @@ def test_middleware_passes_through_token_expired_with_auto_session():
 
 @respx.mock
 def test_middleware_emits_invalid_credential_no_session():
-    # `invalid_credential` is permanent — the API returns 401 with NO auto-session
+    # `invalid_credential` is permanent: the API returns 401 with NO auto-session
     # (distinct from token_expired). Middleware must classify it as a 403 with
     # action='switch_token_or_restart_session', NOT fall through to api_error 503
     # which would tell the agent to retry forever on a permanent state.
@@ -529,7 +529,7 @@ def test_middleware_emits_invalid_credential_no_session():
     assert instructions["action"] == "switch_token_or_restart_session"
     msg = instructions["user_message"].lower()
     assert "switch tokens" in msg or "different stored token" in msg
-    # No session fields — the API didn't mint one for this case.
+    # No session fields: the API didn't mint one for this case.
     assert "session_id" not in body
     assert "verify_url" not in body
     assert "poll_secret" not in body
@@ -607,7 +607,7 @@ def test_middleware_fail_open_on_402_lets_request_through():
 @respx.mock
 def test_middleware_handler_exception_is_not_swallowed_by_gate():
     """Regression: gate's try-block must NOT wrap the downstream ASGI app. If the user's
-    app raises, the exception must propagate up — NOT be misclassified as an AgentScore
+    app raises, the exception must propagate up: NOT be misclassified as an AgentScore
     infra failure (which under fail_open would re-invoke the app)."""
     _mock_assess(decision="allow")
 
@@ -623,7 +623,7 @@ def test_middleware_handler_exception_is_not_swallowed_by_gate():
     client = TestClient(app, raise_server_exceptions=False)
 
     resp = client.get("/", headers={"x-wallet-address": "0xabc"})
-    # Starlette surfaces unhandled exceptions as 500 — the important thing is the route
+    # Starlette surfaces unhandled exceptions as 500: the important thing is the route
     # ran exactly once (no fail-open retry) and the gate didn't claim the exception was
     # an AgentScore infra failure.
     assert resp.status_code == 500
@@ -796,7 +796,7 @@ def test_get_signer_verdict_reads_from_client():
     client = TestClient(app)
     resp = client.get("/", headers={"X-Wallet-Address": "0xsvread"})
     assert resp.status_code == 200
-    # No signer was extracted (no x402 header), so the verdict is None — the
+    # No signer was extracted (no x402 header), so the verdict is None: the
     # client.get_signer_verdict read path was still exercised.
     assert captured["verdict"] is None
 

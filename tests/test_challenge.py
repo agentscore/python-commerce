@@ -226,7 +226,7 @@ def test_build_402_body_assembles_full_response():
 
 
 def test_build_402_body_keeps_accepts_byte_identical():
-    """accepts entries pass through unchanged — no v1 maxAmountRequired alias.
+    """accepts entries pass through unchanged: no v1 maxAmountRequired alias.
 
     @x402/core matches v2 by whole-object deepEqual of the echoed requirement, so an
     extra maxAmountRequired the server's rebuild lacks silently fails settle.

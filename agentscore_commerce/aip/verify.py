@@ -1,11 +1,11 @@
-"""AIP Agent Identity Token (AIT) verification pipeline — the verifier orchestrator.
+"""AIP Agent Identity Token (AIT) verification pipeline: the verifier orchestrator.
 
 This is the function a merchant gate calls. It executes the spec's verification steps over
 a presented request, composing the three foundation modules:
 
-* :mod:`~agentscore_commerce.aip.jwks` — trusted-issuer enforcement + key discovery
-* :mod:`~agentscore_commerce.aip.http_signature` — RFC 9421 proof-of-possession over the request
-* :mod:`~agentscore_commerce.aip.types` — AIT structural contract
+* :mod:`~agentscore_commerce.aip.jwks`: trusted-issuer enforcement + key discovery
+* :mod:`~agentscore_commerce.aip.http_signature`: RFC 9421 proof-of-possession over the request
+* :mod:`~agentscore_commerce.aip.types`: AIT structural contract
 
 Steps (per spec):
 
@@ -110,7 +110,7 @@ class VerifiedAit:
 
 @dataclass
 class VerifyAitSuccess:
-    """Successful AIT verification — ``ait`` holds the verified, key-bound token."""
+    """Successful AIT verification: ``ait`` holds the verified, key-bound token."""
 
     ait: VerifiedAit
     ok: Literal[True] = True
@@ -118,7 +118,7 @@ class VerifyAitSuccess:
 
 @dataclass
 class VerifyAitFailureResult:
-    """Failed AIT verification — ``reason`` names the typed verify-failure (-> wire error code)."""
+    """Failed AIT verification: ``reason`` names the typed verify-failure (-> wire error code)."""
 
     reason: VerifyAitFailure
     ok: Literal[False] = False
@@ -153,7 +153,7 @@ async def verify_ait(
         return VerifyAitFailureResult(reason="no_token")
     if not ctx.signature_input or not ctx.signature:
         return VerifyAitFailureResult(reason="pop_signature_missing")
-    # Captured post-guard (str, not str | None) — reused for the local fail-fast PoP check and
+    # Captured post-guard (str, not str | None): reused for the local fail-fast PoP check and
     # forwarded to /v1/assess so the API can re-verify the same proof-of-possession authoritatively.
     signature_input = ctx.signature_input
     signature = ctx.signature
@@ -200,7 +200,7 @@ async def verify_ait(
         idp_key = key_lookup.key
         if idp_key is None:
             # `ok=True` guarantees a key per the JwksCache contract; this guard only narrows the
-            # `Jwk | None` type (and defends a sibling regression) — treat a missing key as unavailable.
+            # `Jwk | None` type (and defends a sibling regression): treat a missing key as unavailable.
             last_failure = "key_unavailable"
             continue
 
@@ -212,7 +212,7 @@ async def verify_ait(
             _verify_idp_signature(
                 token,
                 idp_key,
-                # Pin the signature algorithm allowlist (RFC 8725 §3.1) — also rejects `alg:none`.
+                # Pin the signature algorithm allowlist (RFC 8725 §3.1): also rejects `alg:none`.
                 # Without this, a trusted IdP publishing a non-Ed25519 (e.g. RSA/EC) `use:sig` key
                 # would let an attacker present an RS256/ES256 token that verifies. Matches the
                 # server-side allowlist in the AgentScore API verifier.
@@ -242,7 +242,7 @@ async def verify_ait(
             last_failure = "expired_token"
             continue
 
-        # Step 6 + 7 + 8: PoP — verify the RFC 9421 signature against cnf.jwk. `verify_message_signature`
+        # Step 6 + 7 + 8: PoP: verify the RFC 9421 signature against cnf.jwk. `verify_message_signature`
         # is synchronous (joserfc crypto is sync, unlike node's async WebCrypto), so no await. Its
         # `now`/`max_skew_seconds` are integer seconds (compared against integer `created`/`expires`);
         # floor a float clock to int seconds, identical to the JWT-path flooring above.
@@ -252,7 +252,7 @@ async def verify_ait(
             path=ctx.path,
             # The agent-identity covered component is the BARE AIT (a Bearer prefix, if present, is
             # transport that `_strip_bearer` removed above). Verify over `token`, not `raw`, so the edge
-            # and the API — which verifies over the forwarded bare aip_token — reconstruct the identical
+            # and the API (which verifies over the forwarded bare aip_token) reconstruct the identical
             # base.
             agent_identity=token,
             signature_input=signature_input,
@@ -344,8 +344,8 @@ def _verify_idp_signature(
 
     ``iat`` is deliberately NOT validated here: jose's ``jwtVerify`` does not reject a future
     ``iat``, but joserfc's ``JWTClaimsRegistry.validate_iat`` does (raising a generic
-    ``InvalidClaimError``). To stay behavior-exact with node — which checks the future-``iat``
-    case itself and maps it to ``expired_token`` (NOT ``idp_signature_invalid``) — drop ``iat``
+    ``InvalidClaimError``). To stay behavior-exact with node: which checks the future-``iat``
+    case itself and maps it to ``expired_token`` (NOT ``idp_signature_invalid``): drop ``iat``
     from the validated claims so joserfc never sees it; the caller does the future-``iat`` check.
 
     Raises :class:`_JwtExpiredError` on expiry and :class:`_JwtVerifyError` on any other
@@ -363,7 +363,7 @@ def _verify_idp_signature(
     except JoseError as exc:
         raise _JwtVerifyError(str(exc)) from exc
 
-    # joserfc's `decode` verifies the signature but does NOT validate temporal claims — run the
+    # joserfc's `decode` verifies the signature but does NOT validate temporal claims: run the
     # claims registry separately (mirrors jose's `jwtVerify`, which checks `exp`/`nbf` after the
     # signature). `leeway` == the clock tolerance; an integer `now` pins the comparison clock for
     # tests. `exp`/`nbf` are integer seconds per spec; floor a float clock to integer seconds.

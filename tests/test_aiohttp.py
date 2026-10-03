@@ -428,7 +428,7 @@ class TestCaptureWallet:
 
     @pytest.mark.asyncio
     async def test_no_ops_when_gate_did_not_run(self):
-        # Handler wired without the gate middleware — capture_wallet must silently no-op.
+        # Handler wired without the gate middleware: capture_wallet must silently no-op.
         app = web.Application()
         app.router.add_post("/", _capture_handler)
         with patch("agentscore_commerce.identity.core.AgentScoreCore.acapture_wallet", new=AsyncMock()) as mock_cap:
@@ -515,7 +515,7 @@ async def test_aiohttp_api_error_on_unexpected_exception():
 @respx.mock
 async def test_aiohttp_handler_exception_is_not_swallowed_by_gate():
     """Regression: gate's try-block must NOT wrap downstream handler. If the user's
-    handler raises, the exception must propagate up — NOT be misclassified as an
+    handler raises, the exception must propagate up: NOT be misclassified as an
     AgentScore infra failure (which under fail_open would re-invoke the handler)."""
     respx.post("https://api.agentscore.com/v1/assess").mock(
         return_value=httpx.Response(200, json={"decision": "allow", "decision_reasons": []}),
@@ -534,7 +534,7 @@ async def test_aiohttp_handler_exception_is_not_swallowed_by_gate():
 
     async with TestClient(TestServer(app)) as client:
         resp = await client.get("/", headers={"x-wallet-address": "0xabc"})
-        # aiohttp surfaces an unhandled exception as 500 — the important thing is the
+        # aiohttp surfaces an unhandled exception as 500: the important thing is the
         # handler ran exactly once (no fail-open retry), and the gate didn't claim
         # the exception was an AgentScore infra failure.
         assert resp.status == 500

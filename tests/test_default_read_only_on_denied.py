@@ -1,4 +1,4 @@
-"""Tests for ``default_read_only_on_denied`` — read-only resource gate denial."""
+"""Tests for ``default_read_only_on_denied``: read-only resource gate denial."""
 
 from agentscore_commerce.identity.default_denied import default_read_only_on_denied
 from agentscore_commerce.identity.types import DenialReason

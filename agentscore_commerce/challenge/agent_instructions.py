@@ -58,7 +58,7 @@ _RAIL_CLIENTS: dict[str, list[str]] = {
 def compatible_clients_by_rails(rails: Iterable[str]) -> dict[str, list[str]] | None:
     """Smoke-verified client list for a set of rail keys.
 
-    The single source of truth for "which CLIs we've verified end-to-end on each rail" —
+    The single source of truth for "which CLIs we've verified end-to-end on each rail":
     consumed both by the 402-body builder (``build_agent_instructions``) and by discovery
     surfaces (skill.md, llms.txt, etc.). Update here, every surface inherits.
     """
@@ -101,13 +101,13 @@ def build_agent_instructions(
     extra_warnings: list[str] | None = None,
     recommended: str | None = None,
     # Per-rail list of client names the merchant has verified work end-to-end.
-    # Vendors set this from their own smoke matrix — defaults to None, in which case
+    # Vendors set this from their own smoke matrix: defaults to None, in which case
     # the field is not emitted (avoids vouching for clients the merchant has not tested).
     # Keys are rail identifiers (e.g. "x402_base", "tempo_mpp"); values are display labels.
     compatible_clients: dict[str, list[str]] | None = None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the agent_instructions block — combines how_to_pay with tools, warnings, compat note, timeout.
+    """Build the agent_instructions block: combines how_to_pay with tools, warnings, compat note, timeout.
 
     Defaults adapt to the rails declared in ``how_to_pay``: only tempo-relevant warnings/tools
     appear if ``how_to_pay["tempo"]`` is set, only x402-relevant ones if ``x402_base``/

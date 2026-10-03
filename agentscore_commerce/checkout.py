@@ -364,7 +364,7 @@ class CheckoutContext:
     for this request. Set by Checkout's internal gate after a successful allow when
     an ``operator_token`` is present; ``None`` for wallet-authenticated requests
     (no operator_token to associate) or anonymous discovery legs.
-    Fire-and-forget — invoke from ``on_settled`` with the recovered signer:
+    Fire-and-forget: invoke from ``on_settled`` with the recovered signer:
     ``await ctx.capture_wallet(wallet_address=..., network=..., idempotency_key=...)``.
     """
 
@@ -503,13 +503,13 @@ class CheckoutGateConfig:
 
     The gate flow has three customization seams:
 
-    1. ``run_gate`` — full escape hatch. Replaces the SDK's gate flow entirely.
+    1. ``run_gate``: full escape hatch. Replaces the SDK's gate flow entirely.
        Used by merchants with custom auth (e.g. enterprise SSO bridges) who
        need full control. Other fields are ignored when set.
-    2. ``per_request_policy`` — reads ``ctx.state`` (populated by pre_validate)
+    2. ``per_request_policy``: reads ``ctx.state`` (populated by pre_validate)
        and returns a dict that overrides static gate policy fields per request.
        Goods merchants resolve per-product compliance from this.
-    3. ``on_denied`` — invoked AFTER the SDK builds the canonical DenialReason.
+    3. ``on_denied``: invoked AFTER the SDK builds the canonical DenialReason.
        Returns a custom denial body shape, or ``None`` to keep the canonical body.
 
     ``create_session_on_missing`` auto-mints a verification session when no
@@ -863,7 +863,7 @@ class Checkout:
     * ``credential_pre_check``; reject payment credentials that fail the cheap
       wire-shape check (not base64 JSON, not a token-shaped value) BEFORE any
       merchant hook runs, so junk headers never trigger ``pre_validate`` /
-      pricing / recipient minting / the gate's assess call. Shape only —
+      pricing / recipient minting / the gate's assess call. Shape only:
       signature and payTo verification stay on the settle path. Default
       ``True``; set ``False`` for custom ``compose_mppx`` implementations that
       accept non-standard credential encodings.
@@ -970,7 +970,7 @@ class Checkout:
         self.discovery_probe = discovery_probe
         """Per-endpoint x402 ``extensions`` block emitted on the 402 body. Merge
         outputs of ``build_bazaar_discovery_payload({...})`` (or other extension
-        declarers) here — Checkout forwards verbatim into the 402 response
+        declarers) here: Checkout forwards verbatim into the 402 response
         body's ``extensions`` field so Bazaar crawlers and other spec-compliant
         clients read the route's declared input/output schema."""
 
@@ -1200,7 +1200,7 @@ class Checkout:
         # Credential shape gate: runs BEFORE pre_validate / the identity gate /
         # pricing / recipient minting so a junk payment header cannot trigger
         # merchant hooks (which may do paid upstream work) or burn an assess
-        # call. Shape only — real verification stays on the settle path, which
+        # call. Shape only: real verification stays on the settle path, which
         # needs per-request state the hooks produce. Scoped to the credential
         # channels this Checkout actually dispatches on, so e.g. an x402 header
         # at a Tempo-only merchant keeps its current discovery-leg behavior.
@@ -1255,7 +1255,7 @@ class Checkout:
         #   - Merchants with an explicit ``gate`` config run the full identity
         #     policy (KYC / age / sanctions / jurisdiction) via ``_run_gate``.
         #   - Merchants WITHOUT a ``gate`` config still get wallet OFAC SDN
-        #     enforcement via ``_run_wallet_sanctions_only`` — the always-on
+        #     enforcement via ``_run_wallet_sanctions_only``: the always-on
         #     strict-liability default. Falls back to AGENTSCORE_API_KEY env
         #     var when set; logs a warning and skips when no key is set
         #     (dev/testnet pattern).
@@ -1496,7 +1496,7 @@ class Checkout:
         )
 
     # ─────────────────────────────────────────────────────────────────────
-    # mount_ucp_routes_<framework> — register `/.well-known/ucp` + `/jwks.json`
+    # mount_ucp_routes_<framework>: register `/.well-known/ucp` + `/jwks.json`
     # + OPTIONS preflights on the app in one call. Saves merchants the ~40-line
     # 3-route registration block every UCP-publishing merchant otherwise
     # hand-rolls. Equivalent across all five Python framework adapters.
@@ -1786,7 +1786,7 @@ class Checkout:
         re-verifies PoP authoritatively and evaluates ``eff_policy`` against the token's attested
         claims. Returns ``None`` on allow (stamping ``identity_status='verified'`` on
         ``ctx.assess``); a denial :class:`CheckoutResult` otherwise. Compliance fields come from
-        ``eff_policy`` — the per-issuer override for the verified AIT's issuer when configured,
+        ``eff_policy``: the per-issuer override for the verified AIT's issuer when configured,
         else the gate defaults (a whole-policy replacement, mirroring node).
         """
         from agentscore.errors import (
@@ -1886,7 +1886,7 @@ class Checkout:
 
         ``on_denied`` runs FIRST (node parity): when it returns an override it fully owns the body,
         so no superset wrapping happens. Otherwise the AgentScore denial body is emitted as an
-        RFC 9457 + AIP-spec SUPERSET (``application/problem+json``) — both schemes at once: the rich
+        RFC 9457 + AIP-spec SUPERSET (``application/problem+json``): both schemes at once: the rich
         AgentScore ``{ error, agent_instructions, ... }`` AND the spec's ``type``/``title``/
         ``status``/``detail`` (+ escalation). The wallet / operator-token paths never reach here, so
         they keep the bare AgentScore body + ``application/json``.
@@ -1932,24 +1932,24 @@ class Checkout:
 
         Three customization seams (in order of precedence):
 
-        1. ``gate.run_gate`` — when set, replaces the SDK's gate flow entirely.
-        2. ``gate.per_request_policy`` — per-request policy override merged over
+        1. ``gate.run_gate``: when set, replaces the SDK's gate flow entirely.
+        2. ``gate.per_request_policy``: per-request policy override merged over
            static gate fields. Return ``None`` to skip the gate.
-        3. ``gate.on_denied`` — invoked after canonical DenialReason is built to
+        3. ``gate.on_denied``: invoked after canonical DenialReason is built to
            reshape the body for the merchant's response contract.
         """
         if self.gate is None:
             return None
 
         gate = self.gate
-        # 1. run_gate escape hatch — replaces everything else (also bypasses the gate.aip AIP
+        # 1. run_gate escape hatch: replaces everything else (also bypasses the gate.aip AIP
         #    pre-step below; a custom gate owns AIT verification too, so run_gate and gate.aip
         #    are mutually exclusive).
         if gate.run_gate is not None:
             result = await _maybe_await(gate.run_gate(ctx))
             return self._coerce_run_gate_result(ctx, result)
 
-        # AIP pre-step — runs BEFORE the no-api_key fallback so a present-but-invalid AIT is
+        # AIP pre-step: runs BEFORE the no-api_key fallback so a present-but-invalid AIT is
         # always a hard deny, and a cryptographically verified AIT is honored even on an
         # offline-only gate. The RFC 9421 proof-of-possession can only be checked here at the
         # edge, where the signed HTTP message lives. A valid AIT becomes the sole identity (wins
@@ -2017,7 +2017,7 @@ class Checkout:
 
             # Enforce the merchant's trust_level / auth.amr requirement (the spec's human-presence
             # gate). Verification-derived (carried in the verified token), so enforced here at the
-            # edge — insufficient → weak_auth (403) with required_* so the agent can step up.
+            # edge: insufficient → weak_auth (403) with required_* so the agent can step up.
             weak_detail = check_trust_requirements(ait.payload, gate.aip.require_trust_level, gate.aip.require_amr)
             if weak_detail is not None:
                 body = build_aip_weak_auth_body(
@@ -2052,7 +2052,7 @@ class Checkout:
             allowed_jurisdictions=gate.allowed_jurisdictions,
         )
 
-        # Gate configured without an API key — full policy enforcement requires
+        # Gate configured without an API key: full policy enforcement requires
         # /v1/assess access, which we can't reach. Fall through to wallet OFAC
         # SDN enforcement (the strict-liability default) so the merchant still
         # gets the basic protection layer instead of silently allowing.
@@ -2061,7 +2061,7 @@ class Checkout:
                 # A cryptographically verified AIT is a complete offline *identity* check (issuer
                 # signature + RFC 9421 PoP). But compliance *policy* is evaluated against the
                 # token's claims by /v1/assess, which needs an api_key. If the merchant declared
-                # policy fields without an api_key we cannot enforce them — fail closed rather than
+                # policy fields without an api_key we cannot enforce them: fail closed rather than
                 # silently allow a verified-but-non-compliant identity. Identity-only gates (no
                 # policy fields) are satisfied by the verified AIT alone.
                 has_policy = bool(
@@ -2101,7 +2101,7 @@ class Checkout:
 
         # 2. per_request_policy resolves per-product compliance (e.g. wine vs
         # generic merch). Returning None means "no per-product *identity* policy
-        # for this product" — but it must NOT skip the always-on wallet OFAC SDN
+        # for this product": but it must NOT skip the always-on wallet OFAC SDN
         # floor. Route to _run_wallet_sanctions_only so a NULL-enforcement product
         # still screens its payment signer (identical to the no-gate dispatch). The
         # floor is a no-op for non-wallet flows (no api_key, or no extractable
@@ -2137,7 +2137,7 @@ class Checkout:
         if not merged_policy:
             merged_policy = {}
         # `enforcement` is per-product (soft/hard); read it for the soft/hard handling
-        # below but DO NOT remove it — build_gate_from_policy keys off `enforcement` to
+        # below but DO NOT remove it: build_gate_from_policy keys off `enforcement` to
         # decide whether to build a gate at all (no enforcement => no gate), and the gate
         # constructor reads only specific fields (require_*, min_age, jurisdictions), so
         # leaving `enforcement` in the dict is harmless. Popping it here previously made
@@ -2151,7 +2151,7 @@ class Checkout:
         # So when the merged policy declares ANY compliance gate field but no explicit
         # enforcement, default to "hard" so the static gate fires. (The per_request_policy
         # path supplies its own enforcement, including an intentional soft/None.) Node has
-        # no enforcement abstraction here — it builds the core and calls evaluate whenever
+        # no enforcement abstraction here: it builds the core and calls evaluate whenever
         # policy fields are present (the reference gate); this default
         # restores that always-fire behavior for the static-gate path.
         enforcement = merged_policy.get("enforcement") if isinstance(merged_policy, dict) else None
@@ -2201,7 +2201,7 @@ class Checkout:
         if result.status == "denied":
             denial_body = result.denial_body or {}
             denial_status = result.denial_status or 403
-            # 3. on_denied callback — let merchants reshape the canonical body.
+            # 3. on_denied callback: let merchants reshape the canonical body.
             if gate.on_denied is not None:
                 custom = await _maybe_await(gate.on_denied(ctx, denial_body))
                 if isinstance(custom, dict) and "body" in custom:
@@ -2219,7 +2219,7 @@ class Checkout:
         # gate's primary /v1/assess call composed a signer_match verdict when a payment signer
         # was extracted; a non-`pass` verdict means the payment signer doesn't match the claimed
         # wallet (or a same-operator linked wallet). Convert it into a 403 here so Checkout
-        # enforces wallet-signer binding inline — without this, python settles a mismatch that
+        # enforces wallet-signer binding inline: without this, python settles a mismatch that
         # node blocks. Enforcement applies ONLY to the wallet identity path: on the AIT path the
         # identity is the token (PoP-bound, assess keyed by aip_token, no address-keyed verdict),
         # and on the operator-token path the operator-token wins and signer-match is deliberately
@@ -2276,7 +2276,7 @@ class Checkout:
         Reads the request-local signer verdict the gate composed (``gate_instance._client``
         is built fresh per request, so this is race-free) and maps a wallet_signer_mismatch /
         wallet_auth_requires_wallet_signing verdict onto the canonical 403 body via
-        ``denial_reason_to_body`` — byte-for-byte the SAME path + shape the reference implementation's
+        ``denial_reason_to_body``: byte-for-byte the SAME path + shape the reference implementation's
         ``Checkout.runGate`` emits (an ``agent_instructions`` recovery container, not the
         standalone ``build_signer_mismatch_body`` helper's ``next_steps`` container). Runs the
         gate's ``on_denied`` reshaper if configured. Returns ``None`` when the verdict is ``pass``
@@ -2332,9 +2332,9 @@ class Checkout:
         strict-liability default).
 
         Env knobs:
-          - ``AGENTSCORE_API_KEY`` — required. No key → one-time warning + skip
+          - ``AGENTSCORE_API_KEY``: required. No key → one-time warning + skip
             (dev/testnet pattern; production should always configure a key).
-          - ``AGENTSCORE_BASE_URL`` — optional override for staging/dev API
+          - ``AGENTSCORE_BASE_URL``: optional override for staging/dev API
             (e.g. ``https://api.staging.example`` or ``http://localhost:3002``).
 
         Stripe SPT (no extractable wallet signer) → skip silently; Stripe runs
@@ -2343,7 +2343,7 @@ class Checkout:
         Calls ``/v1/assess`` with the signer wallet as both the primary address
         and the signer block. The API enforces signer-sanctions unconditionally
         when a signer is present (no policy flag needed). Denies on OFAC SDN
-        hit; fail-closed on unavailable lookup (strict liability — falsely
+        hit; fail-closed on unavailable lookup (strict liability: falsely
         allowing a sanctioned settle is an OFAC violation, falsely denying a
         clean buyer is just bad UX).
         """
@@ -2366,7 +2366,7 @@ class Checkout:
                 break
         signer = extract_payment_signer(x402_header, authorization_header=authorization_header)
         if signer is None:
-            # Stripe SPT path — no wallet signer, no OFAC check possible. Stripe
+            # Stripe SPT path: no wallet signer, no OFAC check possible. Stripe
             # screens its own customer accounts; we have nothing to add here.
             return None
 
@@ -2392,7 +2392,7 @@ class Checkout:
                 signer={"address": signer.address, "network": signer.network},
             )
         except (TokenExpiredError, InvalidCredentialError) as err:
-            # 401 — credential issues map to invalid_credential. Unusual on the
+            # 401: credential issues map to invalid_credential. Unusual on the
             # wallet-OFAC-only path (no operator_token) but handled for completeness.
             reason = DenialReason(
                 code="invalid_credential" if isinstance(err, InvalidCredentialError) else "token_expired",
@@ -2406,7 +2406,7 @@ class Checkout:
                 settled=False,
             )
         except (AgentScoreError, Exception) as err:
-            # 503 — API outage or network failure. Fail-closed: strict-liability.
+            # 503: API outage or network failure. Fail-closed: strict-liability.
             reason = DenialReason(code="api_error", message=str(err))
             return CheckoutResult(
                 status=denial_reason_status(reason),
@@ -2592,7 +2592,7 @@ class Checkout:
         #      bind to it. A rail can carry BOTH a static recipient AND mint_recipients (the static
         #      recipient is the discovery/sentinel default; the per-request mint is the real payTo).
         #      Binding to the construction-time static set here would reject the legit minted payTo,
-        #      so the per-request recipient wins — exactly as the compute-first path already does
+        #      so the per-request recipient wins: exactly as the compute-first path already does
         #      (checkout_compute_first ``expected_pay_to = recipients["x402_base"]``).
         #   3. otherwise (static-treasury rail) → accept ONLY the configured x402_base recipient.
         # Mirrors the reference payTo-binding fix.
@@ -2606,7 +2606,7 @@ class Checkout:
             return addr.lower() == minted.lower()
         static_recipient = await self._resolve_static_x402_recipient()
         if static_recipient is None:
-            # No x402_base rail / no resolvable static recipient — nothing to bind against. Keep
+            # No x402_base rail / no resolvable static recipient: nothing to bind against. Keep
             # the prior permissive behavior so non-x402 / dynamically-recipient setups are unaffected.
             return True
         return addr.lower() == static_recipient.lower()
@@ -2642,7 +2642,7 @@ class Checkout:
         if self.mint_recipients is None:
             return ctx.recipients
         # Idempotent: if a prior call (e.g. pre-compose on the discovery leg)
-        # already minted, skip — re-running would mint fresh Stripe PIs / etc.
+        # already minted, skip: re-running would mint fresh Stripe PIs / etc.
         if ctx.recipients:
             return ctx.recipients
         ctx.recipients = dict(await _maybe_await(self.mint_recipients(ctx)))
@@ -2892,7 +2892,7 @@ class Checkout:
         # emitted accepted_methods + how_to_pay stay consistent with what the
         # mppx compose layer will actually accept (see build_mppx_compose_rails).
         # Without this, the 402 body advertises a stripe rail that has no
-        # matching WWW-Authenticate challenge — agents see it offered but any
+        # matching WWW-Authenticate challenge: agents see it offered but any
         # SPT pay attempt fails. The compose-time auto-drop emits the
         # user-facing warn; here we just strip the slot from the discovery body.
         if Decimal(str(ctx.pricing.amount_usd)) < STRIPE_MIN_CHARGE_USD and "stripe" in emit_rails:
@@ -2917,7 +2917,7 @@ class Checkout:
             rails=how_to_pay_rails,
             decimals=pricing_decimals,
             # Merchants without an identity-bearing policy flag get clean commands
-            # without an X-Operator-Token header — agents don't need one to satisfy
+            # without an X-Operator-Token header: agents don't need one to satisfy
             # the always-on wallet OFAC enforcement default.
             op_token_placeholder=None if not self._has_identity_gate() else "<your_opc_token>",
         )
@@ -3206,10 +3206,10 @@ def _apply_recipient_overrides(
     passed through unchanged (no on-chain recipient; they use ``profile_id``).
 
     Drop-empty: when a merchant declares rails with sentinel empty-string
-    recipients (the per-order-mint pattern — e.g. Stripe-multichain merchants
+    recipients (the per-order-mint pattern: e.g. Stripe-multichain merchants
     that mint a fresh deposit address per request) and ``mint_recipients`` only
     returns addresses for some rails, drop rails that resolve to an empty
-    recipient — those weren't actually minted for this request and shouldn't be
+    recipient: those weren't actually minted for this request and shouldn't be
     advertised in the 402.
     """
     from dataclasses import replace

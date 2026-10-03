@@ -44,7 +44,7 @@ def test_emits_spec_envelope_with_ucp_body_and_outer_keys():
     assert "keys" in d
     assert "signing_keys" not in d  # removed in UCP 2026-08-25
     assert d["ucp"]["version"] == "2026-08-25"
-    # No top-level `spec` field per UCP spec — spec lives per-binding.
+    # No top-level `spec` field per UCP spec: spec lives per-binding.
     assert "spec" not in d
     assert "version" not in d  # version lives under `ucp`
     assert d["ucp"]["version"]
@@ -82,7 +82,7 @@ def test_appends_agentscore_capability_when_gate_provided():
     # Date-format version (UCP convention; matches every other binding's version field).
     assert cap["version"] == "2026-04-08"
     assert "com-agentscore-identity-v1.json" in cap["schema"]
-    # Multi-parent extends — matches Shopify's dev.shopify.catalog.storefront pattern
+    # Multi-parent extends: matches Shopify's dev.shopify.catalog.storefront pattern
     # and UCP-canonical dev.ucp.shopping.discount (extends [checkout, cart]).
     assert cap["extends"] == ["dev.ucp.shopping.checkout", "dev.ucp.shopping.cart"]
     # Config is the merchant's policy declaration, NOT per-operator data. Public

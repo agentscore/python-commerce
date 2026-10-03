@@ -13,7 +13,7 @@ def test_is_evm_network_string() -> None:
 def test_is_solana_network_string() -> None:
     assert is_solana_network("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp") is True
     assert is_solana_network("eip155:8453") is False
-    # bare "solana" (no `:`) is mppx-internal, not CAIP-2 — should be False
+    # bare "solana" (no `:`) is mppx-internal, not CAIP-2: should be False
     assert is_solana_network("solana") is False
 
 

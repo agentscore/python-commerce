@@ -111,7 +111,7 @@ class TestCanonicalizeIssuer:
         assert canonicalize_issuer("not a url") is None
 
     def test_returns_none_for_malformed_authorities_instead_of_raising(self) -> None:
-        # ``iss`` comes from the UNVERIFIED JWT payload — these used to raise ValueError
+        # ``iss`` comes from the UNVERIFIED JWT payload: these used to raise ValueError
         # (urlsplit / .port) and crash the verifier with a 500.
         assert canonicalize_issuer("https://host:abc") is None
         assert canonicalize_issuer("https://host:99999999") is None
@@ -200,7 +200,7 @@ class TestGetKey:
         assert len(fetch.calls) == 1  # type: ignore[attr-defined]
 
     async def test_refetches_once_on_a_kid_miss_past_the_cooldown(self) -> None:
-        # A kid-miss forces one refetch (rotation may have published the key) — but only ONCE the
+        # A kid-miss forces one refetch (rotation may have published the key): but only ONCE the
         # per-issuer refetch cooldown has elapsed. WITHIN the cooldown a kid-miss is suppressed (the
         # DoS guard); past it, a single refetch is allowed and the rotated key resolves.
         from agentscore_commerce.aip import JWKS_REFETCH_COOLDOWN_SECONDS
@@ -235,7 +235,7 @@ class TestGetKey:
 
         First lookup of an unknown kid warms the cache (one fetch) and stamps the per-issuer
         cooldown; subsequent lookups of the same unknown kid within the cooldown window
-        short-circuit to key_not_found WITHOUT another upstream fetch — bounding an attacker's
+        short-circuit to key_not_found WITHOUT another upstream fetch: bounding an attacker's
         unknown-kid flood to ~one fetch per issuer per cooldown, mirroring the API verifier. (The
         distinct-kid variant is covered by test_distinct_unknown_kid_flood_is_bounded_*.)
         """
@@ -343,7 +343,7 @@ class TestGetKey:
         miss = await c.get_key("https://issuer.example", "key-B")
         assert (miss.ok, miss.reason) == (False, "key_not_found")
         assert state["n"] == 1
-        # Immediate retry within the cooldown is suppressed (no 2nd fetch) — still key_not_found.
+        # Immediate retry within the cooldown is suppressed (no 2nd fetch): still key_not_found.
         suppressed = await c.get_key("https://issuer.example", "key-B")
         assert (suppressed.ok, suppressed.reason) == (False, "key_not_found")
         assert state["n"] == 1
@@ -401,7 +401,7 @@ class TestGetKey:
         """Negative cache: a FAILED fetch stamps the refetch cooldown too.
 
         Without it, a failing issuer leaves no cache entry, so every sequential request refetched
-        upstream — the failure path bypassed the DoS cooldown that bounds the success path.
+        upstream: the failure path bypassed the DoS cooldown that bounds the success path.
         """
         from agentscore_commerce.aip import JWKS_REFETCH_COOLDOWN_SECONDS
 
@@ -455,7 +455,7 @@ class TestGetKey:
         """Loop-aware single-flight: threaded WSGI (Flask/Django) runs ``asyncio.run`` per request.
 
         The old single-flight parked concurrent cold-cache callers on a Future created on ANOTHER
-        thread's loop — awaiting it raised RuntimeError → 500. Cross-loop callers must now fetch
+        thread's loop: awaiting it raised RuntimeError → 500. Cross-loop callers must now fetch
         independently instead of awaiting the foreign future; every caller succeeds.
         """
         import asyncio

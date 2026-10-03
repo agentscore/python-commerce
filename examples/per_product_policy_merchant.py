@@ -13,7 +13,7 @@ per_request_policy=...))` resolves it per request:
 1. `pre_validate` looks up the product row by slug and stashes the policy block
    onto `ctx.state` for downstream hooks.
 2. `per_request_policy(ctx)` returns the merged policy dict (including
-   `enforcement: "hard"|"soft"|None`) — the SDK gate runs hard/soft based on
+   `enforcement: "hard"|"soft"|None`): the SDK gate runs hard/soft based on
    the field.
 3. Soft denials are swallowed by the SDK and stamp
    `identity_status="unverified"` onto the order; hard denials propagate the
@@ -23,7 +23,7 @@ Peer deps:
     pip install 'agentscore-commerce[fastapi]'
 
 Env vars:
-    AGENTSCORE_API_KEY — your AgentScore API key
+    AGENTSCORE_API_KEY: your AgentScore API key
 
 Run: uvicorn examples.per_product_policy_merchant:app --port 3000
 """

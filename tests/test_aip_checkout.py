@@ -12,11 +12,11 @@ gating + per-issuer policy overrides apply.
 
 The full happy-path verify (issuer JWKS + RFC 9421 PoP) is covered at the ``verify_ait_parts``
 level in test_aip_verify / test_aip_gate. Here we assert the orchestrator contract: the invalid
-cases (which fail before any JWKS fetch — no network needed), the offline (no-api_key) policy /
+cases (which fail before any JWKS fetch: no network needed), the offline (no-api_key) policy /
 trust enforcement, issuer-conditional policy, and the assess-forwarding of token + signature.
 
 The gate runs only on the settle leg (a payment credential attached), so each request carries an
-``x-payment`` header — otherwise ``handle`` treats it as anonymous discovery and emits a 402.
+``x-payment`` header: otherwise ``handle`` treats it as anonymous discovery and emits a 402.
 """
 
 from __future__ import annotations
@@ -300,7 +300,7 @@ class TestCheckoutAipOffline:
     async def test_allows_valid_ait_on_identity_only_gate(self) -> None:
         # Identity-only gate (no policy fields) + verified AIT + no api_key → the gate returns
         # None (allow) and Checkout proceeds to x402 settle. The stub x-payload then fails
-        # verification (400 verify_failed) — but reaching settle at all proves the gate did NOT
+        # verification (400 verify_failed): but reaching settle at all proves the gate did NOT
         # block with aip_policy_requires_api_key.
         res = await _offline_gate().handle(_req(_signed_headers(_mint_ait(identity={"id_verified": True}))))
         assert res.body.get("error", {}).get("code") != "aip_policy_requires_api_key"
@@ -430,7 +430,7 @@ class TestCheckoutAipIssuerConditionalPolicy:
         assert res.settle_phase == "verify_failed"
 
     async def test_matches_issuer_override_after_canonicalization(self, _two_issuer_keys: dict[str, OKPKey]) -> None:
-        # Key has a trailing slash; verified iss is 'https://issuer.example' — must still match.
+        # Key has a trailing slash; verified iss is 'https://issuer.example': must still match.
         gate = self._gate(_two_issuer_keys[OURS], {"https://issuer.example/": AipIssuerPolicy()})
         res = await gate.handle(self._signed_from(ISS, _idp, KID, {"email_verified": True}))
         assert res.body.get("error", {}).get("code") != "aip_policy_requires_api_key"
@@ -499,7 +499,7 @@ class TestCheckoutAipForward:
         assert "sanctions_flagged" in res.body["detail"]
         # Escalation hint derived from the gate's effective policy.
         assert res.body["required_claims"] == ["sanctions_clear", "age_over_21"]
-        # Rich AgentScore scheme preserved verbatim — still the agent's source of truth.
+        # Rich AgentScore scheme preserved verbatim: still the agent's source of truth.
         assert res.body["error"]["code"] == "wallet_not_trusted"
         assert res.body["reasons"] == ["sanctions_flagged"]
         assert "agent_instructions" in res.body
@@ -641,7 +641,7 @@ def _discovery_req() -> CheckoutRequest:
 
 
 def _missing_identity_app(gate: Any) -> Any:
-    """Mount an AgentScoreGate on a minimal FastAPI app via Depends — the same chain
+    """Mount an AgentScoreGate on a minimal FastAPI app via Depends: the same chain
     Checkout's missing-identity path drives (build_gate_from_policy → AgentScoreGate)."""
     from fastapi import Depends, FastAPI
 
@@ -660,7 +660,7 @@ class TestCheckoutAipEmittedBodyAdvertisesAip:
     """Regression: the EMITTED 402 + missing-identity bodies must advertise AIP.
 
     The memory-hint builder (``build_agent_memory_hint``) is unit-tested in isolation in
-    test_aip_agent_memory, but neither emit site was wired to pass ``aip_trusted_issuers`` —
+    test_aip_agent_memory, but neither emit site was wired to pass ``aip_trusted_issuers``:
     so the advertisement silently dropped on the wire. These exercise the real emit paths and
     assert ``agent_memory`` carries ``aip_trusted_issuers`` + the ``agent_identity`` path. Ports
     node-commerce ``tests/agent_memory_aip.test.ts`` to the orchestrator level.
@@ -676,7 +676,7 @@ class TestCheckoutAipEmittedBodyAdvertisesAip:
         assert ISS in memory["aip_trusted_issuers"]
         assert "Agent-Identity" in memory["identity_paths"]["agent_identity"]
         assert "RFC 9421" in memory["identity_paths"]["agent_identity"]
-        # AIP is additive — the wallet + operator_token paths remain present.
+        # AIP is additive: the wallet + operator_token paths remain present.
         assert memory["identity_paths"]["wallet"]
         assert memory["identity_paths"]["operator_token"]
 
@@ -739,8 +739,8 @@ class TestCheckoutPerRequestPolicyEnforcement:
     """Regression: Checkout's per-request-policy gate must FIRE, not be silently bypassed.
 
     ``_run_gate`` previously popped ``enforcement`` out of the merged policy before calling
-    ``build_gate_from_policy`` — which keys off ``enforcement`` to decide whether to build a
-    gate at all — so the gate came back ``None`` and a settle-leg request bypassed compliance
+    ``build_gate_from_policy``: which keys off ``enforcement`` to decide whether to build a
+    gate at all: so the gate came back ``None`` and a settle-leg request bypassed compliance
     and proceeded to settle. (Not AIP-specific; surfaced during the AIP parity audit.) A settle
     leg with no resolvable identity must now be DENIED with ``missing_identity``.
     """
@@ -754,7 +754,7 @@ class TestCheckoutPerRequestPolicyEnforcement:
         # Proof the gate now FIRES: once built, the framework-agnostic handle() demands the
         # native request object the per-request FastAPI gate needs. Under the bug (enforcement
         # popped -> build_gate_from_policy returns None) there was no gate, no such demand, and
-        # the settle leg proceeded — silently bypassing compliance. (The built gate's actual
+        # the settle leg proceeded: silently bypassing compliance. (The built gate's actual
         # missing-identity denial is covered by TestCheckoutAipEmittedBodyAdvertisesAip.)
         with pytest.raises(RuntimeError, match="requires CheckoutRequest"):
             await checkout.handle(_req({}))
@@ -765,7 +765,7 @@ class TestCheckoutStaticGateEnforcement:
     FIRE the gate, not silently bypass ALL compliance.
 
     ``_run_gate`` builds ``merged_policy`` from the static gate fields (require_kyc / sanctions /
-    min_age / jurisdictions) but those fields NEVER include an ``enforcement`` key — that only
+    min_age / jurisdictions) but those fields NEVER include an ``enforcement`` key: that only
     ever comes from a ``per_request_policy`` hook. So ``enforcement`` resolved to ``None`` →
     ``build_gate_from_policy`` returned ``None`` (no enforcement => no gate) →
     ``run_gate_with_enforcement(None, None)`` short-circuited to status="anonymous" (ALLOW),

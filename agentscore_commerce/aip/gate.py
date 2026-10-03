@@ -2,12 +2,12 @@
 
 ``verify_ait_request`` is the one call a framework adapter makes: hand it a parsed request
 plus a :class:`~agentscore_commerce.aip.jwks.JwksCache`, and it returns the verified AIT claims
-or a typed failure. The helpers here also map that failure onto the AIP wire contract — HTTP
-status + error code + an RFC 9457 problem-details body — so every adapter renders denials
+or a typed failure. The helpers here also map that failure onto the AIP wire contract: HTTP
+status + error code + an RFC 9457 problem-details body: so every adapter renders denials
 identically.
 
 This layer does identity *verification* only (is this a real, key-bound AIT from a trusted
-IdP?). Policy enrichment — sanctions, jurisdiction, cross-merchant graph — happens when the
+IdP?). Policy enrichment (sanctions, jurisdiction, cross-merchant graph) happens when the
 merchant additionally feeds the verified claims to ``/v1/assess``; that's the gate's choice,
 not something this module forces.
 """
@@ -41,14 +41,14 @@ class AipGateOptions:
     jwks: JwksCache
     now: float | None = None
     max_skew_seconds: float | None = None
-    # Minimum ``trust_level`` (autonomous < human_present < human_confirmed) the AIT must assert —
+    # Minimum ``trust_level`` (autonomous < human_present < human_confirmed) the AIT must assert:
     # the spec's human-presence gate. Insufficient -> 403 weak_auth with ``required_trust_level``.
     # Enforced by :func:`evaluate_aip_request` / :func:`evaluate_aip_parts`. Unset = any trust level.
     require_trust_level: TrustLevel | None = None
     # Acceptable ``auth.amr`` methods (RFC 8176); the AIT must carry >=1. Insufficient -> 403
     # weak_auth with ``required_amr``. Unset = not enforced.
     require_amr: list[str] | None = None
-    # Identity claims the endpoint needs — surfaced as ``required_claims`` on insufficient_claims
+    # Identity claims the endpoint needs: surfaced as ``required_claims`` on insufficient_claims
     # denials so the agent can self-correct. Advisory only (enforce by feeding the verified claims
     # to your own policy / ``/v1/assess``; this gate does identity + trust_level/amr).
     required_claims: list[str] | None = None
@@ -104,7 +104,7 @@ def aip_error_code(failure: VerifyAitFailure) -> str:
     if failure == "invalid_claims":
         return "insufficient_claims"
     if failure == "key_unavailable":
-        # The IdP's JWKS could not be fetched/resolved — our infra couldn't reach a trusted
+        # The IdP's JWKS could not be fetched/resolved: our infra couldn't reach a trusted
         # issuer, not a client-side auth failure. Distinct code so agents back off + retry
         # rather than uselessly re-signing.
         return "idp_unavailable"
@@ -173,8 +173,8 @@ def build_aip_error_body(
     """Build an RFC 9457 problem-details body for an AIP verify failure.
 
     Adapters serialize this as ``application/problem+json`` with :func:`aip_error_status`.
-    Optionally carries the merchant's requirements — ``trusted_issuers`` on untrusted_issuer;
-    ``required_claims`` / ``required_trust_level`` / ``required_amr`` on insufficient_claims —
+    Optionally carries the merchant's requirements: ``trusted_issuers`` on untrusted_issuer;
+    ``required_claims`` / ``required_trust_level`` / ``required_amr`` on insufficient_claims:
     so the agent learns what would satisfy the gate.
     """
     code = aip_error_code(failure)
@@ -206,7 +206,7 @@ def aip_policy_deny_code(code: str) -> tuple[str, int]:
     codes; the spec's fixed error set expresses each as:
       - ``token_expired`` -> ``expired_token`` (401)
       - ``invalid_credential`` -> ``invalid_signature`` (401)
-      - ``api_error`` -> ``idp_unavailable`` (503, transient — the claims couldn't be evaluated)
+      - ``api_error`` -> ``idp_unavailable`` (503, transient: the claims couldn't be evaluated)
       - everything else (compliance: ``wallet_not_trusted`` + ``sanctions_flagged`` /
         ``age_insufficient`` / ``jurisdiction_restricted`` / ``kyc_*``) -> ``insufficient_claims``
         (403): the AIT did not attest (or attested a failing value for) the required compliance claim.
@@ -229,8 +229,8 @@ def build_aip_policy_deny_body(
     """Wrap an AgentScore AIT-path denial body in the RFC 9457 + AIP-spec superset.
 
     Reuses :func:`build_aip_error_body`'s SHAPE convention (``type``/``title``/``status``/``detail``
-    + escalation extensions) but for the *policy-deny* case — a verified AIT that ``/v1/assess``
-    then denied — which carries an AgentScore compliance/credential code, not a verify-failure
+    + escalation extensions) but for the *policy-deny* case: a verified AIT that ``/v1/assess``
+    then denied: which carries an AgentScore compliance/credential code, not a verify-failure
     reason.
 
     The result is a SUPERSET: the canonical ``{ error, agent_instructions, ... }`` body is spread
@@ -263,7 +263,7 @@ def build_aip_policy_deny_body(
     }
     # Escalation extensions, scoped exactly as the spec mandates: ``required_claims`` /
     # ``required_trust_level`` / ``required_amr`` on insufficient_claims. ``trusted_issuers``
-    # belongs to untrusted_issuer — a VERIFY failure that never reaches the policy-deny path — so it
+    # belongs to untrusted_issuer (a VERIFY failure that never reaches the policy-deny path) so it
     # is not emitted here (the edge-deny ``build_aip_error_body`` owns that one).
     if requirements is not None and spec_code == "insufficient_claims":
         if requirements.required_claims:
@@ -274,7 +274,7 @@ def build_aip_policy_deny_body(
             superset["required_amr"] = requirements.required_amr
     # Spread the RFC 9457 envelope LAST so `type` / `title` / `status` / `detail` (and the
     # escalation extensions) always win: `body` carries merchant `extra` passthrough fields, and a
-    # buggy or malicious hook must not clobber the problem+json envelope — or the HTTP status the
+    # buggy or malicious hook must not clobber the problem+json envelope: or the HTTP status the
     # caller derives from it. The rich AgentScore fields (`error`, `agent_instructions`, `reasons`,
     # ...) don't collide with the envelope, so they still ride along verbatim.
     return {**body, **superset}

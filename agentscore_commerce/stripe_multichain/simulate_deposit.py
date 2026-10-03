@@ -1,4 +1,4 @@
-"""Stripe test_helpers/simulate_crypto_deposit caller — testnet helper for end-to-end exercises."""
+"""Stripe test_helpers/simulate_crypto_deposit caller: testnet helper for end-to-end exercises."""
 
 import logging
 from collections.abc import Callable
@@ -15,7 +15,7 @@ DEFAULT_BUYER_WALLET: dict[str, str] = {
 }
 
 # Stripe's documented magic test_helpers transaction hash that resolves the
-# PaymentIntent to ``succeeded`` within 15 seconds. Same value across all networks —
+# PaymentIntent to ``succeeded`` within 15 seconds. Same value across all networks:
 # Stripe normalizes the format internally. Anything else (including network-shaped
 # placeholder bytes) is rejected with "not a valid testmode transaction hash".
 #
@@ -70,14 +70,14 @@ async def simulate_deposit_if_test_mode(
     network: Literal["tempo", "base", "solana"],
     stripe_secret_key: str,
     buyer_wallet: str | None = None,
-    token_currency: str = "usdc",  # noqa: S107 — literal default, not a secret
+    token_currency: str = "usdc",  # noqa: S107  # literal default, not a secret
     stripe_version: str | None = None,
 ) -> None:
     """Higher-level wrapper around :func:`simulate_crypto_deposit` for the testnet/dev path.
 
     Bundles the three steps every Stripe-multichain merchant repeats:
 
-    1. Gate on ``sk_test_`` key prefix — production keys reject the test_helpers endpoint
+    1. Gate on ``sk_test_`` key prefix: production keys reject the test_helpers endpoint
        with 400; live deposits reach Stripe's real crypto-deposit watcher instead.
     2. Resolve the PaymentIntent id from the deposit address (cache lookup).
     3. Call ``simulate_crypto_deposit`` with Stripe's documented success magic hash.
@@ -86,14 +86,14 @@ async def simulate_deposit_if_test_mode(
     ``[stripe] ✗ Failed to simulate <network> deposit for PI <id>: <err>`` on failure.
     Errors are caught and logged (never raised) so a sim hiccup doesn't fail the order.
 
-    Use case is exclusively dev/testnet end-to-end — production servers (sk_live_) no-op.
+    Use case is exclusively dev/testnet end-to-end: production servers (sk_live_) no-op.
     """
     if not stripe_secret_key.startswith("sk_test_"):
         return
     pi_id = get_payment_intent_id(deposit_address)
     if not pi_id:
         logger.warning(
-            "[stripe] Skipping deposit simulation — no PI cached for deposit address %s… (network=%s). "
+            "[stripe] Skipping deposit simulation: no PI cached for deposit address %s… (network=%s). "
             "The PI cache TTL may have expired between 402 emission and settlement.",
             deposit_address[:10],
             network,

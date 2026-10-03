@@ -352,7 +352,7 @@ class TestCheckFailOpen:
 
     @respx.mock
     def test_check_raises_quota_exceeded_on_typed_429(self):
-        """SDK emits typed QuotaExceededError when body has error.code='quota_exceeded' —
+        """SDK emits typed QuotaExceededError when body has error.code='quota_exceeded':
         commerce wraps it so callers get the gate's QuotaExceededError sentinel.
         """
         from agentscore_commerce.identity.core import QuotaExceededError
@@ -711,7 +711,7 @@ class TestCacheKeyIdentity:
 
     def test_cache_key_is_delimiter_injection_proof(self):
         # A crafted (invalid) claimed X-Wallet-Address embedding the literal `|sig:` joiner must
-        # NOT collide with the structured key of a real (identity, signer) pair — that collision
+        # NOT collide with the structured key of a real (identity, signer) pair: that collision
         # would let the crafted identity poison the pair's cached signer verdicts.
         client = _make_client()
         crafted = client._cache_key(address="0xABC|sig:0xEVIL:base")
@@ -743,7 +743,7 @@ ASSESS_URL = "https://api.agentscore.com/v1/assess"
 
 
 class TestInvalidCredential:
-    """Coverage for the 401 invalid_credential branch — distinct from token_expired
+    """Coverage for the 401 invalid_credential branch: distinct from token_expired
     in that no auto-session is minted. The client surfaces it as InvalidCredentialError
     so adapters can render a permanent-failure 403 instead of a transient 503 retry."""
 
@@ -790,14 +790,14 @@ class TestInvalidCredential:
         assert reason.agent_instructions is not None
         instructions = json.loads(reason.agent_instructions)
         assert instructions["action"] == "switch_token_or_restart_session"
-        # No session fields — the API doesn't mint one for this case.
+        # No session fields: the API doesn't mint one for this case.
         assert reason.session_id is None
         assert reason.verify_url is None
         assert reason.poll_secret is None
 
 
 class TestAcheckTypedErrors:
-    """Async path mirror of TestCheckFailOpen — exercises SdkXxxError → commerce-error mapping
+    """Async path mirror of TestCheckFailOpen: exercises SdkXxxError → commerce-error mapping
     in :meth:`acheck`. Pinned independently of the sync path because adapters wire each
     path separately and a regression in one wouldn't show up via the other.
     """

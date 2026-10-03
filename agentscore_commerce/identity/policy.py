@@ -3,7 +3,7 @@
 A *policy* is a small bag of fields describing what identity the merchant
 wants verified for a given resource:
 
-- ``enforcement``:  ``"hard"`` (the regulated-goods path — 403 on miss) or ``"soft"``
+- ``enforcement``:  ``"hard"`` (the regulated-goods path: 403 on miss) or ``"soft"``
                     (gate denial is swallowed; the order completes with a
                     degraded ``identity_status``). ``None`` = no gate at all.
 - ``require_kyc`` / ``require_sanctions_clear`` / ``min_age``: passed through
@@ -14,13 +14,13 @@ wants verified for a given resource:
 
 This module ships three primitives:
 
-1. :class:`PolicyBlock` — the typed shape.
-2. :func:`build_gate_from_policy` — translate a block into an
+1. :class:`PolicyBlock`: the typed shape.
+2. :func:`build_gate_from_policy`: translate a block into an
    :class:`AgentScoreGate`.
-3. :func:`run_gate_with_enforcement` — run the gate, swallow soft denials,
+3. :func:`run_gate_with_enforcement`: run the gate, swallow soft denials,
    return a structured :class:`GateResult`.
 
-All three are additive — vendors that don't need per-product policy can keep
+All three are additive: vendors that don't need per-product policy can keep
 using ``AgentScoreGate(...)`` directly. Most merchants will implement shipping
 checks adjacent to the gate per-request.
 """
@@ -81,7 +81,7 @@ class GateResult:
 
 # OFAC SDN denial reasons. These are strict-liability: soft enforcement may downgrade
 # KYC / age / jurisdiction misses (the merchant accepts the order with a degraded
-# identity_status), but it must NEVER swallow a sanctions deny — falsely settling for a
+# identity_status), but it must NEVER swallow a sanctions deny: falsely settling for a
 # sanctioned wallet is an OFAC violation regardless of the merchant's soft posture. The API
 # emits `sanctions_flagged` in `decision_reasons` for BOTH the operator/wallet SDN hit and
 # the payment-signer OFAC SDN hit; `sanctions_check_unavailable` is the fail-closed
@@ -126,7 +126,7 @@ def build_gate_from_policy(
     """Build a per-request :class:`AgentScoreGate` from a :class:`PolicyBlock`-shaped mapping.
 
     Returns ``None`` when ``policy`` is None, missing ``enforcement``, or has
-    ``enforcement=None`` — the caller should treat that as "no gate; anonymous OK".
+    ``enforcement=None``: the caller should treat that as "no gate; anonymous OK".
 
     Use a fresh gate per request rather than constructing once at module scope
     when policy varies per resource (e.g. per product). The gate is cheap to
@@ -137,7 +137,7 @@ def build_gate_from_policy(
         return None
     if not policy.get("enforcement"):
         return None
-    # Lazy import — avoids circular import at package init time
+    # Lazy import: avoids circular import at package init time
     # (identity package init pulls policy → fastapi → payment.signer → identity).
     from agentscore_commerce.identity.fastapi import AgentScoreGate
 
@@ -169,7 +169,7 @@ async def run_gate_with_enforcement(
     - ``enforcement="soft"`` + gate denies: swallow the denial; status="unverified".
     - gate accepts: status="verified".
 
-    **Sanctions are never swallowed.** Soft mode is a commercial knob — it lets a merchant
+    **Sanctions are never swallowed.** Soft mode is a commercial knob: it lets a merchant
     accept an order from an agent that didn't satisfy KYC / age / jurisdiction (stamping a
     degraded ``identity_status`` for ops). But an OFAC SDN sanctions deny is strict-liability:
     settling for a sanctioned wallet is a violation regardless of the merchant's posture. So a
@@ -191,7 +191,7 @@ async def run_gate_with_enforcement(
     except _GateDenialError as exc:
         # Post-flatten the gate raises a FLAT _GateDenialError (not HTTPException).
         # Convert it to a GateResult so soft mode can swallow the denial and hard mode
-        # can propagate the flat body — same contract as the HTTPException path below.
+        # can propagate the flat body: same contract as the HTTPException path below.
         # A sanctions deny stays terminal in BOTH modes (see _is_sanctions_denial).
         if enforcement == "hard" or _is_sanctions_denial(exc.body):
             return GateResult(status="denied", denial_status=exc.status, denial_body=exc.body)
@@ -217,7 +217,7 @@ def shipping_country_allowed(country: str, policy: Mapping[str, Any] | None) -> 
 def shipping_state_allowed(state: str, country: str, policy: Mapping[str, Any] | None) -> bool:
     """US-state allowlist (e.g. wine).
 
-    Only enforced for US shipments — non-US is governed by
+    Only enforced for US shipments: non-US is governed by
     ``shipping_country_allowed`` independently.
     """
     if policy is None:
@@ -249,7 +249,7 @@ def validate_shipping_against_policy(
     policy means "ship anywhere" and the function is a no-op. The reason a
     location is excluded is **merchant-defined**: it might be regulatory
     (regulated goods + state allowlist), operational (no fulfillment partner),
-    or commercial (fragility, fraud-rate-by-region, etc.) — the helper
+    or commercial (fragility, fraud-rate-by-region, etc.): the helper
     doesn't assume.
 
     ``product_name`` is the user-facing item name surfaced in the error
@@ -260,7 +260,7 @@ def validate_shipping_against_policy(
 
     ``country_message`` / ``state_message`` override the default messages
     verbatim (use these when the default phrasing isn't right for your
-    consumer agents — e.g. you want to surface the regulatory reason
+    consumer agents: e.g. you want to surface the regulatory reason
     explicitly, or you want the message in a different language).
     """
     item = f"'{product_name}'" if product_name else "this item"

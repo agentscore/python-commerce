@@ -45,7 +45,7 @@ def _req(*, headers: dict[str, str] | None = None, body: dict[str, Any] | None =
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 402 emit — every rail combination
+# 402 emit: every rail combination
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -57,7 +57,7 @@ async def test_emit_402_x402_only_no_mppx_no_identity() -> None:
         url="https://api.example/call",
         compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
         x402_server=None,
-        # x402_base_network omitted — emit-only, no settle handler
+        # x402_base_network omitted: emit-only, no settle handler
     )
     result = await checkout.handle(_req())
     assert result.status == 402
@@ -309,7 +309,7 @@ async def test_emit_402_custodial_only_stripe() -> None:
 
 
 class _StubX402Server:
-    """Minimal x402 server fake — exercises settle path without real x402 deps.
+    """Minimal x402 server fake: exercises settle path without real x402 deps.
 
     Mirrors x402 2.9's ``x402ResourceServer`` surface enough to pass
     ``process_x402_settle``: ``build_payment_requirements(config) -> [req]``,
@@ -370,7 +370,7 @@ async def test_x402_settle_success_runs_on_settled_hook() -> None:
     """Goods seller: on_settled persists the order; success body merges reference_id."""
     on_settled = AsyncMock(return_value={"order_status": "queued"})
     checkout = Checkout(
-        # Recipient must equal the payload's signed payTo — the gate binds the agent-supplied payTo
+        # Recipient must equal the payload's signed payTo: the gate binds the agent-supplied payTo
         # to the configured recipient (payTo-binding fix), so they must match for the settle to run.
         rails={"x402_base": X402BaseRailSpec(recipient="0x000000000000000000000000000000000000dEaD")},
         url="https://api.example/purchase",
@@ -443,7 +443,7 @@ async def test_x402_settle_custom_is_cached_address_still_honored() -> None:
         url="https://api.example/purchase",
         compute_pricing=lambda _ctx: PricingResult(amount_usd=0.01),
         x402_server=_StubX402Server(settle_success=True),
-        # Merchant attests this minted payTo belongs to this order — accept it even though it's
+        # Merchant attests this minted payTo belongs to this order: accept it even though it's
         # not the static recipient.
         is_cached_address=lambda addr: addr.lower() == "0xfeedfacefeedfacefeedfacefeedfacefeedface",
     )
@@ -456,7 +456,7 @@ async def test_x402_settle_custom_is_cached_address_still_honored() -> None:
 
 @pytest.mark.asyncio
 async def test_x402_default_rails_empty_recipient_sentinel_binds_to_minted_pay_to() -> None:
-    """Regression: the documented per-order-mint default — ``build_default_checkout_rails`` leaves
+    """Regression: the documented per-order-mint default: ``build_default_checkout_rails`` leaves
     ``recipient=""`` (the sentinel) and the real payTo is minted per request via ``mint_recipients``.
 
     Previously the empty-string sentinel passed through ``_resolve_static_x402_recipient`` and the
@@ -606,7 +606,7 @@ async def test_mppx_settle_leg_resolves_recipients_for_compose_and_on_settled() 
 @pytest.mark.asyncio
 async def test_compose_mppx_payment_receipt_header_surfaces_on_response() -> None:
     """When ``compose_mppx`` populates ``payment_receipt_header``, Checkout echoes
-    it as a ``payment-receipt`` HTTP header on the success response — symmetric
+    it as a ``payment-receipt`` HTTP header on the success response: symmetric
     to the existing ``payment_response_header`` (x402) behavior."""
     receipt_header = "eyJzdGF0dXMiOiJzdWNjZXNzIn0"
     compose_mppx = AsyncMock(
@@ -685,7 +685,7 @@ async def test_compose_mppx_auto_extracts_receipt_header_from_raw_dict() -> None
 @pytest.mark.asyncio
 async def test_compose_mppx_auto_extracts_receipt_header_from_raw_tuple() -> None:
     """``raw=(credential, receipt)`` (the pympp Mpp.charge return) is also a
-    recognized shape — the second element's ``to_payment_receipt()`` is lifted."""
+    recognized shape: the second element's ``to_payment_receipt()`` is lifted."""
 
     class _Receipt:
         @staticmethod
@@ -940,7 +940,7 @@ async def test_mint_reference_id_runs_when_provided() -> None:
 
 
 def test_init_requires_x402_base_railspec_when_x402_server_provided() -> None:
-    """x402_server demands an X402BaseRailSpec in rails['x402_base'] — the rail's
+    """x402_server demands an X402BaseRailSpec in rails['x402_base']: the rail's
     `network` field carries the CAIP-2, so there's no separate kwarg to forget."""
     with pytest.raises(ValueError, match="X402BaseRailSpec"):
         Checkout(

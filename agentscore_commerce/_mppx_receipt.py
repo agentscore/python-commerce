@@ -19,11 +19,11 @@ def extract_mppx_receipt_header_from_raw(raw: Any) -> str | None:
 
     Covers three shapes hand-rolled hooks commonly return:
 
-    * ``raw.receipt_header`` — pympp's current direct-attribute shape.
-    * ``raw.to_payment_receipt()`` — pympp's older Receipt return-method shape
+    * ``raw.receipt_header``: pympp's current direct-attribute shape.
+    * ``raw.to_payment_receipt()``: pympp's older Receipt return-method shape
       (also reached when ``raw`` is a ``(credential, receipt)`` tuple OR a
       dict/object carrying ``.receipt``).
-    * ``raw.with_receipt(response) -> Response`` — a shape that wraps an
+    * ``raw.with_receipt(response) -> Response``: a shape that wraps an
       outgoing Response and attaches the header.
 
     Returns ``None`` when none match or the underlying call raises.

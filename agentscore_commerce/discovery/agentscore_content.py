@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Any, Final, Literal
 
 # Whether a paid surface accepts redemption codes. Applies to any merchant
-# that bills per-purchase or per-call — goods (catalog rows) and API
+# that bills per-purchase or per-call: goods (catalog rows) and API
 # (per-endpoint or per-tier billing) both use this enum.
 
 PurchaseMode = Literal["redemption_only", "coupon_applicable", "paid_only"]
@@ -67,7 +67,7 @@ def build_agentscore_onboarding_steps(
     ``"stripe-spt"``. Unknown rail names are passed through verbatim so future
     rails work without an SDK bump.
 
-    Pass ``vendor_type="api"`` for per-call API providers — the catalog step is
+    Pass ``vendor_type="api"`` for per-call API providers: the catalog step is
     dropped and the final step becomes "Make the paid call" instead of
     "Place the order".
     """
@@ -195,7 +195,7 @@ def build_merchant_index_json(
     """Build the canonical AgentScore commerce ``/`` root discovery body.
 
     Works for both goods merchants (catalog + purchase + orders) and API
-    merchants (per-call paid endpoints) — ``endpoints`` and any
+    merchants (per-call paid endpoints): ``endpoints`` and any
     merchant-specific fields are passed through ``extra``.
 
     Common fields surfaced: ``name``, ``description``, ``docs``, ``endpoints``,
@@ -272,15 +272,15 @@ def build_success_next_steps(
 ) -> dict[str, str]:
     """Standard ``next_steps`` block emitted in a 200 success body.
 
-    Works for both goods-merchant order-success and API-merchant per-call-success
-    — the ``user_message`` reinforces the cross-merchant Passport pattern
+    Works for both goods-merchant order-success and API-merchant per-call-success:
+    the ``user_message`` reinforces the cross-merchant Passport pattern
     (universal), with merchant-specific copy overridable via ``user_message``.
 
     ``order_status_url`` is emitted as ``order_status_url``. API merchants that
     don't have an order-detail endpoint can pass a usage/dashboard URL or omit
     the field.
 
-    ``fulfillment_eta`` is goods-specific (shipping window) — omit for API or
+    ``fulfillment_eta`` is goods-specific (shipping window): omit for API or
     digital-goods merchants.
     """
     out: dict[str, str] = {

@@ -7,7 +7,7 @@ Stripe-multichain merchants need ONE function for their ``mint_recipients``
   advertises a stable per-order deposit address.
 - **Settle leg** (MPP credential attached): reuse the buyer's signed-against
   payTo from the credential (after verifying it's in the local cache OR matches
-  a configured ``static_recipients`` entry) — otherwise the verify leg would
+  a configured ``static_recipients`` entry): otherwise the verify leg would
   compare against a freshly-rotated address and reject the credential.
 
 Stripe SPT and card methods don't carry an on-chain recipient, so the settle
@@ -62,7 +62,7 @@ async def create_pay_to_address_from_stripe_pi(
     On the settle leg, when ``authorization_header`` carries an MPP credential
     binding a ``tempo`` or ``solana`` recipient, returns THAT address (after
     verifying it's in ``pi_cache`` OR matches a configured ``static_recipients``
-    entry — static addresses are always-accepted because the merchant owns
+    entry: static addresses are always-accepted because the merchant owns
     them). Otherwise mints a fresh :func:`create_multichain_payment_intent`
     for the rails NOT covered by ``static_recipients``, caches the merged
     address map, and registers static recipients with ``pi_cache.cache_address``
@@ -71,7 +71,7 @@ async def create_pay_to_address_from_stripe_pi(
     ``tempo``).
 
     ``static_recipients`` (optional, keyed by network) lets the merchant pin a
-    fixed receive wallet on chains where per-call rotation is expensive — Solana
+    fixed receive wallet on chains where per-call rotation is expensive: Solana
     in particular, since MPP spec §13.6 charges ~0.002 SOL of ATA rent per
     new recipient into accounts the merchant can't close. Example:
     ``static_recipients={"solana": "FR96wd96urH..."}``. The SDK skips Stripe
@@ -136,7 +136,7 @@ async def mint_multichain_recipients(
 
     Returns the full per-rail deposit map. Prefer this when the merchant's
     ``mint_recipients`` hook needs every rail's address (typical multi-rail
-    merchant) — avoids the "returned string is ambiguous" trap when
+    merchant): avoids the "returned string is ambiguous" trap when
     ``static_recipients`` is configured (settle leg's bound recipient may be
     the solana static rather than the tempo per-PI address).
     """

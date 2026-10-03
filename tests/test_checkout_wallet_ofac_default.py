@@ -119,7 +119,7 @@ async def test_clean_signer_with_no_gate_allows_settle_to_proceed(
     checkout = _checkout(gate=None)
     request = _req(headers={"x-payment": _x402_payment_header(CLEAN_WALLET)})
     result = await checkout.handle(request)
-    # No x402 server configured; the settle path will fail downstream — but the
+    # No x402 server configured; the settle path will fail downstream: but the
     # OFAC gate ITSELF must have allowed (not denied). status != 403.
     assert result.status != 403 or "wallet_not_trusted" not in str(result.body)
 
@@ -253,7 +253,7 @@ async def test_invalid_credential_maps_to_401(monkeypatch: pytest.MonkeyPatch) -
 
 @pytest.mark.asyncio
 async def test_api_outage_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """When /v1/assess raises (network failure / 5xx), return 503 — strict
+    """When /v1/assess raises (network failure / 5xx), return 503: strict
     liability fail-closed."""
     monkeypatch.setenv("AGENTSCORE_API_KEY", "ask_test_key")
 

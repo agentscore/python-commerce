@@ -22,7 +22,7 @@ Example::
         secret_key=os.environ["MPP_SECRET_KEY"],
     )
 
-``pympp`` is an OPTIONAL peer dependency — vendors who don't use Stripe SPT don't need
+``pympp`` is an OPTIONAL peer dependency: vendors who don't use Stripe SPT don't need
 to install it. Throws ``ImportError`` if pympp (or its stripe support) is missing.
 """
 
@@ -44,20 +44,20 @@ async def create_mppx_stripe(
     Args:
         profile_id: Stripe profile_id / network_id advertised in your ``stripe/charge``
             ``accepted_methods`` entry.
-        secret_key: Stripe secret key — pympp uses it to validate inbound SharedPaymentTokens.
+        secret_key: Stripe secret key: pympp uses it to validate inbound SharedPaymentTokens.
         payment_method_types: Payment method types this stripe rail accepts. Defaults to
             ``["card", "link"]``.
     """
     try:
         stripe_module = importlib.import_module("mpp.methods.stripe")
     except ImportError as exc:
-        msg = "pympp[stripe] not installed — run `pip install 'pympp[stripe]'` to use create_mppx_stripe."
+        msg = "pympp[stripe] not installed: run `pip install 'pympp[stripe]'` to use create_mppx_stripe."
         raise ImportError(msg) from exc
 
     charge_factory = getattr(stripe_module, "charge", None)
     if not callable(charge_factory):
         msg = (
-            "mpp.methods.stripe.charge not found — your pympp version may not ship "
+            "mpp.methods.stripe.charge not found: your pympp version may not ship "
             "Stripe SPT support. Upgrade with `pip install -U pympp`."
         )
         raise ImportError(msg)

@@ -1,4 +1,4 @@
-"""Address normalization tests — must produce identical results to the node SDK
+"""Address normalization tests: must produce identical results to the node SDK
 so EVM and Solana addresses are normalized identically across both SDK languages."""
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class TestIsSolanaAddress:
         assert is_solana_address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
 
     def test_rejects_evm_addresses(self):
-        # 0x... could match the base58 alphabet — explicit guard prevents routing
+        # 0x... could match the base58 alphabet: explicit guard prevents routing
         # an EVM address into the Solana code path.
         assert not is_solana_address("0x690BF056DA820EF2e74f8943B3Fe5ca4ADEe7a3e")
 
@@ -67,5 +67,5 @@ class TestNormalizeAddress:
 
     def test_falls_through_to_lowercase_for_unrecognized(self):
         # Garbage still returns SOMETHING so callers don't need an is-valid guard
-        # before normalizing — DB writes are guarded separately.
+        # before normalizing: DB writes are guarded separately.
         assert normalize_address("NotAnAddress") == "notanaddress"

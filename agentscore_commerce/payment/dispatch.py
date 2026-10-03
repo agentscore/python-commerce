@@ -1,8 +1,8 @@
 """Payment dispatch helpers.
 
-* :func:`detect_rail_from_headers` — detect which payment-protocol family
+* :func:`detect_rail_from_headers`: detect which payment-protocol family
   (x402 vs MPP) the inbound request carries, based on header presence.
-* :func:`dispatch_settlement_by_network` — route a settlement payload to
+* :func:`dispatch_settlement_by_network`: route a settlement payload to
   evm vs svm handler based on the CAIP-2 network family in
   ``payload.accepted.network``.
 """

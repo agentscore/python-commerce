@@ -1,10 +1,10 @@
 """Shared serialization for DenialReason → HTTP body dict.
 
 Every adapter (ASGI, FastAPI, Flask, Django, AIOHTTP, Sanic) renders the same
-body shape for a denial — this helper keeps them in sync and in one place.
+body shape for a denial: this helper keeps them in sync and in one place.
 Includes the wallet-signer-match fields and the agent_memory payload.
 
-Body shape: ``{"error": {"code": ..., "message": ...}, ...}`` — matches the
+Body shape: ``{"error": {"code": ..., "message": ...}, ...}``: matches the
 canonical AgentScore core API response shape so downstream agents see one
 consistent ``error.code`` + ``error.message`` pair regardless of which layer
 produced the denial.
@@ -22,7 +22,7 @@ from agentscore_commerce.identity.types import DenialReason, build_agent_memory_
 _log = logging.getLogger("agentscore_gate")
 
 # Field names the gate claims authority over. Merchant-provided ``extra`` (from the
-# on_before_session hook) MUST NOT override these — a buggy or malicious hook could
+# on_before_session hook) MUST NOT override these: a buggy or malicious hook could
 # otherwise replace ``verify_url`` with a phishing URL or drop agent_instructions.
 _RESERVED_FIELDS = frozenset(
     {
@@ -50,11 +50,11 @@ _RESERVED_FIELDS = frozenset(
 _MISSING_IDENTITY_BASE_STEPS = [
     (
         "If you have a wallet AND this merchant accepts a wallet-signing rail "
-        "(Tempo MPP or x402 — see openapi.json x-payment-info): send X-Wallet-Address "
+        "(Tempo MPP or x402: see openapi.json x-payment-info): send X-Wallet-Address "
         "and retry. If the wallet is already linked to an AgentScore operator (via "
         "prior SIWE claim or prior captureWallet), this passes in one round trip. If "
         "the wallet is unlinked or the account has no KYC, the 403 will include a "
-        "verify_url — share it with the user to claim the wallet + complete KYC, "
+        "verify_url: share it with the user to claim the wallet + complete KYC, "
         "then retry."
     ),
     (
@@ -64,11 +64,11 @@ _MISSING_IDENTITY_BASE_STEPS = [
     (
         "If neither applies: retry with NO identity header. Merchants that "
         "auto-create verification sessions (most AgentScore merchants do) return "
-        "verify_url + session_id + poll_secret in the 403 body — share verify_url "
+        "verify_url + session_id + poll_secret in the 403 body: share verify_url "
         "with the user, then poll poll_url every 5s with the X-Poll-Secret header "
         "until status=verified (the poll returns a one-time operator_token). If the "
         "retry returns the same bare 403, this merchant does not support self-service "
-        "session bootstrapping — direct the user to https://www.agentscore.com/sign-up to "
+        "session bootstrapping: direct the user to https://www.agentscore.com/sign-up to "
         "create an AgentScore identity and mint an operator_token from their "
         "dashboard (https://www.agentscore.com/dashboard/verify). The user hands the "
         "opc_... to you, and you retry with X-Operator-Token."
@@ -94,7 +94,7 @@ def _missing_identity_instructions(aip_trusted_issuers: list[str] | None = None)
     if aip_trusted_issuers:
         steps.append(
             f"If you hold an AIP Agent Identity Token from a trusted issuer "
-            f"({', '.join(aip_trusted_issuers)}): present it — send the JWT in an Agent-Identity "
+            f"({', '.join(aip_trusted_issuers)}): present it: send the JWT in an Agent-Identity "
             f"header plus an RFC 9421 HTTP Message Signature (Signature-Input + Signature over "
             f'@method @authority @path agent-identity, tag="agent-identity") signed with the '
             f"token-bound cnf key. This satisfies identity in one round trip without an AgentScore "
@@ -116,13 +116,13 @@ WALLET_SIGNER_MISMATCH_INSTRUCTIONS = json.dumps(
         "steps": [
             (
                 "Preferred: re-submit the payment signed by expected_signer (or any entry in "
-                "linked_wallets — same-operator wallets are fungible) and retry with the same "
+                "linked_wallets: same-operator wallets are fungible) and retry with the same "
                 "X-Wallet-Address."
             ),
             (
                 "Alternative: drop X-Wallet-Address and retry with X-Operator-Token. Use a "
                 "stored opc_... if you have one; otherwise retry this request with NO "
-                "identity header — the merchant will mint a verification session in the "
+                "identity header: the merchant will mint a verification session in the "
                 "403 body (verify_url + poll_secret). Share verify_url with the user, poll, "
                 "receive a fresh opc_..."
             ),
@@ -139,7 +139,7 @@ WALLET_AUTH_REQUIRES_WALLET_SIGNING_INSTRUCTIONS = json.dumps(
         "action": "switch_to_operator_token",
         "steps": [
             (
-                "This payment rail (Stripe SPT, card) carries no wallet signature — "
+                "This payment rail (Stripe SPT, card) carries no wallet signature: "
                 "X-Wallet-Address cannot be verified against the payment."
             ),
             (
@@ -162,7 +162,7 @@ WALLET_NOT_TRUSTED_INSTRUCTIONS = json.dumps(
                 "The wallet's operator failed an UNFIXABLE compliance check (sanctions, "
                 "age, or jurisdiction). `reasons` lists which: `sanctions_flagged` / "
                 "`age_insufficient` / `jurisdiction_restricted`. KYC re-verification "
-                "won't change the outcome — the policy denial is structural."
+                "won't change the outcome: the policy denial is structural."
             ),
             (
                 "Surface the denial to the user with the merchant's support contact. "
@@ -171,12 +171,12 @@ WALLET_NOT_TRUSTED_INSTRUCTIONS = json.dumps(
             ),
             (
                 "Fixable compliance reasons (`kyc_required`, `kyc_pending`, "
-                "`kyc_failed`) do NOT land on this code — the gate auto-mints a "
+                "`kyc_failed`) do NOT land on this code: the gate auto-mints a "
                 "verification session for those and returns "
                 "`identity_verification_required` with poll endpoints, same shape as "
                 "`missing_identity`. `jurisdiction_restricted` IS in the unfixable "
                 "bucket because the API only emits it after KYC is verified (the "
-                "user's KYC'd country is in the blocked list — re-doing KYC won't "
+                "user's KYC'd country is in the blocked list: re-doing KYC won't "
                 "change the country)."
             ),
         ],
@@ -195,16 +195,16 @@ PAYMENT_REQUIRED_INSTRUCTIONS = json.dumps(
             (
                 "The merchant's AgentScore account does not have the assess endpoint "
                 "enabled, so agent identity cannot be evaluated. This is a merchant-side "
-                "configuration gap — there is no agent-side recovery."
+                "configuration gap: there is no agent-side recovery."
             ),
             (
-                "Contact the merchant (their support channel — typically listed in "
+                "Contact the merchant (their support channel: typically listed in "
                 "/llms.txt or the OpenAPI servers metadata) so they can resolve the "
                 "configuration on their side."
             ),
         ],
         "user_message": (
-            "This merchant's identity gate is misconfigured. Contact the merchant — "
+            "This merchant's identity gate is misconfigured. Contact the merchant: "
             "there's nothing to fix on the agent side."
         ),
     }
@@ -216,7 +216,7 @@ IDENTITY_VERIFICATION_REQUIRED_FALLBACK_INSTRUCTIONS = json.dumps(
     {
         "action": "deliver_verify_url_and_poll",
         "steps": [
-            "Share verify_url with the user — they complete identity verification on AgentScore.",
+            "Share verify_url with the user: they complete identity verification on AgentScore.",
             (
                 "If session_id + poll_secret are present in the body, poll poll_url every "
                 "5 seconds with header `X-Poll-Secret: <poll_secret>` until status=verified. "
@@ -236,7 +236,7 @@ TOKEN_EXPIRED_FALLBACK_INSTRUCTIONS = json.dumps(
         "steps": [
             (
                 "The operator token is expired or revoked. AgentScore auto-mints a fresh "
-                "verification session — complete it to receive a new opc_..."
+                "verification session: complete it to receive a new opc_..."
             ),
             (
                 "Share verify_url with the user, then poll poll_url every 5 seconds with "
@@ -247,7 +247,7 @@ TOKEN_EXPIRED_FALLBACK_INSTRUCTIONS = json.dumps(
         ],
         "user_message": (
             "Operator token is expired or revoked. A new verification session has been "
-            "minted — visit verify_url to refresh."
+            "minted: visit verify_url to refresh."
         ),
     }
 )
@@ -257,14 +257,14 @@ _API_ERROR_INSTRUCTIONS = json.dumps(
         "action": "retry_with_backoff",
         "steps": [
             "Verification is temporarily unavailable. Retry the request after 5-30 seconds with exponential backoff.",
-            "This is NOT a compliance denial — the user does not need to re-verify their "
+            "This is NOT a compliance denial: the user does not need to re-verify their "
             "identity. Send the same identity headers (X-Wallet-Address or X-Operator-Token) "
             "on retry.",
             "If the request continues to fail after 3+ retries (~60 seconds total), surface the "
             "error to the user with the merchant's support contact.",
         ],
         "user_message": (
-            "Verification is temporarily unavailable. Please try again in a moment — this is a "
+            "Verification is temporarily unavailable. Please try again in a moment: this is a "
             "transient issue, not a problem with your account."
         ),
     }
@@ -294,7 +294,7 @@ QUOTA_EXCEEDED_INSTRUCTIONS = json.dumps(
 # Codes stamped explicitly upstream are intentionally absent: ``missing_identity`` is
 # stamped by build_missing_identity_reason, and ``wallet_signer_mismatch`` /
 # ``wallet_auth_requires_wallet_signing`` are stamped in core.py via get_signer_verdict
-# + build_signer_mismatch_body — they never reach this fallback through
+# + build_signer_mismatch_body: they never reach this fallback through
 # denial_reason_to_body.
 _DEFAULT_AGENT_INSTRUCTIONS: dict[str, str] = {
     "api_error": _API_ERROR_INSTRUCTIONS,
@@ -308,7 +308,7 @@ _DEFAULT_AGENT_INSTRUCTIONS: dict[str, str] = {
 def build_missing_identity_reason(aip_trusted_issuers: list[str] | None = None) -> DenialReason:
     """Construct a missing_identity DenialReason with the cross-merchant memory hint attached.
 
-    Emitted when the adapter has no identity AND no create_session_on_missing config — this is the
+    Emitted when the adapter has no identity AND no create_session_on_missing config: this is the
     cold-start bootstrap path where the memory hint is most useful. The attached agent_instructions
     hint the agent to try stored identity (returning-customer fast path) before running the
     session/verify flow.
@@ -330,7 +330,7 @@ _DEFAULT_MESSAGES: dict[str, str] = {
         "Identity verification is required to access this resource. Visit verify_url to complete KYC."
     ),
     "wallet_not_trusted": "The wallet does not meet the merchant compliance policy.",
-    "api_error": "AgentScore is unreachable. This is transient — retry in a few seconds.",
+    "api_error": "AgentScore is unreachable. This is transient: retry in a few seconds.",
     "payment_required": "Assess endpoint not enabled for this merchant. Contact support.",
     "wallet_signer_mismatch": (
         "Payment signer does not match the wallet claimed via X-Wallet-Address. The signer and the "
@@ -341,7 +341,7 @@ _DEFAULT_MESSAGES: dict[str, str] = {
         "Switch to X-Operator-Token, or use a wallet-signing rail (Tempo MPP, x402)."
     ),
     "token_expired": (
-        "The operator token is expired or revoked. A fresh verification session has been minted — "
+        "The operator token is expired or revoked. A fresh verification session has been minted: "
         "visit verify_url to mint a new token."
     ),
     "invalid_credential": (
@@ -367,7 +367,7 @@ def build_verification_required_body(
 
     Goods merchants that surface an ``order_id`` (or similar) from
     ``CreateSessionOnMissing.on_before_session`` get it for free via
-    ``denial_reason_to_body``'s ``reason.extra`` passthrough — but can also
+    ``denial_reason_to_body``'s ``reason.extra`` passthrough: but can also
     pass ``extra=`` for fallbacks (e.g. when invoked outside the auto-mint
     path and order_id needs to come from the validated context).
     """
@@ -426,12 +426,12 @@ def denial_reason_to_body(reason: DenialReason) -> dict[str, Any]:
     if reason.linked_wallets:
         body["linked_wallets"] = reason.linked_wallets
     # Merchant-supplied fields from on_before_session hook. Guard against collision
-    # with reserved fields — the gate owns those and can't let a hook override them.
+    # with reserved fields: the gate owns those and can't let a hook override them.
     if reason.extra:
         for key, value in reason.extra.items():
             if key in _RESERVED_FIELDS:
                 _log.warning(
-                    "on_before_session returned reserved field '%s' — ignoring to preserve gate authority",
+                    "on_before_session returned reserved field '%s': ignoring to preserve gate authority",
                     key,
                 )
                 continue

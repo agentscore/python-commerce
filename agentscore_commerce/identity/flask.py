@@ -297,7 +297,7 @@ def agentscore_gate(
             # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
             # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
             # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
-            # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+            # verified (the user's KYC'd country is in the blocked list: re-doing KYC
             # won't change the country).
             if is_fixable_denial(result.reasons) and create_session_on_missing is not None:
                 session_reason = try_create_session_denial_reason_sync(
@@ -323,7 +323,7 @@ def agentscore_gate(
         except TokenDeniedError as err:
             return _deny(build_token_denied_reason(err))
         except InvalidCredentialError:
-            # Permanent — no auto-session, agent should switch tokens or restart.
+            # Permanent: no auto-session, agent should switch tokens or restart.
             return _deny(build_invalid_credential_reason())
         except QuotaExceededError:
             if client.fail_open:
@@ -352,7 +352,7 @@ def get_signer_verdict() -> SignerVerdict | None:
     assess call). See :class:`SignerVerdict` for the verdict shape.
 
     Reads the request-scoped verdict stashed by the gate (projected from THIS request's
-    assess response) — concurrency-safe against a sibling same-wallet request.
+    assess response): concurrency-safe against a sibling same-wallet request.
     """
     from flask import g
 
@@ -372,7 +372,7 @@ def capture_wallet(
 ) -> None:
     """Report a wallet that paid under the operator_token the Flask gate extracted on this request.
 
-    Reads gate state from Flask's ``g`` object — must be called inside a request context after
+    Reads gate state from Flask's ``g`` object: must be called inside a request context after
     the gate's before_request handler ran. Fire-and-forget: no-ops silently if the request was
     wallet-authenticated (no operator_token) or the API call fails.
 
@@ -386,7 +386,7 @@ def capture_wallet(
     """
     from flask import g
 
-    # Accessing `g` outside a request context raises RuntimeError — treat as no-op so background
+    # Accessing `g` outside a request context raises RuntimeError: treat as no-op so background
     # threads/workers that mistakenly import this helper don't crash user code.
     try:
         state = getattr(g, "_agentscore_gate", None)
@@ -423,7 +423,7 @@ def conditional_agentscore_gate(app: Flask, **kwargs: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
 # from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
 # merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
 # Flask is WSGI (no request object the async verifier accepts directly), so the gate builds

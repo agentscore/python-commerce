@@ -246,7 +246,7 @@ class AgentScoreGate:
             if recovered is not None:
                 signer_payload = {"address": recovered.address, "network": recovered.network}
 
-        # Only acheck_identity is wrapped — `await self.app(...)` (which runs the downstream
+        # Only acheck_identity is wrapped: `await self.app(...)` (which runs the downstream
         # ASGI app) must NOT be in the try, otherwise an exception in the user's app would
         # be misclassified as an AgentScore infra failure and (under fail_open) re-invoke it.
         try:
@@ -265,7 +265,7 @@ class AgentScoreGate:
             await response(scope, receive, send)
             return
         except InvalidCredentialError:
-            # Permanent — no auto-session, agent should switch tokens or restart.
+            # Permanent: no auto-session, agent should switch tokens or restart.
             reason = build_invalid_credential_reason()
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
@@ -325,7 +325,7 @@ class AgentScoreGate:
         # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
         # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
         # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
-        # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+        # verified (the user's KYC'd country is in the blocked list: re-doing KYC
         # won't change the country).
         if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
             session_reason = await try_create_session_denial_reason(
@@ -352,19 +352,19 @@ def get_signer_verdict(request: Request) -> SignerVerdict | None:
     """Synchronous read of the cached signer verdicts for the current request.
 
     Both ``signer_match`` (wallet-binding) and ``signer_sanctions`` (OFAC SDN wallet check)
-    are composed by the gate's primary ``/v1/assess`` call on this request — single round trip.
+    are composed by the gate's primary ``/v1/assess`` call on this request: single round trip.
     This getter projects them off the gate's cache; no extra HTTP call.
 
     Returns ``None`` when the gate didn't run with a signer: operator-token-only paths,
     discovery legs that arrive without a payment credential, and fail-open pass-throughs.
 
-    Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the request —
+    Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the request:
     SDN wallet-address hits already flip the gate to ``decision=deny`` before the handler
     runs. Merchant code typically only reads ``signer_match`` for the wallet-binding
     verdict (e.g. via :func:`build_signer_mismatch_body`).
 
     Reads the request-scoped verdict stashed by the gate (projected from THIS request's
-    assess response) — concurrency-safe against a sibling same-wallet request.
+    assess response): concurrency-safe against a sibling same-wallet request.
     """
     state = request.scope.get("state", {}).get(GATE_STATE_KEY)
     if not isinstance(state, dict):
@@ -425,7 +425,7 @@ class ConditionalAgentScoreGate(AgentScoreGate):
 
 
 # ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
 # from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
 # merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
 # Starlette's ``Request`` satisfies ``RequestLike``, so this ASGI middleware verifies

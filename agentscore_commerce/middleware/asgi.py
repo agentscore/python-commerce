@@ -25,11 +25,11 @@ class RateLimitMiddleware:
     """ASGI rate-limit middleware (60 req / 60 s / IP by default).
 
     Constructor args (all keyword):
-      * ``window_seconds`` — bucket size in seconds (default 60).
-      * ``max_requests`` — max requests per bucket (default 60).
-      * ``key_resolver`` — ``(scope) -> str`` override. Default = first hop of ``x-forwarded-for``.
-      * ``redis_url`` — when set, lazy-imports ``redis.asyncio``; otherwise in-memory.
-      * ``key_prefix`` — Redis key prefix (default ``'rl:'``).
+      * ``window_seconds``: bucket size in seconds (default 60).
+      * ``max_requests``: max requests per bucket (default 60).
+      * ``key_resolver``: ``(scope) -> str`` override. Default = first hop of ``x-forwarded-for``.
+      * ``redis_url``: when set, lazy-imports ``redis.asyncio``; otherwise in-memory.
+      * ``key_prefix``: Redis key prefix (default ``'rl:'``).
     """
 
     def __init__(

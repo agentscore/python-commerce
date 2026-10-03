@@ -5,7 +5,7 @@ wallets each see their OWN verdict.
 Before the fix, every adapter's ``get_signer_verdict`` read ``client.get_signer_verdict(addr)``
 off the SHARED core, whose ``_last_signer_raw`` slot is keyed by claimed address only. Under
 concurrency the slot is last-writer-wins: request A (clean signer) could read request B's verdict
-(sanctioned signer) — or, worse, request B (sanctioned) could read A's ``pass``/``clear`` and
+(sanctioned signer): or, worse, request B (sanctioned) could read A's ``pass``/``clear`` and
 settle. The gate now stashes the verdict projected from THIS request's assess response on the
 per-request state, which can't be raced.
 """
@@ -52,7 +52,7 @@ async def test_concurrent_same_wallet_distinct_signers_get_own_verdict() -> None
 
     # Barrier: both requests must reach the assess call (and stash into the SHARED core slot)
     # before EITHER proceeds to read its verdict. This forces the worst-case interleaving where
-    # the shared _last_signer_raw[CLAIMED] slot is last-writer-wins — exactly the race.
+    # the shared _last_signer_raw[CLAIMED] slot is last-writer-wins: exactly the race.
     both_assessed = asyncio.Barrier(2)
 
     async def fake_acheck_identity(identity: Any, _chain: Any = None, signer: Any = None) -> AssessResult:
@@ -102,11 +102,11 @@ async def test_concurrent_same_wallet_distinct_signers_get_own_verdict() -> None
     body_clean = resp_clean.json()
     body_sanctioned = resp_sanctioned.json()
 
-    # The CLEAN request must see its OWN clean verdict — never the sanctioned signer's.
+    # The CLEAN request must see its OWN clean verdict: never the sanctioned signer's.
     assert body_clean["kind"] == "pass"
     assert body_clean["signer_sanctions"] == {"kind": "clear"}
 
-    # The SANCTIONED request must see its OWN sanctioned verdict — never riding the clean one.
+    # The SANCTIONED request must see its OWN sanctioned verdict: never riding the clean one.
     assert body_sanctioned["kind"] == "wallet_signer_mismatch"
     assert body_sanctioned["actual_signer"] == SIGNER_SANCTIONED
     assert body_sanctioned["signer_sanctions"] == {"kind": "sdn_hit"}

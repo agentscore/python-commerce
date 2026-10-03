@@ -4,7 +4,7 @@ Replaces the hand-rolled lazy-init pattern in ``quote_cache``,
 ``stripe_multichain.pi_cache``, and ``middleware._core`` so they don't drift
 on logging posture, TLS handling, or connect-error semantics.
 
-``redis`` is an optional peer dep — callers pass ``redis_url`` (or rely on
+``redis`` is an optional peer dep: callers pass ``redis_url`` (or rely on
 ``REDIS_URL`` env); when unset or the lazy import fails, this returns ``None``
 and the caller falls back to its in-process dict.
 
@@ -80,7 +80,7 @@ def memoized_redis(*, url: str | None, label: str) -> Callable[[], Awaitable[Any
     First call constructs the client; later calls return the same client
     (or the same ``None``).
 
-    Pairs with the per-caller ``redis_url`` opt — when ``url`` is ``None`` AND
+    Pairs with the per-caller ``redis_url`` opt: when ``url`` is ``None`` AND
     ``REDIS_URL`` is unset, the getter resolves to ``None`` once and remains so
     for the lifetime of the caller.
     """

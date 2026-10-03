@@ -1,4 +1,4 @@
-"""llms.txt builders — identity section + payment section + full document assembler."""
+"""llms.txt builders: identity section + payment section + full document assembler."""
 
 import re
 from typing import Any, TypedDict
@@ -72,7 +72,7 @@ def llms_txt_payment_section(
 ) -> str:
     """Generate the standard "## Payment" section.
 
-    Pass ``verbose=True`` for the rich variant — multi-step setup + full command examples +
+    Pass ``verbose=True`` for the rich variant: multi-step setup + full command examples +
     exact-amount warnings. Default is the compact one-bullet-per-rail form.
 
     ``tempo_network_name`` / ``tempo_chain_id`` are surfaced in the verbose-mode prerequisites;

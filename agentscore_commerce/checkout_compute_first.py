@@ -1,4 +1,4 @@
-"""``compute_first_checkout`` — variable-cost pay-per-result merchant helper.
+"""``compute_first_checkout``: variable-cost pay-per-result merchant helper.
 
 Uses compute-first + exact-x402 (no upto, no Permit2, no Settlement-Overrides).
 
@@ -23,7 +23,7 @@ Flow (per request):
 
 Works on every exact-mode rail today (x402-exact Base, ``tempo/charge``,
 ``solana/charge``, Stripe SPT). The tradeoff vs. upto is that the work runs on
-the unpaid probe leg — so rate-limiting is load-bearing (use
+the unpaid probe leg: so rate-limiting is load-bearing (use
 ``agentscore_commerce.middleware.fastapi.RateLimitMiddleware`` or the
 per-framework equivalent).
 """
@@ -469,7 +469,7 @@ class ComputeFirstCheckout:
                 break
         signer = extract_payment_signer(x402_header, authorization_header=authorization_header)
         if signer is None:
-            return None  # Stripe SPT — no wallet signer to screen
+            return None  # Stripe SPT: no wallet signer to screen
 
         from agentscore_commerce.api import AgentScore
 
@@ -541,10 +541,10 @@ class ComputeFirstCheckout:
         # Security: the signed ``payTo`` is agent-controlled (it rides in the X-Payment header). If
         # accepted blindly, an agent can re-point settlement at a wallet it owns and drain funds the
         # merchant expected to receive. Bind it to the recipient THIS endpoint resolved for the
-        # request (``recipients["x402_base"]`` — already minted/static-resolved in
+        # request (``recipients["x402_base"]``: already minted/static-resolved in
         # _mint_and_resolve_recipients), accepting the payTo only when it matches (case-insensitive
         # EVM compare). Mirrors the reference payTo-binding fix. When no x402_base recipient was
-        # resolved (no rail), keep the prior permissive behavior — there's nothing to bind against.
+        # resolved (no rail), keep the prior permissive behavior: there's nothing to bind against.
         expected_pay_to = recipients.get("x402_base")
 
         async def _bind_pay_to(addr: str) -> bool:
@@ -804,7 +804,7 @@ class ComputeFirstCheckout:
                     {"Content-Type": "application/json"},
                 )
             recipients = quote.recipients if hasattr(quote, "recipients") else {}
-            # Wallet OFAC SDN enforcement (always-on default — mirrors
+            # Wallet OFAC SDN enforcement (always-on default: mirrors
             # Checkout._run_wallet_sanctions_only). Strict-liability check
             # before the rail-specific settle so funds don't move (x402) or
             # order doesn't fulfill (MPP) for a sanctioned wallet.
@@ -823,7 +823,7 @@ class ComputeFirstCheckout:
             try:
                 outcome = await self.run_work(body, ComputeFirstWorkContext(request=request))
             except Exception:
-                # Suppress the upstream exception detail in the wire response —
+                # Suppress the upstream exception detail in the wire response:
                 # merchant errors may carry stack traces or internal state. The
                 # merchant's own logger is the right channel for the full exception.
                 return (
@@ -933,7 +933,7 @@ class ComputeFirstCheckout:
         return sanic_response.json(response_body, status=status, headers=headers)
 
     def handle_flask(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
-        """Flask adapter — synchronous-callable that runs the async handle.
+        """Flask adapter: synchronous-callable that runs the async handle.
 
         Returns a Flask Response.
         """
@@ -972,7 +972,7 @@ class ComputeFirstCheckout:
         return response
 
     def handle_django(self, request: Any, *, body: dict[str, Any] | None = None) -> Any:
-        """Django adapter — synchronous-callable matching ``Checkout.handle_django``.
+        """Django adapter: synchronous-callable matching ``Checkout.handle_django``.
 
         Returns a ``JsonResponse``.
         """

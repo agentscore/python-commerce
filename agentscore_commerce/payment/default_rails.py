@@ -7,7 +7,7 @@ overrides.
 
 Per-order recipient minting (Stripe-multichain) is wired via Checkout's
 ``mint_recipients`` hook, so the ``recipient=""`` sentinel here is the
-expected shape — ``mint_recipients`` overrides it at request time.
+expected shape: ``mint_recipients`` overrides it at request time.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def build_default_checkout_rails(
 
     Keys match the convention used across consumer codebases: ``tempo``,
     ``x402_base``, ``solana_mpp``, ``stripe``. Empty-string ``recipient`` is a
-    placeholder — ``Checkout.mint_recipients`` must populate real values at
+    placeholder: ``Checkout.mint_recipients`` must populate real values at
     request time.
 
     Each kwarg accepts a partial dict of rail-spec fields (matching the

@@ -19,7 +19,7 @@ def alias_amount_fields(accepts: list[Any]) -> list[Any]:
     Opt-in helper: the 402 emitters (``payment_required_header`` / ``build_402_body``)
     do NOT call this. Strict x402 v2 settlement matches the agent's echoed requirement
     against the server's rebuilt one by exact comparison, so an extra ``maxAmountRequired``
-    the rebuild lacks silently fails settle — keep emitted ``accepts`` as
+    the rebuild lacks silently fails settle: keep emitted ``accepts`` as
     ``build_payment_requirements`` produced them. Call this only for a client hardcoded
     to read ``maxAmountRequired`` regardless of ``x402Version``.
     """

@@ -1,4 +1,4 @@
-"""Tests for ``load_ucp_signing_key_from_env`` — env-driven UCP signing-key loader.
+"""Tests for ``load_ucp_signing_key_from_env``: env-driven UCP signing-key loader.
 
 Locked behavior contract (shared with the Node sibling at
 ``node-commerce/tests/identity/load-ucp-signing-key-from-env.test.ts``):

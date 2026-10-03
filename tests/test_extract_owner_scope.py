@@ -1,4 +1,4 @@
-"""Tests for ``extract_owner_scope`` — canonical owner identity from headers."""
+"""Tests for ``extract_owner_scope``: canonical owner identity from headers."""
 
 from agentscore_commerce.identity.tokens import (
     OwnerScope,
@@ -8,7 +8,7 @@ from agentscore_commerce.identity.tokens import (
 
 # A real EIP-55 checksummed EVM address + its lowercase form. The stored ``orders.wallet_address``
 # column persists the lowercased signer, so extract_owner_scope MUST lowercase the inbound
-# X-Wallet-Address — otherwise a checksummed header misses its own order rows (404).
+# X-Wallet-Address: otherwise a checksummed header misses its own order rows (404).
 _CHECKSUMMED = "0xeb2Ca790F72787c7e61bC6c861353a1e4ACDFCa5"
 _LOWERCASED = _CHECKSUMMED.lower()
 
@@ -28,7 +28,7 @@ def test_checksummed_wallet_resolves_same_scope_as_lowercase() -> None:
 
 
 def test_preserves_solana_address_verbatim() -> None:
-    # Solana addresses are base58 and case-sensitive — normalization MUST NOT lowercase them.
+    # Solana addresses are base58 and case-sensitive: normalization MUST NOT lowercase them.
     sol = "DQyrAcCrDXQ7iiRTHtPhHkjFmh1mVGwXqUL9F4FUe9YN"
     scope = extract_owner_scope({"x-wallet-address": sol})
     assert scope.wallet_address == sol

@@ -1,7 +1,7 @@
 """One-call MPP server setup wrapping the official `pympp` Python package.
 
 Wires Tempo charge, Tempo session (channel-based for variable-cost /
-streaming), and Stripe SPT methods from rail specs — replaces the boilerplate
+streaming), and Stripe SPT methods from rail specs: replaces the boilerplate
 of constructing each method by hand.
 
 Usage::
@@ -26,7 +26,7 @@ Usage::
 Keys are rail names (``"tempo"``, ``"tempo_session"``, ``"stripe"``); values are
 the canonical ``*RailSpec`` instances every other helper also consumes.
 
-`pympp` is an OPTIONAL peer dependency — install only if you accept MPP rails::
+`pympp` is an OPTIONAL peer dependency: install only if you accept MPP rails::
 
     pip install 'pympp[server,tempo,stripe]>=0.6,<1'
 """
@@ -64,11 +64,11 @@ async def _tempo_method(spec: TempoRailSpec) -> Any:
     tempo_module = _import_optional("mpp.methods.tempo")
     tempo_factory = getattr(tempo_module, "tempo", None) if tempo_module else None
     if not callable(tempo_factory):
-        msg = "pympp[tempo] not installed — run `pip install 'pympp[tempo]'` for Tempo MPP rails."
+        msg = "pympp[tempo] not installed: run `pip install 'pympp[tempo]'` for Tempo MPP rails."
         raise ImportError(msg)
     charge_intent_cls = getattr(tempo_module, "ChargeIntent", None) if tempo_module else None
     if charge_intent_cls is None:
-        msg = "pympp[tempo] missing ChargeIntent — upgrade pympp to 0.6+."
+        msg = "pympp[tempo] missing ChargeIntent: upgrade pympp to 0.6+."
         raise ImportError(msg)
     default_currency = USDC.tempo.testnet.address if spec.testnet else USDC.tempo.mainnet.address
     chain_id = 42431 if spec.testnet else (spec.chain_id or 4217)
@@ -109,7 +109,7 @@ async def create_mppx_server(
     ``rails`` keys are rail names (``"tempo"``, ``"tempo_session"``, ``"stripe"``);
     values are the canonical ``*RailSpec`` instances every other helper also
     consumes. Tempo session is reserved for future pympp ``SessionIntent``
-    support — passing it today raises ``ImportError``.
+    support: passing it today raises ``ImportError``.
 
     pympp 0.6 takes a single ``method`` per ``Mpp`` instance. When ``rails`` is
     provided, the first resolvable rail in dict-insertion order wins; merchants
@@ -118,7 +118,7 @@ async def create_mppx_server(
     """
     pympp = _import_optional("mpp.server")
     if pympp is None or not hasattr(pympp, "Mpp"):
-        msg = "pympp not installed — run `pip install 'pympp[server,tempo,stripe]>=0.6,<1'` to use create_mppx_server."
+        msg = "pympp not installed: run `pip install 'pympp[server,tempo,stripe]>=0.6,<1'` to use create_mppx_server."
         raise ImportError(msg)
 
     resolved_method: Any = method
@@ -131,7 +131,7 @@ async def create_mppx_server(
                 break
             if isinstance(spec, TempoSessionRailSpec):
                 msg = (
-                    "pympp[tempo] session support not available — pympp 0.6 has not "
+                    "pympp[tempo] session support not available: pympp 0.6 has not "
                     "shipped a SessionIntent factory yet. Upgrade pympp when it does "
                     "or pass `method=` directly with a hand-built TempoMethod."
                 )
@@ -144,7 +144,7 @@ async def create_mppx_server(
 
     if resolved_method is None:
         msg = (
-            "create_mppx_server called with no method or rails — pass `method=` or a "
+            "create_mppx_server called with no method or rails: pass `method=` or a "
             "non-empty `rails={...}` map keyed by rail name (`tempo`, `tempo_session`, `stripe`)."
         )
         raise ValueError(msg)

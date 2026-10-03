@@ -225,7 +225,7 @@ def test_different_signer_same_identity_rescreens_within_cache_window() -> None:
         client.check(address=WALLET_A, signer={"address": WALLET_C, "network": "evm"})
         second = client.get_signer_verdict(WALLET_A)
 
-    # The 2nd request was NOT served from cache — the API was hit a second time and re-screened.
+    # The 2nd request was NOT served from cache: the API was hit a second time and re-screened.
     assert len(calls) == 2
     assert calls[1]["signer"] == {"address": WALLET_C, "network": "evm"}
     # The verdict slot reflects the SECOND signer's sanctions result, not a stale replay of the 1st.
@@ -236,7 +236,7 @@ def test_different_signer_same_identity_rescreens_within_cache_window() -> None:
 def test_same_signer_same_identity_is_a_cache_hit() -> None:
     """Control for the cache-key change: an identical (identity, signer) pair still hits the cache.
 
-    A repeat of the exact same wallet+signer inside the window must NOT re-hit the API — otherwise
+    A repeat of the exact same wallet+signer inside the window must NOT re-hit the API: otherwise
     the signer-aware key would have defeated caching entirely.
     """
     client = AgentScoreCore(api_key=API_KEY)
@@ -287,7 +287,7 @@ def test_get_signer_verdict_returns_none_when_address_not_cached() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 401 token_expired pass-through — covers both revoked and TTL-expired credentials
+# 401 token_expired pass-through: covers both revoked and TTL-expired credentials
 # (API deliberately doesn't disclose which). The 401 body carries an auto-minted
 # session so agents recover without an API key.
 # ---------------------------------------------------------------------------
@@ -400,7 +400,7 @@ def test_asgi_middleware_surfaces_token_denied_as_granular_denial() -> None:
 
 
 # ---------------------------------------------------------------------------
-# denial_reason_to_body — agent_memory + wallet-signer-match field marshalling
+# denial_reason_to_body: agent_memory + wallet-signer-match field marshalling
 # ---------------------------------------------------------------------------
 
 
@@ -521,7 +521,7 @@ def test_build_missing_identity_reason_hints_probe_strategy() -> None:
 
 
 def test_denial_reason_to_body_omits_agent_memory_on_non_bootstrap_denial() -> None:
-    """wallet_signer_mismatch is post-identity — body must NOT carry an agent_memory hint."""
+    """wallet_signer_mismatch is post-identity: body must NOT carry an agent_memory hint."""
     from agentscore_commerce.identity._response import denial_reason_to_body
     from agentscore_commerce.identity.types import DenialReason
 

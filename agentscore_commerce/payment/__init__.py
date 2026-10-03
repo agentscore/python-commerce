@@ -1,4 +1,4 @@
-"""Payment helpers — networks/usdc/rails registries, paymentauth.org directive builders, dispatch, headers."""
+"""Payment helpers: networks/usdc/rails registries, paymentauth.org directive builders, dispatch, headers."""
 
 from agentscore_commerce.payment.amounts import format_usd_cents, usd_to_atomic
 from agentscore_commerce.payment.compose_rails import build_mppx_compose_rails

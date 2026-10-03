@@ -28,7 +28,7 @@ Peer deps:
     pip install 'agentscore-commerce[fastapi]'
 
 Env vars:
-    AGENTSCORE_API_KEY — your AgentScore API key
+    AGENTSCORE_API_KEY: your AgentScore API key
 
 Run: uvicorn examples.compliance_merchant:app --port 3000
 """

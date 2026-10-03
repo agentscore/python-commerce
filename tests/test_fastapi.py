@@ -63,7 +63,7 @@ class TestDependency:
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 403
         body = resp.json()
-        # FLAT denial document — top-level keys, never nested under "detail".
+        # FLAT denial document: top-level keys, never nested under "detail".
         assert body["error"]["code"] == "wallet_not_trusted"
         assert body["reasons"] == ["kyc_required"]
 
@@ -111,7 +111,7 @@ class TestDependency:
     def test_quota_exceeded_returns_503_when_fail_closed(self):
         """429 from /v1/assess gets dedicated handling; with fail_open=False (default) it
         surfaces as 503 api_error to the buyer with quota-specific contact_merchant
-        instructions (NOT retry_with_backoff — quota won't recover from retry)."""
+        instructions (NOT retry_with_backoff: quota won't recover from retry)."""
         import json as _json
 
         respx.post(ASSESS_URL).mock(return_value=httpx.Response(429))
@@ -385,7 +385,7 @@ class TestCreateSessionOnMissing:
 
     @respx.mock
     def test_unfixable_wallet_denial_returns_bare_wallet_not_trusted(self):
-        # Sanctions / age / jurisdiction_restricted are unfixable — re-verification
+        # Sanctions / age / jurisdiction_restricted are unfixable: re-verification
         # won't change the outcome. Gate should emit bare wallet_not_trusted (no
         # session bootstrap) so the agent surfaces contact-support copy.
         _mock_assess("deny", reasons=["sanctions_flagged"])
@@ -447,7 +447,7 @@ class TestCaptureWallet:
         assert capture_route.call_count == 0
 
     def test_no_ops_when_gate_did_not_run(self):
-        """Handler wired without the gate dependency — capture_wallet must silently no-op."""
+        """Handler wired without the gate dependency: capture_wallet must silently no-op."""
         app = FastAPI()
 
         @app.post("/purchase")
@@ -519,7 +519,7 @@ class TestGetGateQuotaInfo:
 
     @respx.mock
     def test_returns_none_when_api_omits_quota_headers(self):
-        # Enterprise / unlimited tiers don't emit X-Quota-* headers — the gate state
+        # Enterprise / unlimited tiers don't emit X-Quota-* headers: the gate state
         # carries no quota and get_gate_quota_info returns None.
         from agentscore_commerce.identity.fastapi import get_gate_quota_info
 
@@ -580,7 +580,7 @@ def test_fastapi_passes_through_token_expired():
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.get("/", headers={"x-operator-token": "opc_exp"})
     assert resp.status_code == 401
-    # FLAT denial document — top-level keys, never nested under "detail".
+    # FLAT denial document: top-level keys, never nested under "detail".
     body = resp.json()
     assert body["error"]["code"] == "token_expired"
     assert json.loads(body["agent_instructions"]) == {"action": "deliver_verify_url_and_poll"}
@@ -719,7 +719,7 @@ class TestGetSignerVerdictEdgeCases:
         client = TestClient(app)
         resp = client.get("/", headers={"X-Wallet-Address": "0xabc"})
         assert resp.status_code == 200
-        # No signer was extracted (no x402 header), so the verdict is None — but the
+        # No signer was extracted (no x402 header), so the verdict is None: but the
         # client.get_signer_verdict read path (lines 336-339) was exercised.
         assert captured["verdict"] is None
 

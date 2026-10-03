@@ -153,7 +153,7 @@ async def test_reuses_credential_recipient_when_cached() -> None:
             pi_cache=cache,  # type: ignore[arg-type]
         )
     assert result == "0xCACHED"
-    # No mint happened — no addresses cached.
+    # No mint happened: no addresses cached.
     assert cache.cached_addresses == []
 
 
@@ -459,7 +459,7 @@ async def test_credential_missing_recipient_field_raises() -> None:
 
     cache = FakePiCache(has_address_result=True)
     with patch("mpp.Credential", FakeCredential), pytest.raises(CheckoutValidationError) as exc:
-        # FakeCredential.from_authorization splits on ':' — empty recipient after method.
+        # FakeCredential.from_authorization splits on ':': empty recipient after method.
         await create_pay_to_address_from_stripe_pi(
             authorization_header="Payment tempo:",
             amount_cents=100,

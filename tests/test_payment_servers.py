@@ -3,7 +3,7 @@
 The prior mock-based suite tracked x402 2.8 / pympp pre-release internal layout
 (``x402.servers``, ``HTTPFacilitatorClient``, ``Mppx``, ``charge(currency=...)``).
 x402 2.9 + pympp 0.6 shipped breaking refactors so the mocks no longer reflect
-reality. We now run against the actually-installed peer deps — the tests skip
+reality. We now run against the actually-installed peer deps: the tests skip
 when the deps aren't present so the suite still runs in minimal envs.
 """
 
@@ -68,7 +68,7 @@ async def test_create_x402_server_registers_base_sepolia_scheme() -> None:
 @pytest.mark.asyncio
 async def test_create_x402_server_coinbase_facilitator_wires_cdp_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
     """``facilitator="coinbase"`` builds an HTTPFacilitatorClient pointed at the
-    CDP URL with a per-endpoint JWT auth provider — not a bare in-process facilitator.
+    CDP URL with a per-endpoint JWT auth provider: not a bare in-process facilitator.
 
     This is the regression that 1.3.2 fixes: 1.3.0 + 1.3.1 both passed an empty
     ``x402Facilitator()`` instance and silently failed downstream when
@@ -149,7 +149,7 @@ def test_build_x402_accepts_for_402_returns_dicts_from_typed_requirements() -> N
     assert len(accepts) == 1
     assert isinstance(accepts[0], dict)
     assert accepts[0]["network"] == "eip155:8453"
-    # Camel-case keys (by_alias=True) — facilitator + clients expect this shape.
+    # Camel-case keys (by_alias=True): facilitator + clients expect this shape.
     assert accepts[0]["payTo"] == "0x000000000000000000000000000000000000dEaD"
     assert accepts[0]["maxTimeoutSeconds"] == 300
     assert accepts[0]["extra"] == {"name": "USD Coin", "version": "2"}

@@ -181,7 +181,7 @@ class AgentScoreMiddleware:
         identity = self._extract_identity(request)
 
         # Stash state so capture_wallet() can read operator_token + client after the view runs.
-        setattr(  # noqa: B010 — dynamic attribute attach on HttpRequest
+        setattr(  # noqa: B010  # dynamic attribute attach on HttpRequest
             request,
             "_agentscore_gate",
             {
@@ -213,7 +213,7 @@ class AgentScoreMiddleware:
             if recovered is not None:
                 signer_payload = {"address": recovered.address, "network": recovered.network}
 
-        # Only check_identity is wrapped — get_response (which runs the downstream view) must
+        # Only check_identity is wrapped: get_response (which runs the downstream view) must
         # NOT be in the try, otherwise an exception in the user's view would be misclassified
         # as an AgentScore infra failure and (under fail_open) re-invoke their view.
         try:
@@ -226,7 +226,7 @@ class AgentScoreMiddleware:
             reason = build_token_denied_reason(err)
             return self._on_denied(request, reason)
         except InvalidCredentialError:
-            # Permanent — no auto-session, agent should switch tokens or restart.
+            # Permanent: no auto-session, agent should switch tokens or restart.
             return self._on_denied(request, build_invalid_credential_reason())
         except QuotaExceededError:
             if self._client.fail_open:
@@ -255,7 +255,7 @@ class AgentScoreMiddleware:
             _handle_state["operator_handle"] = self._client.project_operator_handle(result.raw)
 
         if result.allow:
-            setattr(request, "agentscore", result.raw)  # noqa: B010 — dynamic attribute attach on HttpRequest
+            setattr(request, "agentscore", result.raw)  # noqa: B010  # dynamic attribute attach on HttpRequest
             state = getattr(request, "_agentscore_gate", None)
             if isinstance(state, dict):
                 if result.quota is not None:
@@ -273,7 +273,7 @@ class AgentScoreMiddleware:
         # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
         # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
         # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
-        # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+        # verified (the user's KYC'd country is in the blocked list: re-doing KYC
         # won't change the country).
         if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
             session_reason = try_create_session_denial_reason_sync(
@@ -300,7 +300,7 @@ def get_signer_verdict(request: HttpRequest) -> SignerVerdict | None:
     credential, or for fail-open pass-throughs (no assess call).
 
     Reads the request-scoped verdict stashed by the gate (projected from THIS request's
-    assess response) — concurrency-safe against a sibling same-wallet request.
+    assess response): concurrency-safe against a sibling same-wallet request.
     """
     state = getattr(request, "_agentscore_gate", None)
     if not isinstance(state, dict):
@@ -342,7 +342,7 @@ class ConditionalAgentScoreMiddleware(AgentScoreMiddleware):
 
     Discovery legs flow through; settle legs trigger the full gate.
 
-    Settings shape is identical to :class:`AgentScoreMiddleware` — the
+    Settings shape is identical to :class:`AgentScoreMiddleware`: the
     ``AGENTSCORE_GATE`` dict's ``condition`` key is overwritten with the
     payment-header check.
 
@@ -359,7 +359,7 @@ class ConditionalAgentScoreMiddleware(AgentScoreMiddleware):
 
 
 # ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
 # from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
 # merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
 # Django (WSGI) has no request object the async verifier accepts directly, so the middleware
@@ -474,7 +474,7 @@ class ConditionalAipGateMiddleware(AipGateMiddleware):
 
     Requests without an ``Agent-Identity`` header flow through unauthenticated; requests that
     carry one must pass full verification. Settings shape is identical to
-    :class:`AipGateMiddleware` — the ``AGENTSCORE_AIP_GATE`` dict's ``condition`` key is
+    :class:`AipGateMiddleware`: the ``AGENTSCORE_AIP_GATE`` dict's ``condition`` key is
     overwritten with the ``Agent-Identity`` header check.
     """
 

@@ -120,7 +120,7 @@ class AgentScoreCore:
         default_ua = f"agentscore-commerce/{_pkg_version('agentscore-commerce')}"
         self.user_agent = f"{user_agent} ({default_ua})" if user_agent else default_ua
         self._cache: TTLCache[AssessResult] = TTLCache(cache_seconds)
-        # Parallel cache of the raw /v1/assess response dict — populated alongside the
+        # Parallel cache of the raw /v1/assess response dict: populated alongside the
         # projected AssessResult cache (same signer-aware key) so a fresh response for a new
         # signer never overwrites another signer's raw blob. Same TTL semantics as _cache.
         # Signer verdicts (signer_match + signer_sanctions) from the most recent assess call that
@@ -130,7 +130,7 @@ class AgentScoreCore:
         # cache_seconds=0 the entry expires within the same tick, which would non-deterministically
         # drop the verdict and let a signer-mismatch fall through to settlement). The slot always
         # holds the LATEST signer's verdict, so a 2nd request with a different signer (a cache miss
-        # under the signer-aware key) overwrites it — get_signer_verdict can never return a verdict
+        # under the signer-aware key) overwrites it: get_signer_verdict can never return a verdict
         # computed for a stale signer. Mirrors the reference `lastSignerRaw`.
         self._last_signer_raw: dict[str, dict[str, Any]] = {}
 
@@ -181,7 +181,7 @@ class AgentScoreCore:
         if aip_token:
             identity_key = f"aip:{hashlib.sha256(aip_token.encode()).hexdigest()}"
         elif operator_token:
-            # operator_token is opaque ASCII — lowercasing is safe.
+            # operator_token is opaque ASCII: lowercasing is safe.
             identity_key = operator_token.lower()
         else:
             # Wallet addresses go through normalize_address so Solana base58 (case-sensitive)
@@ -191,7 +191,7 @@ class AgentScoreCore:
         # per-request signer_match + signer_sanctions verdicts (and the unconditional signer-OFAC
         # screen) are computed for THIS signer; without the signer in the key, a 2nd request that
         # claims the same identity but signs with a DIFFERENT wallet would hit the cache and return
-        # the prior signer's verdict — a sanctioned signer could ride a stale `clear` to settlement.
+        # the prior signer's verdict: a sanctioned signer could ride a stale `clear` to settlement.
         # Keying on the normalized signer makes a different signer a cache MISS that re-screens.
         # Requests with no signer keep the identity-only key (operator-token / discovery legs).
         # Every part is percent-encoded (delimiter-proof): the claimed X-Wallet-Address is
@@ -215,7 +215,7 @@ class AgentScoreCore:
     ) -> dict[str, Any]:
         """Construct the assess request body.
 
-        Testable helper for the policy/chain wiring contract — pinned so a future SDK
+        Testable helper for the policy/chain wiring contract: pinned so a future SDK
         body-shape regression would fail the gate's own tests as well.
         """
         body: dict[str, Any] = {}
@@ -241,7 +241,7 @@ class AgentScoreCore:
     def _headers(self) -> dict[str, str]:
         """Construct the canonical assess request headers.
 
-        Testable helper for the X-API-Key + User-Agent contract — pinned independently
+        Testable helper for the X-API-Key + User-Agent contract: pinned independently
         so a regression on either header would fail the gate's own tests.
         """
         return {
@@ -276,7 +276,7 @@ class AgentScoreCore:
                 raise InvalidCredentialError()
             if code:
                 _log.warning(
-                    "[gate] /v1/assess returned 401 %s — no specific handler, surfacing as RuntimeError.",
+                    "[gate] /v1/assess returned 401 %s: no specific handler, surfacing as RuntimeError.",
                     code,
                 )
             msg = f"AgentScore API returned {status}"
@@ -401,7 +401,7 @@ class AgentScoreCore:
             # mock or proxy returning bare `429` falls through to generic. Reroute by
             # status_code so the gate's fail_open path still surfaces 'quota_exceeded'.
             if exc.status_code == 429:
-                _log.warning("[gate] /v1/assess returned 429 (untyped — defensive)")
+                _log.warning("[gate] /v1/assess returned 429 (untyped: defensive)")
                 raise QuotaExceededError("quota_exceeded") from exc
             # Wraps any other 401 (schema drift), 5xx, network errors, body-parse failures.
             # Surface code so ops notice schema-drift cases instead of a silent 503.
@@ -465,7 +465,7 @@ class AgentScoreCore:
             raise httpx.TimeoutException(str(exc)) from exc
         except AgentScoreError as exc:
             if exc.status_code == 429:
-                _log.warning("[gate] /v1/assess returned 429 (untyped — defensive)")
+                _log.warning("[gate] /v1/assess returned 429 (untyped: defensive)")
                 raise QuotaExceededError("quota_exceeded") from exc
             _log.warning("[gate] /v1/assess call failed (%s): %s", exc.code, exc)
             # Message format pinned for downstream merchant log scrapers.
@@ -532,7 +532,7 @@ class AgentScoreCore:
 
         Keyed by the normalized claimed wallet address. ONLY when the wallet is the EFFECTIVE
         identity (no operator_token, no aip_token) AND a signer was supplied AND the response
-        actually carried signer verdicts — matching the gate's enforcement guard. With an
+        actually carried signer verdicts: matching the gate's enforcement guard. With an
         operator-token / AIT present, that identity wins and signer-match is deliberately NOT
         enforced, so we must not surface a verdict for that wallet. Mirrors the reference implementation.
         """
@@ -567,10 +567,10 @@ class AgentScoreCore:
         """Project ``signer_match`` + ``signer_sanctions`` from a SPECIFIC raw assess response.
 
         Pure / request-scoped: takes the exact ``/v1/assess`` response dict THIS request got
-        (``AssessResult.raw``) and the claimed wallet — it reads NO shared state. Adapters call
+        (``AssessResult.raw``) and the claimed wallet: it reads NO shared state. Adapters call
         this with their per-request raw and stash the result on the per-request state, so two
         concurrent requests that claim the same wallet but sign with different wallets each see
-        their OWN verdict (the shared ``_last_signer_raw`` slot would race — see
+        their OWN verdict (the shared ``_last_signer_raw`` slot would race: see
         :meth:`get_signer_verdict`). Returns ``None`` when the response carried no signer
         verdicts (operator-token-only paths, discovery legs).
         """
@@ -596,13 +596,13 @@ class AgentScoreCore:
         """Synchronous read of the cached signer verdicts (signer_match + signer_sanctions).
 
         Both verdicts were composed by the gate's primary /v1/assess call on this
-        request — single round trip. Returns ``None`` when the gate didn't run with
+        request: single round trip. Returns ``None`` when the gate didn't run with
         a signer (operator-token-only paths, discovery legs).
 
         Reads the dedicated, non-expiring signer slot (keyed by normalized claimed address),
         which holds the LATEST signer's verdict for that wallet. NOTE: this slot lives on the
         SHARED core (the gate is module-scoped), so under concurrency two requests claiming the
-        same wallet with DIFFERENT signers race here — the verdict you read may have been
+        same wallet with DIFFERENT signers race here: the verdict you read may have been
         computed for the other request's signer. Adapters therefore do NOT use this method for
         per-request enforcement; they stash the request-scoped verdict (projected from THIS
         request's ``AssessResult.raw`` via :meth:`project_signer_verdict`) on the per-request
@@ -611,7 +611,7 @@ class AgentScoreCore:
         compatibility.
 
         Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the
-        request — SDN wallet-address hits are already enforced by the gate
+        request: SDN wallet-address hits are already enforced by the gate
         (decision -> deny before the handler runs); merchant code typically only
         needs this for the signer_match wallet-binding verdict.
         """
@@ -709,7 +709,7 @@ class QuotaExceededError(RuntimeError):
 
     Distinct from a generic 5xx so adapters with ``fail_open=True`` can surface
     ``infra_reason='quota_exceeded'`` to merchant logs/alerts. Compliance denials
-    are unaffected — those still deny regardless of fail_open.
+    are unaffected: those still deny regardless of fail_open.
 
     Subclasses ``RuntimeError`` so a broad ``except RuntimeError`` still catches the
     429 case; specific code that wants to distinguish 429 from generic 5xx catches
@@ -720,7 +720,7 @@ class QuotaExceededError(RuntimeError):
 class TokenDeniedError(Exception):
     """Raised when /v1/assess returns 401 token_expired.
 
-    Covers both revoked and TTL-expired credentials — the API does not distinguish; it doesn't
+    Covers both revoked and TTL-expired credentials: the API does not distinguish; it doesn't
     disclose which. Carries the full response body so the adapter can forward the
     auto-minted session fields (verify_url, session_id, poll_secret, poll_url,
     next_steps, agent_memory) to the agent instead of collapsing to wallet_not_trusted.
@@ -750,7 +750,7 @@ def build_token_denied_reason(err: TokenDeniedError) -> DenialReason:
     )
 
 
-# Permanent — the operator_token doesn't exist (typo, never minted, fabricated).
+# Permanent: the operator_token doesn't exist (typo, never minted, fabricated).
 # Distinct from TokenDeniedError: no auto-session is issued because the agent may
 # have other valid tokens to try first. Agents should switch tokens or drop the
 # header to bootstrap a fresh session.
@@ -759,9 +759,9 @@ INVALID_CREDENTIAL_INSTRUCTIONS = json.dumps(
         "action": "switch_token_or_restart_session",
         "steps": [
             "The X-Operator-Token you sent does not match any credential. This is a permanent "
-            "state — retrying with the same token will keep failing.",
+            "state: retrying with the same token will keep failing.",
             "If you have other stored opc_... credentials, retry with one of them.",
-            "Otherwise drop X-Operator-Token and retry with no identity header — the merchant "
+            "Otherwise drop X-Operator-Token and retry with no identity header: the merchant "
             "will mint a fresh verification session in the 403 body (verify_url + poll_secret) "
             "so the user can re-verify and you can poll for a new operator_token.",
         ],
@@ -777,7 +777,7 @@ class InvalidCredentialError(Exception):
     """Raised when /v1/assess returns 401 invalid_credential.
 
     The token doesn't exist at all (typo, never minted, fabricated). No auto-session
-    is issued — agents should switch to a different stored token or drop the header
+    is issued: agents should switch to a different stored token or drop the header
     to bootstrap a fresh session via the merchant's createSessionOnMissing path.
     """
 
@@ -789,7 +789,7 @@ class InvalidCredentialError(Exception):
 def build_invalid_credential_reason() -> DenialReason:
     """Project an InvalidCredentialError into a DenialReason.
 
-    No session fields — the API didn't mint one. Adapters render this as a 403 with
+    No session fields: the API didn't mint one. Adapters render this as a 403 with
     agent_instructions that point the agent at recovery (try a different token or
     restart the session flow).
     """

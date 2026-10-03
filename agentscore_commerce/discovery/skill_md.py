@@ -1,10 +1,10 @@
-"""skill.md renderer — agentskills.io-compatible agent-discovery surface.
+"""skill.md renderer: agentskills.io-compatible agent-discovery surface.
 
 Emits a YAML-frontmatter + markdown body manifest describing a merchant's agent-facing
 contract: payment rails, compatible clients per rail, identity requirements as outcomes,
 shipping policy, endpoints, triggers, support links.
 
-Renders strictly agent-facing data — only the public payment/identity contract an agent
+Renders strictly agent-facing data: only the public payment/identity contract an agent
 needs to act on. Merchant runtime configuration is not part of this shape.
 
 Spec compliance (https://agentskills.io/specification):
@@ -17,7 +17,7 @@ Spec compliance (https://agentskills.io/specification):
 
 The compatible-clients-per-rail table sources from the same SDK constant
 (``compatible_clients_by_rails`` in ``challenge.agent_instructions``) that drives the live
-402 body's ``compatible_clients`` field — single source of truth across surfaces.
+402 body's ``compatible_clients`` field: single source of truth across surfaces.
 """
 
 import re
@@ -54,7 +54,7 @@ class SkillMdEndpoint(TypedDict):
 class SkillMdIdentityRequirements(TypedDict, total=False):
     """Agent-observable identity requirements only (kyc / age / jurisdictions / sanctions).
 
-    Merchant runtime configuration is not part of this shape — agents act on outcomes,
+    Merchant runtime configuration is not part of this shape: agents act on outcomes,
     not implementation.
     """
 
@@ -380,7 +380,7 @@ def build_skill_md(
     Output is YAML frontmatter (``name`` / ``description`` / optional ``license`` /
     ``compatibility`` / ``allowed-tools`` / ``metadata``) followed by markdown sections
     describing payment rails, identity requirements, endpoints, triggers, and support
-    links — exactly the agent-facing contract.
+    links: exactly the agent-facing contract.
     """
     ctx = _SkillCtx(
         name=name,

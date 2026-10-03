@@ -1,4 +1,4 @@
-"""Discovery helpers — probe responder, Bazaar payload builder, .well-known/mpp.json, llms.txt, OpenAPI snippets."""
+"""Discovery helpers: probe responder, Bazaar payload builder, .well-known/mpp.json, llms.txt, OpenAPI snippets."""
 
 from agentscore_commerce.discovery.agentscore_content import (
     PURCHASE_MODE_NOTES,

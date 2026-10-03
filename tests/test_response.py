@@ -1,6 +1,6 @@
 """Tests for the shared denial-body marshaller.
 
-Covers the fallback agent_instructions injection added in PR-fix-wallet-not-trusted —
+Covers the fallback agent_instructions injection added in PR-fix-wallet-not-trusted:
 every denial code that doesn't already get instructions from the gate must come out
 of ``denial_reason_to_body`` with a machine-readable next-step block.
 """
@@ -67,7 +67,7 @@ def test_explicit_agent_instructions_takes_precedence_over_default() -> None:
 def test_api_error_emits_retry_with_backoff_instructions() -> None:
     # api_error denials get a structured agent_instructions block with retry-with-backoff
     # guidance so agents distinguish transient AgentScore-side issues from compliance denials.
-    # agent_instructions is the single retry channel — no separate next_steps block.
+    # agent_instructions is the single retry channel: no separate next_steps block.
     body = denial_reason_to_body(DenialReason(code="api_error"))
     assert "agent_instructions" in body
     instructions = json.loads(body["agent_instructions"])
@@ -138,5 +138,5 @@ def test_extra_passes_through_but_reserved_fields_are_dropped() -> None:
         )
     )
     assert body["order_id"] == "ord_2"
-    # `verify_url` is reserved — the hook value is ignored, not echoed.
+    # `verify_url` is reserved: the hook value is ignored, not echoed.
     assert body.get("verify_url") != "https://phish.example"

@@ -64,7 +64,7 @@ def build_mppx_compose_rails(
             rail). Default ``True``.
 
             Stripe's documented USD minimum is $0.50 because the fixed
-            processing fee (~$0.30) exceeds revenue below that — sub-50-cent
+            processing fee (~$0.30) exceeds revenue below that: sub-50-cent
             charges that DO go through still cost the merchant money (a
             $0.11 PI nets -$0.19 after fees). Some Stripe accounts also
             reject PI creation under the floor with ``amount_too_small``.
@@ -75,7 +75,7 @@ def build_mppx_compose_rails(
 
     Raises:
         ValueError: when Solana is requested but ``amount_usd`` can't convert
-        to atomic — merchants should catch and return a 402 to drop the rail
+        to atomic: merchants should catch and return a 402 to drop the rail
         rather than crash the request.
     """
     rails: list[tuple[str, dict[str, Any]]] = []

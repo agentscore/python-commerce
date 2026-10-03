@@ -8,10 +8,10 @@ headers) live in one place.
 
 Two entry points, mirroring the the reference ``aip/request`` module:
 
-* :func:`build_verify_context_from_request` — for frameworks that expose a request object with
+* :func:`build_verify_context_from_request`: for frameworks that expose a request object with
   ``method`` / ``url`` / ``headers`` (Starlette, FastAPI, aiohttp, Sanic, …). The node analog
   takes a WHATWG ``Request``.
-* :func:`build_verify_context_from_parts` — for frameworks that hand you raw pieces (a header
+* :func:`build_verify_context_from_parts`: for frameworks that hand you raw pieces (a header
   mapping + method + URL/target), e.g. Flask/Django/WSGI. The node analog takes a Node-style
   header map.
 
@@ -107,7 +107,7 @@ def _read_agent_identity_headers(headers: HeadersLike) -> list[str]:
     Mirrors the reference ``readAgentIdentityHeaders``. Node reads the WHATWG ``Headers.get`` value
     (which comma-folds repeats) and splits on ``,``. Starlette's ``Headers.get`` returns only
     the first match, so we prefer ``getlist`` to recover every repeated header, then split each
-    on ``,`` as well — this yields the identical AIT set whether the proxy folded the headers
+    on ``,`` as well: this yields the identical AIT set whether the proxy folded the headers
     into one line or kept them separate.
     """
     getlist = getattr(headers, "getlist", None)
@@ -182,7 +182,7 @@ def _read_mapping_header(headers: Mapping[str, str | list[str] | None], name: st
 def has_agent_identity_header_parts(headers: Mapping[str, str | list[str] | None]) -> bool:
     """True when a plain header mapping carries an ``Agent-Identity`` header.
 
-    Mirrors the reference ``hasAgentIdentityHeaderNode`` — used by adapters (Flask/Django/WSGI) that
+    Mirrors the reference ``hasAgentIdentityHeaderNode``: used by adapters (Flask/Django/WSGI) that
     pass a raw header mapping rather than a request object.
     """
     raw = _read_mapping_header(headers, AGENT_IDENTITY_HEADER)
@@ -195,11 +195,11 @@ def build_verify_context_from_parts(parts: VerifyContextParts) -> VerifyRequestC
     For frameworks that don't expose a request object (Flask/Django/WSGI). The node analog takes
     Express/Fastify-style parts. ``parts`` carries:
 
-    * ``method`` — the HTTP method.
-    * ``url`` — full request URL, or just the origin-form target (``"/checkout?..."``); used to
+    * ``method``: the HTTP method.
+    * ``url``: full request URL, or just the origin-form target (``"/checkout?..."``); used to
       derive ``@path``.
-    * ``headers`` — a Node-style header mapping (values ``str`` / ``list[str]`` / ``None``).
-    * ``authority`` (optional) — authority override; falls back to the ``host`` header.
+    * ``headers``: a Node-style header mapping (values ``str`` / ``list[str]`` / ``None``).
+    * ``authority`` (optional): authority override; falls back to the ``host`` header.
     """
     from agentscore_commerce.aip.verify import VerifyRequestContext
 
@@ -215,7 +215,7 @@ def build_verify_context_from_parts(parts: VerifyContextParts) -> VerifyRequestC
 
     # ``url`` may be an absolute URL or an origin-form target ("/checkout?...", possibly "//x").
     # Build the URL by APPENDING the target to the origin (not resolving it as a reference) so a
-    # leading "//" is treated as PATH — resolving "//x" against a base mis-reads it as a
+    # leading "//" is treated as PATH: resolving "//x" against a base mis-reads it as a
     # protocol-relative authority and drops it, diverging from the signer's ``URL.pathname`` and
     # failing PoP. Always assigned in both branches below.
     path: str

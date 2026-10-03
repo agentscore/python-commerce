@@ -1,4 +1,4 @@
-"""how_to_pay block builder — per-rail setup/command/what_it_does for 402 agent_instructions."""
+"""how_to_pay block builder: per-rail setup/command/what_it_does for 402 agent_instructions."""
 
 import math
 from typing import Any
@@ -43,7 +43,7 @@ async def build_how_to_pay(
     retry_body_json: str,
     total_usd: float | str,
     rails: dict[str, TempoRailSpec | X402BaseRailSpec | SolanaMppRailSpec | StripeRailSpec],
-    op_token_placeholder: str | None = "<your_opc_token>",  # noqa: S107 — literal placeholder, not a secret
+    op_token_placeholder: str | None = "<your_opc_token>",  # noqa: S107  # literal placeholder, not a secret
     max_spend: float | str | None = None,
     decimals: int = 2,
 ) -> dict[str, Any]:
@@ -65,7 +65,7 @@ async def build_how_to_pay(
 
     ``op_token_placeholder`` defaults to ``"<your_opc_token>"``. Pass ``None``
     (gateless merchants) to strip the ``-H 'X-Operator-Token: ...'`` snippet
-    from every rail command — appropriate when the merchant doesn't run an
+    from every rail command: appropriate when the merchant doesn't run an
     identity gate. The always-on wallet OFAC SDN default does NOT need an
     operator token, so gateless merchants emit cleaner commands.
     """

@@ -20,13 +20,13 @@ def test_hex_format_attempts_construction() -> None:
         result = load_solana_fee_payer(hex_key)
         assert result is not None
     except ImportError:
-        # solders not installed in this env — branch was exercised
+        # solders not installed in this env: branch was exercised
         pass
 
 
 def test_base58_format_attempts_construction() -> None:
     """Non-hex string falls through to base58 path."""
-    # solders/base58 missing OR decoded length unexpected — branch exercised either way
+    # solders/base58 missing OR decoded length unexpected: branch exercised either way
     with contextlib.suppress(ImportError, ValueError):
         # 32-byte secret encoded as base58 (Phantom secret-only format)
         load_solana_fee_payer("5Kd3NBUAdUnhyzenEwVLy9pBKxSwXvE9FMPyR4UKZvpu")
@@ -34,7 +34,7 @@ def test_base58_format_attempts_construction() -> None:
 
 def test_base58_with_invalid_decoded_length_raises_value_error() -> None:
     """Base58 strings that decode to !=32 and !=64 bytes raise ValueError."""
-    # 'aaa' decodes to 2 bytes — not 32 or 64
+    # 'aaa' decodes to 2 bytes: not 32 or 64
     with contextlib.suppress(ValueError, ImportError):
         load_solana_fee_payer("aaa")
 

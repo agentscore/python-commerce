@@ -552,7 +552,7 @@ class TestFlaskCaptureWallet:
         from agentscore_commerce.identity.flask import capture_wallet
 
         app = Flask(__name__)  # no gate registered
-        # App context but no request context — Flask's `g` is only meaningful inside a request.
+        # App context but no request context: Flask's `g` is only meaningful inside a request.
         with (
             app.app_context(),
             patch("agentscore_commerce.identity.flask.AgentScoreCore.capture_wallet") as mock_capture,

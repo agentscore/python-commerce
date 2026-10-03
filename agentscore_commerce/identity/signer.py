@@ -26,7 +26,7 @@ _EVM_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 def extract_x402_signer(x402_payment_header: str | None) -> str | None:
     """Decode an x402 ``payment-signature`` / ``x-payment`` header and return the signer.
 
-    Currently extracts EVM (EIP-3009) signers only — see module docstring for why
+    Currently extracts EVM (EIP-3009) signers only: see module docstring for why
     Solana extraction is left to callers. Returns ``None`` when the header is
     missing, malformed, or the rail isn't EVM x402.
     """

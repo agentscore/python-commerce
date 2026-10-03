@@ -13,7 +13,7 @@ Peer deps:
     pip install 'agentscore-commerce[fastapi,stripe]'
 
 Env vars:
-    STRIPE_SECRET_KEY — sk_live_... or sk_test_...
+    STRIPE_SECRET_KEY: sk_live_... or sk_test_...
 
 Run: uvicorn examples.stripe_multichain_merchant:app --port 3000
 """
@@ -56,7 +56,7 @@ async def checkout(body: dict) -> dict:
     )
 
     # 2. Return per-network deposit addresses to the agent (or 402 with
-    # addresses embedded — see multi_rail_merchant.py for the full 402-builder
+    # addresses embedded: see multi_rail_merchant.py for the full 402-builder
     # pattern).
     amount_usd = body["amount_usd"]
     tempo = result.deposit_addresses.get("tempo")
@@ -78,7 +78,7 @@ async def checkout(body: dict) -> dict:
 # ── Testnet helper: simulate a deposit landing on a PI ──────────────────────
 # Useful for end-to-end testing without real on-chain transfers. For the
 # typical "fire after PI mint if sk_test_" pattern, prefer
-# `simulate_deposit_if_test_mode` which gates internally — see
+# `simulate_deposit_if_test_mode` which gates internally: see
 # multi_rail_merchant.py.
 @app.post("/testnet/simulate-deposit")
 async def simulate_deposit(body: dict) -> dict:

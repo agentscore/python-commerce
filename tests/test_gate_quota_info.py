@@ -70,7 +70,7 @@ def test_django_get_gate_quota_info_returns_none_when_absent() -> None:
 
     request = MagicMock()
     request._agentscore_gate = None  # type: ignore[assignment]
-    # Attribute may not exist at all — getattr default.
+    # Attribute may not exist at all: getattr default.
     delattr(request, "_agentscore_gate")
     assert get_gate_quota_info(request) is None
 

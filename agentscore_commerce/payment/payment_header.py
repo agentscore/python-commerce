@@ -1,6 +1,6 @@
 """Detect whether a request is a settle leg (carries a payment credential).
 
-The complement is a discovery leg — no credential, expects a 402.
+The complement is a discovery leg: no credential, expects a 402.
 
 Used by the gate-conditional mount pattern: mount ``AgentScoreGate`` on a route
 only when payment is being attempted, so the discovery leg flows through
@@ -8,9 +8,9 @@ unauthenticated and gets a 402 with all rails.
 
 Three credential channels are checked:
 
-- ``Payment-Signature`` — MPP credentials (Tempo, Solana, Stripe SPT)
-- ``X-Payment`` — x402 v1 EIP-3009 credentials
-- ``Authorization: Payment <jwt>`` — x402 v2 / paymentauth.org credentials
+- ``Payment-Signature``: MPP credentials (Tempo, Solana, Stripe SPT)
+- ``X-Payment``: x402 v1 EIP-3009 credentials
+- ``Authorization: Payment <jwt>``: x402 v2 / paymentauth.org credentials
 """
 
 from __future__ import annotations
@@ -178,7 +178,7 @@ def malformed_payment_credential(request_or_headers: Any) -> MalformedPaymentCre
 
     This is deliberately a SHAPE check only. Signature verification, payTo
     binding, and challenge validation stay where they are (the x402 validator
-    and the MPP settle path) — those need per-request state the hooks produce.
+    and the MPP settle path): those need per-request state the hooks produce.
     A well-formed-but-invalid credential still reaches the real validators and
     fails there.
 

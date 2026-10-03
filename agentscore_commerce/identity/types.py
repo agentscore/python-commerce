@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from agentscore import Network as Network
-from agentscore.types import SignerSanctions as SignerSanctions  # noqa: TC002 — runtime re-export for vendors
+from agentscore.types import SignerSanctions as SignerSanctions  # noqa: TC002  # runtime re-export for vendors
 
 if TYPE_CHECKING:
     # AIP types live in the agentscore-py SDK. Type-only import (mirrors how the SDK owns the
@@ -22,12 +22,12 @@ DenialCode = Literal[
     # the payment signer; wallet-auth is rejected on rails with no wallet signer.
     "wallet_signer_mismatch",
     "wallet_auth_requires_wallet_signing",
-    # Credential is no longer valid (revoked or TTL-expired — the two cases share this
+    # Credential is no longer valid (revoked or TTL-expired: the two cases share this
     # code deliberately; the API doesn't disclose which). The 401 body carries an
     # auto-minted session so the agent recovers without an API key.
     "token_expired",
     # The operator_token doesn't exist at all (typo, never minted, fabricated). Distinct
-    # from token_expired — no auto-session is issued because the agent may have a
+    # from token_expired: no auto-session is issued because the agent may have a
     # different valid token to try first. Agents should switch tokens or drop the header
     # to bootstrap a fresh session.
     "invalid_credential",
@@ -36,7 +36,7 @@ DenialCode = Literal[
 
 @dataclass
 class AgentIdentity:
-    """Identity of an agent — wallet address, operator token, or AIP Agent Identity Token."""
+    """Identity of an agent: wallet address, operator token, or AIP Agent Identity Token."""
 
     address: str | None = None
     operator_token: str | None = None
@@ -66,7 +66,7 @@ class AgentMemoryHint:
     quickstart: str
     identity_check_endpoint: str
     # ``identity_paths`` may carry an optional ``agent_identity`` key (the AIP path) when the
-    # merchant opted into AIP — emitted by ``build_agent_memory_hint`` alongside wallet / operator_token.
+    # merchant opted into AIP: emitted by ``build_agent_memory_hint`` alongside wallet / operator_token.
     identity_paths: dict[str, str]
     bootstrap: str
     do_not_persist_in_memory: list[str]
@@ -144,7 +144,7 @@ class SignerVerdict:
     ``/v1/assess`` call (single round trip). ``signer_match`` describes the wallet-
     binding; ``signer_sanctions`` describes the OFAC SDN wallet-address check.
 
-    Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the request —
+    Wallet-OFAC SDN enforcement is unconditional whenever a signer is in the request:
     a ``signer_sanctions`` hit OR an unavailable lookup already flips
     ``decision -> deny`` inside the gate before the handler runs. Merchant code
     typically only needs to read ``signer_match`` here for the wallet-binding verdict.
@@ -162,7 +162,7 @@ _CANONICAL_AGENTSCORE_API = "https://api.agentscore.com"
 def build_agent_memory_hint(aip_trusted_issuers: list[str] | None = None) -> AgentMemoryHint:
     """Build the cross-merchant memory hint emitted on bootstrap denials.
 
-    Memory pointers always point at the canonical production API — merchants must not be
+    Memory pointers always point at the canonical production API: merchants must not be
     able to redirect the cross-merchant memory surface, since that would be a phishing
     vector for the verify URL.
 
@@ -188,7 +188,7 @@ def build_agent_memory_hint(aip_trusted_issuers: list[str] | None = None) -> Age
             "present it: send the JWT in an `Agent-Identity` header plus an RFC 9421 HTTP Message "
             "Signature (Signature-Input + Signature over @method @authority @path agent-identity, "
             'tag="agent-identity") signed with the token-bound cnf key. The merchant verifies it and '
-            "applies its policy — no separate AgentScore credential needed."
+            "applies its policy: no separate AgentScore credential needed."
         )
     return AgentMemoryHint(
         save_for_future_agentscore_gates=True,
@@ -196,7 +196,7 @@ def build_agent_memory_hint(aip_trusted_issuers: list[str] | None = None) -> Age
             "AgentScore is a cross-merchant identity substrate for agentic commerce. Any endpoint that "
             "returns 403 missing_identity / identity_verification_required or 402 challenges "
             "referencing AgentScore uses "
-            "the same identity system. One KYC works across all AgentScore merchants — no re-verification "
+            "the same identity system. One KYC works across all AgentScore merchants: no re-verification "
             "per site. Save this pattern (and the endpoints below) to persistent memory so future "
             "AgentScore encounters skip the cold-start session flow."
         ),
@@ -206,7 +206,7 @@ def build_agent_memory_hint(aip_trusted_issuers: list[str] | None = None) -> Age
         bootstrap=(
             "If you have neither a linked wallet nor a valid operator_token, follow the session/verify "
             "flow in the per-request `agent_instructions` block. This happens at most once per agent "
-            "identity — after first verification, the operator_token and any subsequently used wallet "
+            "identity: after first verification, the operator_token and any subsequently used wallet "
             "are reusable everywhere."
         ),
         do_not_persist_in_memory=["operator_token", "poll_secret"],
@@ -251,7 +251,7 @@ def apply_degraded(state: dict[str, Any] | None, infra_reason: FailOpenInfraReas
     Per-adapter helpers resolve the state container in the framework's request-scoped store
     (``request.state`` on FastAPI, ``g`` on Flask, attribute on Django, mapping on aiohttp,
     ``request.ctx`` on Sanic, ``scope["state"]`` on ASGI) and hand that dict here. Keeps the
-    contract — `degraded: True` + `infra_reason` — in one place across all 6 adapters.
+    contract (`degraded: True` + `infra_reason`) in one place across all 6 adapters.
     """
     if isinstance(state, dict):
         state["degraded"] = True
@@ -289,7 +289,7 @@ class AssessResult:
     resolved_operator: str | None = None
     verify_url: str | None = None
     policy_result: PolicyResult | None = None
-    # IdP provenance, present only when ``identity_method == "aip_token"`` — which issuer
+    # IdP provenance, present only when ``identity_method == "aip_token"``: which issuer
     # attested the identity and the trust level it asserted. Surfaced as the SDK's raw
     # ``aip`` block (issuer/subject/trust_level/agent_provider/pop_verified); mirrors the
     # SDK's ``AssessResponse.aip``.

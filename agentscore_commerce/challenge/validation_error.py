@@ -3,7 +3,7 @@
 Pairs cleanly with the existing 402 / 403 builders. Every commerce merchant
 returning helpful ``bad_request`` / ``not_found`` / ``out_of_stock`` errors
 converges on the same shape: ``{error: {code, message}, ...optional_hints,
-next_steps?}``. This builder doesn't choose the HTTP status — vendors wrap the
+next_steps?}``. This builder doesn't choose the HTTP status: vendors wrap the
 returned body in their framework's response (``JSONResponse(body, 400)`` in
 FastAPI, etc.). Status stays the merchant's call because the same shape works
 for 400/404/409/422.

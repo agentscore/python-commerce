@@ -403,7 +403,7 @@ class TestCaptureWallet:
         mock_capture.assert_not_awaited()
 
     def test_no_ops_when_gate_did_not_run(self):
-        # App without the gate middleware — capture_wallet must silently no-op.
+        # App without the gate middleware: capture_wallet must silently no-op.
         app = Sanic.get_app("sanic_no_gate", force_create=True)
 
         @app.post("/purchase")

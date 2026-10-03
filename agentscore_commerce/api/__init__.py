@@ -1,4 +1,4 @@
-"""AgentScore SDK re-export — single import path for the underlying agentscore-py.
+"""AgentScore SDK re-export: single import path for the underlying agentscore-py.
 
 Vendors install only ``agentscore-commerce`` and reach everything from the underlying
 ``agentscore-py`` here. Don't add ``agentscore-py`` as a separate dep; the two can

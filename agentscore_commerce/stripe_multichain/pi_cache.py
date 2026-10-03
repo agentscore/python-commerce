@@ -2,20 +2,20 @@
 
 Stripe-multichain merchants need three lookups during a request lifecycle:
 
-1. **Is this on-chain ``pay_to`` address one we minted?** — when an MPP credential
+1. **Is this on-chain ``pay_to`` address one we minted?**: when an MPP credential
    arrives with a ``recipient``, verify it matches a recently-minted Stripe deposit
    address. Validates the credential's deposit address against the addresses the
    merchant has actually minted.
 
-2. **Which PaymentIntent owns this deposit address?** — when settling, the
+2. **Which PaymentIntent owns this deposit address?**: when settling, the
    ``simulate_crypto_deposit`` test_helpers call needs the PaymentIntent id for the
    deposit address that was paid to.
 
-3. **Which sibling deposit addresses belong to the same PaymentIntent?** — when
+3. **Which sibling deposit addresses belong to the same PaymentIntent?**: when
    enriching a 402 with x402 entries, the merchant needs the Base + Solana addresses
    Stripe minted alongside the original Tempo address (one PI carries up to three).
 
-All three are TTL-bounded (default 300s — long enough for an agent to retry, short
+All three are TTL-bounded (default 300s: long enough for an agent to retry, short
 enough to bound memory). Backed by Redis when ``redis_url`` is set, falls back to
 in-process dict otherwise. Single-instance servers can use the in-memory cache;
 multi-instance deployments need a shared cache (Redis) so a deposit lands on
@@ -40,7 +40,7 @@ T = TypeVar("T")
 
 
 class _RedisLike(Protocol):
-    """Subset of redis.asyncio.Redis we use — typed structurally so ``redis`` stays an optional peer dep."""
+    """Subset of redis.asyncio.Redis we use: typed structurally so ``redis`` stays an optional peer dep."""
 
     async def set(self, key: str, value: str, *, ex: int) -> Any: ...
     async def get(self, key: str) -> str | None: ...
@@ -78,10 +78,10 @@ def create_pi_cache(
     A background task evicts expired in-memory entries every 60 seconds; call
     ``stop()`` from server shutdown handlers to cancel it.
 
-    ``redis_url`` — connection URL (e.g. ``rediss://…cache.amazonaws.com:6379``); when
+    ``redis_url``: connection URL (e.g. ``rediss://…cache.amazonaws.com:6379``); when
     omitted, the cache falls back to in-process dicts with the same API.
-    ``ttl_seconds`` — entry TTL (default 300).
-    ``key_prefix`` — Redis key prefix (default ``'payto:'``).
+    ``ttl_seconds``: entry TTL (default 300).
+    ``key_prefix``: Redis key prefix (default ``'payto:'``).
     """
     ttl = ttl_seconds
 
@@ -96,7 +96,7 @@ def create_pi_cache(
             return None
         if redis_client is not None:
             return redis_client
-        # Dynamic import keeps `redis` as an optional peer dep — merchants without
+        # Dynamic import keeps `redis` as an optional peer dep: merchants without
         # Redis don't pay the install cost.
         from importlib import import_module
 

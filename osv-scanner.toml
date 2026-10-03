@@ -6,8 +6,8 @@
 # via `--ignore-vuln` flags; keep both in sync.
 #
 # Conventions:
-#   - `id` — the OSV / PYSEC / GHSA identifier
-#   - `ignoreUntil` — review-by date (ISO 8601). Leave empty for permanent
+#   - `id`: the OSV / PYSEC / GHSA identifier
+#   - `ignoreUntil`: review-by date (ISO 8601). Leave empty for permanent
 #     ignores (e.g. disputed-by-upstream). Otherwise pick a date that forces
 #     us to re-evaluate when the upstream releases a fix.
-#   - `reason` — short justification
+#   - `reason`: short justification

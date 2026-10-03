@@ -14,13 +14,13 @@ def test_returns_canonical_hint_when_first_encounter_true():
 
 
 def test_hint_strings_byte_match_node_commerce_for_wire_parity():
-    """Cross-language wire parity — these exact strings appear in agent_memory bodies emitted
+    """Cross-language wire parity: these exact strings appear in agent_memory bodies emitted
     by both @agent-score/commerce (node-commerce/src/core.ts buildAgentMemoryHint) and this
     package. Agents that memorize the pattern from one merchant must recognize it byte-for-byte
     from another regardless of which SDK the merchant runs.
     """
     hint = build_agent_memory_hint()
-    # Backticks-around-header markdown is intentional — node-commerce uses them for monospace
+    # Backticks-around-header markdown is intentional: node-commerce uses them for monospace
     # rendering in markdown-aware viewers (chat surfaces, dashboards). Python must match.
     assert hint.identity_paths["wallet"].endswith(
         "`X-Wallet-Address: 0x...`. Shortest path; no token lifecycle to manage."

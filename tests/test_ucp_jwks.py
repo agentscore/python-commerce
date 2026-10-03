@@ -451,10 +451,10 @@ class TestUCPSigningKeyFromJWK:
 
 
 class TestAdditionalHardening:
-    def test_sign_ucp_profile_rejects_kid_not_in_signing_keys(self) -> None:
+    def test_sign_ucp_profile_rejects_kid_not_in_keys(self) -> None:
         key = generate_ucp_signing_key(kid="real")
         profile = _base_profile([key.public_jwk])
-        with pytest.raises(ValueError, match=r"not present in profile.signing_keys"):
+        with pytest.raises(ValueError, match=r"not present in profile.keys"):
             sign_ucp_profile(profile, signing_key=key.private_key, kid="wrong")
 
     def test_verify_rejects_malformed_jwks_missing_keys(self) -> None:

@@ -37,11 +37,13 @@ def _agentscore_cap(d: dict) -> dict:
     return d["ucp"]["capabilities"][AGENTSCORE_UCP_CAPABILITY][0]
 
 
-def test_emits_spec_envelope_with_ucp_body_and_outer_signing_keys():
+def test_emits_spec_envelope_with_ucp_body_and_outer_keys():
     profile = build_ucp_profile(**_base_kwargs())
     d = profile.to_dict()
     assert "ucp" in d
-    assert "signing_keys" in d
+    assert "keys" in d
+    assert "signing_keys" not in d  # removed in UCP 2026-08-25
+    assert d["ucp"]["version"] == "2026-08-25"
     # No top-level `spec` field per UCP spec — spec lives per-binding.
     assert "spec" not in d
     assert "version" not in d  # version lives under `ucp`
@@ -49,7 +51,14 @@ def test_emits_spec_envelope_with_ucp_body_and_outer_signing_keys():
     assert d["ucp"]["services"]["dev.ucp.shopping"][0]["transport"] == "mcp"
     assert d["ucp"]["capabilities"] == {}
     assert d["ucp"]["payment_handlers"] == {}
-    assert d["signing_keys"][0]["kid"] == "me"
+    assert d["keys"][0]["kid"] == "me"
+
+
+def test_takes_keys_directly_and_publishes_the_older_name_as_keys():
+    kwargs = _base_kwargs()
+    old = kwargs.pop("signing_keys")
+    assert build_ucp_profile(**kwargs, keys=old).to_dict()["keys"][0]["kid"] == "me"
+    assert build_ucp_profile(**kwargs, signing_keys=old).to_dict()["keys"][0]["kid"] == "me"
 
 
 def test_skips_agentscore_capability_when_gate_not_provided():

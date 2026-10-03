@@ -177,7 +177,6 @@ checkout = Checkout(
 checkout.mount_ucp_routes_fastapi(
     app,
     name="Merchant",
-    well_known_ucp_url="https://merchant.example/.well-known/ucp",
     services=default_a2a_services(agent_card_url="https://merchant.example/.well-known/agent-card.json"),
     signing_kid="merchant-2026-05",
 )
@@ -340,7 +339,7 @@ card = build_a2a_agent_card(
 
 # Google Universal Commerce Protocol. Publish at /.well-known/ucp.
 # Output shape: {"ucp": {"version", "services", "capabilities",
-# "payment_handlers", "name?", "supported_versions?"}, "signing_keys": [...]}
+# "payment_handlers", "name?", "supported_versions?"}, "keys": [...]}
 # , services / capabilities / payment_handlers are MAPS keyed by reverse-DNS
 # service / capability / handler name (UCP spec §3 + §6).
 profile = build_ucp_profile(
@@ -348,8 +347,8 @@ profile = build_ucp_profile(
     services={
         "dev.ucp.shopping": [
             UCPServiceBinding(
-                version="2026-04-08",
-                spec="https://ucp.dev/2026-04-08/specification/overview",
+                version="2026-08-25",
+                spec="https://ucp.dev/2026-08-25/specification/overview",
                 transport="mcp",
                 endpoint=f"{base_url}/api/ucp/mcp",
                 schema="https://ucp.dev/services/shopping/mcp.openrpc.json",
@@ -361,7 +360,7 @@ profile = build_ucp_profile(
         **x402_payment_handler(networks=[X402BaseRailSpec(recipient=BASE_ADDR)]),
         **stripe_spt_payment_handler(spec=StripeRailSpec(profile_id="profile_5xKvNqM9BaH")),
     },
-    signing_keys=[UCPSigningKey(kid="me", kty="EC", alg="ES256")],
+    keys=[UCPSigningKey(kid="me", kty="EC", alg="ES256")],
     # Optional: declare merchant gate policy as an `com.agentscore.identity` capability
     # binding inside the public profile. Static policy declaration only, no per-operator
     # claims. Per-operator identity attestation flows through the AP2 risk-signal endpoint.
@@ -395,7 +394,7 @@ profile = build_ucp_profile(
     name="My Service",
     services={...},
     payment_handlers={...},
-    signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)],
+    keys=[UCPSigningKey.from_jwk(key.public_jwk)],
 )
 signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=key.public_jwk["kid"], alg="EdDSA")
 jwks = build_jwks_response([key.public_jwk])

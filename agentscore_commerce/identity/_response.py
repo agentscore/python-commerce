@@ -270,6 +270,10 @@ _API_ERROR_INSTRUCTIONS = json.dumps(
     }
 )
 
+# The message paired with QUOTA_EXCEEDED_INSTRUCTIONS. The api_error default says the failure is
+# transient and worth retrying, which contradicts the contact_merchant instructions on this path.
+QUOTA_EXCEEDED_MESSAGE = "AgentScore identity verification is unavailable for this merchant. Retrying will not help."
+
 QUOTA_EXCEEDED_INSTRUCTIONS = json.dumps(
     {
         "action": "contact_merchant",

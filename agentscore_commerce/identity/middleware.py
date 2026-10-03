@@ -20,6 +20,7 @@ from agentscore_commerce.identity._denial import (
 )
 from agentscore_commerce.identity._response import (
     QUOTA_EXCEEDED_INSTRUCTIONS,
+    QUOTA_EXCEEDED_MESSAGE,
     build_missing_identity_reason,
     denial_reason_to_body,
 )
@@ -275,7 +276,9 @@ class AgentScoreGate:
                 _mark_degraded_asgi(scope, "quota_exceeded")
                 await self.app(scope, receive, send)
                 return
-            reason = DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS)
+            reason = DenialReason(
+                code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS, message=QUOTA_EXCEEDED_MESSAGE
+            )
             response = await self._on_denied(request, reason)
             await response(scope, receive, send)
             return

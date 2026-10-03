@@ -18,6 +18,7 @@ from agentscore_commerce.identity._denial import (
 )
 from agentscore_commerce.identity._response import (
     QUOTA_EXCEEDED_INSTRUCTIONS,
+    QUOTA_EXCEEDED_MESSAGE,
     build_missing_identity_reason,
     denial_reason_to_body,
 )
@@ -234,7 +235,9 @@ class AgentScoreMiddleware:
                 return self.get_response(request)
             return self._on_denied(
                 request,
-                DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS),
+                DenialReason(
+                    code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS, message=QUOTA_EXCEEDED_MESSAGE
+                ),
             )
         except httpx.TimeoutException:
             if self._client.fail_open:

@@ -10,7 +10,7 @@ Two layers of validation every x402-accepting merchant repeats:
   extract the signed network + payTo, validate against the merchant's accepted
   network, validate the payTo address shape, and check that the payTo was minted by
   THIS merchant (cache hit). Each step has its own denial code and ``next_steps``
-  shape — getting the message right by hand across 4 conditions is fiddly.
+  shape: getting the message right by hand across 4 conditions is fiddly.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def validate_x402_network_config(*, base_network: str) -> None:
     """Boot-time guard: raise if the base network isn't supported.
 
     Raises ``ValueError`` with a message that names the unsupported value AND lists the
-    valid options — agents tracking down a misconfigured deploy don't need to grep for
+    valid options: agents tracking down a misconfigured deploy don't need to grep for
     the supported list.
     """
     if base_network not in X402_SUPPORTED_BASE_NETWORKS:
@@ -49,7 +49,7 @@ _EVM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
 @dataclass
 class VerifyX402RequestSuccess:
-    """Successful verification — caller passes ``payload`` straight into ``process_x402_settle``."""
+    """Successful verification: caller passes ``payload`` straight into ``process_x402_settle``."""
 
     payload: dict[str, Any]
     signed_network: str
@@ -59,7 +59,7 @@ class VerifyX402RequestSuccess:
 
 @dataclass
 class VerifyX402RequestFailure:
-    """Failed verification — caller returns ``body`` with HTTP ``status``."""
+    """Failed verification: caller returns ``body`` with HTTP ``status``."""
 
     body: dict[str, Any]
     status: Literal[400] = 400
@@ -80,7 +80,7 @@ def _header_lookup(headers: dict[str, str], *names: str) -> str | None:
 
 _REGENERATE_WARNING = (
     "Use `agentscore-pay pay --chain base` (or `tempo request` for Tempo USDC) so the credential "
-    "is signed and submitted via the protocol handshake. Do NOT use `tempo wallet transfer` — "
+    "is signed and submitted via the protocol handshake. Do NOT use `tempo wallet transfer`: "
     "that sends USDC on-chain but does not complete the handshake."
 )
 
@@ -106,7 +106,7 @@ async def verify_x402_request(
 
     Returns ``VerifyX402RequestSuccess`` when valid; the caller passes ``payload``
     straight into :func:`process_x402_settle`. Returns ``VerifyX402RequestFailure``
-    when invalid — ``body`` includes ``next_steps`` with ``regenerate_payment_credential``
+    when invalid: ``body`` includes ``next_steps`` with ``regenerate_payment_credential``
     so agents can recover deterministically from the response alone.
 
     Reads the header from ``payment-signature`` first, falling back to ``x-payment``

@@ -50,7 +50,7 @@ def test_replace_true_skips_defaults() -> None:
 
 
 class _FakeApp:
-    """Minimal ASGI inner app — captures the headers that pass through send."""
+    """Minimal ASGI inner app: captures the headers that pass through send."""
 
     def __init__(self) -> None:
         self.captured_headers: list[tuple[bytes, bytes]] = []

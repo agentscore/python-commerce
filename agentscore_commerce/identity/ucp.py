@@ -156,7 +156,7 @@ class UCPSigningKey:
 
 @dataclass
 class UCPServiceBinding:
-    """Transport binding entry — keyed under a service name (e.g., ``dev.ucp.shopping``)."""
+    """Transport binding entry: keyed under a service name (e.g., ``dev.ucp.shopping``)."""
 
     version: str
     spec: str
@@ -203,7 +203,7 @@ class UCPServiceBinding:
 
 @dataclass
 class UCPCapabilityBinding:
-    """Capability binding entry — keyed under a capability name (e.g., ``dev.ucp.shopping.checkout``)."""
+    """Capability binding entry: keyed under a capability name (e.g., ``dev.ucp.shopping.checkout``)."""
 
     version: str
     spec: str
@@ -240,7 +240,7 @@ class UCPCapabilityBinding:
 
 @dataclass
 class UCPPaymentHandlerBinding:
-    """Payment handler binding entry — keyed under a handler reverse-DNS name (e.g., ``com.google.pay``)."""
+    """Payment handler binding entry: keyed under a handler reverse-DNS name (e.g., ``com.google.pay``)."""
 
     id: str
     version: str
@@ -276,7 +276,7 @@ class UCPPaymentHandlerBinding:
 
 @dataclass
 class UCPProfileBody:
-    """UCP body — nested under the ``ucp`` key of the published profile."""
+    """UCP body: nested under the ``ucp`` key of the published profile."""
 
     version: str = _DEFAULT_VERSION
     services: dict[str, list[UCPServiceBinding]] = field(default_factory=dict)
@@ -380,7 +380,7 @@ def build_ucp_profile(
     ``agentscore_gate`` is provided. The capability's ``config`` carries the
     merchant's static gate policy declaration (require_kyc / require_sanctions_clear
     / min_age / allowed_jurisdictions / blocked_jurisdictions). NO per-operator
-    data is ever placed on the public profile — per-operator identity attestation
+    data is ever placed on the public profile: per-operator identity attestation
     flows through the AP2 risk-signal endpoint, not here.
 
     Example::
@@ -429,7 +429,7 @@ def build_ucp_profile(
     }
 
     # Auto-inject `com.agentscore.identity` capability when the merchant declares a gate
-    # policy. Static merchant-policy declaration only — no per-operator data on the public
+    # policy. Static merchant-policy declaration only: no per-operator data on the public
     # profile. Per-operator identity attestation flows through the AP2 risk-signal endpoint
     # or per-request 4xx response bodies, not here. Multi-parent extension matching
     # Shopify's `dev.shopify.catalog.storefront` and UCP-canonical
@@ -486,7 +486,7 @@ _SCHEMA_BASE = "https://www.agentscore.com/schemas/payment-handlers"
 # CAIP-2 → UCP-namespace network-name mapping. UCP payment_handler bindings publish
 # network strings in the UCP namespace ("base-8453", "solana-mainnet-beta"); RailSpecs
 # carry the CAIP-2 form internally ("eip155:8453", "solana:5eykt4..."). Unknown values
-# pass through verbatim — vendors who pin a non-standard rail can override the spec's
+# pass through verbatim: vendors who pin a non-standard rail can override the spec's
 # network field directly.
 _CAIP2_TO_UCP_NETWORK = {
     networks.base.mainnet.caip2: "base-8453",

@@ -176,7 +176,7 @@ def classify_orchestration_error(err: BaseException | str) -> ClassifiedX402Erro
     ``try/except`` around the full settle flow). Returns a :class:`ClassifiedX402Error`
     when the error message matches a known pattern; ``None`` otherwise.
 
-    Callers should rethrow on ``None`` — this helper never swallows unknown errors.
+    Callers should rethrow on ``None``: this helper never swallows unknown errors.
     The typical pattern::
 
         try:
@@ -248,7 +248,7 @@ def coerce_resource_config(config: Any) -> Any:
     ``payTo`` / ``maxTimeoutSeconds`` camelCase keys. x402's Python ``ResourceConfig``
     is a Pydantic model with
     ``pay_to`` / ``max_timeout_seconds`` snake_case fields, and ``build_payment_requirements``
-    does ``config.network`` attribute access — so a raw dict raises
+    does ``config.network`` attribute access: so a raw dict raises
     ``AttributeError("'dict' object has no attribute 'network'")``. Coerce here so callers
     can pass either shape.
 
@@ -338,7 +338,7 @@ async def process_x402_settle(
     """Run the x402 verify→settle flow and return a tagged outcome.
 
     ``resource_config`` accepts either a ``dict`` (JS-style with ``payTo`` /
-    ``maxTimeoutSeconds`` camelCase keys) or an x402 ``ResourceConfig`` instance —
+    ``maxTimeoutSeconds`` camelCase keys) or an x402 ``ResourceConfig`` instance:
     dicts are coerced before the build step.
 
     Set ``extension`` to fold a Bazaar (or other) extension into the verify step;
@@ -365,7 +365,7 @@ async def process_x402_settle(
     # Per-request extension enrichment runs only when a caller explicitly attaches one
     # (e.g. the Bazaar discovery extension). x402 2.9 takes the enriched dict as the
     # second argument to ``build_payment_requirements`` rather than as a verify-step
-    # input, but the fold happens at build time — so we replay the build with the
+    # input, but the fold happens at build time: so we replay the build with the
     # enriched extensions and use those requirements going forward.
     if extension is not None:
         resolved_transport_context = transport_context
@@ -390,7 +390,7 @@ async def process_x402_settle(
             return ProcessX402SettleFailure(phase="facilitator_error", step="build_requirements", error=err)
 
     # x402 2.9's ``x402ResourceServer`` exposes ``verify_payment(payload, requirements)``
-    # — not ``process_payment_request`` (a fictional method that earlier versions of this
+    # not ``process_payment_request`` (a fictional method that earlier versions of this
     # helper called and only ever worked against test stubs).
     try:
         verify_result = await server.verify_payment(coerced_payload, matched_requirement)

@@ -107,7 +107,7 @@ async def test_mpp_settle_with_no_compose_hook_returns_503() -> None:
     )
     # First do probe to seed cache
     await handler.handle(_build_request())
-    # Now settle on MPP — but no compose_mppx wired → 503 mpp_unavailable
+    # Now settle on MPP: but no compose_mppx wired → 503 mpp_unavailable
     status, body, _headers = await handler.handle(_build_request(headers={"authorization": "Payment <base64>"}))
     assert status == 503
     assert body["error"]["code"] == "mpp_unavailable"
@@ -134,7 +134,7 @@ async def test_upstream_runwork_error_returns_200_no_charge() -> None:
 
 @pytest.mark.asyncio
 async def test_probe_leg_emits_402_with_pricing_and_retry_body() -> None:
-    """Exercise the _emit_402 path — work returns 1 result, probe caches +
+    """Exercise the _emit_402 path: work returns 1 result, probe caches +
     emits a 402 with accepted methods, pricing block, retry_body."""
 
     handler = ComputeFirstCheckout(
@@ -185,7 +185,7 @@ async def test_probe_leg_cache_hit_skips_run_work() -> None:
 
 @pytest.mark.asyncio
 async def test_fractional_unit_price_auto_derives_decimals() -> None:
-    """Sub-cent pricing — auto-derive precision from unit_price_cents."""
+    """Sub-cent pricing: auto-derive precision from unit_price_cents."""
 
     handler = ComputeFirstCheckout(
         name="tokens",

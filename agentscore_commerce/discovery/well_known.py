@@ -87,7 +87,7 @@ def _compose_handlers(checkout: Checkout) -> dict[str, list[Any]]:
     """Map rails on the Checkout to a UCP ``payment_handlers`` block.
 
     Includes rails with empty-string-sentinel recipients (per-order-mint
-    pattern) — the static UCP profile drops the recipient field from those
+    pattern): the static UCP profile drops the recipient field from those
     entries, and the authoritative per-order recipient ships in the 402 body
     at request time. Only rails missing the ``recipient`` attribute entirely
     are excluded.

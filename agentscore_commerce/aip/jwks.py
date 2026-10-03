@@ -3,18 +3,18 @@
 Verifiers resolve an IdP's public keys from ``https://{iss}/.well-known/agent-identity/jwks.json``
 (the spec's well-known path). This module owns:
 
-* **Trusted-issuer enforcement** — only ``iss`` values on the allowlist are fetched, compared
+* **Trusted-issuer enforcement**: only ``iss`` values on the allowlist are fetched, compared
   after URL canonicalization (lowercase scheme+host, no default port, no trailing slash) so
   ``https://issuer.example`` and ``https://issuer.example/`` match.
-* **HTTPS-only** — JWKS over plain HTTP is MITM-vulnerable; we refuse it.
-* **Caching with a HARD cap** — we honor ``Cache-Control: max-age`` as advisory but never
+* **HTTPS-only**: JWKS over plain HTTP is MITM-vulnerable; we refuse it.
+* **Caching with a HARD cap**: we honor ``Cache-Control: max-age`` as advisory but never
   cache longer than :data:`HARD_MAX_CACHE_SECONDS`, regardless of what the IdP sends. A
   compromised IdP can't pin stale keys with ``max-age=31536000``.
-* **kid-miss refresh (cooldown-bounded)** — a lookup for a ``kid`` not in the cached set triggers
+* **kid-miss refresh (cooldown-bounded)**: a lookup for a ``kid`` not in the cached set triggers
   one refetch (rotation may have published a new key inside the cache window), but at most once per
-  issuer per :data:`JWKS_REFETCH_COOLDOWN_SECONDS` — a per-issuer cooldown so an unknown-``kid``
+  issuer per :data:`JWKS_REFETCH_COOLDOWN_SECONDS`: a per-issuer cooldown so an unknown-``kid``
   flood can't amplify into one upstream JWKS GET per request. Concurrent refreshes single-flight.
-* **use:"sig" filtering** — only signing keys are returned.
+* **use:"sig" filtering**: only signing keys are returned.
 
 Pure-ish: the only I/O is the HTTP fetch, injectable for tests via ``fetch_impl``.
 
@@ -49,18 +49,18 @@ DEFAULT_CACHE_SECONDS = 300
 
 #: Cooldown between forced refetches of an issuer triggered by an unknown ``kid``. A kid-miss
 #: normally forces one refetch (rotation may have published a new key inside the cache window), but
-#: an unauthenticated attacker can flood unknown-``kid`` tokens for a trusted issuer — ``kid``/``iss``
+#: an unauthenticated attacker can flood unknown-``kid`` tokens for a trusted issuer: ``kid``/``iss``
 #: are decoded BEFORE signature verify, so each would otherwise fan out one upstream JWKS fetch. We
 #: stamp a per-ISSUER cooldown on every fetch and suppress ALL kid-miss refetches for that issuer
 #: while it's warm, bounding the amplification to ~one fetch per issuer per cooldown REGARDLESS of
 #: how many DISTINCT unknown kids are streamed. (A per-(issuer,kid) memo would only bound a repeat
-#: of the SAME kid — a distinct-kid flood would still fan out one fetch each.) Mirrors the API
+#: of the SAME kid: a distinct-kid flood would still fan out one fetch each.) Mirrors the API
 #: verifier's jose ``cooldownDuration: 30s`` (``the AgentScore API verifier``
 #: ``REFETCH_COOLDOWN_MS``. (30s)
 JWKS_REFETCH_COOLDOWN_SECONDS = 30
 
 #: AgentScore's own AIT issuer. ALWAYS trusted by every :class:`JwksCache` (and therefore every
-#: gate/adapter built on it) without the merchant listing it — this SDK is the AgentScore
+#: gate/adapter built on it) without the merchant listing it: this SDK is the AgentScore
 #: verifier, so a merchant can't accidentally fail to trust AgentScore-issued AITs.
 #: ``trusted_issuers`` only needs to name ADDITIONAL external issuers.
 AGENTSCORE_CANONICAL_ISSUER = "https://www.agentscore.com"
@@ -75,7 +75,7 @@ JwksLookupFailure = Literal[
 
 
 class FetchResponse(Protocol):
-    """Minimal response shape the cache needs — mirrors node's structural ``FetchLike`` return.
+    """Minimal response shape the cache needs: mirrors node's structural ``FetchLike`` return.
 
     The default fetcher adapts :class:`httpx.Response` to this; injected fetchers (tests)
     implement it directly. ``headers.get`` is case-insensitive for ``cache-control`` lookups,
@@ -126,7 +126,7 @@ def canonicalize_issuer(iss: str) -> str | None:
 
     Lowercase scheme + host, drop the default port for the scheme, strip a trailing slash on an
     empty path. Returns ``None`` if the input is not a parseable absolute URL (no scheme/host) or
-    has a malformed authority (non-numeric/out-of-range port, unbalanced IPv6 bracket) — matching
+    has a malformed authority (non-numeric/out-of-range port, unbalanced IPv6 bracket): matching
     node's try/catch around ``new URL()``.
     """
     # ``iss`` comes from the UNVERIFIED JWT payload: urlsplit / .hostname / .port raise ValueError
@@ -261,7 +261,7 @@ class JwksCache:
         self._now = now if now is not None else (lambda: time.time() * 1000)
         self._user_agent = user_agent
         self._cache: dict[str, _CachedKeys] = {}
-        # Per-issuer refetch cooldown (ms timestamp), stamped on EVERY fetch — success AND failure.
+        # Per-issuer refetch cooldown (ms timestamp), stamped on EVERY fetch: success AND failure.
         # This is the per-ISSUER refetch-amplification / DoS guard: it caps JWKS GETs at ~1 per
         # issuer per cooldown regardless of how many DISTINCT unknown ``kid``s an attacker floods,
         # and (the failure stamp) keeps a failing issuer from being refetched on every sequential
@@ -271,13 +271,13 @@ class JwksCache:
         # lookups that land within the cooldown window (a failed fetch leaves no ``_cache`` entry,
         # so without this the no-cache path would refetch every request). Cleared on success.
         self._failure: dict[str, JwksLookupResult] = {}
-        # Per-issuer in-flight refresh future — coalesces CONCURRENT refreshes to ONE upstream
+        # Per-issuer in-flight refresh future: coalesces CONCURRENT refreshes to ONE upstream
         # fetch. Without it, a concurrent burst of distinct-kid lookups on a cold/expired cache each
         # call _refresh() before any has populated the cache → N parallel JWKS GETs (refetch
         # amplification). The cooldown only suppresses SEQUENTIAL refetches; single-flight suppresses
         # CONCURRENT ones. Keyed alongside the loop that created the future: sync adapters (Flask /
         # Django) run ``asyncio.run()`` per request on worker threads, and awaiting a future created
-        # on ANOTHER thread's loop raises RuntimeError — so coalescing is same-loop only. The entry
+        # on ANOTHER thread's loop raises RuntimeError: so coalescing is same-loop only. The entry
         # is cleared once the fetch settles. Mirrors the reference `inflight` map.
         self._inflight: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Future[JwksLookupResult]]] = {}
 
@@ -304,7 +304,7 @@ class JwksCache:
             if hit is not None:
                 return JwksLookupResult(ok=True, key=hit)
             # kid miss within the cache window. Normally we'd force one refetch (rotation may have
-            # published a new key) — but only once the per-ISSUER refetch cooldown has elapsed.
+            # published a new key): but only once the per-ISSUER refetch cooldown has elapsed.
             # WITHIN the cooldown we return key_not_found WITHOUT refetching. This caps JWKS GETs
             # at ~1 per issuer per cooldown regardless of how many DISTINCT unknown-kid tokens an
             # attacker streams (the DoS guard). Once the cooldown passes we fall through to a
@@ -331,7 +331,7 @@ class JwksCache:
         hit = self._select(keys, kid)
         if hit is not None:
             return JwksLookupResult(ok=True, key=hit)
-        # Still missing after a fresh fetch — the cooldown stamped by that fetch suppresses the
+        # Still missing after a fresh fetch: the cooldown stamped by that fetch suppresses the
         # next refetch for this issuer anyway.
         return JwksLookupResult(ok=False, reason="key_not_found")
 
@@ -348,8 +348,8 @@ class JwksCache:
         The first caller for an issuer with no in-flight refresh kicks off the fetch and registers
         the future; concurrent callers ON THE SAME LOOP await that future instead of issuing their
         own GET. A caller on a DIFFERENT running loop (threaded WSGI: Flask/Django run
-        ``asyncio.run()`` per request) must NOT await the foreign future — awaiting a future bound
-        to another thread's loop raises RuntimeError — so it performs its own fetch instead
+        ``asyncio.run()`` per request) must NOT await the foreign future: awaiting a future bound
+        to another thread's loop raises RuntimeError: so it performs its own fetch instead
         (correctness over cross-loop dedupe). Each entry is cleared by its creator once the fetch
         settles so the next cold/expired lookup can refresh again. Mirrors the reference ``refresh`` +
         ``inflight`` single-flight.

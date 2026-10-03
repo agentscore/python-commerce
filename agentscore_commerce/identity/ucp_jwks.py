@@ -7,10 +7,10 @@ trust-mode clients reject the profile.
 
 This module provides:
 
-* :func:`generate_ucp_signing_key` — generate an Ed25519 (or ES256) keypair
-* :func:`sign_ucp_profile` — sign a profile, returning a JWS-attached envelope
-* :func:`verify_ucp_profile` — verify a signed profile against a JWKS
-* :func:`build_jwks_response` — assemble a JWKS document for ``/.well-known/jwks.json``
+* :func:`generate_ucp_signing_key`: generate an Ed25519 (or ES256) keypair
+* :func:`sign_ucp_profile`: sign a profile, returning a JWS-attached envelope
+* :func:`verify_ucp_profile`: verify a signed profile against a JWKS
+* :func:`build_jwks_response`: assemble a JWKS document for ``/.well-known/jwks.json``
 
 Implementation rides on ``joserfc`` (optional extra). Install via
 ``pip install agentscore-commerce[ucp]``. Merchants who don't sign their profile
@@ -116,9 +116,9 @@ def _load_joserfc() -> Any:
 class GeneratedUCPKey:
     """Output of :func:`generate_ucp_signing_key`.
 
-    * ``private_key`` is the joserfc Key object — pass to :func:`sign_ucp_profile`.
+    * ``private_key`` is the joserfc Key object: pass to :func:`sign_ucp_profile`.
       Never publish.
-    * ``public_jwk`` is the JWK dict — publish at ``/.well-known/jwks.json`` and
+    * ``public_jwk`` is the JWK dict: publish at ``/.well-known/jwks.json`` and
       inline in the UCP profile's ``keys[]``.
     """
 
@@ -129,7 +129,7 @@ class GeneratedUCPKey:
 def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDSA") -> GeneratedUCPKey:
     """Generate an Ed25519 (default) or ES256 keypair for signing UCP profiles.
 
-    The ``private_key`` is a joserfc ``Key`` — store it securely (env var, KMS, secret
+    The ``private_key`` is a joserfc ``Key``: store it securely (env var, KMS, secret
     manager) and pass to :func:`sign_ucp_profile`.
 
     The ``public_jwk`` is a dict you publish at ``/.well-known/jwks.json`` and inline
@@ -140,8 +140,8 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
         from agentscore_commerce.identity.ucp_jwks import generate_ucp_signing_key
 
         key = generate_ucp_signing_key(kid='merchant-2026-05')
-        # key.private_key — persist securely
-        # key.public_jwk  — publish at /.well-known/jwks.json
+        # key.private_key: persist securely
+        # key.public_jwk : publish at /.well-known/jwks.json
     """
     _load_joserfc()
 
@@ -277,7 +277,7 @@ def sign_ucp_profile(
     ``kid``, and validate.
 
     The profile's ``keys[]`` MUST already include a JWK with the matching
-    ``kid`` — otherwise verifiers can't find the public key.
+    ``kid``: otherwise verifiers can't find the public key.
 
     Example::
 
@@ -391,7 +391,7 @@ def verify_ucp_profile(
             f"UCP `signature` must be a string; got {type(sig).__name__}.",
         )
 
-    # Pre-deserialize header checks — joserfc's deserialize_compact accepts kid-less
+    # Pre-deserialize header checks: joserfc's deserialize_compact accepts kid-less
     # JWSs (it iterates the KeySet) so we enforce kid/typ/alg ourselves.
     header = _peek_jws_header(sig)
     if header.get("typ") != _PROFILE_TYP:
@@ -502,7 +502,7 @@ def verify_ucp_profile(
 
     # Compare the bytes that were actually signed against the canonical body of the
     # profile we received. ``deserialize_compact`` validates the JWS against the bytes
-    # embedded in the JWS payload segment — but the profile body could have been
+    # embedded in the JWS payload segment: but the profile body could have been
     # swapped after signing while the JWS stayed unchanged.
     if not hmac.compare_digest(obj.payload, expected_payload):
         raise UCPVerificationError(
@@ -629,7 +629,7 @@ def _build_env_signing_key(
                 "x": raw["x"],
                 "y": raw["y"],
             }
-        # Empty-string kid in env JWK falls through to the configured default —
+        # Empty-string kid in env JWK falls through to the configured default:
         # publishing `"kid": ""` would break every kid-pinning verifier.
         public_jwk["kid"] = jwk_dict.get("kid") or kid_default
         public_jwk["alg"] = detected_alg

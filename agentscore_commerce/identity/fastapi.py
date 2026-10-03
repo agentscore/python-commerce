@@ -70,8 +70,8 @@ ASSESS_STATE_KEY = "agentscore"
 class _GateDenialError(Exception):
     """Carries a pre-rendered denial document up to the Starlette exception handler.
 
-    Unlike ``HTTPException(detail=body)`` — which nests the document under a ``detail``
-    key — this preserves the FLAT wire contract the node adapters emit (consumers read
+    Unlike ``HTTPException(detail=body)``: which nests the document under a ``detail``
+    key: this preserves the FLAT wire contract the node adapters emit (consumers read
     ``body["type"]`` / ``body["error"]`` directly). The handler installed by
     :func:`_install_gate_denial_handler` renders it via ``JSONResponse``.
     """
@@ -136,7 +136,7 @@ def get_gate_degraded_state(request: Request) -> dict[str, Any]:
 
     Returns ``{"degraded": False}`` for normal allows; ``{"degraded": True,
     "infra_reason": "quota_exceeded" | "api_error" | "network_timeout"}`` when the gate
-    was bypassed (compliance NOT enforced — log/alert).
+    was bypassed (compliance NOT enforced: log/alert).
 
     Only set when ``fail_open=True`` was configured AND the failure was an infra failure.
     Real compliance denials never trigger fail-open and so never set this flag.
@@ -202,7 +202,7 @@ class AgentScoreGate:
     """FastAPI dependency that gates a route on AgentScore trust.
 
     Instantiate once at module scope, then attach to routes via ``Depends(gate)``.
-    Uses FastAPI's dependency-injection system — on a denial the dependency raises an
+    Uses FastAPI's dependency-injection system: on a denial the dependency raises an
     internal exception that an auto-registered Starlette handler renders as a FLAT denial
     document (``body["error"]["code"]``, not nested under ``detail``), matching the node
     adapters' cross-framework wire contract; the route body is skipped.
@@ -323,7 +323,7 @@ class AgentScoreGate:
         except TokenDeniedError as err:
             self._deny(request, build_token_denied_reason(err))
         except InvalidCredentialError:
-            # Permanent — no auto-session, agent should switch tokens or restart.
+            # Permanent: no auto-session, agent should switch tokens or restart.
             self._deny(request, build_invalid_credential_reason())
         except QuotaExceededError:
             if self._client.fail_open:
@@ -368,7 +368,7 @@ class AgentScoreGate:
         # agent polls until status=verified, gets a fresh opc_..., and retries with
         # X-Operator-Token. No "go to verify_url and tell us when done" gap.
         # Unfixable reasons (sanctions_flagged, age_insufficient, jurisdiction_restricted)
-        # keep the bare wallet_not_trusted denial — re-verification won't fix them.
+        # keep the bare wallet_not_trusted denial: re-verification won't fix them.
         # `jurisdiction_restricted` is unfixable because the API only emits it AFTER KYC
         # is verified (the user's KYC'd country is in the blocked list).
         if is_fixable_denial(result.reasons) and self._create_session_on_missing is not None:
@@ -462,7 +462,7 @@ class ConditionalAgentScoreGate:
     ``Authorization: Payment``) flow through to the handler unauthenticated;
     settle legs trigger the full gate.
 
-    Use this for routes that should support anonymous discovery — the 402
+    Use this for routes that should support anonymous discovery: the 402
     emit path advertises all rails to any x402 wallet, and identity is
     verified at settle time on the retry leg.
 
@@ -491,7 +491,7 @@ class ConditionalAgentScoreGate:
 
 
 # ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
 # from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
 # merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
 # Starlette's ``Request`` already satisfies ``RequestLike`` (method / url / headers), so the

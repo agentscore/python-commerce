@@ -7,9 +7,9 @@ fee payer (~5000 lamports per tx; negligible vs the USDC value moved).
 ``load_solana_fee_payer(private_key=...)`` accepts a Solana keypair in any of
 the three forms agents commonly export it as:
 
-* **base58** (Phantom export format) — 64-byte secret+public, or 32-byte
+* **base58** (Phantom export format): 64-byte secret+public, or 32-byte
   secret-only
-* **hex** — 128-char string (64 bytes hex: 32-byte secret + 32-byte public)
+* **hex**: 128-char string (64 bytes hex: 32-byte secret + 32-byte public)
 
 Returns a ``KeyPairSigner`` from ``solders`` ready to pass to ``mppx``'s
 ``solana/charge`` rail. Returns ``None`` when ``private_key`` is empty / absent
@@ -39,7 +39,7 @@ def load_solana_fee_payer(private_key: str | None) -> Any | None:
     try:
         from solders.keypair import Keypair  # type: ignore[import-not-found]
     except ImportError as err:
-        msg = "solders not installed — run `pip install 'pympp[solana]>=0.6'` for load_solana_fee_payer."
+        msg = "solders not installed: run `pip install 'pympp[solana]>=0.6'` for load_solana_fee_payer."
         raise ImportError(msg) from err
 
     if re.fullmatch(r"[0-9a-fA-F]{128}", private_key):
@@ -49,7 +49,7 @@ def load_solana_fee_payer(private_key: str | None) -> Any | None:
     try:
         import base58  # type: ignore[import-not-found]
     except ImportError as err:
-        msg = "base58 not installed — required for base58-encoded Solana fee-payer keys."
+        msg = "base58 not installed: required for base58-encoded Solana fee-payer keys."
         raise ImportError(msg) from err
 
     decoded = base58.b58decode(private_key)

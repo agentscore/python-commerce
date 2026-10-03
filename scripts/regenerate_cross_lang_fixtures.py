@@ -54,7 +54,7 @@ def _envelope(signed: dict[str, Any], public_jwk: dict[str, Any], alg: str, kid:
     }
 
 
-# Spec-compliant binding helpers — each scenario uses these (or variants) so the
+# Spec-compliant binding helpers: each scenario uses these (or variants) so the
 # fixtures cover the full set of canonical UCP fields per binding type.
 
 
@@ -110,7 +110,7 @@ def _stripe_handler(config: dict[str, Any]) -> UCPPaymentHandlerBinding:
 
 
 def main() -> None:
-    # py-minimal — empty maps; just metadata + signing keys.
+    # py-minimal: empty maps; just metadata + signing keys.
     kid = "py-minimal-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
     profile = build_ucp_profile(
@@ -121,7 +121,7 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-minimal", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-es256-rails — multi-transport service + multi-rail + ES256 signing key.
+    # py-es256-rails: multi-transport service + multi-rail + ES256 signing key.
     kid = "py-es256-rails-ES256"
     key = generate_ucp_signing_key(kid=kid, alg="ES256")
     profile = build_ucp_profile(
@@ -141,7 +141,7 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid, alg="ES256")
     _write("py-es256-rails", _envelope(signed, key.public_jwk, "ES256", kid))
 
-    # py-extras-int — payment_handler config with int + string fields.
+    # py-extras-int: payment_handler config with int + string fields.
     kid = "py-extras-int-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
     profile = build_ucp_profile(
@@ -155,14 +155,14 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-extras-int", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-capability — hand-crafted vendor capability under com.agentscore.identity.
+    # py-capability: hand-crafted vendor capability under com.agentscore.identity.
     kid = "py-capability-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
     custom_capability = UCPCapabilityBinding(
         version="2026-04-08",
         spec="https://www.agentscore.com/specification/identity",
         schema="https://www.agentscore.com/schemas/ucp/com-agentscore-identity-v1.json",
-        # `extras` flat on the binding — kyc_required is a vendor field on this binding.
+        # `extras` flat on the binding: kyc_required is a vendor field on this binding.
         extras={"kyc_required": True},
     )
     profile = build_ucp_profile(
@@ -177,7 +177,7 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-capability", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-unicode — multi-byte UTF-8 in name / endpoint / config.
+    # py-unicode: multi-byte UTF-8 in name / endpoint / config.
     kid = "py-unicode-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
     profile = build_ucp_profile(
@@ -191,7 +191,7 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-unicode", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-multikey — JWKS with two keys, signed by the newer one.
+    # py-multikey: JWKS with two keys, signed by the newer one.
     old_key = generate_ucp_signing_key(kid="py-multikey-old")
     new_key = generate_ucp_signing_key(kid="py-multikey-new")
     profile = build_ucp_profile(
@@ -217,7 +217,7 @@ def main() -> None:
         },
     )
 
-    # py-emoji-keys — extras at top-level (outside the `ucp` envelope) with non-ASCII
+    # py-emoji-keys: extras at top-level (outside the `ucp` envelope) with non-ASCII
     # object keys (BMP private use, CJK compatibility, supplementary plane).
     # Exercises codepoint-vs-UTF-16 sort.
     kid = "py-emoji-keys-EdDSA"
@@ -239,7 +239,7 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-emoji-keys", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-int-boundary — exercises Number.MAX_SAFE_INTEGER round-trip via top-level extras.
+    # py-int-boundary: exercises Number.MAX_SAFE_INTEGER round-trip via top-level extras.
     kid = "py-int-boundary-EdDSA"
     key = generate_ucp_signing_key(kid=kid)
     profile = build_ucp_profile(
@@ -257,7 +257,7 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-int-boundary", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-agentscore-gate-full — exercises build_ucp_profile with a fully-populated
+    # py-agentscore-gate-full: exercises build_ucp_profile with a fully-populated
     # merchant gate policy declared via `agentscore_gate`. Both languages MUST emit
     # identical canonical bytes so a profile signed in one verifies in the other.
     kid = "py-agentscore-gate-full-EdDSA"
@@ -276,7 +276,7 @@ def main() -> None:
     signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid=kid)
     _write("py-agentscore-gate-full", _envelope(signed, key.public_jwk, "EdDSA", kid))
 
-    # py-agentscore-gate-blocked — exercises blocked_jurisdictions
+    # py-agentscore-gate-blocked: exercises blocked_jurisdictions
     # (mutually exclusive with allowed_jurisdictions) for cross-lang parity.
     kid = "py-agentscore-gate-blocked-EdDSA"
     key = generate_ucp_signing_key(kid=kid)

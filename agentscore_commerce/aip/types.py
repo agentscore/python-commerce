@@ -12,7 +12,7 @@ signer) we carry when we act as a compliance IdP.
 
 Extensibility contract (per spec): the ``identity`` object is open. If a claim is present,
 the IdP attests to it; verifiers ignore claims they don't recognize. Absence is the
-"unknown" signal — IdPs do not ship ``None`` for "not checked".
+"unknown" signal: IdPs do not ship ``None`` for "not checked".
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ Jwk = dict[str, Any]
 # Degree of human involvement in issuing this specific AIT.
 TrustLevel = Literal["autonomous", "human_present", "human_confirmed"]
 
-# Authentication Method Reference values (RFC 8176 / IANA AMR registry). Open set — these
+# Authentication Method Reference values (RFC 8176 / IANA AMR registry). Open set: these
 # are the values relevant to agent identity; others are valid and pass through.
 AmrValue = Literal["face", "fpt", "hwk", "otp", "pin", "pwd", "sms", "swk", "user", "mfa"]
 
@@ -93,7 +93,7 @@ class LinkedWallet(TypedDict):
 class IdentityClaim(TypedDict, total=False):
     """Identity claims (presence == IdP attestation).
 
-    Spec-defined fields plus AgentScore compliance extension claims. Open by contract —
+    Spec-defined fields plus AgentScore compliance extension claims. Open by contract:
     unknown fields are allowed and ignored. (TypedDict cannot express the open
     ``[claim: string]: unknown`` index signature node declares; treat this as the
     documented subset, and rely on ``dict``-level access for any extension key.)
@@ -126,7 +126,7 @@ class AitPayload(TypedDict, total=False):
     Required claims (``aip_version``, ``iss``, ``sub``, ``iat``, ``exp``, ``cnf``,
     ``agent``) are validated by :func:`validate_ait_payload`; ``total=False`` keeps the
     type usable for partially-decoded payloads before validation. Like node's interface,
-    the payload is open — unrecognized claims pass through.
+    the payload is open: unrecognized claims pass through.
     """
 
     aip_version: str
@@ -209,7 +209,7 @@ def validate_ait_payload(payload: object) -> AitValidationResult:
     normative conditional in the spec: a ``human_confirmed`` token MUST carry at least one
     ``auth.amr`` value.
 
-    This is shape/contract validation only — it does NOT verify signatures (that's the
+    This is shape/contract validation only: it does NOT verify signatures (that's the
     verifier pipeline) and does NOT apply trust policy (that's the gate / ``/v1/assess``).
     """
     if not _is_object(payload):

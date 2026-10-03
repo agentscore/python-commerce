@@ -103,7 +103,7 @@ _MPP_FIXTURES = [
     (
         "mpp_credential_without_source",
         "tempo",
-        "Payment eyJmb28iOiAiYmFyIn0=",  # {"foo": "bar"} — no source field
+        "Payment eyJmb28iOiAiYmFyIn0=",  # {"foo": "bar"}: no source field
         ZeroSettleResult(signer_address=None, signer_network=None),
     ),
 ]

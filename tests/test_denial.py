@@ -46,11 +46,11 @@ class TestIsFixableDenial:
     def test_jurisdiction_restricted_is_unfixable(self):
         # The API only emits jurisdiction_restricted AFTER KYC is verified, meaning the
         # user's KYC'd country is in the merchant's blocked list. Re-doing KYC won't
-        # change the country — same shape as sanctions_flagged / age_insufficient.
+        # change the country: same shape as sanctions_flagged / age_insufficient.
         assert "jurisdiction_restricted" not in FIXABLE_DENIAL_REASONS
 
     def test_empty_or_none_returns_false(self):
-        # Without a known reason we can't promise a fix — default to bare denial.
+        # Without a known reason we can't promise a fix: default to bare denial.
         assert not is_fixable_denial(None)
         assert not is_fixable_denial([])
 

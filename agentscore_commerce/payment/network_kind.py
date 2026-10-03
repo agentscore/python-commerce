@@ -29,6 +29,6 @@ def is_solana_network(value: Any) -> bool:
     """True when the network is a CAIP-2 Solana chain (``solana:<genesis>``).
 
     Note: the bare string ``"solana"`` (no ``:``) is the mppx-internal label,
-    NOT a CAIP-2 spec — this helper treats it as ``False``.
+    NOT a CAIP-2 spec: this helper treats it as ``False``.
     """
     return _read_network(value).startswith("solana:")

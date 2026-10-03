@@ -23,13 +23,13 @@ from agentscore_commerce.payment.rail_spec import X402BaseRailSpec
 ASSESS_URL = "https://api.agentscore.com/v1/assess"
 
 CLAIMED_WALLET = "0x1111111111111111111111111111111111111111"
-# The payment signer recovered from the x402 payload — a DIFFERENT wallet than claimed.
+# The payment signer recovered from the x402 payload: a DIFFERENT wallet than claimed.
 ACTUAL_SIGNER = "0x2222222222222222222222222222222222222222"
 LINKED_WALLET = "0x3333333333333333333333333333333333333333"
 
 
 class _StubX402Server:
-    """Settle path fake — only reached if the gate WRONGLY allowed the mismatch."""
+    """Settle path fake: only reached if the gate WRONGLY allowed the mismatch."""
 
     def build_payment_requirements(self, _config: Any) -> list[Any]:
         return [{"scheme": "exact", "network": "eip155:8453"}]
@@ -150,14 +150,14 @@ async def test_signer_mismatch_on_wallet_signing_rail_denies_not_settles() -> No
     # actual_signer_operator is always emitted for wallet_signer_mismatch (string = signer resolves
     # to a DIFFERENT operator; the assess mock returns signer_operator="op_other").
     assert body["actual_signer_operator"] == "op_other"
-    # PARITY (issue #5): Checkout emits the SAME body shape as node-commerce's Checkout.runGate —
+    # PARITY (issue #5): Checkout emits the SAME body shape as node-commerce's Checkout.runGate:
     # the recovery hint rides in `agent_instructions` (denial_reason_to_body), NOT in the standalone
     # build_signer_mismatch_body helper's `next_steps` container. So: agent_instructions present with
     # the canonical resign action, and NO next_steps key.
     assert "next_steps" not in body
     instructions = json.loads(body["agent_instructions"])
     assert instructions["action"] == "resign_or_switch_to_operator_token"
-    # CRITICAL: the settle never ran — no on-chain capture for a mismatched signer.
+    # CRITICAL: the settle never ran: no on-chain capture for a mismatched signer.
     assert "transaction" not in body
 
 

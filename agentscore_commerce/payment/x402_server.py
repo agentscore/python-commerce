@@ -13,7 +13,7 @@ Replaces ~15 lines of boilerplate with a single config call::
         bazaar=True,
     )
 
-`x402` is an OPTIONAL peer dependency — install only the schemes you use::
+`x402` is an OPTIONAL peer dependency: install only the schemes you use::
 
     pip install 'x402[evm,fastapi]>=2.9,<3'   # for non-Coinbase facilitators
     pip install 'agentscore-commerce[x402,coinbase]'   # for the Coinbase facilitator (adds cdp-sdk)
@@ -75,7 +75,7 @@ def _build_coinbase_facilitator(
     api_key_secret = api_key_secret or os.environ.get("CDP_API_KEY_SECRET")
     if not api_key_id or not api_key_secret:
         msg = (
-            "facilitator='coinbase' requires CDP_API_KEY_ID and CDP_API_KEY_SECRET — "
+            "facilitator='coinbase' requires CDP_API_KEY_ID and CDP_API_KEY_SECRET: "
             "set them as env vars or pass cdp_api_key_id / cdp_api_key_secret to "
             "create_x402_server."
         )
@@ -84,7 +84,7 @@ def _build_coinbase_facilitator(
     cdp_jwt_module = _import_optional("cdp.auth.utils.jwt")
     if cdp_jwt_module is None:
         msg = (
-            "cdp-sdk not installed — run `pip install 'agentscore-commerce[coinbase]'` "
+            "cdp-sdk not installed: run `pip install 'agentscore-commerce[coinbase]'` "
             "(or `pip install cdp-sdk`) to use facilitator='coinbase'."
         )
         raise ImportError(msg)
@@ -93,7 +93,7 @@ def _build_coinbase_facilitator(
     facilitator_config_cls = getattr(http_module, "FacilitatorConfig", None) if http_module else None
     facilitator_client_cls = getattr(http_module, "HTTPFacilitatorClient", None) if http_module else None
     if facilitator_config_cls is None or facilitator_client_cls is None:
-        msg = "x402.http missing FacilitatorConfig / HTTPFacilitatorClient — upgrade x402>=2.9."
+        msg = "x402.http missing FacilitatorConfig / HTTPFacilitatorClient: upgrade x402>=2.9."
         raise ImportError(msg)
 
     facilitator_url = COINBASE_FACILITATOR_URL
@@ -152,11 +152,11 @@ async def create_x402_server(
     # x402 2.9 layout: top-level `x402` package (with `x402` re-exports of
     # `x402ResourceServer`, `x402Facilitator`); schemes under
     # `x402.mechanisms.evm.{exact,upto}.server`. The 2.8-era v1+v2 dual
-    # register helper is obsolete — `register()` is v2 only and the resource
+    # register helper is obsolete: `register()` is v2 only and the resource
     # server handles v1 fallback internally via the facilitator.
     x402_top = _import_optional("x402")
     if x402_top is None or not hasattr(x402_top, "x402ResourceServer"):
-        msg = "x402 not installed — run `pip install 'x402[evm,fastapi]>=2.9,<3'` to use create_x402_server."
+        msg = "x402 not installed: run `pip install 'x402[evm,fastapi]>=2.9,<3'` to use create_x402_server."
         raise ImportError(msg)
 
     # Auto-select the Coinbase CDP facilitator when both env vars are present.
@@ -179,7 +179,7 @@ async def create_x402_server(
         http_module = _import_optional("x402.http")
         facilitator_client_cls = getattr(http_module, "HTTPFacilitatorClient", None) if http_module else None
         if facilitator_client_cls is None:
-            msg = "x402.http missing HTTPFacilitatorClient — upgrade x402>=2.9."
+            msg = "x402.http missing HTTPFacilitatorClient: upgrade x402>=2.9."
             raise ImportError(msg)
         facilitator_instance = facilitator_client_cls()
     else:
@@ -202,7 +202,7 @@ async def create_x402_server(
                     evm_upto_module = _import_optional("x402.mechanisms.evm.upto.server")
                 scheme_cls = getattr(evm_upto_module, "UptoEvmScheme", None) if evm_upto_module else None
                 if scheme_cls is None:
-                    msg = "x402[evm] not installed — run `pip install 'x402[evm]'` for x402 base upto rails."
+                    msg = "x402[evm] not installed: run `pip install 'x402[evm]'` for x402 base upto rails."
                     raise ImportError(msg)
                 server.register(network, scheme_cls())
             else:
@@ -210,7 +210,7 @@ async def create_x402_server(
                     evm_exact_module = _import_optional("x402.mechanisms.evm.exact.server")
                 scheme_cls = getattr(evm_exact_module, "ExactEvmScheme", None) if evm_exact_module else None
                 if scheme_cls is None:
-                    msg = "x402[evm] not installed — run `pip install 'x402[evm]'` for x402 base rails."
+                    msg = "x402[evm] not installed: run `pip install 'x402[evm]'` for x402 base rails."
                     raise ImportError(msg)
                 server.register(network, scheme_cls())
 
@@ -221,11 +221,11 @@ async def create_x402_server(
         bazaar_module = _import_optional("x402.extensions.bazaar")
         bazaar_ext = getattr(bazaar_module, "bazaar_resource_server_extension", None) if bazaar_module else None
         if bazaar_ext is None:
-            msg = "x402[extensions] not installed — run `pip install 'x402[extensions]'` for bazaar discovery."
+            msg = "x402[extensions] not installed: run `pip install 'x402[extensions]'` for bazaar discovery."
             raise ImportError(msg)
         register_extension = getattr(server, "register_extension", None)
         if not callable(register_extension):
-            msg = "x402 server does not expose register_extension — bazaar registration unavailable."
+            msg = "x402 server does not expose register_extension: bazaar registration unavailable."
             raise RuntimeError(msg)
         register_extension(bazaar_ext)
 
@@ -259,11 +259,11 @@ def build_x402_accepts_for_402(
     2. Remember to call ``model_dump(by_alias=True, mode="json")`` on each Pydantic
        requirement so the surrounding JSON response can serialize it
     3. Hardcode ``extra`` (which differs by the actual on-chain contract: base mainnet
-       USDC has ``name="USD Coin"``, base sepolia USDC has ``name="USDC"`` — EIP-712
+       USDC has ``name="USD Coin"``, base sepolia USDC has ``name="USDC"``: EIP-712
        domain hashes differ, so getting this wrong silently breaks every signature
        verify at the facilitator)
 
-    Returns a list of plain dicts in the shape that x402 expects on the wire — drop
+    Returns a list of plain dicts in the shape that x402 expects on the wire: drop
     them straight into the ``accepts`` field of the 402 challenge body.
 
     Raises ``Exception`` if the underlying ``build_payment_requirements`` raises;
@@ -273,7 +273,7 @@ def build_x402_accepts_for_402(
     config_cls_module = _import_optional("x402.schemas.config")
     config_cls = getattr(config_cls_module, "ResourceConfig", None) if config_cls_module else None
     if config_cls is None:
-        msg = "x402 not installed — run `pip install 'x402[evm,fastapi]>=2.9,<3'` to use build_x402_accepts_for_402."
+        msg = "x402 not installed: run `pip install 'x402[evm,fastapi]>=2.9,<3'` to use build_x402_accepts_for_402."
         raise ImportError(msg)
     config = config_cls(
         scheme=scheme,

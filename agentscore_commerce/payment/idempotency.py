@@ -6,7 +6,7 @@ Stable per-payment keys that retries of the same logical payment can reuse, so A
 
 Convention:
     1. Prefer the upstream payment-rail's stable identifier (Stripe PaymentIntent id, x402
-       tx hash) when one exists — those are already idempotent on their side.
+       tx hash) when one exists: those are already idempotent on their side.
     2. Fall back to a synthesized ``pi-{order_id}-{amount_cents}`` key when no upstream id
        is available.
     3. Server caps idempotency keys at 200 chars; this helper warns when that boundary is
@@ -30,7 +30,7 @@ def build_idempotency_key(
     """Compose a stable idempotency key for AgentScore wallet capture and other retry-safe POSTs.
 
     Returns ``None`` when no inputs are present (caller should treat as "no idempotency
-    key — first attempt only", same shape as omitting the field entirely).
+    key: first attempt only", same shape as omitting the field entirely).
 
     Examples::
 
@@ -57,10 +57,10 @@ def _clamp_key(key: str) -> str:
         return key
     # Server truncates anyway; surfacing the warning here gives callers a chance to design
     # shorter inputs. We still return the original key (server-side truncation is the
-    # source of truth) — clamping client-side would change semantics for any caller already
+    # source of truth): clamping client-side would change semantics for any caller already
     # depending on the full string for their own dedup.
     _log.warning(
-        "[agentscore-commerce] idempotency key longer than %d chars — server will truncate, "
+        "[agentscore-commerce] idempotency key longer than %d chars: server will truncate, "
         "may cause silent collisions if multiple keys share the first %d chars.",
         _SERVER_IDEMPOTENCY_KEY_MAX,
         _SERVER_IDEMPOTENCY_KEY_MAX,

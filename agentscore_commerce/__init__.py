@@ -1,4 +1,4 @@
-"""Agentic commerce SDK — identity middleware + payment helpers + 402 builders + discovery + Stripe multichain.
+"""Agentic commerce SDK: identity middleware + payment helpers + 402 builders + discovery + Stripe multichain.
 
 Submodules:
     agentscore_commerce.identity   - per-framework gate adapters
@@ -163,7 +163,7 @@ from agentscore_commerce.quote_cache import (
 try:
     __version__ = _pkg_version("agentscore-commerce")
 except PackageNotFoundError:
-    # Editable install or pre-build state — fall back to a sentinel so consumers
+    # Editable install or pre-build state: fall back to a sentinel so consumers
     # don't crash on a missing dist-info dir. Real version always comes from
     # pyproject.toml at install time.
     __version__ = "0.0.0+local"

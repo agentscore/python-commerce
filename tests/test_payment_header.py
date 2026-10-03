@@ -46,7 +46,7 @@ def test_accepts_request_like_with_headers_attr() -> None:
 
 
 def test_reads_headers_with_get_returning_list_or_tuple() -> None:
-    """Headers `.get` returns list values for repeated headers — first hop wins."""
+    """Headers `.get` returns list values for repeated headers: first hop wins."""
 
     class MultiHeaders:
         def get(self, name: str) -> list[str] | None:

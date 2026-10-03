@@ -706,7 +706,7 @@ async def test_process_x402_settle_serializes_pydantic_settle_result_to_payment_
     assert decoded["success"] is True
     assert decoded["transaction"] == "0xabc"
     assert decoded["network"] == "eip155:8453"
-    # by_alias=True: wire shape uses errorReason / errorMessage (camelCase) — not snake_case.
+    # by_alias=True: wire shape uses errorReason / errorMessage (camelCase): not snake_case.
     assert "errorReason" in decoded
 
 

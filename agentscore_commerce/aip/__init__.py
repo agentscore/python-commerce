@@ -1,4 +1,4 @@
-"""AIP (Agentic Identity Protocol) — AIT verification (verifier role) + RFC 9421 signing.
+"""AIP (Agentic Identity Protocol): AIT verification (verifier role) + RFC 9421 signing.
 
 This package is the AgentScore verifier for Agent Identity Tokens (AITs): a merchant gate
 hands a parsed request plus a trusted-issuer :class:`JwksCache` to the orchestrator and gets

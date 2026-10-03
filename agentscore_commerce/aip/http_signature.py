@@ -1,4 +1,4 @@
-"""RFC 9421 HTTP Message Signatures — the AIP-constrained subset.
+"""RFC 9421 HTTP Message Signatures: the AIP-constrained subset.
 
 AIP (Agentic Identity Protocol) binds an Agent Identity Token (AIT) to the
 agent that presents it: the agent signs each HTTP request with the private key whose
@@ -52,13 +52,13 @@ AIP_SIGNATURE_TAG = "agent-identity"
 _DEFAULT_MAX_SKEW_SECONDS = 60
 
 # Hard ceiling on the PoP signature's own declared lifetime (``expires - created``), in seconds.
-# Requiring ``created``+``expires`` bounds replay to the declared window — but with no ceiling a
+# Requiring ``created``+``expires`` bounds replay to the declared window: but with no ceiling a
 # malicious trusted-issuer agent could set ``expires = created + (AIT lifetime)`` and replay for the
 # full window. Cap it tightly so every accepted PoP is short-lived. First-party ``pay`` signs a 60s
 # window, so it passes; this only bites a signer that declares an over-long PoP. Matches the
 # authoritative API verifier's ``MAX_POP_WINDOW_SECONDS`` (the AgentScore API verifier) so the
 # edge (standalone ``aip_gate``) and the API can't drift. (Distinct from the AIT JWT's ``exp - iat``
-# ceiling in verify.py — this is the HTTP-signature layer.)
+# ceiling in verify.py: this is the HTTP-signature layer.)
 MAX_POP_WINDOW_SECONDS = 120
 
 # Verification failure reasons. Mirrors the reference ``VerifyFailureReason`` union exactly.
@@ -201,7 +201,7 @@ def build_signature_base(
     covered component has no available value.
 
     When ``raw_params`` is given (the verify path), it is used VERBATIM as the
-    ``@signature-params`` value — the signer signed over its own serialization, so re-serializing
+    ``@signature-params`` value: the signer signed over its own serialization, so re-serializing
     parsed params in a fixed order would break a spec-legal signer that emitted them in a
     different order. The sign path omits it and serializes canonically.
     """
@@ -325,7 +325,7 @@ class ParsedSignatureInput:
     """A selected ``Signature-Input`` member.
 
     Carries the dictionary ``label``, parsed ``params``, and the ``raw`` member value
-    (everything after ``label=``, exactly as received, OWS-trimmed) — the verify path
+    (everything after ``label=``, exactly as received, OWS-trimmed): the verify path
     rebuilds the base over the RAW serialization, not a re-serialization.
     """
 
@@ -381,7 +381,7 @@ def _calculate_jwk_thumbprint(jwk: Jwk) -> str:
     """RFC 7638 SHA-256 JWK thumbprint, byte-identical to jose's ``calculateJwkThumbprint``.
 
     joserfc's ``OKPKey.thumbprint()`` canonicalizes ``{crv, kty, x}`` with sorted keys and
-    no whitespace, SHA-256s it, and base64url-no-pad encodes — exactly the RFC 7638
+    no whitespace, SHA-256s it, and base64url-no-pad encodes: exactly the RFC 7638
     construction jose uses. Verified byte-equal cross-language. Raises on a malformed JWK;
     the caller catches.
     """
@@ -410,7 +410,7 @@ def verify_message_signature(
     3. REQUIRE both ``created`` and ``expires``, reject an over-long declared window
        (``expires - created`` > MAX_POP_WINDOW_SECONDS -> ``pop_window_too_long``), then enforce
        them against ``now`` with skew tolerance. Both are mandatory: an optional time bound is no
-       time bound — without ``expires`` a captured ``(token, Signature-Input, Signature)`` triple is
+       time bound: without ``expires`` a captured ``(token, Signature-Input, Signature)`` triple is
        replayable for the whole AIT lifetime. A signature omitting either is rejected
        (``created_missing`` / ``expires_missing``). This matches the authoritative API verifier
        (the AgentScore API verifier) so a merchant running ``aip_gate`` STANDALONE (the
@@ -419,7 +419,7 @@ def verify_message_signature(
     5. reconstruct the signature base and verify Ed25519 over it
 
     Note:
-        This is a STATELESS verifier — it bounds the replay WINDOW but does not dedupe within it.
+        This is a STATELESS verifier: it bounds the replay WINDOW but does not dedupe within it.
         A captured triple can still be replayed until ``expires`` (<= MAX_POP_WINDOW_SECONDS + skew
         from ``created``). A stateful seen-signature cache (as in the authoritative API) is out of
         scope for the SDK edge; the tight window bound is the meaningful mitigation here.
@@ -446,7 +446,7 @@ def verify_message_signature(
     # The ``alg`` param is optional in RFC 9421 (the verifier derives the algorithm from the
     # key); when a signer does include it, the registered HTTP-sig label is ``ed25519``.
     # Accept that plus the JWS spelling ``EdDSA``, case-insensitively, so a spec-loose
-    # external signer isn't wrongly rejected — the actual key type is still pinned to
+    # external signer isn't wrongly rejected: the actual key type is still pinned to
     # OKP/Ed25519 below, so this only affects the label.
     if params.alg is not None and params.alg.lower() not in ("ed25519", "eddsa"):
         return VerifyMessageSignatureResult(ok=False, reason="unsupported_alg")
@@ -457,7 +457,7 @@ def verify_message_signature(
             return VerifyMessageSignatureResult(ok=False, reason="missing_covered_component")
 
     # REQUIRE both ``created`` and ``expires``. Treating them as optional leaves an unbounded replay
-    # window — a captured signature with no ``expires`` is valid for the AIT's full lifetime. Reject
+    # window: a captured signature with no ``expires`` is valid for the AIT's full lifetime. Reject
     # when either is absent so every accepted PoP carries an explicit, enforceable time bound. (Our
     # pay signer always emits both with a 60s window; this only rejects spec-loose external signers.)
     if params.created is None:
@@ -466,7 +466,7 @@ def verify_message_signature(
         return VerifyMessageSignatureResult(ok=False, reason="expires_missing")
 
     # Bound the PoP's own declared lifetime. created+expires alone only bound replay to whatever
-    # window the SIGNER chose — a malicious trusted-issuer agent could declare a window as wide as
+    # window the SIGNER chose: a malicious trusted-issuer agent could declare a window as wide as
     # the AIT lifetime and replay for all of it. Reject an over-long window so every accepted PoP is
     # short-lived. (pay signs 60s; this only bites a signer declaring > MAX_POP_WINDOW_SECONDS.)
     # A NEGATIVE window (expires before created) is nonsense and would otherwise slip under the
@@ -490,7 +490,7 @@ def verify_message_signature(
     # binds as Ed25519 (OKP). Validate the key shape BEFORE thumbprinting / importing: a
     # malformed JWK (missing or non-string ``x``) makes the thumbprint throw, and a non-OKP
     # key (e.g. a P-256 EC cnf) makes the Ed25519 import throw. Neither call site below
-    # catches an unguarded throw into a crash — reject with a typed failure instead.
+    # catches an unguarded throw into a crash: reject with a typed failure instead.
     # (Note: the JWT alg allowlist permits ES256 for the IDP *issuer* signing key, a
     # different key.)
     cnf: dict[str, Any] = cnf_jwk if isinstance(cnf_jwk, dict) else {}
@@ -521,7 +521,7 @@ def verify_message_signature(
             path=path,
             agent_identity=agent_identity,
             extra=extra_components,
-            # Verify over the RAW received member serialization — param order is the signer's.
+            # Verify over the RAW received member serialization: param order is the signer's.
             raw_params=selected.raw,
         )
     except _MissingComponentError:
@@ -540,7 +540,7 @@ def verify_message_signature(
     try:
         raw = OKPKey.import_key(cnf_jwk).raw_value
         # ``cnf.jwk`` is a public key, but derive the public half defensively so a private
-        # JWK (which carries ``d``) also verifies — mirrors jose ``importJWK`` + ``subtle``,
+        # JWK (which carries ``d``) also verifies: mirrors jose ``importJWK`` + ``subtle``,
         # which verify against the public part regardless.
         public_key = raw.public_key() if isinstance(raw, Ed25519PrivateKey) else raw
         # crv=Ed25519 was enforced above, so raw_value is an Ed25519 key; the isinstance
@@ -619,7 +619,7 @@ def sign_message(
         extra=extra_components,
     )
 
-    # Raw Ed25519 over the signature base bytes — NOT a JWS. Matches node's
+    # Raw Ed25519 over the signature base bytes: NOT a JWS. Matches node's
     # ``subtle.sign('Ed25519', key, bytes)`` which emits the 64-byte raw signature, then
     # standard-base64 (not base64url) encodes it into the ``:...:`` byte-sequence value.
     raw_private = OKPKey.import_key(private_jwk).raw_value

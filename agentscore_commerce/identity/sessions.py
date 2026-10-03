@@ -38,7 +38,7 @@ class CreateSessionOnMissing:
     merged into ``DenialReason.extra`` so custom ``on_denied`` handlers can include
     merchant-specific fields (e.g. ``order_id``) in the 403 response.
 
-    Both hooks can be sync or ``async def``. Hook errors are logged and swallowed — a
+    Both hooks can be sync or ``async def``. Hook errors are logged and swallowed: a
     failing side effect should not block the 403 from reaching the agent.
     """
 
@@ -117,14 +117,14 @@ def _session_denial_reason(
 ) -> DenialReason | None:
     # Validate required fields before trusting the response. A misbehaving (or
     # mocked-wrong) API could 200 without session_id/poll_secret/verify_url, which
-    # would propagate None into the 403 body and leave the agent stuck — treat that
+    # would propagate None into the 403 body and leave the agent stuck: treat that
     # as a session-create failure and let the caller fall back to missing_identity.
     if not (
         isinstance(data.get("session_id"), str)
         and isinstance(data.get("poll_secret"), str)
         and isinstance(data.get("verify_url"), str)
     ):
-        logger.warning("/v1/sessions returned 200 without required fields — treating as failure")
+        logger.warning("/v1/sessions returned 200 without required fields: treating as failure")
         return None
     # The API emits structured ``next_steps`` on /v1/sessions success. Stringify it into
     # the gate's ``agent_instructions`` contract so every denial body surfaces the same
@@ -164,7 +164,7 @@ async def try_create_session_denial_reason(
     """Hit ``POST /v1/sessions`` and return a populated DenialReason, or None on failure.
 
     Async variant. Invokes ``cfg.get_session_options(ctx)`` and ``cfg.on_before_session(ctx, session)``
-    if set — both may be sync or async.
+    if set: both may be sync or async.
     """
     try:
         dynamic: Any = None
@@ -203,7 +203,7 @@ def try_create_session_denial_reason_sync(
 ) -> DenialReason | None:
     """Synchronous variant of :func:`try_create_session_denial_reason` for Flask/Django.
 
-    Hook callables MUST be sync (not ``async def``) — sync code can't await. If an
+    Hook callables MUST be sync (not ``async def``): sync code can't await. If an
     async hook is passed in a sync adapter config, it's skipped with a warning.
     """
     try:
@@ -212,7 +212,7 @@ def try_create_session_denial_reason_sync(
             try:
                 hook_dynamic = cfg.get_session_options(ctx)
                 if inspect.iscoroutine(hook_dynamic):
-                    logger.warning("get_session_options returned a coroutine in a sync adapter — skipping")
+                    logger.warning("get_session_options returned a coroutine in a sync adapter: skipping")
                     hook_dynamic.close()
                 else:
                     dynamic = hook_dynamic
@@ -232,7 +232,7 @@ def try_create_session_denial_reason_sync(
             try:
                 hook_result: Any = cfg.on_before_session(ctx, _session_metadata(data))
                 if inspect.iscoroutine(hook_result):
-                    logger.warning("on_before_session returned a coroutine in a sync adapter — skipping")
+                    logger.warning("on_before_session returned a coroutine in a sync adapter: skipping")
                     hook_result.close()
                 elif isinstance(hook_result, dict):
                     extra = cast("dict[str, Any]", hook_result)

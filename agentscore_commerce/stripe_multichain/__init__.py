@@ -1,4 +1,4 @@
-"""Stripe multichain helpers — PaymentIntent with deposit_options + testnet simulator + Stripe SPT method for pympp."""
+"""Stripe multichain helpers: PaymentIntent with deposit_options + testnet simulator + Stripe SPT method for pympp."""
 
 from agentscore_commerce.stripe_multichain.mppx_stripe import (
     DEFAULT_PAYMENT_METHOD_TYPES,

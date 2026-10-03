@@ -233,7 +233,7 @@ def agentscore_gate_middleware(
             if recovered is not None:
                 signer_payload = {"address": recovered.address, "network": recovered.network}
 
-        # Only acheck_identity is wrapped — the downstream handler call must NOT be in the
+        # Only acheck_identity is wrapped: the downstream handler call must NOT be in the
         # try, otherwise an exception in the user's route would be misclassified as an
         # AgentScore infra failure and (under fail_open) re-invoke their handler.
         try:
@@ -245,7 +245,7 @@ def agentscore_gate_middleware(
         except TokenDeniedError as err:
             return _deny_response(request, build_token_denied_reason(err))
         except InvalidCredentialError:
-            # Permanent — no auto-session, agent should switch tokens or restart.
+            # Permanent: no auto-session, agent should switch tokens or restart.
             return _deny_response(request, build_invalid_credential_reason())
         except QuotaExceededError:
             if client.fail_open:
@@ -292,7 +292,7 @@ def agentscore_gate_middleware(
         # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
         # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
         # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
-        # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+        # verified (the user's KYC'd country is in the blocked list: re-doing KYC
         # won't change the country).
         if is_fixable_denial(result.reasons) and create_session_on_missing is not None:
             session_reason = await try_create_session_denial_reason(
@@ -323,7 +323,7 @@ def get_signer_verdict(request: web.Request) -> SignerVerdict | None:
     credential, or for fail-open pass-throughs (no assess call).
 
     Reads the request-scoped verdict stashed by the gate (projected from THIS request's
-    assess response) — concurrency-safe against a sibling same-wallet request.
+    assess response): concurrency-safe against a sibling same-wallet request.
     """
     state = request.get(GATE_STATE_KEY)
     if not isinstance(state, dict):
@@ -379,7 +379,7 @@ def conditional_agentscore_gate_middleware(**kwargs: Any) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
 # from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
 # merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
 # aiohttp's ``web.Request`` exposes method / url / headers, so this verifies straight off the

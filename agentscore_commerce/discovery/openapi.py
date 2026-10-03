@@ -189,7 +189,7 @@ def x_payment_info_from_checkout(
 ) -> dict[str, Any]:
     """Derive an ``x-payment-info`` extension from a configured ``Checkout``.
 
-    Walks ``checkout.rails`` and emits one entry in ``protocols[]`` per rail —
+    Walks ``checkout.rails`` and emits one entry in ``protocols[]`` per rail:
     Tempo MPP, x402 (Base), Solana MPP, Stripe SPT. Saves merchants from
     enumerating protocols by hand and keeps the OpenAPI doc in sync with the
     actual rails the Checkout serves.
@@ -200,7 +200,7 @@ def x_payment_info_from_checkout(
     ``stripe``).
 
     For Solana MPP, ``currency`` is the SPL mint address per the official
-    spec (paymentauth.org/draft-solana-charge-00) — read from ``spec.token``.
+    spec (paymentauth.org/draft-solana-charge-00): read from ``spec.token``.
     """
     from agentscore_commerce.payment.rail_spec import (
         SolanaMppRailSpec,

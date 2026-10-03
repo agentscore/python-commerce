@@ -5,7 +5,7 @@ and the standard x402 ``PAYMENT-REQUIRED`` header from a single rails declaratio
 Reduces ~10 lines of merchant boilerplate per 402 response.
 
 Layered on top of :func:`payment_directive` / :func:`www_authenticate_header` /
-:func:`payment_required_header` — those primitives stay exposed for vendors who want
+:func:`payment_required_header`: those primitives stay exposed for vendors who want
 full control.
 """
 
@@ -26,28 +26,28 @@ class PaymentHeadersRail:
     """One rail entry for :func:`build_payment_headers`."""
 
     rail: str
-    """Symbolic rail name — ``tempo-mainnet``, ``x402-base-mainnet``, ``stripe``, etc."""
+    """Symbolic rail name: ``tempo-mainnet``, ``x402-base-mainnet``, ``stripe``, etc."""
 
     amount_usd: str | float
     """Amount in USD as a number or string."""
 
     recipient: str | None = None
-    """Recipient address (on-chain) — required for crypto rails."""
+    """Recipient address (on-chain): required for crypto rails."""
 
     network_id: str | None = None
-    """Stripe profile_id / network_id — required for ``stripe`` rail."""
+    """Stripe profile_id / network_id: required for ``stripe`` rail."""
 
     chain_id: int | None = None
-    """EVM chain id override — usually inferred from rail."""
+    """EVM chain id override: usually inferred from rail."""
 
     currency: str | None = None
-    """Token contract / currency override — usually inferred from rail."""
+    """Token contract / currency override: usually inferred from rail."""
 
     decimals: int | None = None
-    """Decimal precision override — usually inferred from rail (USDC=6, etc.)."""
+    """Decimal precision override: usually inferred from rail (USDC=6, etc.)."""
 
     method: str | None = None
-    """MPP method override — usually inferred from rail."""
+    """MPP method override: usually inferred from rail."""
 
     intent: str | None = None
     """MPP intent. Default ``charge``."""
@@ -86,7 +86,7 @@ def build_payment_headers(
 ) -> PaymentHeadersResult:
     """Compose WWW-Authenticate + PAYMENT-REQUIRED headers from a single rails declaration.
 
-    Returns a dict with snake_case keys — callers map to actual HTTP header names::
+    Returns a dict with snake_case keys: callers map to actual HTTP header names::
 
         headers = build_payment_headers(...)
         response.headers["www-authenticate"] = headers["www_authenticate"]
@@ -95,7 +95,7 @@ def build_payment_headers(
 
     ``order_id`` is used as the directive challenge id (per-rail it becomes
     ``"{order_id}-{rail}"``). ``realm`` is the host of the merchant URL (e.g.
-    ``agents.merchant.example``). ``x402`` is optional — pass an ``X402AcceptsBlock``
+    ``agents.merchant.example``). ``x402`` is optional: pass an ``X402AcceptsBlock``
     to include the standard PAYMENT-REQUIRED header so x402 clients (``x402[fastapi]``,
     ``agentscore-pay``) can parse the binary-friendly format. Omit to skip.
 

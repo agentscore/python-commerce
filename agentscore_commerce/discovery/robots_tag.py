@@ -3,7 +3,7 @@
 Public-by-design endpoints (OpenAPI, llms.txt, MPP/A2A/UCP well-known files)
 should NOT carry ``X-Robots-Tag: noindex`` since the whole point is for agents
 and discovery crawlers to find them. Everything else on an agent-only API
-should noindex by default — there's no human-shaped HTML to surface, and
+should noindex by default: there's no human-shaped HTML to surface, and
 accidental indexing leaks transactional endpoints into noisy SERPs.
 
 This module ships a pure predicate (``is_discovery_path``) that vendors compose
@@ -75,7 +75,7 @@ class NoindexNonDiscoveryMiddleware:
         app.add_middleware(NoindexNonDiscoveryMiddleware, custom_paths={"/sitemap.xml"})
 
     Pure helpers (``is_discovery_path``, ``DEFAULT_DISCOVERY_PATHS``) are exported
-    for non-ASGI frameworks (Flask, Django sync) — wire them into your own
+    for non-ASGI frameworks (Flask, Django sync): wire them into your own
     middleware idiom.
     """
 

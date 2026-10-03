@@ -792,7 +792,7 @@ async def test_gate_run_gate_returning_unexpected_type_raises() -> None:
 async def test_gate_per_request_policy_none_routes_to_wallet_ofac_floor_denies_sdn(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`per_request_policy(ctx) → None` no longer skips the gate — it falls through
+    """`per_request_policy(ctx) → None` no longer skips the gate: it falls through
     to the always-on wallet OFAC SDN floor. With an api_key + a wallet-signed
     payment, the floor screens the signer and DENIES an OFAC-SDN signer."""
     from agentscore_commerce.checkout import CheckoutGateConfig
@@ -821,7 +821,7 @@ async def test_gate_per_request_policy_none_routes_to_wallet_ofac_floor_denies_s
                 body={},
             ),
         )
-    # Floor fired and denied on the SDN signer — settle must NOT proceed.
+    # Floor fired and denied on the SDN signer: settle must NOT proceed.
     mock_aassess.assert_called_once()
     assert result.status == 403
     assert result.settled is False
@@ -868,7 +868,7 @@ async def test_gate_per_request_policy_none_floor_skips_without_signer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """`per_request_policy(ctx) → None` → wallet OFAC floor; with NO extractable
-    signer (Stripe SPT / card / no crypto payment) the floor is a no-op — no
+    signer (Stripe SPT / card / no crypto payment) the floor is a no-op: no
     forced wallet, no assess call, settle proceeds to 200."""
     from agentscore_commerce.checkout import CheckoutGateConfig
 
@@ -953,7 +953,7 @@ async def test_gate_allow_attaches_capture_wallet(monkeypatch: pytest.MonkeyPatc
 
     async def _on_settled(ctx: Any, outcome: SettleOutcome) -> dict[str, Any]:
         if ctx.capture_wallet is not None:
-            # Don't actually fire — would call AgentScoreCore — but mark that the closure exists.
+            # Don't actually fire (it would call AgentScoreCore), but mark that the closure exists.
             capture_calls.append({"available": True, "tx": outcome.tx_hash})
         return {"order_id": "o-1"}
 

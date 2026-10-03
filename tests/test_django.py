@@ -596,7 +596,7 @@ class TestDjangoChainOption:
 
     def test_handler_exception_is_not_swallowed_by_gate(self) -> None:
         """Regression: gate's try-block must NOT wrap the downstream view (`get_response`).
-        If the user's view raises, the exception must propagate up — NOT be misclassified as
+        If the user's view raises, the exception must propagate up: NOT be misclassified as
         an AgentScore infra failure (which under fail_open would re-invoke the view)."""
         invocations = {"count": 0}
 

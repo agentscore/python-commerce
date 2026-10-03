@@ -1,15 +1,15 @@
 """Universal denial helpers shared across every adapter.
 
 What lives here:
-    FIXABLE_DENIAL_REASONS / is_fixable_denial — classifier for compliance reasons that can
+    FIXABLE_DENIAL_REASONS / is_fixable_denial: classifier for compliance reasons that can
         be resolved by re-completing KYC (vs sanctions / age failures which are permanent).
-    denial_reason_status — picks the right HTTP status code per denial code (401 for credential
+    denial_reason_status: picks the right HTTP status code per denial code (401 for credential
         problems, 503 for transient API errors, 403 for everything else).
-    build_signer_mismatch_body — produces the standard 403 body for a non-pass signer_match
+    build_signer_mismatch_body: produces the standard 403 body for a non-pass signer_match
         verdict (read via get_signer_verdict).
-    build_contact_support_next_steps — standard `next_steps.action: "contact_support"` shape for
+    build_contact_support_next_steps: standard `next_steps.action: "contact_support"` shape for
         unfixable compliance denials.
-    verification_agent_instructions — the canned `agent_instructions` block for
+    verification_agent_instructions: the canned `agent_instructions` block for
         identity-verification 403s. Vendors can override individual fields.
 
 Adapters use `denial_reason_status` inside their default `on_denied` so vendors get the right
@@ -25,10 +25,10 @@ from agentscore_commerce.identity.types import DenialReason, VerifyWalletSignerR
 # Compliance denial reasons that can be resolved by re-completing KYC. The API emits these
 # when KYC is missing/pending/failed; the user can re-verify and retry.
 #
-# `jurisdiction_restricted` is NOT in this set — the API only emits it AFTER KYC is verified,
+# `jurisdiction_restricted` is NOT in this set: the API only emits it AFTER KYC is verified,
 # meaning the user's KYC'd country is in the merchant's blocked list (or absent from the
 # allowed list). Re-doing KYC won't change the country, so it's permanent. Same shape as
-# `sanctions_flagged` and `age_insufficient` — surface contact_support, don't waste a
+# `sanctions_flagged` and `age_insufficient`: surface contact_support, don't waste a
 # /v1/sessions mint.
 FIXABLE_DENIAL_REASONS: frozenset[str] = frozenset(
     {
@@ -43,7 +43,7 @@ def is_fixable_denial(reasons: Iterable[str] | None) -> bool:
     """Return True when every reason is fixable via KYC re-verification.
 
     False when any reason is permanent (sanctions, age, jurisdiction_restricted) OR when
-    reasons is empty/None — without a known reason we can't promise a fix, so default to
+    reasons is empty/None: without a known reason we can't promise a fix, so default to
     the bare denial path.
     """
     if not reasons:
@@ -158,7 +158,7 @@ def verification_agent_instructions(
     """Canonical `agent_instructions` block for identity-verification 403s.
 
     Tells the agent how to present verify_url, poll for the operator_token, and retry the
-    original request. Universal across every AgentScore-gated merchant — overrides let vendors
+    original request. Universal across every AgentScore-gated merchant: overrides let vendors
     add merchant-specific steps.
 
     ``retry_step`` REPLACES the generic "Retry the original merchant request..." step with a
@@ -168,7 +168,7 @@ def verification_agent_instructions(
     the retry (e.g. "After payment the same call returns 200").
     """
     base_steps = [
-        "Present the verify_url directly to the user — it is a complete, ready-to-open URL with the session "
+        "Present the verify_url directly to the user: it is a complete, ready-to-open URL with the session "
         "token already embedded (e.g. https://www.agentscore.com/verify?session=sess_...). "
         "Do NOT modify or construct the URL yourself.",
         f"Immediately begin polling poll_url every {poll_interval_seconds} seconds with header X-Poll-Secret "
@@ -176,7 +176,7 @@ def verification_agent_instructions(
         "The user visits the URL, signs in, completes identity verification (photo ID + selfie via Stripe Identity), "
         "and closes the tab. They do NOT need to copy or paste anything back to you.",
         'When your poll returns status "verified", extract operator_token from the response. This is a one-time '
-        'value — save it immediately. Subsequent polls return status "consumed" without the token.',
+        'value: save it immediately. Subsequent polls return status "consumed" without the token.',
         retry_step
         or "Retry the original merchant request with header X-Operator-Token set to the operator_token value.",
     ]

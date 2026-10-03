@@ -38,6 +38,6 @@ async def test_memoized_redis_with_unreachable_url() -> None:
     get = memoized_redis(url="redis://127.0.0.1:1", label="test-unreachable")
     result = await get()
     # Either None (no redis installed / construction failed) or a client object
-    # that won't be queried — either way memoization is the key behavior here.
+    # that won't be queried: either way memoization is the key behavior here.
     again = await get()
     assert result is again

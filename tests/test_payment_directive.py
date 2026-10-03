@@ -34,7 +34,7 @@ def test_build_payment_request_blob_overrides_take_precedence():
 
 
 def test_build_payment_request_blob_includes_decimals_for_node_parity():
-    """Wire-format parity with @agent-score/commerce — the decoded JSON must include `decimals`
+    """Wire-format parity with @agent-score/commerce: the decoded JSON must include `decimals`
     (mppx tempo schema requires it). If this assertion fails, node-commerce and python-commerce
     are emitting different request blobs for the same payment, which breaks cross-SDK interop.
     """

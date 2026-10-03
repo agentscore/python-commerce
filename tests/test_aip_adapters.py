@@ -5,7 +5,7 @@ nextjs plus the ``verifyAitParts`` (Node header-map) entry point and ``buildVeri
 The Python adapters with an AIP gate are: the ASGI middleware (Starlette / FastAPI via
 ``add_middleware``), the FastAPI ``AipGate`` / ``ConditionalAipGate`` dependencies, and the aiohttp
 ``aip_gate_middleware``. Each is exercised end-to-end with a real signed AIT, and the parts-based
-entry points (``verify_ait_parts`` / ``build_verify_context_from_parts``) are tested directly — the
+entry points (``verify_ait_parts`` / ``build_verify_context_from_parts``) are tested directly: the
 same coverage shape as the node suite.
 """
 
@@ -238,7 +238,7 @@ class TestFastapiAipGateDependency:
 
         denied = client.post("/checkout", headers={"host": AUTHORITY})
         assert denied.status_code == 401
-        # FLAT application/problem+json document — body["type"], not nested under "detail".
+        # FLAT application/problem+json document: body["type"], not nested under "detail".
         assert denied.headers["content-type"].startswith("application/problem+json")
         assert denied.json()["type"] == "urn:aip:error:agent_identity_required"
 

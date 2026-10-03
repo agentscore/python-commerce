@@ -83,12 +83,12 @@ _MPP_DID_SOLANA_CHALLENGE = (
     "eyJjaGFsbGVuZ2UiOiB7InNvdXJjZSI6ICJkaWQ6cGtoOnNvbGFuYTo1ZXlrdDRVc0Z2OFA4TkpkVFJFcFkxdnpxS3FaS3ZkcFVrZkZw"
     "OjduUUVneHFFVzFiRHFhVDNrWldhOEtxVWs0V2ZoNFZiY3cifX0="
 )
-_MPP_NO_SOURCE = "Payment eyJmb28iOiAiYmFyIn0="  # {"foo": "bar"} — no source field anywhere
-_MPP_NON_DICT_JSON = "Payment WzEsIDIsIDNd"  # [1, 2, 3] — JSON list, not an object
+_MPP_NO_SOURCE = "Payment eyJmb28iOiAiYmFyIn0="  # {"foo": "bar"}: no source field anywhere
+_MPP_NON_DICT_JSON = "Payment WzEsIDIsIDNd"  # [1, 2, 3]: JSON list, not an object
 _MPP_NON_DID_SOURCE = "Payment eyJzb3VyY2UiOiAiaHR0cHM6Ly9leGFtcGxlLmNvbSJ9"  # {"source": "https://example.com"}
-# {"source": "did:pkh:tezos:NetXdQprcVkpaWU:tz1abc..."} — valid did:pkh shape but unknown family
+# {"source": "did:pkh:tezos:NetXdQprcVkpaWU:tz1abc..."}: valid did:pkh shape but unknown family
 _MPP_UNKNOWN_FAMILY = "Payment eyJzb3VyY2UiOiAiZGlkOnBraDp0ZXpvczpOZXRYZFFwcmNWa3BhV1U6dHoxYWJjZGVmZ2hpamtsbW5vcCJ9"
-# {"source": "did:pkh:eip155:4217:not-an-evm-address"} — valid did:pkh but malformed address
+# {"source": "did:pkh:eip155:4217:not-an-evm-address"}: valid did:pkh but malformed address
 _MPP_MALFORMED_ADDR = "Payment eyJzb3VyY2UiOiAiZGlkOnBraDplaXAxNTU6NDIxNzpub3QtYW4tZXZtLWFkZHJlc3MifQ=="
 
 _MPP_FIXTURES: list[tuple[str, str, PaymentSigner | None]] = [
@@ -164,7 +164,7 @@ class TestExtractPaymentSignerMppPath:
     def test_does_not_require_mpp_parsing_module(self) -> None:
         """Regression: the helper must NOT import ``mpp._parsing`` (private upstream).
 
-        This is a smoke test — we don't try to mock the import absence, just confirm
+        This is a smoke test: we don't try to mock the import absence, just confirm
         the helper works without pympp's private parser being involved. The function
         body relies only on stdlib (base64 + json) for the MPP path.
         """

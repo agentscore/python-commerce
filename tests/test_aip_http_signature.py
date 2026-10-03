@@ -1,4 +1,4 @@
-"""RFC 9421 HTTP Message Signature (AIP subset) — sign / verify + cross-language conformance.
+"""RFC 9421 HTTP Message Signature (AIP subset): sign / verify + cross-language conformance.
 
 Ports node-commerce ``tests/aip_http_signature.test.ts``. Two things are pinned here:
 
@@ -32,7 +32,7 @@ from agentscore_commerce.aip import (
 )
 from agentscore_commerce.aip.http_signature import SignatureParams, _calculate_jwk_thumbprint
 
-# Filter joserfc's EdDSA deprecation SecurityWarning (RFC 9864) for the whole module — AIP pins
+# Filter joserfc's EdDSA deprecation SecurityWarning (RFC 9864) for the whole module: AIP pins
 # Ed25519 as its only signing curve, so the warning is expected and not actionable here.
 pytestmark = pytest.mark.filterwarnings("ignore::UserWarning")
 
@@ -61,7 +61,7 @@ BASE_REQ = {
 def _round_trip(**overrides: object):
     # The verifier now REQUIRES `expires` (replay-window hardening), so default to a 60s window
     # (matching pay's signer) unless a test overrides it. `sign_message` itself omits `expires` by
-    # default — that's only the serialization-format default, exercised explicitly below.
+    # default: that's only the serialization-format default, exercised explicitly below.
     created = overrides.get("created")
     expires_default = (created + 60) if isinstance(created, int) else None
     args = {
@@ -135,7 +135,7 @@ class TestBuildSignatureBase:
         assert not base.endswith("\n")
 
     def test_raises_when_a_covered_component_has_no_value(self) -> None:
-        with pytest.raises(Exception):  # noqa: B017 — _MissingComponentError is private
+        with pytest.raises(Exception):  # noqa: B017  # _MissingComponentError is private
             build_signature_base(
                 SignatureParams(components=["@method", "x-missing"]),
                 method=BASE_REQ["method"],
@@ -263,7 +263,7 @@ class TestVerifyFailureModes:
             # created+expires present so the sig reaches the keyid check, not the time-bound gates.
             expires=1715400060,
         )
-        # present the wrong cnf (our original key) — keyid in the sig won't match its thumbprint
+        # present the wrong cnf (our original key): keyid in the sig won't match its thumbprint
         r = verify_message_signature(
             **BASE_REQ,  # type: ignore[arg-type]
             signature_input=sm.signature_input,
@@ -307,7 +307,7 @@ class TestVerifyFailureModes:
         assert (r.ok, r.reason) == (False, "created_missing")
 
     def test_rejects_a_signature_missing_expires(self) -> None:
-        # sign_message omits `expires` by default — exactly the spec-loose shape the hardening rejects.
+        # sign_message omits `expires` by default: exactly the spec-loose shape the hardening rejects.
         sm = sign_message(
             **BASE_REQ,  # type: ignore[arg-type]
             private_jwk=PRIVATE_JWK,
@@ -512,7 +512,7 @@ class TestCrossLanguageConformance:
         assert r.ok is True
 
     def test_python_verify_rejects_the_node_api_vector_missing_expires(self) -> None:
-        # The byte-pinned node/api signMessage vector carries `created` but OMITS `expires` — exactly
+        # The byte-pinned node/api signMessage vector carries `created` but OMITS `expires`: exactly
         # the spec-loose shape the replay-window hardening rejects. (Mirrors core/api's conformance
         # test, which now asserts `expires_missing` for this same vector.) The WITH-`expires` accept
         # path is covered by the pay vector above and the explicit accept test below.

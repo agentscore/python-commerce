@@ -1,4 +1,4 @@
-"""Per-adapter coverage for ``get_signer_verdict`` — returns ``None`` when no signer was
+"""Per-adapter coverage for ``get_signer_verdict``: returns ``None`` when no signer was
 extracted (operator-token-only paths, no payment credential, missing gate state).
 
 The verdict is REQUEST-SCOPED: the gate stashes ``state["signer_verdict"]`` (projected from
@@ -216,7 +216,7 @@ def test_sanic_get_signer_verdict_reads_request_scoped_verdict() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AgentScoreCore.get_signer_verdict — projection branches
+# AgentScoreCore.get_signer_verdict: projection branches
 # ---------------------------------------------------------------------------
 
 

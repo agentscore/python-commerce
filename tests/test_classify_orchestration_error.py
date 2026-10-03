@@ -1,4 +1,4 @@
-"""Tests for ``classify_orchestration_error`` — string-match classification of
+"""Tests for ``classify_orchestration_error``: string-match classification of
 arbitrary thrown errors during the 402 orchestration.
 
 Locked cross-language fixtures shared with the Node sibling at
@@ -28,7 +28,7 @@ _FIXTURES: list[tuple[str, str, str | None]] = [
     ("facilitator_lowercase", "Facilitator unreachable", "payment_provider_unavailable"),
     ("cdp_lowercase", "CDP JWT expired", "payment_provider_unavailable"),
     ("stripe_uppercase", "STRIPE timeout", "payment_provider_unavailable"),
-    # Unknown — caller rethrows
+    # Unknown: caller rethrows
     ("database_error", "duplicate key value violates unique constraint", None),
     ("network_error", "ECONNREFUSED", None),
     ("empty_string", "", None),

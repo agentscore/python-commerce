@@ -233,7 +233,7 @@ class TestBuildAipPolicyDenyBody:
 
     def test_merchant_extra_cannot_clobber_the_problem_json_envelope(self) -> None:
         # `body` carries merchant `extra` passthrough fields (on_before_session hook); a hook
-        # echoing `status`/`type`/`title`/`detail` must not override the canonical envelope —
+        # echoing `status`/`type`/`title`/`detail` must not override the canonical envelope:
         # the caller derives the HTTP status from `superset["status"]`.
         from agentscore_commerce.aip.gate import build_aip_policy_deny_body
 

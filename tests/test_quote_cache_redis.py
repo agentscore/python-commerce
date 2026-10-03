@@ -74,7 +74,7 @@ async def test_try_create_redis_returns_none_when_redis_missing(monkeypatch: pyt
 
 @pytest.mark.asyncio
 async def test_try_create_redis_returns_none_on_generic_exception(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Generic Exception branch (lines 73-75) — e.g. malformed URL."""
+    """Generic Exception branch (lines 73-75): e.g. malformed URL."""
     import importlib
 
     real_import = importlib.import_module

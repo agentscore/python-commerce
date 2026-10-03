@@ -28,7 +28,7 @@ def warn_missing_api_key_once(label: str) -> None:
         return
     _warned_no_api_key = True
     logging.getLogger(__name__).warning(
-        f"[{label}] AGENTSCORE_API_KEY is not set — wallet OFAC SDN sanctions are NOT being enforced. "
+        f"[{label}] AGENTSCORE_API_KEY is not set: wallet OFAC SDN sanctions are NOT being enforced. "
         "Set the env var to enable strict-liability protection on settle."
     )
 

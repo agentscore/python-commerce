@@ -2,15 +2,15 @@
 
 :func:`create_result_cache` is the neutral primitive: a keyed JSON-value cache
 with a stable content-hash key builder. Use it to cache any per-request result
-a merchant computes on the probe leg and replays on the settle leg — e.g. the
+a merchant computes on the probe leg and replays on the settle leg: e.g. the
 output of a paid upstream call made in a ``Checkout`` ``pre_validate`` hook, so
 a payment retry (or a junk payment header) never pays upstream twice.
 
 :func:`create_quote_cache` is the compute-first-flavored wrapper used by
 ``compute_first_checkout``: the cached value is a :class:`CachedQuote`
 (``body`` / ``price_cents`` / ``recipients``). Standard x402-fetch retry
-semantics resign the buyer's ORIGINAL request body — there's no ``result_id``
-echo channel through the protocol — so both caches key by a stable
+semantics resign the buyer's ORIGINAL request body: there's no ``result_id``
+echo channel through the protocol: so both caches key by a stable
 content-hash of the request body. Same body → same hash → same cache slot.
 
 Default in-memory ``dict``; optional ``redis_url`` lazy-imports

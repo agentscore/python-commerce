@@ -178,7 +178,7 @@ async def test_run_gate_hard_converts_gate_denial_error() -> None:
 async def test_run_gate_soft_swallows_gate_denial_error() -> None:
     # soft mode SWALLOWS a non-sanctions _GateDenialError (KYC/age/jurisdiction), stamping
     # status="unverified" so the order completes with a degraded identity_status. (Sanctions
-    # are the sole exception — see test_run_gate_soft_does_not_swallow_sanctions_*.)
+    # are the sole exception: see test_run_gate_soft_does_not_swallow_sanctions_*.)
     # run_gate_with_enforcement previously caught only HTTPException, so once the gate
     # started raising the flat _GateDenialError, soft mode let the denial propagate.
     from agentscore_commerce.identity.fastapi import _GateDenialError
@@ -210,7 +210,7 @@ async def test_run_gate_soft_does_not_swallow_sanctions_gate_denial_error() -> N
 @pytest.mark.asyncio
 async def test_run_gate_soft_does_not_swallow_sanctions_unavailable() -> None:
     # The fail-closed unavailable-screen variant (`sanctions_check_unavailable`) is also a
-    # strict-liability deny — soft must not downgrade it to settled.
+    # strict-liability deny: soft must not downgrade it to settled.
     from agentscore_commerce.identity.fastapi import _GateDenialError
 
     body = {"error": {"code": "wallet_not_trusted"}, "reasons": ["sanctions_check_unavailable"]}
@@ -252,7 +252,7 @@ def test_module_exports_public_surface() -> None:
 
 
 def test_validate_shipping_no_op_on_null_policy() -> None:
-    # No raise — ship anywhere when policy is None.
+    # No raise: ship anywhere when policy is None.
     validate_shipping_against_policy(country="AQ", state="", policy=None)
 
 

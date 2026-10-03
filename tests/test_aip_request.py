@@ -99,7 +99,7 @@ class TestHasAgentIdentityHeader:
         assert has_agent_identity_header(_make({"agent-identity": ""})) is False
 
 
-# ── build_verify_context_from_parts — @path derivation matches the signer ──
+# ── build_verify_context_from_parts: @path derivation matches the signer ──
 
 
 class TestBuildVerifyContextFromPartsPathDerivation:

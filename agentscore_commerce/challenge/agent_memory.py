@@ -10,7 +10,7 @@ Usage pattern:
     - Merchant tracks per-operator (or per-IP / per-fingerprint) "have I seen this agent
       before?" in their own DB
     - On first encounter, include the hint so the agent saves the pattern
-    - On subsequent encounters, skip — the agent already has it (or never will)
+    - On subsequent encounters, skip: the agent already has it (or never will)
 
 The hint contents come from :func:`build_agent_memory_hint` (re-exported here for
 convenience). Keep it stateless: AgentScore's pattern doesn't depend on the merchant's

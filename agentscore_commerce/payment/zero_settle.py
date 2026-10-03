@@ -2,7 +2,7 @@
 
 CDP rejects EIP-3009 ``transferWithAuthorization`` with ``value=0`` as
 ``invalid_payload``; pympp's tempo intents accept only ``hash`` and
-``transaction`` payload types — the wallet-bound ``proof`` payload that the
+``transaction`` payload types: the wallet-bound ``proof`` payload that the
 mppx client emits for $0 settles (and that the mppx server verifies) has no
 pympp counterpart yet. Both upstream verify+settle paths therefore fail when
 the authorized amount is zero, so merchants that drop the settle to $0 in a
@@ -13,7 +13,7 @@ recovering the signer for wallet-capture attribution.
 return ``ZeroSettleResult(signer_address, signer_network, tx_hash=None)``.
 Identity is still authenticated by the merchant's gate above; the redemption
 code is single-use; nothing on-chain to verify. The recovered signer block is
-UNAUTHENTICATED (parse-only) on the MPP path — treat it as an attribution
+UNAUTHENTICATED (parse-only) on the MPP path: treat it as an attribution
 hint, not a verified identity.
 
 Known divergence from the Node SDK: node-commerce delegates $0 Tempo settles

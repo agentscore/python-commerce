@@ -1,4 +1,4 @@
-"""build_402_body — full enriched 402 response body builder."""
+"""build_402_body: full enriched 402 response body builder."""
 
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any, Literal

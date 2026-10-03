@@ -265,7 +265,7 @@ def agentscore_gate(
             # with X-Operator-Token. Unfixable reasons (sanctions_flagged, age_insufficient,
             # jurisdiction_restricted) keep the bare wallet_not_trusted denial.
             # `jurisdiction_restricted` is unfixable: the API only emits it after KYC is
-            # verified (the user's KYC'd country is in the blocked list — re-doing KYC
+            # verified (the user's KYC'd country is in the blocked list: re-doing KYC
             # won't change the country).
             if is_fixable_denial(result.reasons) and create_session_on_missing is not None:
                 session_reason = await try_create_session_denial_reason(
@@ -292,7 +292,7 @@ def agentscore_gate(
         except TokenDeniedError as err:
             return _deny_response(request, build_token_denied_reason(err))
         except InvalidCredentialError:
-            # Permanent — no auto-session, agent should switch tokens or restart.
+            # Permanent: no auto-session, agent should switch tokens or restart.
             return _deny_response(request, build_invalid_credential_reason())
         except QuotaExceededError:
             if client.fail_open:
@@ -321,7 +321,7 @@ def get_signer_verdict(request: Request) -> SignerVerdict | None:
     credential, or for fail-open pass-throughs (no assess call).
 
     Reads the request-scoped verdict stashed by the gate (projected from THIS request's
-    assess response) — concurrency-safe against a sibling same-wallet request.
+    assess response): concurrency-safe against a sibling same-wallet request.
     """
     state = getattr(request.ctx, GATE_STATE_ATTR, None)
     if not isinstance(state, dict):
@@ -376,7 +376,7 @@ def conditional_agentscore_gate(app: Sanic, **kwargs: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol) — verifies a key-bound Agent Identity Token (AIT)
+# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
 # from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
 # merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
 # Sanic's ``Request`` exposes method / url / headers, so this verifies straight off the

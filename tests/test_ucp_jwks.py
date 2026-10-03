@@ -560,7 +560,7 @@ class TestAdditionalHardening:
         with pytest.raises(UCPVerificationError) as exc:
             verify_ucp_profile(signed, build_jwks_response([key.public_jwk]))
         assert exc.value.code == "unrecognized_critical_header"
-        # Silence unused-import warnings — registry is referenced for the joserfc namespace.
+        # Silence unused-import warnings: registry is referenced for the joserfc namespace.
         _ = jws, JWSRegistry
 
     def test_verify_crit_with_missing_kid_emits_unrecognized_critical_header(self) -> None:

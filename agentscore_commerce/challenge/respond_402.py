@@ -1,14 +1,14 @@
-"""``respond_402`` — single-call 402 emit for merchants who use both pympp + x402.
+"""``respond_402``: single-call 402 emit for merchants who use both pympp + x402.
 
 Pympp handles tempo + stripe MPP rails; x402 handles Base + Solana.
 
 The seam is fiddly enough to get wrong by hand:
 
 - pympp's compose returns a 402 response with WWW-Authenticate directives whose ids
-  pympp's server-side validator REMEMBERS — they round-trip in client credentials.
+  pympp's server-side validator REMEMBERS: they round-trip in client credentials.
   Overwriting that header (e.g. with a freshly-built directive) breaks the round-trip.
 - x402 needs the binary-friendly ``PAYMENT-REQUIRED`` header (base64-encoded JSON of
-  ``{x402Version, accepts, resource}``) — pympp doesn't emit it.
+  ``{x402Version, accepts, resource}``): pympp doesn't emit it.
 - Merchants want a richer JSON body (pricing, identity metadata, agent_instructions,
   agent_memory, retry_body, accepted_methods cross-reference) than the bare pympp body.
 
@@ -35,7 +35,7 @@ from agentscore_commerce.payment.wwwauthenticate import payment_required_header
 
 @dataclass
 class Respond402Result:
-    """Framework-neutral 402 response shape — body + headers + status."""
+    """Framework-neutral 402 response shape: body + headers + status."""
 
     body: dict[str, object]
     headers: dict[str, str]
@@ -55,7 +55,7 @@ def respond_402(
 
     ``body`` is the already-built dict from :func:`build_402_body`. ``x402``, when
     set, carries the PAYMENT-REQUIRED header inputs (``x402_version``, ``accepts``,
-    ``resource``); omit for merchants that don't accept x402 (Base / Solana) — pympp-only
+    ``resource``); omit for merchants that don't accept x402 (Base / Solana): pympp-only
     setups.
     """
     headers = {k.lower(): v for k, v in mppx_challenge_headers.items()}

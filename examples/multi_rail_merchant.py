@@ -113,7 +113,7 @@ async def _mint_recipients(ctx: Any) -> dict[str, str]:
 
     For low-margin endpoints (sub-dollar per call), pass
     ``static_recipients={"solana": os.environ["MERCHANT_SOLANA_RECIPIENT"]}`` to
-    skip Stripe minting on Solana — at $0.01/call MPP spec §13.6's ~$0.50 per-PI
+    skip Stripe minting on Solana: at $0.01/call MPP spec §13.6's ~$0.50 per-PI
     ATA rent dominates revenue. With a stable merchant-owned recipient + one-time
     external pre-funding of its USDC ATA, every settle pays only the per-tx fee.
     """

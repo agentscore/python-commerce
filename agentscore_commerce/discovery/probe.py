@@ -1,4 +1,4 @@
-"""Discovery probe — answers empty-body POSTs from MPP crawlers (mppscan, link-cli) with a sample 402."""
+"""Discovery probe: answers empty-body POSTs from MPP crawlers (mppscan, link-cli) with a sample 402."""
 
 import base64
 import json
@@ -14,7 +14,7 @@ from agentscore_commerce.payment.networks import networks
 from agentscore_commerce.payment.usdc import USDC
 from agentscore_commerce.payment.wwwauthenticate import payment_required_header
 
-# Placeholder payTo for x402 sample accepts in the discovery probe — the probe
+# Placeholder payTo for x402 sample accepts in the discovery probe: the probe
 # exists for crawlers to find that we support x402, not for actual payment.
 _ZERO_EVM_PAYTO = "0x0000000000000000000000000000000000000000"
 _ZERO_SOLANA_PAYTO = "11111111111111111111111111111111"
@@ -23,7 +23,7 @@ _ZERO_SOLANA_PAYTO = "11111111111111111111111111111111"
 def sample_x402_accept_for_network(caip2: str, amount_atomic: str = "1000000") -> dict[str, Any] | None:
     """Build a sample x402 accepts entry for a known CAIP-2 network using the USDC registry.
 
-    Returns None for networks not in the registry — vendors with custom networks
+    Returns None for networks not in the registry: vendors with custom networks
     should construct accepts entries by hand and pass them via ``x402_sample.accepts``.
     """
     if caip2 == networks.base.mainnet.caip2:
@@ -80,7 +80,7 @@ class X402SampleProbe:
     declared ``x402Version`` shape (v2 ``amount``); clients version-route on
     ``x402Version``.
 
-    Pass ``networks`` (shorthand) for the common case — each CAIP-2 network is
+    Pass ``networks`` (shorthand) for the common case: each CAIP-2 network is
     mapped to a sample USDC accepts entry via ``sample_x402_accept_for_network``.
     Or pass ``accepts`` directly for full control over the sample shape.
     """
@@ -190,9 +190,9 @@ def build_discovery_probe_response(
 
 
 async def is_discovery_probe_request(method: str, authorization: str | None, body_text: str) -> bool:
-    """Return True for an empty-body POST without a Payment Authorization header — the MPP crawler probe pattern.
+    """Return True for an empty-body POST without a Payment Authorization header: the MPP crawler probe pattern.
 
-    Framework-agnostic — pass extracted method, Authorization header value, and body text. Vendors wire
+    Framework-agnostic: pass extracted method, Authorization header value, and body text. Vendors wire
     this against their framework's request object.
     """
     if method.upper() != "POST":

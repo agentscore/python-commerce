@@ -16,7 +16,7 @@ Peer deps:
     pip install agentscore-commerce[fastapi]
 
 Env vars:
-    AGENTSCORE_API_KEY — your AgentScore API key
+    AGENTSCORE_API_KEY: your AgentScore API key
 
 Run: uvicorn examples.identity_only:app --port 3000
 """
@@ -59,7 +59,7 @@ gate = AgentScoreGate(
 
 @app.post("/restricted", dependencies=[Depends(gate)])
 async def restricted(assess: dict[str, Any] = Depends(get_agentscore_data)) -> dict[str, Any]:
-    """Gated route — only reached when the agent passes the compliance policy.
+    """Gated route: only reached when the agent passes the compliance policy.
 
     `assess` is the raw `/v1/assess` response: ``{ decision, operator,
     kyc_verified, age_bracket, jurisdiction, ... }``. Run your own business
@@ -87,4 +87,4 @@ async def capture_wallet_example(request: Request) -> dict[str, Any]:
 # ── Public routes (no gate) ────────────────────────────────────────────────
 @app.get("/public-info")
 async def public_info() -> dict[str, str]:
-    return {"message": "open access — no identity required"}
+    return {"message": "open access: no identity required"}

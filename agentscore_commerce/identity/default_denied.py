@@ -2,7 +2,7 @@
 
 Replaces the denial-mapping switch a merchant would otherwise hand-write.
 
-The shape is framework-neutral (``{status, body, headers?}``) — matches
+The shape is framework-neutral (``{status, body, headers?}``): matches
 ``Checkout``'s ``on_denied`` signature directly. For per-framework gate
 middleware (``AgentScoreGate(...)``) the merchant adapts at the call site
 with the framework's ``JSONResponse(body, status_code=status, headers=headers)``

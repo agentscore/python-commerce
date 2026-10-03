@@ -49,6 +49,6 @@ def test_warns_when_key_exceeds_200_chars(caplog):
     key = "a" * 201
     with caplog.at_level(logging.WARNING, logger="agentscore_commerce.payment.idempotency"):
         result = build_idempotency_key(payment_intent_id=key)
-    # Original key returned unchanged — server is the source of truth for truncation.
+    # Original key returned unchanged: server is the source of truth for truncation.
     assert result == key
     assert any("idempotency key longer than 200 chars" in rec.message for rec in caplog.records)

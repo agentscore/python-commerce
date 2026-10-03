@@ -249,7 +249,7 @@ class TestSignatureAndExpiry:
 
     async def test_rejects_an_ait_whose_lifetime_exceeds_the_300s_edge_ceiling(self) -> None:
         # A 600s-lifetime AIT (under the old 3600 default, over the new 300) is now rejected at the
-        # edge, matching the authoritative API verifier. The PoP is fresh and exp is ahead of now —
+        # edge, matching the authoritative API verifier. The PoP is fresh and exp is ahead of now:
         # only the exp-iat span is the problem. (Lowered 3600 -> 300.)
         ctx = signed_ctx(mint_ait(iat=NOW - 10, exp=NOW + 590))  # 600s lifetime > 300s
         r = await verify_ait(ctx, jwks=jwks_for(IDP_PUBLIC_JWK), now=NOW)
@@ -312,7 +312,7 @@ class TestProofOfPossession:
 
     async def test_rejects_does_not_throw_on_an_ait_bound_to_a_p256_cnf_key(self) -> None:
         # The PoP verifier is Ed25519-only. A structurally-valid AIT whose cnf is a P-256 EC key
-        # must return a typed failure, NOT crash the gate. Sign with the normal Ed25519 agent key —
+        # must return a typed failure, NOT crash the gate. Sign with the normal Ed25519 agent key:
         # the verifier rejects on the cnf key type first.
         ec = ECKey.import_key(generate_private_key(SECP256R1()))
         ec_pub = ec.as_dict(private=False)

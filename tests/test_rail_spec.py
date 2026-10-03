@@ -53,7 +53,7 @@ def test_solana_mpp_rail_spec_defaults() -> None:
 
 
 def test_solana_mpp_rail_spec_with_fee_payer_signer() -> None:
-    """Fee-payer signer roundtrips through the spec — opaque object."""
+    """Fee-payer signer roundtrips through the spec: opaque object."""
     sentinel_signer = object()
     spec = SolanaMppRailSpec(recipient="GEQg2TM4VL315Bd4LLkGrhBjdNfoatKjCJYHBDPM3D74", signer=sentinel_signer)
     assert spec.signer is sentinel_signer
@@ -124,7 +124,7 @@ async def test_resolve_recipient_async_callable() -> None:
 
 @pytest.mark.asyncio
 async def test_resolve_recipient_called_once_per_resolution() -> None:
-    """Each `resolve_recipient` call invokes the factory once — caching is caller-side."""
+    """Each `resolve_recipient` call invokes the factory once: caching is caller-side."""
     calls = 0
 
     async def factory() -> str:

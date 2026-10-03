@@ -65,7 +65,7 @@ def format_usd_cents(cents: float, decimals: int = 2) -> str:
     agent-side string-comparison flakiness.
 
     ``decimals`` controls dollar-precision and defaults to ``2`` (canonical USD
-    cents). Raise it for sub-cent unit pricing — e.g. ``format_usd_cents(0.05, 4)``
+    cents). Raise it for sub-cent unit pricing: e.g. ``format_usd_cents(0.05, 4)``
     returns ``"0.0005"`` for a half-of-one-millicent amount. ``cents`` accepts
     a float so per-token / per-byte pricing models can compute
     ``price_cents = unit_price_cents * n`` without rounding before formatting.

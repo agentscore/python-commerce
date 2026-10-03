@@ -124,6 +124,7 @@ class TestDependency:
         instructions = _json.loads(body["agent_instructions"])
         assert instructions["action"] == "contact_merchant"
         assert "merchant-side issue" in instructions["steps"][0]
+        assert "Retrying will not help" in body["error"]["message"]
 
     @respx.mock
     def test_fail_open_marks_degraded_with_infra_reason_quota(self):

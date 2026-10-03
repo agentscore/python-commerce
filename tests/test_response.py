@@ -87,6 +87,20 @@ def test_api_error_with_quota_instructions_overrides_retry_default() -> None:
     assert "merchant-side issue" in instructions["steps"][0]
 
 
+def test_quota_denial_message_does_not_tell_the_agent_to_retry() -> None:
+    # The api_error default message calls the failure transient and says to retry, which
+    # contradicts the contact_merchant instructions the quota path carries.
+    from agentscore_commerce.identity._response import QUOTA_EXCEEDED_INSTRUCTIONS, QUOTA_EXCEEDED_MESSAGE
+
+    default_body = denial_reason_to_body(DenialReason(code="api_error"))
+    assert "retry" in default_body["error"]["message"]
+    body = denial_reason_to_body(
+        DenialReason(code="api_error", agent_instructions=QUOTA_EXCEEDED_INSTRUCTIONS, message=QUOTA_EXCEEDED_MESSAGE)
+    )
+    assert body["error"]["message"] == QUOTA_EXCEEDED_MESSAGE
+    assert "Retrying will not help" in body["error"]["message"]
+
+
 def test_build_verification_required_body_default_message() -> None:
     from agentscore_commerce.identity._response import build_verification_required_body
 

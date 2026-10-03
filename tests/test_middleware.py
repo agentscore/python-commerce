@@ -411,6 +411,7 @@ def test_middleware_quota_exceeded_returns_503_when_fail_closed():
     instructions = json.loads(body["agent_instructions"])
     assert instructions["action"] == "contact_merchant"
     assert "merchant-side issue" in instructions["steps"][0]
+    assert "Retrying will not help" in body["error"]["message"]
 
 
 @respx.mock

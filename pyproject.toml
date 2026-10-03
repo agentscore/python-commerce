@@ -114,9 +114,12 @@ filterwarnings = [
 
 [tool.uv]
 required-version = ">=0.11.0"
-# cdp-sdk, pytempo and x402 all require `web3` with no upper bound, so a bare
-# `uv lock --upgrade` walks onto whatever is newest, including a prerelease.
-# It did: web3 8.0.0b3 landed in this lock, and a published SDK must not ship a
-# beta to every consumer. Disallow prereleases outright rather than pinning one
-# package, since the same unbounded shape exists on several transitives.
-prerelease = "disallow"
+# cdp-sdk, pytempo and x402 all require `web3` with no upper bound, and solana
+# 0.41 needs a websockets that only the web3 8 beta allows, so a bare
+# `uv lock --upgrade` walks onto web3 8.0.0b3. The constraint keeps web3 on its
+# stable line. `if-necessary` admits a prerelease only for a package that has
+# never published anything else: OpenTelemetry's semantic-conventions family,
+# which fastapi 0.142's `standard` extra reaches through opentelemetry-sdk.
+# `disallow` held fastapi back silently and failed Dependabot outright.
+prerelease = "if-necessary"
+constraint-dependencies = ["web3<8"]

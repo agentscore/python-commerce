@@ -49,6 +49,7 @@ from agentscore_commerce.identity.a2a import (
     A2AAgentSkill,
     aip_a2a_extension,
     build_a2a_agent_card,
+    to_security_requirements,
     ucp_a2a_extension,
 )
 from agentscore_commerce.identity.core import AgentScoreCore
@@ -216,6 +217,7 @@ __all__ = [
     "shipping_state_allowed",
     "sign_ucp_profile",
     "stripe_spt_payment_handler",
+    "to_security_requirements",
     "ucp_a2a_extension",
     "validate_shipping_against_policy",
     "verification_agent_instructions",

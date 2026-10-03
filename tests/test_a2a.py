@@ -37,15 +37,23 @@ def test_minimum_required_fields_emitted():
     d = card.to_dict()
     assert d["name"] == "Example Merchant"
     assert d["description"] == "Buy regulated goods via agent payments."
-    assert d["url"] == "https://agents.example.com"
-    assert d["preferredTransport"] == "HTTP+JSON"
-    assert d["protocolVersion"] == "1.0"
+    assert d["supportedInterfaces"] == [
+        {"url": "https://agents.example.com", "protocolBinding": "HTTP+JSON", "protocolVersion": "1.0"}
+    ]
     assert d["version"] == "1.0.0"
     assert d["capabilities"] == {}
     assert d["defaultInputModes"] == ["application/json"]
     assert d["defaultOutputModes"] == ["application/json"]
     assert len(d["skills"]) == 1
-    assert "additionalInterfaces" not in d
+    for gone in (
+        "url",
+        "preferredTransport",
+        "protocolVersion",
+        "additionalInterfaces",
+        "supportsAuthenticatedExtendedCard",
+        "security",
+    ):
+        assert gone not in d, f"{gone} is a 0.3 field A2A 1.0 removed"
 
 
 def test_emits_only_camelcase_keys():
@@ -56,10 +64,9 @@ def test_emits_only_camelcase_keys():
         url="https://x.example",
         skills=[_DEFAULT_SKILL],
         push_notifications=True,
-        state_transition_history=False,
         documentation_url="https://docs.example",
         icon_url="https://x.example/icon.png",
-        supports_authenticated_extended_card=True,
+        extended_agent_card=True,
     )
     serialized = json.dumps(card.to_dict())
     for bad in (
@@ -168,12 +175,12 @@ def test_capability_flags_emitted_when_set():
         skills=[_DEFAULT_SKILL],
         streaming=True,
         push_notifications=False,
-        state_transition_history=True,
+        extended_agent_card=True,
     )
     caps = card.to_dict()["capabilities"]
     assert caps["streaming"] is True
     assert caps["pushNotifications"] is False
-    assert caps["stateTransitionHistory"] is True
+    assert caps["extendedAgentCard"] is True
 
 
 def test_capability_flags_omitted_when_unset():
@@ -186,20 +193,20 @@ def test_capability_flags_omitted_when_unset():
     caps = card.to_dict()["capabilities"]
     assert "streaming" not in caps
     assert "pushNotifications" not in caps
-    assert "stateTransitionHistory" not in caps
+    assert "extendedAgentCard" not in caps
 
 
-def test_supports_authenticated_extended_card_at_top_level():
+def test_extended_card_flag_lives_in_capabilities_in_a2a_1_0():
     card = build_a2a_agent_card(
         name="X",
         description="y",
         url="https://x.example",
         skills=[_DEFAULT_SKILL],
-        supports_authenticated_extended_card=True,
+        extended_agent_card=True,
     )
     d = card.to_dict()
-    assert d["supportsAuthenticatedExtendedCard"] is True
-    assert "supportsAuthenticatedExtendedCard" not in d["capabilities"]
+    assert d["capabilities"]["extendedAgentCard"] is True
+    assert "supportsAuthenticatedExtendedCard" not in d
 
 
 def test_provider_emitted_when_set():
@@ -287,7 +294,11 @@ def test_preferred_transport_overridable():
         protocol_version="1.0",
     )
     d = card.to_dict()
-    assert d["preferredTransport"] == "GRPC"
+    assert d["supportedInterfaces"][0] == {
+        "url": "https://x.example",
+        "protocolBinding": "GRPC",
+        "protocolVersion": "1.0",
+    }
 
 
 def test_additional_interfaces_emitted_when_set():
@@ -303,9 +314,10 @@ def test_additional_interfaces_emitted_when_set():
         additional_interfaces=ifaces,
     )
     d = card.to_dict()
-    assert d["additionalInterfaces"] == [
-        {"transport": "GRPC", "url": "https://x.example/grpc"},
-        {"transport": "JSONRPC", "url": "https://x.example/jsonrpc"},
+    assert d["supportedInterfaces"] == [
+        {"url": "https://x.example", "protocolBinding": "HTTP+JSON", "protocolVersion": "1.0"},
+        {"url": "https://x.example/grpc", "protocolBinding": "GRPC", "protocolVersion": "1.0"},
+        {"url": "https://x.example/jsonrpc", "protocolBinding": "JSONRPC", "protocolVersion": "1.0"},
     ]
 
 
@@ -317,7 +329,7 @@ def test_additional_interfaces_omitted_when_empty():
         skills=[_DEFAULT_SKILL],
         additional_interfaces=[],
     )
-    assert "additionalInterfaces" not in card.to_dict()
+    assert len(card.to_dict()["supportedInterfaces"]) == 1
 
 
 def test_extras_merge_at_top_level():
@@ -341,7 +353,7 @@ def test_security_and_security_schemes_emitted_camelcase():
         security_schemes={"bearer": {"type": "http", "scheme": "bearer"}},
     )
     d = card.to_dict()
-    assert d["security"] == [{"bearer": []}]
+    assert d["securityRequirements"] == [{"schemes": {"bearer": {"list": []}}}]
     assert d["securitySchemes"] == {"bearer": {"type": "http", "scheme": "bearer"}}
     assert "security_schemes" not in d
     assert "security_requirements" not in d
@@ -377,7 +389,7 @@ def test_agent_extension_params_emitted_when_set():
 
 
 def test_ucp_a2a_extension_uri_pinned():
-    assert UCP_A2A_EXTENSION_URI == "https://ucp.dev/2026-04-08/specification/reference"
+    assert UCP_A2A_EXTENSION_URI == "https://ucp.dev/2026-08-25/specification/reference"
 
 
 def test_a2a_constants_exported():
@@ -453,7 +465,8 @@ def test_agent_skill_optional_fields_emitted_camelcase():
     assert d["examples"] == ["buy a wine"]
     assert d["inputModes"] == ["application/json"]
     assert d["outputModes"] == ["text/plain"]
-    assert d["security"] == [{"bearer": []}]
+    assert d["securityRequirements"] == [{"schemes": {"bearer": {"list": []}}}]
+    assert "security" not in d
     assert "input_modes" not in d
     assert "output_modes" not in d
 
@@ -497,10 +510,8 @@ def test_direct_agent_card_construction_with_additional_interfaces():
         ],
     )
     d = card.to_dict()
-    assert d["url"] == "https://x.example"
-    assert d["preferredTransport"] == "HTTP+JSON"
-    assert len(d["additionalInterfaces"]) == 2
-    assert d["additionalInterfaces"][0]["transport"] == "JSONRPC"
+    assert [i["protocolBinding"] for i in d["supportedInterfaces"]] == ["HTTP+JSON", "JSONRPC", "GRPC"]
+    assert d["supportedInterfaces"][1]["url"] == "https://x.example/jsonrpc"
 
 
 @pytest.mark.parametrize(

@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from agentscore_commerce.payment.amounts import usd_to_atomic
+
 
 def agentscore_security_schemes(*, aip: bool = False) -> dict[str, Any]:
     """Standard AgentScore identity security schemes for `components.securitySchemes`.
@@ -101,6 +103,7 @@ def x_payment_info_extension(
     price: XPaymentInfoPrice,
     protocols: list[dict[str, Any]],
     description: str | None = None,
+    offers: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Wrap a price + protocols block under ``x-payment-info``.
 
@@ -108,16 +111,47 @@ def x_payment_info_extension(
     single-key dicts: ``{"x402": {}}`` for x402, ``{"mpp": {"method": ...,
     "intent": ..., "currency": ...}}`` for MPP. Order is preserved.
 
-    Emits ``authMode: "payment"`` by default per the x402scan convention.
+    The block carries both readers' shapes, because MPP and x402scan define the same
+    ``x-payment-info`` extension differently and neither reads the other's keys:
+    x402scan reads ``price`` + ``protocols`` (and ``authMode: "payment"``), MPP reads
+    ``offers``. ``offers`` defaults to one per MPP protocol entry (:func:`offers_from`).
     """
     if isinstance(price, XPaymentInfoFixedPrice):
         price_dict: dict[str, Any] = {"mode": "fixed", "currency": price.currency, "amount": price.amount}
     else:
         price_dict = {"mode": "dynamic", "currency": price.currency, "min": price.min, "max": price.max}
     block: dict[str, Any] = {"authMode": "payment", "price": price_dict, "protocols": protocols}
+    derived = offers if offers is not None else offers_from(price, protocols)
+    if derived:
+        block["offers"] = derived
     if description is not None:
         block["description"] = description
     return {"x-payment-info": block}
+
+
+def offers_from(price: XPaymentInfoPrice, protocols: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """MPP payment offers (``draft-payment-discovery``) for the MPP entries in ``protocols``.
+
+    Priced in each method's smallest unit the way the 402 challenge prices it: Stripe in
+    cents, the token rails (Tempo USDC.e, Solana USDC) in 6-decimal base units. x402
+    entries have no MPP offer; a dynamic price is ``None`` (``null``), which MPP defines
+    as "depends on the request".
+    """
+    offers: list[dict[str, Any]] = []
+    for p in protocols:
+        mpp = p.get("mpp")
+        if not isinstance(mpp, dict):
+            continue
+        method, _, slash_intent = str(mpp.get("method", "")).partition("/")
+        intent = "session" if (slash_intent or mpp.get("intent")) == "session" else "charge"
+        decimals = 2 if method == "stripe" else 6
+        fixed_usd = isinstance(price, XPaymentInfoFixedPrice) and price.currency.upper() == "USD"
+        amount = str(usd_to_atomic(price.amount, decimals=decimals)) if fixed_usd else None
+        offer: dict[str, Any] = {"intent": intent, "method": method, "amount": amount}
+        if isinstance(mpp.get("currency"), str):
+            offer["currency"] = mpp["currency"]
+        offers.append(offer)
+    return offers
 
 
 def x_guidance_extension(text: str) -> dict[str, str]:

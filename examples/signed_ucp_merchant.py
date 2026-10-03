@@ -69,7 +69,6 @@ app.add_middleware(RateLimitMiddleware)
 checkout.mount_ucp_routes_fastapi(
     app,
     name="My Agent Service",
-    well_known_ucp_url="https://agents.example.com/.well-known/ucp",
     services=default_a2a_services(agent_card_url="https://agents.example.com/.well-known/agent-card.json"),
     signing_kid=SIGNING_KID,
     agentscore_gate=AgentScoreGatePolicy(
@@ -94,6 +93,6 @@ async def selftest(request: Request) -> JSONResponse:
     jwks = json.loads(client.get("/.well-known/jwks.json").content)
     try:
         verify_ucp_profile(profile, jwks)
-        return JSONResponse({"ok": True, "kid": profile["signing_keys"][0]["kid"]})
+        return JSONResponse({"ok": True, "kid": profile["keys"][0]["kid"]})
     except UCPVerificationError as exc:
         return JSONResponse({"ok": False, "code": exc.code}, status_code=500)

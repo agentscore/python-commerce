@@ -119,7 +119,7 @@ class GeneratedUCPKey:
     * ``private_key`` is the joserfc Key object — pass to :func:`sign_ucp_profile`.
       Never publish.
     * ``public_jwk`` is the JWK dict — publish at ``/.well-known/jwks.json`` and
-      inline in the UCP profile's ``signing_keys[]``.
+      inline in the UCP profile's ``keys[]``.
     """
 
     private_key: Any
@@ -133,7 +133,7 @@ def generate_ucp_signing_key(*, kid: str, alg: Literal["EdDSA", "ES256"] = "EdDS
     manager) and pass to :func:`sign_ucp_profile`.
 
     The ``public_jwk`` is a dict you publish at ``/.well-known/jwks.json`` and inline
-    in the UCP profile's ``signing_keys[]`` array.
+    in the UCP profile's ``keys[]`` array.
 
     Example::
 
@@ -276,12 +276,12 @@ def sign_ucp_profile(
     reconstruct the canonical body, look up the key referenced by the JWS header's
     ``kid``, and validate.
 
-    The profile's ``signing_keys[]`` MUST already include a JWK with the matching
+    The profile's ``keys[]`` MUST already include a JWK with the matching
     ``kid`` — otherwise verifiers can't find the public key.
 
     Example::
 
-        profile = build_ucp_profile(..., signing_keys=[UCPSigningKey.from_jwk(key.public_jwk)])
+        profile = build_ucp_profile(..., keys=[UCPSigningKey.from_jwk(key.public_jwk)])
         signed = sign_ucp_profile(profile.to_dict(), signing_key=key.private_key, kid='merchant-2026-05')
     """
     _load_joserfc()
@@ -292,15 +292,16 @@ def sign_ucp_profile(
         msg = "sign_ucp_profile: `kid` must be a non-empty string."
         raise ValueError(msg)
 
-    # Sign-time kid sanity check: the profile's `signing_keys[]` MUST contain
+    # Sign-time kid sanity check: the profile's `keys[]` MUST contain
     # a JWK with the matching kid; otherwise verifiers can't resolve the
     # public key and the profile is dead-on-arrival.
     declared_kids = [
-        k.get("kid") if isinstance(k, dict) else getattr(k, "kid", None) for k in profile.get("signing_keys", [])
+        k.get("kid") if isinstance(k, dict) else getattr(k, "kid", None)
+        for k in (profile.get("keys") or profile.get("signing_keys") or [])
     ]
     if kid not in declared_kids:
         msg = (
-            f"sign_ucp_profile: kid {kid!r} is not present in profile.signing_keys[] "
+            f"sign_ucp_profile: kid {kid!r} is not present in profile.keys[] "
             f"(declared kids: {declared_kids!r}). Verifiers will not find the key."
         )
         raise ValueError(msg)

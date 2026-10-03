@@ -2230,6 +2230,51 @@ def test_x_payment_info_from_checkout_covers_all_rail_types() -> None:
     assert solana_entry["currency"] == "EPjFWdd5..."
 
 
+def test_x_payment_info_from_checkout_also_carries_mpp_offers_in_smallest_units() -> None:
+    from agentscore_commerce.checkout import Checkout, PricingResult
+    from agentscore_commerce.discovery import (
+        XPaymentInfoDynamicPrice,
+        XPaymentInfoFixedPrice,
+        x_payment_info_from_checkout,
+    )
+    from agentscore_commerce.payment import SolanaMppRailSpec, StripeRailSpec
+
+    async def _pricing(ctx: Any) -> PricingResult:
+        return PricingResult(amount_usd=1.25)
+
+    checkout = Checkout(
+        rails={
+            "tempo": TempoRailSpec(recipient="0x" + "00" * 20),
+            "base": X402BaseRailSpec(recipient="0x" + "00" * 20),
+            "stripe": StripeRailSpec(profile_id="profile_abc"),
+            "solana": SolanaMppRailSpec(recipient="SoLaNaReCiPiEnT", token="EPjFWdd5..."),
+        },
+        url="https://x/purchase",
+        compute_pricing=_pricing,
+    )
+    fixed = x_payment_info_from_checkout(
+        checkout=checkout, price=XPaymentInfoFixedPrice(currency="USD", amount="1.25")
+    )["x-payment-info"]
+    by_method = {o["method"]: o for o in fixed["offers"]}
+    # x402 has no MPP offer; token rails are 6-decimal USDC, Stripe is cents.
+    assert set(by_method) == {"tempo", "stripe", "solana"}
+    assert by_method["tempo"]["amount"] == "1250000"
+    assert by_method["solana"] == {
+        "intent": "charge",
+        "method": "solana",
+        "amount": "1250000",
+        "currency": "EPjFWdd5...",
+    }
+    assert by_method["stripe"]["amount"] == "125"
+    # x402scan still reads its own keys from the same block.
+    assert fixed["price"] == {"mode": "fixed", "currency": "USD", "amount": "1.25"}
+
+    dynamic = x_payment_info_from_checkout(
+        checkout=checkout, price=XPaymentInfoDynamicPrice(currency="USD", min="0.01", max="1.00")
+    )["x-payment-info"]
+    assert all(o["amount"] is None for o in dynamic["offers"])
+
+
 def test_x_payment_info_from_checkout_merges_protocol_extras() -> None:
     from agentscore_commerce.discovery import (
         XPaymentInfoFixedPrice,

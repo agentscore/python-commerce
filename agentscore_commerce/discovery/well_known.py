@@ -152,7 +152,7 @@ def build_signed_ucp_response(
     *,
     checkout: Checkout,
     name: str,
-    well_known_ucp_url: str,
+    well_known_ucp_url: str | None = None,
     services: dict[str, list[UCPServiceBinding]],
     request_headers: Mapping[str, str] | None = None,
     signing_kid: str = "merchant-default",
@@ -169,8 +169,10 @@ def build_signed_ucp_response(
     Cache-Control) when no payment handlers can be derived from rails.
 
     ``services`` is the spec-compliant services map (keyed by reverse-DNS
-    service name). ``well_known_ucp_url`` is the canonical URL of this profile,
-    surfaced as the value in ``supported_versions``.
+    service name). The profile publishes only the current UCP version:
+    ``supported_versions`` maps OLDER versions to complete profiles for them, and
+    this serves none. ``well_known_ucp_url`` is no longer published and is accepted
+    so existing callers keep working.
     """
     handlers = _compose_handlers(checkout)
     if not handlers:
@@ -181,11 +183,10 @@ def build_signed_ucp_response(
 
     profile = build_ucp_profile(
         name=name,
-        supported_versions={"2026-04-08": well_known_ucp_url},
         agentscore_gate=agentscore_gate,
         services=services,
         payment_handlers=handlers,
-        signing_keys=[signing_key_entry],
+        keys=[signing_key_entry],
     )
     signed = sign_ucp_profile(
         profile.to_dict(),
@@ -281,13 +282,14 @@ def well_known_preflight_response(
     )
 
 
-_UCP_SHOPPING_SPEC_2026_04_08 = "https://ucp.dev/2026-04-08/specification/overview"
+_UCP_VERSION = "2026-08-25"
+_UCP_SHOPPING_SPEC = f"https://ucp.dev/{_UCP_VERSION}/specification/overview"
 
 
 def default_a2a_services(*, agent_card_url: str) -> dict[str, list[UCPServiceBinding]]:
     """Canonical UCP §services map for a merchant publishing an A2A agent card.
 
-    Returns ``{"dev.ucp.shopping": [UCPServiceBinding(version="2026-04-08",
+    Returns ``{"dev.ucp.shopping": [UCPServiceBinding(version="2026-08-25",
     spec="<UCP shopping spec>", transport="a2a", endpoint=agent_card_url)]}`` ;
     the binding every UCP-publishing merchant declares when their primary agent
     surface is the A2A v1.0 ``/.well-known/agent-card.json`` (versus a UCP MCP
@@ -299,8 +301,8 @@ def default_a2a_services(*, agent_card_url: str) -> dict[str, list[UCPServiceBin
     return {
         "dev.ucp.shopping": [
             UCPServiceBinding(
-                version="2026-04-08",
-                spec=_UCP_SHOPPING_SPEC_2026_04_08,
+                version=_UCP_VERSION,
+                spec=_UCP_SHOPPING_SPEC,
                 transport="a2a",
                 endpoint=agent_card_url,
             ),

@@ -1,7 +1,7 @@
 """UCP (Universal Commerce Protocol) profile builder.
 
 Compose the JSON payload published at ``/.well-known/ucp`` per the UCP spec. Output
-shape matches the spec example: top-level ``{"ucp": {...}, "signing_keys": [...]}``
+shape matches the spec example: top-level ``{"ucp": {...}, "keys": [...]}``
 envelope, with ``services`` / ``capabilities`` / ``payment_handlers`` as MAPS keyed by
 reverse-DNS name (UCP spec §3 + §6).
 
@@ -30,7 +30,7 @@ from agentscore_commerce.payment.rail_spec import (
     X402BaseRailSpec,
 )
 
-_DEFAULT_VERSION = "2026-04-08"
+_DEFAULT_VERSION = "2026-08-25"
 
 # Reverse-DNS namespacing per UCP convention. The bare ``agentscore-identity`` form
 # fails the spec regex; vendor-namespacing under the ``com.agentscore`` authority is
@@ -88,7 +88,7 @@ class AgentScoreGatePolicy:
 
 @dataclass
 class UCPSigningKey:
-    """JWK entry for the profile's ``signing_keys`` array.
+    """JWK entry for the profile's ``keys`` array.
 
     Pass through public key material verbatim; UCP requires JWKS-format keys.
     """
@@ -323,23 +323,24 @@ class UCPProfileBody:
 class UCPProfile:
     """UCP profile body for ``/.well-known/ucp``.
 
-    Top-level shape: ``{"ucp": {...}, "signing_keys": [...], "signature?": "..."}``.
+    Top-level shape: ``{"ucp": {...}, "keys": [...], "signature?": "..."}``. UCP 2026-08-25
+    made ``keys`` the one canonical signing-key field and removed ``signing_keys``.
     Use :meth:`to_dict` to serialize. Pass through :func:`sign_ucp_profile` to attach
     the JWS signature.
     """
 
     ucp: UCPProfileBody = field(default_factory=UCPProfileBody)
-    signing_keys: list[UCPSigningKey] = field(default_factory=list)
+    keys: list[UCPSigningKey] = field(default_factory=list)
     extras: dict[str, Any] = field(default_factory=dict)
 
     _RESERVED = frozenset(
-        {"ucp", "signing_keys", "signature", "__proto__", "constructor", "prototype"},
+        {"ucp", "keys", "signing_keys", "signature", "__proto__", "constructor", "prototype"},
     )
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
             "ucp": self.ucp.to_dict(),
-            "signing_keys": [k.to_dict() for k in self.signing_keys],
+            "keys": [k.to_dict() for k in self.keys],
         }
         for k, v in self.extras.items():
             if k in self._RESERVED:
@@ -353,6 +354,7 @@ def build_ucp_profile(
     services: dict[str, list[UCPServiceBinding]] | None = None,
     signing_keys: list[UCPSigningKey] | None = None,
     *,
+    keys: list[UCPSigningKey] | None = None,
     capabilities: dict[str, list[UCPCapabilityBinding]] | None = None,
     payment_handlers: dict[str, list[UCPPaymentHandlerBinding]] | None = None,
     name: str | None = None,
@@ -366,7 +368,9 @@ def build_ucp_profile(
 ) -> UCPProfile:
     """Compose a UCP profile body for ``/.well-known/ucp`` publication.
 
-    Returns the spec-compliant shape: ``{"ucp": {...}, "signing_keys": [...]}``
+    Returns the spec-compliant shape: ``{"ucp": {...}, "keys": [...]}``. Pass the public
+    keys as ``keys``; ``signing_keys`` is the name UCP used before 2026-08-25 and is still
+    accepted, published as ``keys``.
     with ``services`` / ``capabilities`` / ``payment_handlers`` as maps keyed by
     reverse-DNS name. Pass through :func:`sign_ucp_profile` to attach a JWS
     signature for trust-mode verifiers.
@@ -395,15 +399,15 @@ def build_ucp_profile(
                 services={
                     "dev.ucp.shopping": [
                         UCPServiceBinding(
-                            version="2026-04-08",
-                            spec="https://ucp.dev/2026-04-08/specification/overview",
+                            version="2026-08-25",
+                            spec="https://ucp.dev/2026-08-25/specification/overview",
                             transport="mcp",
                             endpoint="https://merchant.example/api/ucp/mcp",
                             schema="https://ucp.dev/services/shopping/mcp.openrpc.json",
                         ),
                     ],
                 },
-                signing_keys=[UCPSigningKey.from_jwk(public_jwk)],
+                keys=[UCPSigningKey.from_jwk(public_jwk)],
                 payment_handlers={
                     **mpp_payment_handler(networks=[
                         {"network": "tempo-mainnet", "chain_id": 4217, "recipient": TEMPO_ADDR},
@@ -416,7 +420,7 @@ def build_ucp_profile(
             ).to_dict()
     """
     services = services if services is not None else {}
-    signing_keys = signing_keys if signing_keys is not None else []
+    resolved_keys = keys if keys is not None else (signing_keys if signing_keys is not None else [])
 
     # Deep-copy the capabilities map so we can safely mutate (auto-inject the
     # AgentScore identity capability) without altering the caller's input.
@@ -455,7 +459,7 @@ def build_ucp_profile(
 
     return UCPProfile(
         ucp=body,
-        signing_keys=signing_keys,
+        keys=resolved_keys,
         extras=extras or {},
     )
 

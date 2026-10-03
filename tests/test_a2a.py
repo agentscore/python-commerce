@@ -528,3 +528,11 @@ def test_required_kwargs_enforced(missing_kwarg: str) -> None:
     del kwargs[missing_kwarg]
     with pytest.raises((TypeError, ValueError)):
         build_a2a_agent_card(**kwargs)
+
+
+def test_to_security_requirements_is_public_where_the_card_builder_is():
+    import agentscore_commerce
+    from agentscore_commerce import identity
+
+    assert agentscore_commerce.to_security_requirements is identity.to_security_requirements
+    assert identity.to_security_requirements([{"bearer": []}]) == [{"schemes": {"bearer": {"list": []}}}]

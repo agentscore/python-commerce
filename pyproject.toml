@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentscore-commerce"
-version = "3.0.0"
+version = "3.1.0"
 description = "Agentic commerce SDK for Python: identity middleware (FastAPI, Flask, Django, AIOHTTP, Sanic, ASGI) + payment helpers + 402 builders + discovery + Stripe multichain. The full merchant-side toolkit for AgentScore-powered agentic commerce."
 readme = "README.md"
 license = "MIT"
@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 keywords = ["agentscore", "agentic-commerce", "agentic-payments", "402", "x402", "mpp", "machine-payments-protocol", "fastapi", "starlette", "flask", "django", "aiohttp", "sanic", "middleware", "kyc", "identity", "stripe", "tempo", "solana", "base", "ai-agent"]
 dependencies = [
     "httpx>=0.25.0,<1.0.0",
-    "agentscore-py>=2.7.0",
+    "agentscore-py>=2.7.1",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -114,10 +114,11 @@ filterwarnings = [
 
 [tool.uv]
 required-version = ">=0.11.0"
-# cdp-sdk, pytempo and x402 all require `web3` with no upper bound, and solana
-# 0.41 needs a websockets that only the web3 8 beta allows, so a bare
-# `uv lock --upgrade` walks onto web3 8.0.0b3. The constraint keeps web3 on its
-# stable line. `if-necessary` admits a prerelease only for a package that has
+# cdp-sdk, pytempo and x402 all require `web3` with no upper bound. Stable web3
+# 8 needs eth-abi 6, which pympp's `tempo` extra excludes (`eth-abi<6`), so a
+# bare `uv lock --upgrade` walks onto the 8.0.0b3 beta instead, and pinning
+# 8.0.0 downgrades pympp. The constraint keeps web3 on 7 until pympp admits
+# eth-abi 6. `if-necessary` admits a prerelease only for a package that has
 # never published anything else: OpenTelemetry's semantic-conventions family,
 # which fastapi 0.142's `standard` extra reaches through opentelemetry-sdk.
 # `disallow` held fastapi back silently and failed Dependabot outright.

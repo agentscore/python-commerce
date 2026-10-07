@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
 _JOSE_INSTALL_HINT = (
     "Install the optional dependency: `pip install agentscore-commerce[ucp]` (or `uv pip install joserfc`)."
@@ -50,7 +50,7 @@ _MAX_SAFE_INT = 2**53 - 1
 
 
 @contextlib.contextmanager
-def _suppress_joserfc_eddsa_warning() -> Iterator[None]:
+def _suppress_joserfc_eddsa_warning() -> Generator[None]:
     """Suppress joserfc's RFC-9864-deprecation SecurityWarning around JWS sign/verify.
 
     joserfc emits this on every JWS operation that uses EdDSA, despite EdDSA

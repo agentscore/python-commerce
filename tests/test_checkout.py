@@ -992,7 +992,7 @@ def test_realm_from_url_derives_bare_host():
 
     # Full endpoint URL -> bare host (matches the Node SDK's new URL(APP_URL).host),
     # so the WWW-Authenticate realm is the protection space, not the full path.
-    assert _realm_from_url("https://agents.agentscore.com/purchase") == "agents.agentscore.com"
+    assert _realm_from_url("https://merchant.example.com/purchase") == "merchant.example.com"
     assert _realm_from_url("https://agents.example.com:8443/x/y") == "agents.example.com:8443"
     # No parseable host: pass through unchanged.
     assert _realm_from_url("agents.example.com") == "agents.example.com"

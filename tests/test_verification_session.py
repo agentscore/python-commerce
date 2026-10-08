@@ -25,14 +25,15 @@ def test_no_session_request_when_identity_or_payment_is_present() -> None:
     base = {"x-verification-session": "create"}
     assert not requests_verification_session({**base, "x-operator-token": "opc_x"})
     assert not requests_verification_session({**base, "x-wallet-address": "0xabc"})
-    assert not requests_verification_session({**base, "agent-identity": "eyJ.e30.sig"})
     assert not requests_verification_session({**base, "authorization": "Payment abc"})
     assert not requests_verification_session({**base, "x-payment": "abc"})
 
 
-def test_empty_agent_identity_is_no_identity() -> None:
-    assert not has_identity_header({"agent-identity": " , "})
-    assert has_identity_header({"agent-identity": "eyJ.e30.sig"})
+def test_only_an_operator_token_or_wallet_counts_as_identity() -> None:
+    assert has_identity_header({"x-operator-token": "opc_x"})
+    assert has_identity_header({"x-wallet-address": "0xabc"})
+    assert not has_identity_header({"authorization": "Bearer eyJ.e30.sig"})
+    assert not has_identity_header({"x-operator-token": ""})
 
 
 def test_conditional_gate_runs_on_payment_or_session_request_only() -> None:

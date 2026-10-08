@@ -44,9 +44,7 @@ _RESERVED_FIELDS = frozenset(
 )
 
 # Base probe-strategy steps (wallet → stored operator_token → session/verify), shared by every
-# missing_identity denial. When the gate accepts AIP, the "present your Agent-Identity token" step
-# is PREPENDED ahead of these (see _missing_identity_instructions) so an agent holding an AIT learns
-# the fast path first.
+# missing_identity denial.
 _MISSING_IDENTITY_BASE_STEPS = [
     (
         "If you have a wallet AND this merchant accepts a wallet-signing rail "
@@ -82,29 +80,12 @@ _MISSING_IDENTITY_USER_MESSAGE = (
 )
 
 
-def _missing_identity_instructions(aip_trusted_issuers: list[str] | None = None) -> str:
-    """Build the JSON-encoded missing_identity agent_instructions.
-
-    When ``aip_trusted_issuers`` is non-empty (the gate accepts AIP), prepend the AIP
-    "present your Agent-Identity token" step so an agent holding an AIT from a trusted issuer
-    learns it can satisfy identity in one round trip before falling back to the wallet/session
-    probe. Mirrors the reference missing-identity instructions.
-    """
-    steps: list[str] = []
-    if aip_trusted_issuers:
-        steps.append(
-            f"If you hold an AIP Agent Identity Token from a trusted issuer "
-            f"({', '.join(aip_trusted_issuers)}): present it: send the JWT in an Agent-Identity "
-            f"header plus an RFC 9421 HTTP Message Signature (Signature-Input + Signature over "
-            f'@method @authority @path agent-identity, tag="agent-identity") signed with the '
-            f"token-bound cnf key. This satisfies identity in one round trip without an AgentScore "
-            f"credential."
-        )
-    steps.extend(_MISSING_IDENTITY_BASE_STEPS)
+def _missing_identity_instructions() -> str:
+    """Build the JSON-encoded missing_identity agent_instructions."""
     return json.dumps(
         {
             "action": "probe_identity_then_session",
-            "steps": steps,
+            "steps": _MISSING_IDENTITY_BASE_STEPS,
             "user_message": _MISSING_IDENTITY_USER_MESSAGE,
         }
     )
@@ -309,22 +290,18 @@ _DEFAULT_AGENT_INSTRUCTIONS: dict[str, str] = {
 }
 
 
-def build_missing_identity_reason(aip_trusted_issuers: list[str] | None = None) -> DenialReason:
+def build_missing_identity_reason() -> DenialReason:
     """Construct a missing_identity DenialReason with the cross-merchant memory hint attached.
 
     Emitted when the adapter has no identity AND no create_session_on_missing config: this is the
     cold-start bootstrap path where the memory hint is most useful. The attached agent_instructions
     hint the agent to try stored identity (returning-customer fast path) before running the
     session/verify flow.
-
-    When the gate accepts AIP, pass ``aip_trusted_issuers`` (AgentScore's canonical issuer plus
-    any externals) so the memory hint advertises the ``agent_identity`` path AND the instructions
-    prepend the AIP "present your Agent-Identity token" step. Omit for non-AIP gates.
     """
     return DenialReason(
         code="missing_identity",
-        agent_instructions=_missing_identity_instructions(aip_trusted_issuers),
-        agent_memory=build_agent_memory_hint(aip_trusted_issuers),
+        agent_instructions=_missing_identity_instructions(),
+        agent_memory=build_agent_memory_hint(),
     )
 
 

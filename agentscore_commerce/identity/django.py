@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import httpx
 from django.http import HttpRequest, JsonResponse
 
-from agentscore_commerce.aip.gate import (
-    AipGateOptions,
-    build_aip_error_body,
-    evaluate_aip_parts,
-)
 from agentscore_commerce.identity._denial import (
     denial_reason_status,
     is_fixable_denial,
@@ -45,11 +40,6 @@ from agentscore_commerce.payment.signer import (
     read_x402_payment_header,
 )
 
-if TYPE_CHECKING:
-    from agentscore_commerce.aip.gate import AipErrorBody
-    from agentscore_commerce.aip.request import VerifyContextParts
-    from agentscore_commerce.aip.verify import VerifiedAit
-
 
 def _mark_degraded_django(request: HttpRequest, infra_reason: str) -> None:
     """Stamp the gate state on a Django request as fail-open'd."""
@@ -63,15 +53,12 @@ ASSESS_STATE_KEY = "agentscore"
 
 __all__ = [
     "AgentScoreMiddleware",
-    "AipGateMiddleware",
     "ConditionalAgentScoreMiddleware",
-    "ConditionalAipGateMiddleware",
     "capture_wallet",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
-    "get_verified_ait",
 ]
 
 
@@ -143,7 +130,6 @@ class AgentScoreMiddleware:
             base_url=config.get("base_url", "https://api.agentscore.com"),
             chain=config.get("chain"),
             user_agent=config.get("user_agent"),
-            aip_trusted_issuers=config.get("aip_trusted_issuers"),
         )
         self._extract_identity = config.get("extract_identity", self._default_extract_identity)
         self._extract_chain = config.get("extract_chain", self._default_extract_chain)
@@ -203,7 +189,7 @@ class AgentScoreMiddleware:
                 )
                 if session_reason is not None:
                     return self._on_denied(request, session_reason)
-            return self._on_denied(request, build_missing_identity_reason(self._client.aip_trusted_issuers))
+            return self._on_denied(request, build_missing_identity_reason())
 
         chain_override = self._extract_chain(request)
 
@@ -361,133 +347,6 @@ class ConditionalAgentScoreMiddleware(AgentScoreMiddleware):
         self._condition = should_run_conditional_gate
 
 
-# ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
-# from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
-# merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
-# Django (WSGI) has no request object the async verifier accepts directly, so the middleware
-# builds raw request parts (method + full path + header map) and runs the async
-# ``evaluate_aip_parts`` on a private event loop. ``get_verified_ait`` reads the token off the
-# request attribute the middleware set.
-# ---------------------------------------------------------------------------
-
-AIT_STATE_KEY = "_agentscore_ait"
-
-
-def _run_aip_sync(coro: Any) -> Any:
-    """Run the async AIP evaluation from Django's sync middleware ``__call__``.
-
-    Django's WSGI request path is synchronous but :func:`evaluate_aip_parts` is a coroutine.
-    The default :class:`~agentscore_commerce.aip.jwks.JwksCache` fetcher opens a throwaway
-    ``httpx.AsyncClient`` per JWKS fetch (no loop affinity) and the cache stores plain dicts, so
-    a fresh ``asyncio.run`` per request is safe. When called from inside a running loop (Django
-    on ASGI), fall back to a dedicated thread so we never re-enter the loop.
-    """
-    import asyncio
-
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-
-    import concurrent.futures
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(lambda: asyncio.run(coro)).result()
-
-
-def get_verified_ait(request: HttpRequest) -> VerifiedAit | None:
-    """Return the verified AIT the AIP middleware attached to the request.
-
-    Returns ``None`` when the request wasn't AIP-gated, or the conditional middleware let an
-    unauthenticated request through.
-    """
-    return getattr(request, AIT_STATE_KEY, None)
-
-
-class AipGateMiddleware:
-    """Django middleware that requires a valid AIT on every request it guards.
-
-    Verifies the IdP signature + RFC 9421 proof-of-possession + expiry + trust offline against
-    the issuer's published JWKS (no API round trip). On a verify/trust failure it returns the
-    RFC 9457 ``application/problem+json`` body; on success it stashes the verified token on the
-    request for :func:`get_verified_ait`.
-
-    Usage in settings.py::
-
-        MIDDLEWARE = [
-            ...
-            "agentscore_commerce.identity.django.AipGateMiddleware",
-            ...
-        ]
-
-        # AgentScore's own issuer is always trusted; add external IdPs here.
-        AGENTSCORE_AIP_GATE = {
-            "jwks": JwksCache(trusted_issuers=["https://issuer.example"]),
-        }
-    """
-
-    def __init__(self, get_response: Any) -> None:
-        from django.conf import settings
-
-        config: dict[str, Any] = getattr(settings, "AGENTSCORE_AIP_GATE", {})
-        jwks = config.get("jwks")
-        if jwks is None:
-            msg = "AGENTSCORE_AIP_GATE requires a 'jwks' (JwksCache) entry."
-            raise ValueError(msg)
-        self._opts = AipGateOptions(
-            jwks=jwks,
-            now=config.get("now"),
-            max_skew_seconds=config.get("max_skew_seconds"),
-            require_trust_level=config.get("require_trust_level"),
-            require_amr=config.get("require_amr"),
-            required_claims=config.get("required_claims"),
-            trusted_issuers=config.get("trusted_issuers"),
-        )
-        self._on_denied = config.get("on_denied", self._default_on_denied)
-        self._condition = config.get("condition")
-        self.get_response = get_response
-
-    @staticmethod
-    def _default_on_denied(_request: HttpRequest, body: AipErrorBody) -> JsonResponse:
-        return JsonResponse(
-            body,
-            status=int(body.get("status", 401)),
-            content_type="application/problem+json",
-        )
-
-    def __call__(self, request: HttpRequest) -> Any:
-        """Process the request."""
-        if self._condition is not None and not self._condition(request):
-            return self.get_response(request)
-        parts: VerifyContextParts = {
-            "method": request.method or "",
-            "url": request.get_full_path(),
-            "headers": dict(request.headers),
-        }
-        evaluation = _run_aip_sync(evaluate_aip_parts(parts, self._opts))
-        if not evaluation.ok:
-            return self._on_denied(request, evaluation.body or build_aip_error_body("malformed_token"))
-        setattr(request, AIT_STATE_KEY, evaluation.ait)
-        return self.get_response(request)
-
-
-class ConditionalAipGateMiddleware(AipGateMiddleware):
-    """Django middleware variant of :class:`AipGateMiddleware` that verifies only when present.
-
-    Requests without an ``Agent-Identity`` header flow through unauthenticated; requests that
-    carry one must pass full verification. Settings shape is identical to
-    :class:`AipGateMiddleware`: the ``AGENTSCORE_AIP_GATE`` dict's ``condition`` key is
-    overwritten with the ``Agent-Identity`` header check.
-    """
-
-    def __init__(self, get_response: Any) -> None:
-        from agentscore_commerce.aip.request import has_agent_identity_header_parts
-
-        super().__init__(get_response)
-        self._condition = lambda request: has_agent_identity_header_parts(dict(request.headers))
-
-
 def get_operator_handle(request: HttpRequest) -> str | None:
     """Read the stable pairwise operator handle for the account behind this request's token.
 
@@ -498,8 +357,8 @@ def get_operator_handle(request: HttpRequest) -> str | None:
     Synchronous and free. The handle rides the gate's existing ``/v1/assess`` call, so
     reading it costs no extra round trip and nothing extra against the merchant's quota.
 
-    Returns ``None`` when the gate did not run, when no operator token was presented (wallet
-    or AIT paths), or when the API has no handle salt configured. Available on denied
+    Returns ``None`` when the gate did not run, when no operator token was presented (the wallet
+    path), or when the API has no handle salt configured. Available on denied
     requests too, so a merchant recording a denial against a buyer can still key it.
     """
     state = getattr(request, "_agentscore_gate", None)

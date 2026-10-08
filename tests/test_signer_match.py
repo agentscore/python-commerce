@@ -454,52 +454,15 @@ def test_build_missing_identity_reason_attaches_memory_hint() -> None:
     assert reason.agent_memory.save_for_future_agentscore_gates is True
 
 
-def test_missing_identity_omits_aip_step_without_trusted_issuers() -> None:
-    """Non-AIP gate: instructions are the base 3-step probe with NO Agent-Identity step."""
+def test_missing_identity_instructions_are_the_base_probe() -> None:
+    """Instructions are the 3-step wallet / operator token / session probe."""
     from agentscore_commerce.identity._response import build_missing_identity_reason
 
     reason = build_missing_identity_reason()
     assert reason.agent_instructions is not None
     steps = json.loads(reason.agent_instructions)["steps"]
     assert len(steps) == 3
-    assert not any("Agent-Identity" in s for s in steps)
     assert steps[0].startswith("If you have a wallet")
-
-
-def test_missing_identity_prepends_aip_step_with_trusted_issuers() -> None:
-    """AIP gate: the Agent-Identity step is PREPENDED ahead of the base probe steps.
-
-    Mirrors node-commerce's missing-identity instructions: when the gate accepts AIP, an agent
-    holding an AIT learns the one-round-trip path first, then the wallet/operator/session fallback.
-    """
-    from agentscore_commerce.identity._response import build_missing_identity_reason
-
-    issuers = ["https://www.agentscore.com", "https://issuer.example"]
-    reason = build_missing_identity_reason(issuers)
-    assert reason.agent_instructions is not None
-    instructions = json.loads(reason.agent_instructions)
-    steps = instructions["steps"]
-    # AIP step is prepended; base 3 steps follow.
-    assert len(steps) == 4
-    assert steps[0].startswith("If you hold an AIP Agent Identity Token from a trusted issuer")
-    # Both issuers are named in the AIP step, and the RFC 9421 PoP shape is described.
-    assert "https://www.agentscore.com, https://issuer.example" in steps[0]
-    assert 'tag="agent-identity"' in steps[0]
-    assert "cnf key" in steps[0]
-    # The original probe steps are preserved verbatim after the AIP step.
-    assert steps[1].startswith("If you have a wallet")
-    assert instructions["action"] == "probe_identity_then_session"
-
-
-def test_missing_identity_empty_issuer_list_omits_aip_step() -> None:
-    """An empty trusted-issuer list is treated as non-AIP (no Agent-Identity step)."""
-    from agentscore_commerce.identity._response import build_missing_identity_reason
-
-    reason = build_missing_identity_reason([])
-    assert reason.agent_instructions is not None
-    steps = json.loads(reason.agent_instructions)["steps"]
-    assert len(steps) == 3
-    assert not any("Agent-Identity" in s for s in steps)
 
 
 def test_build_missing_identity_reason_hints_probe_strategy() -> None:

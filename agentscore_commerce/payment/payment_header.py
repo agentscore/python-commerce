@@ -89,15 +89,9 @@ VERIFICATION_SESSION_VALUE = "create"
 
 
 def has_identity_header(request_or_headers: Any) -> bool:
-    """True when the request carries an identity header.
-
-    That is an operator token, a wallet address, or an AIP ``Agent-Identity`` token.
-    """
+    """True when the request carries an operator token or a wallet address."""
     headers = _unwrap_headers(request_or_headers)
-    if _read_header(headers, "x-operator-token") or _read_header(headers, "x-wallet-address"):
-        return True
-    agent_identity = _read_header(headers, "agent-identity") or ""
-    return any(part.strip() for part in agent_identity.split(","))
+    return bool(_read_header(headers, "x-operator-token") or _read_header(headers, "x-wallet-address"))
 
 
 def requests_verification_session(request_or_headers: Any) -> bool:

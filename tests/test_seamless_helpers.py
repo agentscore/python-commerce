@@ -409,13 +409,13 @@ def test_purchase_mode_note_unknown_returns_empty_string() -> None:
 
 def test_build_agentscore_onboarding_steps_substitutes_merchant_url_and_rails() -> None:
     steps = build_agentscore_onboarding_steps(
-        merchant_name="AgentScore Store",
+        merchant_name="Example Merchant",
         app_url="https://store.example",
         accepted_rails=["tempo", "x402-base", "solana-mpp"],
         requires_kyc=True,
     )
     text = "\n".join(steps)
-    assert "AgentScore Store" in text
+    assert "Example Merchant" in text
     assert "Tempo USDC" in text
     assert "x402 USDC on Base" in text
     assert "Solana SPL USDC" in text
@@ -485,10 +485,10 @@ def test_build_success_next_steps_includes_eta_when_provided() -> None:
 
 def test_build_redemption_skill_md_substitutes_merchant_and_url() -> None:
     md = build_redemption_skill_md(
-        merchant_name="AgentScore Store",
+        merchant_name="Example Merchant",
         app_url="https://store.example",
     )
-    assert "AgentScore Store" in md
+    assert "Example Merchant" in md
     assert "https://store.example/catalog" in md
     assert "https://store.example/purchase" in md
     assert "Don't have a code?" not in md
@@ -496,7 +496,7 @@ def test_build_redemption_skill_md_substitutes_merchant_and_url() -> None:
 
 def test_build_redemption_skill_md_with_peer_pointer_emits_section() -> None:
     md = build_redemption_skill_md(
-        merchant_name="AgentScore Store",
+        merchant_name="Example Merchant",
         app_url="https://store.example",
         peer_merchant_pointer="https://martin.example",
         sku_intro="a custom SKU intro.",
@@ -1661,7 +1661,7 @@ def test_build_signed_ucp_response_happy_path_signs_profile() -> None:
     with _env_key(private_jwk):
         resp = build_signed_ucp_response(
             checkout=checkout,
-            name="AgentScore Store",
+            name="Example Merchant",
             well_known_ucp_url="https://x/.well-known/ucp",
             services={"dev.ucp.shopping": []},
             signing_kid="ucp-test",
@@ -1671,7 +1671,7 @@ def test_build_signed_ucp_response_happy_path_signs_profile() -> None:
     assert resp.headers["X-Request-ID"] == "req-ucp"
     assert "max-age=60" in resp.headers["Cache-Control"]
     body = json.loads(resp.content)
-    assert body["ucp"]["name"] == "AgentScore Store"
+    assert body["ucp"]["name"] == "Example Merchant"
     assert "signature" in body
     assert body["ucp"]["payment_handlers"]
 
@@ -2089,13 +2089,13 @@ def test_build_merchant_index_json_core_fields() -> None:
     from agentscore_commerce.discovery import build_merchant_index_json
 
     body = build_merchant_index_json(
-        name="AgentScore Store",
+        name="Example Merchant",
         description="Wine and merch for agents.",
         docs={"llms": "https://x/llms.txt", "openapi": "https://x/openapi.json"},
         endpoints={"GET /catalog": "List products."},
         supported_rails=["tempo", "x402-base"],
     )
-    assert body["name"] == "AgentScore Store"
+    assert body["name"] == "Example Merchant"
     assert body["audience"] == "agents"
     assert body["supported_rails"] == ["tempo", "x402-base"]
     assert body["docs"]["llms"] == "https://x/llms.txt"

@@ -6,11 +6,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
-from agentscore_commerce.aip.gate import (
-    AipGateOptions,
-    build_aip_error_body,
-    evaluate_aip_request,
-)
 from agentscore_commerce.identity._denial import (
     denial_reason_status,
     is_fixable_denial,
@@ -49,10 +44,6 @@ if TYPE_CHECKING:
 
     from aiohttp import web
 
-    from agentscore_commerce.aip.gate import AipErrorBody
-    from agentscore_commerce.aip.jwks import JwksCache
-    from agentscore_commerce.aip.types import TrustLevel
-    from agentscore_commerce.aip.verify import VerifiedAit
 
 DEFAULT_ADDRESS_HEADER = "x-wallet-address"
 DEFAULT_TOKEN_HEADER = "x-operator-token"
@@ -67,15 +58,12 @@ def _mark_degraded_aiohttp(request: web.Request, infra_reason: str) -> None:
 
 __all__ = [
     "agentscore_gate_middleware",
-    "aip_gate_middleware",
     "capture_wallet",
     "conditional_agentscore_gate_middleware",
-    "conditional_aip_gate_middleware",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
-    "get_verified_ait",
 ]
 
 
@@ -156,7 +144,6 @@ def agentscore_gate_middleware(
     | None = None,
     create_session_on_missing: CreateSessionOnMissing | None = None,
     condition: Callable[[web.Request], bool] | None = None,
-    aip_trusted_issuers: list[str] | None = None,
 ) -> Callable[[web.Request, Callable[[web.Request], Awaitable[web.StreamResponse]]], Awaitable[web.StreamResponse]]:
     """Build an AIOHTTP middleware that gates requests on AgentScore trust.
 
@@ -182,7 +169,6 @@ def agentscore_gate_middleware(
         base_url=base_url,
         chain=chain,
         user_agent=user_agent,
-        aip_trusted_issuers=aip_trusted_issuers,
     )
     _resolve_identity = extract_identity or _default_extract_identity
     _extract_chain = extract_chain or _default_extract_chain
@@ -223,7 +209,7 @@ def agentscore_gate_middleware(
                 )
                 if session_reason is not None:
                     return _deny_response(request, session_reason)
-            return _deny_response(request, build_missing_identity_reason(client.aip_trusted_issuers))
+            return _deny_response(request, build_missing_identity_reason())
 
         chain_override = _extract_chain(request)
 
@@ -381,103 +367,6 @@ def conditional_agentscore_gate_middleware(**kwargs: Any) -> Any:
     return agentscore_gate_middleware(**kwargs)
 
 
-# ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
-# from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
-# merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
-# aiohttp's ``web.Request`` exposes method / url / headers, so this verifies straight off the
-# request via ``evaluate_aip_request``. ``get_verified_ait`` reads the token off the request dict.
-# ---------------------------------------------------------------------------
-
-AIT_STATE_KEY = "__agentscore_ait"
-
-
-def get_verified_ait(request: web.Request) -> VerifiedAit | None:
-    """Return the verified AIT attached to the aiohttp request dict by :func:`aip_gate_middleware`.
-
-    Returns ``None`` when the request wasn't AIP-gated, or the conditional gate let an
-    unauthenticated request through.
-    """
-    return request.get(AIT_STATE_KEY)
-
-
-def aip_gate_middleware(
-    *,
-    jwks: JwksCache,
-    now: float | None = None,
-    max_skew_seconds: float | None = None,
-    require_trust_level: TrustLevel | None = None,
-    require_amr: list[str] | None = None,
-    required_claims: list[str] | None = None,
-    trusted_issuers: list[str] | None = None,
-    on_denied: Callable[[web.Request, AipErrorBody], web.StreamResponse] | None = None,
-    condition: Callable[[web.Request], bool] | None = None,
-) -> Callable[[web.Request, Callable[[web.Request], Awaitable[web.StreamResponse]]], Awaitable[web.StreamResponse]]:
-    """Build an AIOHTTP middleware that requires a valid AIT on every request it guards.
-
-    Verifies the IdP signature + RFC 9421 proof-of-possession + expiry + trust offline against
-    the issuer's published JWKS (no API round trip). On a verify/trust failure it short-circuits
-    with the RFC 9457 ``application/problem+json`` body; on success it stashes the verified token
-    on the request dict for :func:`get_verified_ait`.
-
-    Usage::
-
-        from aiohttp import web
-        from agentscore_commerce.aip import JwksCache
-        from agentscore_commerce.identity.aiohttp import aip_gate_middleware
-
-        app = web.Application()
-        app.middlewares.append(aip_gate_middleware(jwks=JwksCache(trusted_issuers=["https://issuer.example"])))
-    """
-    from aiohttp import web
-
-    opts = AipGateOptions(
-        jwks=jwks,
-        now=now,
-        max_skew_seconds=max_skew_seconds,
-        require_trust_level=require_trust_level,
-        require_amr=require_amr,
-        required_claims=required_claims,
-        trusted_issuers=trusted_issuers,
-    )
-
-    def _deny_response(request: web.Request, body: AipErrorBody) -> web.StreamResponse:
-        if on_denied is not None:
-            return on_denied(request, body)
-        return web.json_response(
-            body,
-            status=int(body.get("status", 401)),
-            content_type="application/problem+json",
-        )
-
-    @web.middleware
-    async def _aip_middleware(
-        request: web.Request,
-        handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
-    ) -> web.StreamResponse:
-        if condition is not None and not condition(request):
-            return await handler(request)
-        evaluation = await evaluate_aip_request(request, opts)
-        if not evaluation.ok:
-            return _deny_response(request, evaluation.body or build_aip_error_body("malformed_token"))
-        request[AIT_STATE_KEY] = evaluation.ait
-        return await handler(request)
-
-    return _aip_middleware
-
-
-def conditional_aip_gate_middleware(**kwargs: Any) -> Any:
-    """Build a conditional :func:`aip_gate_middleware`.
-
-    Only verifies when an ``Agent-Identity`` header is present; requests without it flow
-    through unauthenticated. Accepts the same kwargs as :func:`aip_gate_middleware`.
-    """
-    from agentscore_commerce.aip.request import has_agent_identity_header
-
-    kwargs["condition"] = has_agent_identity_header
-    return aip_gate_middleware(**kwargs)
-
-
 def get_operator_handle(request: web.Request) -> str | None:
     """Read the stable pairwise operator handle for the account behind this request's token.
 
@@ -488,8 +377,8 @@ def get_operator_handle(request: web.Request) -> str | None:
     Synchronous and free. The handle rides the gate's existing ``/v1/assess`` call, so
     reading it costs no extra round trip and nothing extra against the merchant's quota.
 
-    Returns ``None`` when the gate did not run, when no operator token was presented (wallet
-    or AIT paths), or when the API has no handle salt configured. Available on denied
+    Returns ``None`` when the gate did not run, when no operator token was presented (the wallet
+    path), or when the API has no handle salt configured. Available on denied
     requests too, so a merchant recording a denial against a buyer can still key it.
     """
     state = request.get(GATE_STATE_KEY)

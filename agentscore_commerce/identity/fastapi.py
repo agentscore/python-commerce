@@ -15,12 +15,6 @@ from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.requests import Request  # noqa: TC002 - runtime import required for FastAPI DI
 from starlette.responses import JSONResponse
 
-from agentscore_commerce.aip.gate import (
-    AipGateOptions,
-    build_aip_error_body,
-    evaluate_aip_request,
-)
-from agentscore_commerce.aip.request import has_agent_identity_header
 from agentscore_commerce.identity._denial import (
     denial_reason_status,
     is_fixable_denial,
@@ -57,10 +51,6 @@ from agentscore_commerce.payment.signer import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from agentscore_commerce.aip.gate import AipErrorBody
-    from agentscore_commerce.aip.jwks import JwksCache
-    from agentscore_commerce.aip.types import TrustLevel
-    from agentscore_commerce.aip.verify import VerifiedAit
 
 DEFAULT_ADDRESS_HEADER = "x-wallet-address"
 DEFAULT_TOKEN_HEADER = "x-operator-token"
@@ -166,15 +156,12 @@ def get_gate_quota_info(request: Request) -> GateQuotaInfo | None:
 
 __all__ = [
     "AgentScoreGate",
-    "AipGate",
     "ConditionalAgentScoreGate",
-    "ConditionalAipGate",
     "capture_wallet",
     "get_agentscore_data",
     "get_gate_degraded_state",
     "get_gate_quota_info",
     "get_signer_verdict",
-    "get_verified_ait",
 ]
 
 
@@ -244,7 +231,6 @@ class AgentScoreGate:
         ]
         | None = None,
         create_session_on_missing: CreateSessionOnMissing | None = None,
-        aip_trusted_issuers: list[str] | None = None,
     ) -> None:
         self._client = AgentScoreCore(
             api_key=api_key,
@@ -258,7 +244,6 @@ class AgentScoreGate:
             base_url=base_url,
             chain=chain,
             user_agent=user_agent,
-            aip_trusted_issuers=aip_trusted_issuers,
         )
         self._extract_identity = extract_identity or _default_extract_identity
         self._extract_chain = extract_chain or _default_extract_chain
@@ -304,7 +289,7 @@ class AgentScoreGate:
                 )
                 if session_reason is not None:
                     self._deny(request, session_reason)
-            self._deny(request, build_missing_identity_reason(self._client.aip_trusted_issuers))
+            self._deny(request, build_missing_identity_reason())
 
         chain_override = self._extract_chain(request)
 
@@ -496,127 +481,6 @@ class ConditionalAgentScoreGate:
         await self._inner(request)
 
 
-# ---------------------------------------------------------------------------
-# AIP gate (Agentic Identity Protocol): verifies a key-bound Agent Identity Token (AIT)
-# from a trusted IdP instead of an opaque operator token. Cryptographic identity only;
-# merchants who want compliance enrichment feed the verified claims to ``/v1/assess``.
-# Starlette's ``Request`` already satisfies ``RequestLike`` (method / url / headers), so the
-# FastAPI adapter verifies straight off the request via ``evaluate_aip_request`` and keeps the
-# same ``Depends(gate)`` + ``Depends(get_verified_ait)`` shape as :class:`AgentScoreGate`.
-# ---------------------------------------------------------------------------
-
-AIT_STATE_KEY = "__agentscore_ait"
-
-
-class AipGate:
-    """FastAPI dependency that requires a valid AIT on a route.
-
-    Instantiate once at module scope with a :class:`~agentscore_commerce.aip.jwks.JwksCache`,
-    then attach to routes via ``Depends(gate)`` and read the verified token back with
-    ``Depends(get_verified_ait)``. On a verify/trust failure the dependency raises an internal
-    exception that an auto-registered Starlette handler renders as the FLAT RFC 9457
-    ``application/problem+json`` body (``body["type"]``, not nested under ``detail``), so the
-    route body is skipped.
-
-    Usage::
-
-        from fastapi import Depends, FastAPI
-        from agentscore_commerce.aip import JwksCache
-        from agentscore_commerce.identity.fastapi import AipGate, get_verified_ait
-
-        app = FastAPI()
-        # AgentScore's own issuer is always trusted; add external IdPs here.
-        gate = AipGate(jwks=JwksCache(trusted_issuers=["https://issuer.example"]))
-
-        @app.post("/checkout", dependencies=[Depends(gate)])
-        async def checkout(ait = Depends(get_verified_ait)):
-            return {"buyer": ait.payload.identity.email}
-    """
-
-    def __init__(
-        self,
-        *,
-        jwks: JwksCache,
-        now: float | None = None,
-        max_skew_seconds: float | None = None,
-        require_trust_level: TrustLevel | None = None,
-        require_amr: list[str] | None = None,
-        required_claims: list[str] | None = None,
-        trusted_issuers: list[str] | None = None,
-        on_denied: Callable[
-            [Request, AipErrorBody],
-            tuple[dict[str, Any], int] | tuple[dict[str, Any], int, dict[str, str]],
-        ]
-        | None = None,
-    ) -> None:
-        self._opts = AipGateOptions(
-            jwks=jwks,
-            now=now,
-            max_skew_seconds=max_skew_seconds,
-            require_trust_level=require_trust_level,
-            require_amr=require_amr,
-            required_claims=required_claims,
-            trusted_issuers=trusted_issuers,
-        )
-        self._on_denied = on_denied
-
-    def _deny(self, request: Request, body: AipErrorBody) -> NoReturn:
-        headers: dict[str, str] | None = None
-        media_type: str | None = None
-        if self._on_denied is not None:
-            result = self._on_denied(request, body)
-            if len(result) == 3:
-                resp_body, status, headers = cast("tuple[dict, int, dict[str, str]]", result)
-            else:
-                resp_body, status = cast("tuple[dict, int]", result)
-        else:
-            resp_body, status = body, int(body.get("status", 401))
-            media_type = "application/problem+json"
-        raise _GateDenialError(resp_body, status, headers, media_type)
-
-    async def __call__(self, request: Request) -> None:
-        # Wire the flat-denial exception handler onto the app on first run (Depends(gate)
-        # never hands us the app at construction time). Idempotent + per-app.
-        _install_gate_denial_handler(request)
-        evaluation = await evaluate_aip_request(request, self._opts)
-        if not evaluation.ok:
-            self._deny(request, evaluation.body or build_aip_error_body("malformed_token"))
-            return
-        setattr(request.state, AIT_STATE_KEY, evaluation.ait)
-
-
-class ConditionalAipGate:
-    """Wrap :class:`AipGate` to verify only when an ``Agent-Identity`` header is present.
-
-    Requests without the header flow through unauthenticated (e.g. so the route can fall
-    back to the opaque-token gate or emit its own challenge); requests that DO carry the
-    header must pass full verification.
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        self._inner = AipGate(**kwargs)
-
-    async def __call__(self, request: Request) -> None:
-        if not has_agent_identity_header(request):
-            return
-        await self._inner(request)
-
-
-def get_verified_ait(request: Request) -> VerifiedAit | None:
-    """FastAPI dependency that returns the verified AIT attached by :class:`AipGate`.
-
-    Returns ``None`` when the route wasn't AIP-gated or the conditional gate let an
-    unauthenticated request through.
-
-    Usage::
-
-        @app.post("/checkout", dependencies=[Depends(gate)])
-        async def checkout(ait = Depends(get_verified_ait)):
-            ...
-    """
-    return getattr(request.state, AIT_STATE_KEY, None)
-
-
 def get_operator_handle(request: Request) -> str | None:
     """Read the stable pairwise operator handle for the account behind this request's token.
 
@@ -627,8 +491,8 @@ def get_operator_handle(request: Request) -> str | None:
     Synchronous and free. The handle rides the gate's existing ``/v1/assess`` call, so
     reading it costs no extra round trip and nothing extra against the merchant's quota.
 
-    Returns ``None`` when the gate did not run, when no operator token was presented (wallet
-    or AIT paths), or when the API has no handle salt configured. Available on denied
+    Returns ``None`` when the gate did not run, when no operator token was presented (the wallet
+    path), or when the API has no handle salt configured. Available on denied
     requests too, so a merchant recording a denial against a buyer can still key it.
     """
     state = getattr(request.state, GATE_STATE_KEY, None)

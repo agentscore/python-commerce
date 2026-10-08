@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from importlib.metadata import version as _pkg_version
@@ -47,7 +46,7 @@ from agentscore_commerce.identity.types import (
 )
 
 if TYPE_CHECKING:
-    from agentscore.types import AipProvenance, AipSignatureMaterial, DecisionPolicy, Signer
+    from agentscore.types import DecisionPolicy, Signer
 
     from agentscore_commerce.identity.types import DenialReason
 
@@ -99,7 +98,6 @@ class AgentScoreCore:
         base_url: str = DEFAULT_BASE_URL,
         chain: str | None = None,
         user_agent: str | None = None,
-        aip_trusted_issuers: list[str] | None = None,
     ) -> None:
         if not api_key:
             msg = "AgentScore API key is required. Get one at https://www.agentscore.com/sign-up"
@@ -110,12 +108,6 @@ class AgentScoreCore:
         self._base_url = base_url
         # Public accessor so adapters can build agent_memory hints pointing at the same API.
         self.base_url = base_url
-        # Issuers whose AIP Agent Identity Tokens this gate accepts. When set, the missing-identity
-        # recovery instructions + agent_memory hint advertise the AIT path so agents holding one
-        # learn they can present it. Set by Checkout from gate.aip.trusted_issuers; the actual AIT
-        # verification happens at the edge (Checkout) before evaluate. Public so adapters can thread
-        # it into build_missing_identity_reason().
-        self.aip_trusted_issuers = aip_trusted_issuers
         self._chain = chain
         default_ua = f"agentscore-commerce/{_pkg_version('agentscore-commerce')}"
         self.user_agent = f"{user_agent} ({default_ua})" if user_agent else default_ua
@@ -172,21 +164,11 @@ class AgentScoreCore:
         self,
         address: str | None = None,
         operator_token: str | None = None,
-        aip_token: str | None = None,
         signer: dict[str, str] | None = None,
     ) -> str:
-        # AIT cache key: hash the raw token so the (short-lived) JWT isn't held verbatim as a
-        # dict key. AITs are seconds-to-minutes TTL anyway; this just dedupes repeated presents
-        # within the cache window. AIT takes precedence, then operator_token, then address.
-        if aip_token:
-            identity_key = f"aip:{hashlib.sha256(aip_token.encode()).hexdigest()}"
-        elif operator_token:
-            # operator_token is opaque ASCII: lowercasing is safe.
-            identity_key = operator_token.lower()
-        else:
-            # Wallet addresses go through normalize_address so Solana base58 (case-sensitive)
-            # isn't corrupted into a cache miss.
-            identity_key = normalize_address(address) if address else ""
+        # operator_token is opaque ASCII, so lowercasing is safe. Wallet addresses go through
+        # normalize_address so Solana base58 (case-sensitive) isn't corrupted into a cache miss.
+        identity_key = operator_token.lower() if operator_token else normalize_address(address) if address else ""
         # Fold the payment signer into the key whenever one is present on the request. The API's
         # per-request signer_match + signer_sanctions verdicts (and the unconditional signer-OFAC
         # screen) are computed for THIS signer; without the signer in the key, a 2nd request that
@@ -210,8 +192,6 @@ class AgentScoreCore:
         chain: str | None = None,
         operator_token: str | None = None,
         signer: dict[str, str] | None = None,
-        aip_token: str | None = None,
-        aip_signature: AipSignatureMaterial | None = None,
     ) -> dict[str, Any]:
         """Construct the assess request body.
 
@@ -223,12 +203,6 @@ class AgentScoreCore:
             body["address"] = address
         if operator_token:
             body["operator_token"] = operator_token
-        # AIP Agent Identity Token path: the API re-verifies the IdP signature + RFC 9421
-        # proof-of-possession server-side and evaluates policy against the attested claims.
-        if aip_token:
-            body["aip_token"] = aip_token
-        if aip_signature is not None:
-            body["aip_signature"] = dict(aip_signature)
         effective_chain = chain or self._chain
         if effective_chain:
             body["chain"] = effective_chain
@@ -306,12 +280,6 @@ class AgentScoreCore:
         av_data = data.get("account_verification")
         account_verification = av_data if isinstance(av_data, dict) else None
 
-        # IdP provenance, present only when identity_method == "aip_token". Surfaced as the SDK's
-        # raw `aip` block (issuer/subject/trust_level/agent_provider/pop_verified); not re-shaped,
-        # same as account_verification / policy_result.
-        aip_data = data.get("aip")
-        aip = aip_data if isinstance(aip_data, dict) else None
-
         # SDK populates `quota` on the AssessResponse from X-Quota-* headers. Surface up
         # to adapters so merchants can monitor approach-to-cap proactively.
         quota_raw = data.get("quota")
@@ -335,7 +303,6 @@ class AgentScoreCore:
             resolved_operator=data.get("resolved_operator"),
             verify_url=data.get("verify_url"),
             policy_result=data.get("policy_result"),
-            aip=cast("AipProvenance | None", aip),
             quota=quota,
             raw=data,
         )
@@ -346,24 +313,14 @@ class AgentScoreCore:
         chain: str | None = None,
         operator_token: str | None = None,
         signer: dict[str, str] | None = None,
-        aip_token: str | None = None,
-        aip_signature: AipSignatureMaterial | None = None,
     ) -> AssessResult:
-        """Synchronous assess call with caching. Accepts address, operator_token, or AIP token.
+        """Synchronous assess call with caching. Accepts address or operator_token.
 
         When ``signer`` is provided (extracted by the adapter middleware from the
         inbound request's payment credential), the API composes ``signer_match`` and
         ``signer_sanctions`` verdicts on the response in one round trip.
-
-        ``aip_token`` (+ ``aip_signature``) supplies an AIP Agent Identity Token in place of
-        ``address`` / ``operator_token``: the API re-verifies the issuer signature AND the RFC 9421
-        proof-of-possession authoritatively (the edge is not trusted as the authority), then
-        evaluates policy against the attested claims. ``aip_token`` requires ``aip_signature``.
         """
-        if aip_token is not None and aip_signature is None:
-            msg = "AgentScoreCore.check: aip_token requires aip_signature (RFC 9421 proof-of-possession material)."
-            raise ValueError(msg)
-        key = self._cache_key(address, operator_token, aip_token, signer)
+        key = self._cache_key(address, operator_token, signer)
 
         cached = self._cache.get(key)
         if cached is not None:
@@ -378,8 +335,6 @@ class AgentScoreCore:
                 chain=effective_chain,
                 policy=cast("DecisionPolicy | None", self._policy or None),
                 signer=cast("Signer | None", signer),
-                aip_token=aip_token,
-                aip_signature=aip_signature,
             )
         except SdkPaymentRequiredError as exc:
             raise PaymentRequiredError from exc
@@ -415,7 +370,7 @@ class AgentScoreCore:
         self._cache.set(key, result)
         # Cache the raw response under the same (signer-aware) key so get_signer_verdict() can read
         # signer_match + signer_sanctions verdicts that the projector doesn't expose.
-        self._stash_signer_raw(address, operator_token, aip_token, signer, raw)
+        self._stash_signer_raw(address, operator_token, signer, raw)
         return result
 
     async def acheck(
@@ -424,17 +379,12 @@ class AgentScoreCore:
         chain: str | None = None,
         operator_token: str | None = None,
         signer: dict[str, str] | None = None,
-        aip_token: str | None = None,
-        aip_signature: AipSignatureMaterial | None = None,
     ) -> AssessResult:
-        """Asynchronous assess call with caching. Accepts address, operator_token, or AIP token.
+        """Asynchronous assess call with caching. Accepts address or operator_token.
 
-        See :meth:`check` for the ``signer`` and ``aip_token`` / ``aip_signature`` contracts.
+        See :meth:`check` for the ``signer`` contract.
         """
-        if aip_token is not None and aip_signature is None:
-            msg = "AgentScoreCore.acheck: aip_token requires aip_signature (RFC 9421 proof-of-possession material)."
-            raise ValueError(msg)
-        key = self._cache_key(address, operator_token, aip_token, signer)
+        key = self._cache_key(address, operator_token, signer)
 
         cached = self._cache.get(key)
         if cached is not None:
@@ -448,8 +398,6 @@ class AgentScoreCore:
                 chain=effective_chain,
                 policy=cast("DecisionPolicy | None", self._policy or None),
                 signer=cast("Signer | None", signer),
-                aip_token=aip_token,
-                aip_signature=aip_signature,
             )
         except SdkPaymentRequiredError as exc:
             raise PaymentRequiredError from exc
@@ -477,7 +425,7 @@ class AgentScoreCore:
         self._cache.set(key, result)
         # Cache the raw response under the same (signer-aware) key so get_signer_verdict() can read
         # signer_match + signer_sanctions verdicts that the projector doesn't expose.
-        self._stash_signer_raw(address, operator_token, aip_token, signer, raw)
+        self._stash_signer_raw(address, operator_token, signer, raw)
         return result
 
     def check_identity(
@@ -486,19 +434,12 @@ class AgentScoreCore:
         chain: str | None = None,
         signer: dict[str, str] | None = None,
     ) -> AssessResult:
-        """Convenience method to check using an AgentIdentity object.
-
-        When ``identity.aip_token`` is set it's the sole identity input (the API re-verifies
-        the token + proof-of-possession and evaluates policy against the attested claims);
-        ``aip_signature`` is forwarded with it. See :meth:`check`.
-        """
+        """Convenience method to check using an AgentIdentity object."""
         return self.check(
             address=identity.address,
             chain=chain,
             operator_token=identity.operator_token,
             signer=signer,
-            aip_token=identity.aip_token,
-            aip_signature=identity.aip_signature,
         )
 
     async def acheck_identity(
@@ -507,39 +448,32 @@ class AgentScoreCore:
         chain: str | None = None,
         signer: dict[str, str] | None = None,
     ) -> AssessResult:
-        """Async convenience method to check using an AgentIdentity object.
-
-        See :meth:`check_identity` for the AIP-token forwarding contract.
-        """
+        """Async convenience method to check using an AgentIdentity object."""
         return await self.acheck(
             address=identity.address,
             chain=chain,
             operator_token=identity.operator_token,
             signer=signer,
-            aip_token=identity.aip_token,
-            aip_signature=identity.aip_signature,
         )
 
     def _stash_signer_raw(
         self,
         address: str | None,
         operator_token: str | None,
-        aip_token: str | None,
         signer: dict[str, str] | None,
         raw: dict[str, Any],
     ) -> None:
         """Stash the raw response in the dedicated signer slot for synchronous read-back.
 
         Keyed by the normalized claimed wallet address. ONLY when the wallet is the EFFECTIVE
-        identity (no operator_token, no aip_token) AND a signer was supplied AND the response
-        actually carried signer verdicts: matching the gate's enforcement guard. With an
-        operator-token / AIT present, that identity wins and signer-match is deliberately NOT
+        identity (no operator_token) AND a signer was supplied AND the response actually carried
+        signer verdicts: matching the gate's enforcement guard. With an operator token present,
+        that identity wins and signer-match is deliberately NOT
         enforced, so we must not surface a verdict for that wallet. Mirrors the reference implementation.
         """
         if (
             address is not None
             and operator_token is None
-            and aip_token is None
             and signer is not None
             and (raw.get("signer_match") is not None or raw.get("signer_sanctions") is not None)
         ):

@@ -62,9 +62,6 @@ class SkillMdIdentityRequirements(TypedDict, total=False):
     min_age: int | None
     allowed_jurisdictions: list[str] | None
     sanctions_clear: bool
-    # Whether the merchant accepts AIP Agent Identity Tokens (AgentScore is always a trusted
-    # issuer). When true, the Identity section documents the `Agent-Identity` + RFC 9421 path.
-    aip: bool
 
 
 class SkillMdShippingPolicy(TypedDict, total=False):
@@ -257,7 +254,7 @@ def _identity_section(input: _SkillCtx) -> str:
         reqs.append(f"{'/'.join(allowed)} only")
     if id_.get("sanctions_clear"):
         reqs.append("sanctions clear")
-    if not reqs and not id_.get("aip"):
+    if not reqs:
         return ""
     bootstrap = ""
     if input.identity_bootstrap_url:
@@ -266,19 +263,7 @@ def _identity_section(input: _SkillCtx) -> str:
             "follow the onboarding there first. Bring back the `opc_...` operator token in "
             "`X-Operator-Token` on every gated request."
         )
-    if reqs:
-        req_line = f"This merchant uses AgentScore identity. Required: {', '.join(reqs)}.{bootstrap}"
-    else:
-        req_line = f"This merchant uses AgentScore identity.{bootstrap}"
-    aip_note = ""
-    if id_.get("aip"):
-        aip_note = (
-            "\n\nThis merchant accepts AIP Agent Identity Tokens. If you hold an AIT from a trusted issuer "
-            "(AgentScore is always trusted), present the JWT in an `Agent-Identity` header plus an RFC 9421 "
-            "HTTP Message Signature (`Signature-Input` + `Signature` over `@method @authority @path agent-identity`, "
-            "tag `agent-identity`) signed with the token-bound cnf key, satisfying identity in one round trip, "
-            "no separate AgentScore credential needed. `agentscore-pay pay --identity aip` does this automatically."
-        )
+    req_line = f"This merchant uses AgentScore identity. Required: {', '.join(reqs)}.{bootstrap}"
     denial_note = (
         "Denial bodies carry an `agent_instructions` block describing the recovery action. "
         "Read the `action` field and follow it. See the identity-bootstrap skill for the "
@@ -288,7 +273,7 @@ def _identity_section(input: _SkillCtx) -> str:
         [
             "## Identity Prerequisite",
             "",
-            f"{req_line}{aip_note}",
+            req_line,
             "",
             denial_note,
         ]

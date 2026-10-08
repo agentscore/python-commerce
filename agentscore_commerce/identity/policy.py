@@ -121,7 +121,6 @@ def build_gate_from_policy(
     api_key: str,
     base_url: str = "https://api.agentscore.com",
     create_session_on_missing: CreateSessionOnMissing | None = None,
-    aip_trusted_issuers: list[str] | None = None,
 ) -> AgentScoreGate | None:
     """Build a per-request :class:`AgentScoreGate` from a :class:`PolicyBlock`-shaped mapping.
 
@@ -150,7 +149,6 @@ def build_gate_from_policy(
         blocked_jurisdictions=policy.get("blocked_jurisdictions"),
         allowed_jurisdictions=policy.get("allowed_jurisdictions"),
         create_session_on_missing=create_session_on_missing,
-        aip_trusted_issuers=aip_trusted_issuers,
     )
 
 

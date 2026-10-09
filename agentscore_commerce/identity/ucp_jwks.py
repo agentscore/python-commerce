@@ -2,7 +2,7 @@
 
 UCP §6 (https://ucp.dev/latest/specification/signatures/) requires that profiles
 published at ``/.well-known/ucp`` carry a JWKS-backed signature for trust-mode clients
-(Google AI Mode, Gemini commerce, future ChatGPT app shells). Without a signature,
+(Google Search AI Mode, Gemini commerce, future ChatGPT app shells). Without a signature,
 trust-mode clients reject the profile.
 
 This module provides:

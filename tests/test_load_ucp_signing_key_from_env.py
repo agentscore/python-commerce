@@ -191,6 +191,15 @@ def test_malformed_json_raises_naming_env_var(monkeypatch) -> None:
         load_ucp_signing_key_from_env()
 
 
+def test_malformed_json_keeps_env_value_out_of_the_error(monkeypatch) -> None:
+    monkeypatch.setenv("UCP_SIGNING_KEY_JWK_PRIVATE", '{"secret":SENSITIVEBYTES}')
+    with pytest.raises(ValueError) as info:
+        load_ucp_signing_key_from_env()
+    assert "SENSITIVE" not in str(info.value)
+    assert info.value.__cause__ is None
+    assert info.value.__suppress_context__ is True
+
+
 def test_unsupported_kty_crv_raises_naming_actual(monkeypatch) -> None:
     monkeypatch.setenv(
         "UCP_SIGNING_KEY_JWK_PRIVATE",

@@ -583,9 +583,11 @@ def _build_env_signing_key(
 
         try:
             jwk_dict = json.loads(env_jwk)
-        except json.JSONDecodeError as exc:
-            msg = f"{env_jwk_var} is not valid JSON: {exc}"
-            raise ValueError(msg) from exc
+        except json.JSONDecodeError:
+            # The decode error holds the whole value in ``.doc``, which here is
+            # private key material, so it is not chained onto what is raised.
+            msg = f"{env_jwk_var} is not valid JSON."
+            raise ValueError(msg) from None
 
         if not isinstance(jwk_dict, dict) or not jwk_dict:
             msg = f"{env_jwk_var} must be a non-empty JWK object; got {type(jwk_dict).__name__}."

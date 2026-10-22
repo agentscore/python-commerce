@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentscore-commerce"
-version = "3.2.2"
+version = "3.2.3"
 description = "Agentic commerce SDK for Python: identity middleware (FastAPI, Flask, Django, AIOHTTP, Sanic, ASGI) + payment helpers + 402 builders + discovery + Stripe multichain. The full merchant-side toolkit for AgentScore-powered agentic commerce."
 readme = "README.md"
 license = "MIT"
@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 keywords = ["agentscore", "agentic-commerce", "agentic-payments", "402", "x402", "mpp", "machine-payments-protocol", "fastapi", "starlette", "flask", "django", "aiohttp", "sanic", "middleware", "kyc", "identity", "stripe", "tempo", "solana", "base", "ai-agent"]
 dependencies = [
     "httpx>=0.25.0,<1.0.0",
-    "agentscore-py>=2.8.1",
+    "agentscore-py>=2.8.2",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -36,7 +36,7 @@ starlette = ["starlette>=0.27.0"]
 fastapi = ["fastapi>=0.100.0"]
 flask = ["flask>=2.0.0"]
 django = ["django>=4.0"]
-aiohttp = ["aiohttp>=3.8.0"]
+aiohttp = ["aiohttp>=3.14.4"]
 sanic = ["sanic>=23.0.0"]
 stripe = ["stripe>=11.0.0"]
 # Payment-protocol peer deps for create_x402_server / create_mppx_server.
@@ -46,7 +46,10 @@ stripe = ["stripe>=11.0.0"]
 # https://api.cdp.coinbase.com/platform/v2/x402 with a CDP-JWT auth provider;
 # `cdp-sdk` is the JWT minter. Install via the `coinbase` extra when needed.
 x402 = ["x402[evm,fastapi]>=2.9,<3"]
-mppx = ["pympp[server,tempo,stripe]>=0.6,<1"]
+# aiohttp is floored here too: pympp 0.14 exact-pins yarl and propcache at versions that resolve
+# aiohttp 3.14.3, which carries advisories fixed in 3.14.4, so a fresh install of this extra
+# would otherwise land the vulnerable one.
+mppx = ["pympp[server,tempo,stripe]>=0.6,<1", "aiohttp>=3.14.4"]
 coinbase = ["cdp-sdk>=1.0,<2"]
 ucp = ["joserfc>=1.0.0,<2"]
 redis = ["redis>=5.0,<9"]
@@ -69,7 +72,7 @@ dev = [
     "fastapi>=0.100.0",
     "flask>=2.0.0",
     "django>=4.0",
-    "aiohttp>=3.8.0",
+    "aiohttp>=3.14.4",
     "sanic>=23.0.0",
     "sanic-testing>=24.0.0",
     "pytest-cov>=6.0",

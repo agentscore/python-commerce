@@ -67,6 +67,7 @@ flask = [
     { name = "flask" },
 ]
 mppx = [
+    { name = "aiohttp" },
     { name = "pympp", extra = ["server", "stripe", "tempo"] },
 ]
 redis = [
@@ -118,7 +119,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "agentscore-py", specifier = ">=2.8.2" },
-    { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
+    { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.14.4" },
+    { name = "aiohttp", marker = "extra == 'mppx'", specifier = ">=3.14.4" },
     { name = "cdp-sdk", marker = "extra == 'coinbase'", specifier = ">=1.0,<2" },
     { name = "django", marker = "extra == 'django'", specifier = ">=4.0" },
     { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.100.0" },
@@ -137,7 +139,7 @@ provides-extras = ["starlette", "fastapi", "flask", "django", "aiohttp", "sanic"
 [package.metadata.requires-dev]
 dev = [
     { name = "a2a-sdk", specifier = ">=1.2.1" },
-    { name = "aiohttp", specifier = ">=3.8.0" },
+    { name = "aiohttp", specifier = ">=3.14.4" },
     { name = "anyio", extras = ["trio"], specifier = ">=4.0" },
     { name = "cdp-sdk", specifier = ">=1.0,<2" },
     { name = "django", specifier = ">=4.0" },

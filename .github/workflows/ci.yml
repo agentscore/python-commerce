@@ -22,7 +22,7 @@ jobs:
       - uses: useblacksmith/checkout@v1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           version: "0.13.5"
 
@@ -69,7 +69,7 @@ jobs:
       - uses: useblacksmith/checkout@v1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           version: "0.13.5"
 
